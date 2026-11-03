@@ -40,7 +40,7 @@ class _TimetablePageState extends State<TimetablePage> {
               builder: (context, snapshot) {
                 return ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 150),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
                   children: [
                     Center(
                       child: ConstrainedBox(

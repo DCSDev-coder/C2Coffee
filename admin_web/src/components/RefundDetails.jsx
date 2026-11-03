@@ -186,7 +186,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
             </button>
             <h1 className="text-2xl font-bold text-gray-900">Refund Reviews</h1>
             <InfoTooltip
-              content="Review, approve, or reject customer refund claims. Approved token refunds are instantly credited back to customer wallets."
+              content="Review, approve, or reject customer refund claims. Approved token refunds are instantly credited back to customer C2 Credit."
               title="Refund Reviews"
             />
           </div>

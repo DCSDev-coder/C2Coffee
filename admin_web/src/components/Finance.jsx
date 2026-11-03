@@ -53,9 +53,9 @@ const topUpMethodLabel = (method) => {
     case 'duitnow_qr':
       return 'DuitNow QR';
     case 'ewallet':
-      return 'E-wallet';
+      return 'Online Payment';
     case 'touch_n_go':
-      return 'Touch n Go eWallet (legacy)';
+      return 'Touch n Go online payment (legacy)';
     case 'card':
       return 'Credit or debit card';
     case 'bank_transfer':
@@ -325,7 +325,7 @@ const Finance = ({ setCurrentPage }) => {
                 subtitle={`${tokenRefundRate.toFixed(1)}% of token volume`}
                 icon={ReceiptText}
                 iconBg="bg-[#E07A5F]"
-                info="Total tokens refunded back to customer wallets from cancelled or returned orders."
+                info="Total tokens refunded back to customer C2 Credit from cancelled or returned orders."
               />
               <StatCard
                 title="Orders Processed"
@@ -344,10 +344,10 @@ const Finance = ({ setCurrentPage }) => {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-bold text-gray-900">Top-up Payment Methods</h3>
-                <InfoTooltip content="Distribution of customer wallet token reloads by payment gateway method." title="Top-up Methods" />
+                <InfoTooltip content="Distribution of customer C2 Credit token reloads by payment gateway method." title="Top-up Methods" />
               </div>
               <p className="mt-1 text-sm text-gray-500">Paid token top-ups by the method selected at checkout.</p>
-              {selectedStoreId && <p className="mt-1 text-xs font-medium text-amber-700">Top-ups are tenant-wide wallet transactions. The outlet filter applies to orders and refunds, not this section.</p>}
+              {selectedStoreId && <p className="mt-1 text-xs font-medium text-amber-700">Top-ups are tenant-wide C2 Credit transactions. The outlet filter applies to orders and refunds, not this section.</p>}
             </div>
             <div className="rounded-full bg-[#EEF6F3] px-3 py-1 text-xs font-semibold text-[#1F5A4D]">
               {mostUsedTopUpMethod ? `Most used: ${topUpMethodLabel(mostUsedTopUpMethod.method)}` : 'No paid top-ups yet'}

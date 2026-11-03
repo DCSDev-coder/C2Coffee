@@ -570,7 +570,7 @@ class _MyRewardsPageState extends State<MyRewardsPage>
     final message = isAvailable
         ? 'How to use: ${voucher!.template.usageInstructions}'
         : voucher == null
-            ? 'This promotion is not currently available in your wallet.'
+            ? 'This promotion is not currently available in your C2 Credit.'
             : 'This offer has already been used or has expired.';
 
     return Container(

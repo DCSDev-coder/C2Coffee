@@ -3,7 +3,6 @@ import 'package:counter_app/widgets/top_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'current_order_page.dart';
-import '../widgets/floating_bottom_nav.dart';
 
 import 'settings_page.dart';
 import 'side_work_page.dart';
@@ -94,8 +93,8 @@ class _MainLayoutState extends State<MainLayout> {
           TopNotice.info(
             context,
             newlyDue.length == 1
-                ? 'Side work is due: ${newlyDue.single.title}'
-                : '${newlyDue.length} side-work tasks are due.',
+                ? 'Task is due: ${newlyDue.single.title}'
+                : '${newlyDue.length} tasks are due.',
           );
         }
       }
@@ -215,8 +214,6 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final activePage = NavPage.values[_currentIndex];
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -243,9 +240,8 @@ class _MainLayoutState extends State<MainLayout> {
               ],
             ),
           ),
-          const _WorkspaceHeader(),
-          FloatingBottomNav(
-            activePage: activePage,
+          _WorkspaceHeader(
+            currentIndex: _currentIndex,
             onTabSelected: _onTabSelected,
           ),
           ValueListenableBuilder<WorkstationAccessState?>(
@@ -285,7 +281,13 @@ class _MainLayoutState extends State<MainLayout> {
 }
 
 class _WorkspaceHeader extends StatelessWidget {
-  const _WorkspaceHeader();
+  const _WorkspaceHeader({
+    required this.currentIndex,
+    required this.onTabSelected,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onTabSelected;
 
   @override
   Widget build(BuildContext context) => Positioned(
@@ -311,13 +313,154 @@ class _WorkspaceHeader extends StatelessWidget {
         child: Row(
           children: [
             Image.asset('assets/images/c2_logo.png', height: 40),
-            const Spacer(),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: _HeaderNavBar(
+                    currentIndex: currentIndex,
+                    onTabSelected: onTabSelected,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
             const BlinkingOnlineIndicator(),
           ],
         ),
       ),
     ),
   );
+}
+
+class _HeaderNavBar extends StatelessWidget {
+  const _HeaderNavBar({
+    required this.currentIndex,
+    required this.onTabSelected,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onTabSelected;
+
+  static const _navItems = [
+    (Icons.shopping_basket_outlined, Icons.shopping_basket_rounded, 'Orders'),
+    (Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Timetable'),
+    (Icons.checklist_outlined, Icons.task_alt_rounded, 'Tasks'),
+    (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.12),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(_navItems.length, (index) {
+          final isSelected = currentIndex == index;
+          final item = _navItems[index];
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => onTabSelected(index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.14),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isSelected ? item.$2 : item.$1,
+                        color: isSelected
+                            ? const Color(0xFF203E32)
+                            : Colors.white.withValues(alpha: 0.8),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        item.$3,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          color: isSelected
+                              ? const Color(0xFF203E32)
+                              : Colors.white.withValues(alpha: 0.85),
+                          fontSize: 14.5,
+                          fontWeight:
+                              isSelected ? FontWeight.w800 : FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      if (index == 0) ...[
+                        ValueListenableBuilder<List<CurrentOrder>>(
+                          valueListenable: globalCurrentOrders,
+                          builder: (context, orders, _) {
+                            final count = orders.length;
+                            if (count == 0) return const SizedBox.shrink();
+                            return Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? const Color(0xFF203E32)
+                                    : const Color(0xFFE8B349),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$count',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF203E32),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
 }
 
 class _ShiftAccessLoadingGate extends StatelessWidget {

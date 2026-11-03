@@ -86,7 +86,7 @@ String friendlyCustomerErrorMessage(
     case 'order_cannot_be_cancelled':
       return 'This order is already being prepared and can no longer be cancelled in the app.';
     case 'refund_already_in_progress':
-      return 'A token return is already being processed for this order. Please check your wallet shortly.';
+      return 'A token return is already being processed for this order. Please check your C2 Credit shortly.';
     case 'store_closed':
       return 'This outlet is currently closed. Choose an open outlet before ordering.';
     case 'mobile_ordering_closed':

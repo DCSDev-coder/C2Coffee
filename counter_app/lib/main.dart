@@ -1036,6 +1036,32 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     return item.priceRm + counterCartModifierTotal(modifiers);
   }
 
+  List<String> _getCartItemDisplayModifiers(Map<String, dynamic> cartItem) {
+    final item = cartItem['item'] as CounterMenuItem;
+    final customization =
+        cartItem['customization'] as Map<String, dynamic>? ?? {};
+    final modifiers = buildCounterCartModifiers(
+      item: item,
+      customization: customization,
+      orderType: _orderType,
+    );
+
+    return modifiers
+        .where(
+          (m) => m['group_name']?.toString().toLowerCase() != 'order type',
+        )
+        .map((m) {
+          final name = m['option_name']?.toString().trim() ?? '';
+          final priceDelta = (m['price_delta_rm'] as num?)?.toDouble() ?? 0.0;
+          if (priceDelta > 0) {
+            return '$name (+RM ${priceDelta.toStringAsFixed(2)})';
+          }
+          return name;
+        })
+        .where((name) => name.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1057,52 +1083,180 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             title: Row(
               children: [Image.asset('assets/images/c2_logo.png', height: 32)],
             ),
-            actions: const [SizedBox(width: 16)],
-          ),
-          endDrawer: Drawer(width: 350, child: _buildCartUI()),
-          floatingActionButton: Builder(
-            builder: (context) => FloatingActionButton(
-              onPressed: () => Scaffold.of(context).openEndDrawer(),
-              backgroundColor: AppColors.primary,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Center(
-                    child: Icon(
-                      Icons.shopping_bag_outlined,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  if (_cart.isNotEmpty)
-                    Positioned(
-                      top: -4,
-                      right: -4,
+            actions: [
+              if (_orderType != null) ...[
+                Center(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _showChangeOrderTypeDialog,
+                      borderRadius: BorderRadius.circular(20),
                       child: Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE5A93C),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${_cart.fold<int>(0, (sum, item) => sum + (item['quantity'] as int? ?? 1))}',
-                          style: const TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
+                            width: 1.2,
                           ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              (_orderType == 'Self-Pickup' ||
+                                      _orderType == 'Dine In')
+                                  ? Icons.local_cafe_rounded
+                                  : Icons.takeout_dining_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              (_orderType == 'Self-Pickup' ||
+                                      _orderType == 'Dine In')
+                                  ? 'Self-Pickup'
+                                  : 'Take Away',
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.sync_alt_rounded,
+                              size: 14,
+                              color: Colors.white70,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              const SizedBox(width: 16),
+            ],
           ),
+          endDrawer: Drawer(width: 350, child: _buildCartUI()),
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: (_orderType == null || _cart.isEmpty)
+              ? null
+              : Builder(
+                  builder: (context) {
+                    final totalQty = _cart.fold<int>(
+                      0,
+                      (sum, item) => sum + (item['quantity'] as int? ?? 1),
+                    );
+                    final totalPrice = _getCartTotal();
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => Scaffold.of(context).openEndDrawer(),
+                        borderRadius: BorderRadius.circular(30),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.38),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE5A93C),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.shopping_bag_outlined,
+                                      size: 15,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$totalQty',
+                                      style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'RM ${totalPrice.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Container(
+                                width: 1,
+                                height: 16,
+                                color: Colors.white24,
+                              ),
+                              const SizedBox(width: 14),
+                              const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'View Basket',
+                                    style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
           body: _orderType == null
               ? _buildOrderTypeSelection()
               : _buildPOSView(),
@@ -1123,14 +1277,72 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           ),
           color: AppColors.secondary.withValues(alpha: 0.1),
           width: double.infinity,
-          child: const Text(
-            'Your Basket',
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Your Basket',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              if (_orderType != null)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _showChangeOrderTypeDialog,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            (_orderType == 'Self-Pickup' ||
+                                    _orderType == 'Dine In')
+                                ? Icons.local_cafe_rounded
+                                : Icons.takeout_dining_rounded,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            (_orderType == 'Self-Pickup' ||
+                                    _orderType == 'Dine In')
+                                ? 'Self-Pickup'
+                                : 'Take Away',
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          const Icon(
+                            Icons.edit,
+                            size: 12,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         Expanded(
@@ -1146,24 +1358,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     final qty = cartItem['quantity'] as int;
                     final price = _getCartItemPrice(cartItem);
 
-                    final List<String> mods = [];
-                    final customization =
-                        cartItem['customization'] as Map<String, dynamic>;
-                    if (customization['bean'] != null) {
-                      mods.add(customization['bean']);
-                    }
-                    if (customization['temperature'] != null) {
-                      mods.add(customization['temperature']);
-                    }
-                    if (customization['milk'] != null) {
-                      mods.add(customization['milk']);
-                    }
-                    if (customization['sweetness'] != null) {
-                      mods.add(customization['sweetness']);
-                    }
-                    if (customization['iceLevel'] != null) {
-                      mods.add(customization['iceLevel']);
-                    }
+                    final displayMods = _getCartItemDisplayModifiers(cartItem);
 
                     return ListTile(
                       title: Text(
@@ -1176,12 +1371,17 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (mods.isNotEmpty)
-                            Text(
-                              mods.join(', '),
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 13.5,
+                          if (displayMods.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, bottom: 4),
+                              child: Text(
+                                displayMods.join(' • '),
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 13.5,
+                                  color: Colors.grey.shade700,
+                                  height: 1.25,
+                                ),
                               ),
                             ),
                           Text(
@@ -1997,8 +2197,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             if (methods.contains('ewallet'))
               _paymentChoiceCard(
                 icon: Icons.account_balance_wallet_outlined,
-                title: 'E-Wallet',
-                subtitle: 'Continue to an available supported wallet',
+                title: 'Online Payment',
+                subtitle: 'Continue to an available supported payment method',
                 onTap: () => Navigator.pop(dialogContext, 'ewallet'),
               ),
             const SizedBox(height: 16),
@@ -2240,7 +2440,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         final methods = await _paymentService.paymentMethods(deviceToken);
         if (methods.isEmpty) {
           throw const CounterPaymentException(
-            'QR and e-wallet payments are currently unavailable.',
+            'QR and online payments are currently unavailable.',
           );
         }
         method = await _choosePaymentMethod(methods, amountRm: amountRm);
@@ -2255,7 +2455,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         deviceToken: deviceToken,
         sessionToken: session.isGuest ? null : session.sessionToken,
         paymentMethod: method,
-        fulfillmentType: _orderType == 'Dine In' ? 'dine_in' : 'take_away',
+        fulfillmentType:
+            (_orderType == 'Self-Pickup' || _orderType == 'Dine In')
+                ? 'dine_in'
+                : 'take_away',
         items: items,
         voucherId: selectedVoucher == null
             ? null
@@ -2618,24 +2821,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       final qty = cartItem['quantity'] as int;
                       final price = _getCartItemPrice(cartItem);
 
-                      final List<String> mods = [];
-                      final customization =
-                          cartItem['customization'] as Map<String, dynamic>;
-                      if (customization['bean'] != null) {
-                        mods.add(customization['bean']);
-                      }
-                      if (customization['temperature'] != null) {
-                        mods.add(customization['temperature']);
-                      }
-                      if (customization['milk'] != null) {
-                        mods.add(customization['milk']);
-                      }
-                      if (customization['sweetness'] != null) {
-                        mods.add(customization['sweetness']);
-                      }
-                      if (customization['iceLevel'] != null) {
-                        mods.add(customization['iceLevel']);
-                      }
+                      final displayMods =
+                          _getCartItemDisplayModifiers(cartItem);
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -2660,13 +2847,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  if (mods.isNotEmpty) ...[
+                                  if (displayMods.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Text(
-                                      mods.join(', '),
+                                      displayMods.join(' • '),
                                       style: const TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 18,
+                                        fontSize: 16,
                                         color: Colors.black54,
                                       ),
                                     ),
@@ -2961,131 +3148,437 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   }
 
   Widget _buildOrderTypeSelection() {
-    return Center(
-      child: Container(
-        width: 600,
-        padding: const EdgeInsets.all(48.0),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Order Type',
-              style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Dine In or Take Away?',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 18,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 48),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        _orderType = 'Dine In';
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          width: 2,
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: const Color(0xFFF7FAF9),
+      child: SafeArea(
+        child: Center(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Container(
+                  width: constraints.maxWidth > 900 ? 880 : constraints.maxWidth * 0.94,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        children: const [
-                          Icon(
-                            Icons.restaurant,
-                            size: 64,
-                            color: AppColors.primary,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.16),
                           ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Dine In',
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.coffee_rounded,
+                              size: 15,
                               color: AppColors.primary,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'C2 COFFEE BAR • ORDER MODE',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.1,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'How would you like your order?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'All orders are freshly prepared and collected at the pick-up counter.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 17,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: _buildOrderTypeCard(
+                              title: 'Self-Pickup',
+                              subtitle: 'Enjoy inside our cafe',
+                              hintText: 'Collect at counter when ready',
+                              icon: Icons.local_cafe_rounded,
+                              iconColor: AppColors.primary,
+                              iconBgStart: const Color(0xFFE8F3F1),
+                              iconBgEnd: const Color(0xFFD3E7E4),
+                              buttonText: 'Select Self-Pickup',
+                              buttonColor: AppColors.primary,
+                              onTap: () {
+                                setState(() {
+                                  _orderType = 'Self-Pickup';
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 28),
+                          Expanded(
+                            child: _buildOrderTypeCard(
+                              title: 'Take Away',
+                              subtitle: 'Grab & go on your way',
+                              hintText: 'Collect at counter when ready',
+                              icon: Icons.takeout_dining_rounded,
+                              iconColor: AppColors.accent,
+                              iconBgStart: const Color(0xFFFBECE8),
+                              iconBgEnd: const Color(0xFFF6D7CF),
+                              buttonText: 'Select Take Away',
+                              buttonColor: AppColors.accent,
+                              onTap: () {
+                                setState(() {
+                                  _orderType = 'Take Away';
+                                });
+                              },
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        _orderType = 'Take Away';
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
-                        border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          width: 2,
+                      const SizedBox(height: 22),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        children: const [
-                          Icon(
-                            Icons.shopping_bag_outlined,
-                            size: 64,
-                            color: AppColors.primary,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceLight.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.1),
                           ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Take Away',
-                            style: TextStyle(
-                              fontFamily: 'Recoleta',
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 18,
                               color: AppColors.primary,
                             ),
-                          ),
-                        ],
+                            SizedBox(width: 8),
+                            Text(
+                              'Our barista will call your order at the counter when ready.',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ],
+              );
+            },
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildOrderTypeCard({
+    required String title,
+    required String subtitle,
+    required String hintText,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBgStart,
+    required Color iconBgEnd,
+    required String buttonText,
+    required Color buttonColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        hoverColor: AppColors.primary.withValues(alpha: 0.04),
+        splashColor: AppColors.primary.withValues(alpha: 0.08),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.14),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [iconBgStart, iconBgEnd],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: iconColor.withValues(alpha: 0.18),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  size: 44,
+                  color: iconColor,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                hintText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 14,
+                  color: Colors.black54,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                decoration: BoxDecoration(
+                  color: buttonColor,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: buttonColor.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      buttonText,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 17,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showChangeOrderTypeDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text(
+            'Change Order Type',
+            style: TextStyle(
+              fontFamily: 'Recoleta',
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Switch how you want this order prepared:',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.local_cafe_rounded,
+                    color: AppColors.primary,
+                  ),
+                ),
+                title: const Text(
+                  'Self-Pickup',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Enjoy in cafe • Collect at counter',
+                  style: TextStyle(fontFamily: 'Afacad', fontSize: 13),
+                ),
+                trailing: (_orderType == 'Self-Pickup' ||
+                        _orderType == 'Dine In')
+                    ? const Icon(Icons.check_circle, color: AppColors.primary)
+                    : null,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: (_orderType == 'Self-Pickup' ||
+                            _orderType == 'Dine In')
+                        ? AppColors.primary
+                        : Colors.grey.shade200,
+                    width: 1.5,
+                  ),
+                ),
+                onTap: () {
+                  setState(() {
+                    _orderType = 'Self-Pickup';
+                  });
+                  Navigator.pop(ctx);
+                },
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.takeout_dining_rounded,
+                    color: AppColors.accent,
+                  ),
+                ),
+                title: const Text(
+                  'Take Away',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Packed to-go • Collect at counter',
+                  style: TextStyle(fontFamily: 'Afacad', fontSize: 13),
+                ),
+                trailing: _orderType == 'Take Away'
+                    ? const Icon(Icons.check_circle, color: AppColors.accent)
+                    : null,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: _orderType == 'Take Away'
+                        ? AppColors.accent
+                        : Colors.grey.shade200,
+                    width: 1.5,
+                  ),
+                ),
+                onTap: () {
+                  setState(() {
+                    _orderType = 'Take Away';
+                  });
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -3137,8 +3630,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
-          height: 64,
-          color: Colors.white,
+          height: 60,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                width: 1,
+              ),
+            ),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ValueListenableBuilder<String?>(
             valueListenable: _selectedCategory,
@@ -3165,22 +3666,40 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? AppColors.primary
-                            : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(24),
+                            : const Color(0xFFF3F7F6),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.primary.withValues(alpha: 0.06),
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.22),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
                       ),
                       alignment: Alignment.center,
                       child: Text(
                         category.toUpperCase(),
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: isSelected ? Colors.white : Colors.black87,
+                          letterSpacing: 0.6,
+                          color: isSelected
+                              ? Colors.white
+                              : const Color(0xFF3B4E4A),
                         ),
                       ),
                     ),
@@ -3192,26 +3711,26 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         ),
         Expanded(
           child: Container(
-            color: Colors.white,
+            color: const Color(0xFFFBFDFD),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+                  padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 6.0),
                   child: Container(
-                    height: 54,
+                    height: 50,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(27),
+                      color: const Color(0xFFF4F8F7),
+                      borderRadius: BorderRadius.circular(25),
                       border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        width: 1.5,
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        width: 1.2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
@@ -3220,18 +3739,18 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         controller: _searchController,
                         textAlignVertical: TextAlignVertical.center,
                         decoration: InputDecoration(
-                          hintText: 'Search for your favorite drinks...',
+                          hintText: 'Search for your favorite drinks or food...',
                           hintStyle: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 16,
+                            fontSize: 15.5,
                             color: Colors.grey.shade500,
                           ),
                           prefixIcon: const Padding(
                             padding: EdgeInsets.only(left: 16.0, right: 8.0),
                             child: Icon(
-                              Icons.search,
+                              Icons.search_rounded,
                               color: AppColors.primary,
-                              size: 24,
+                              size: 22,
                             ),
                           ),
                           suffixIcon: _searchQuery.isNotEmpty
@@ -3239,7 +3758,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                   icon: const Icon(
                                     Icons.cancel,
                                     color: Colors.grey,
-                                    size: 20,
+                                    size: 18,
                                   ),
                                   onPressed: () {
                                     _searchController.clear();
@@ -3252,7 +3771,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         ),
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 17,
+                          fontSize: 16,
                           color: Colors.black87,
                         ),
                       ),
@@ -3262,7 +3781,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 80.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: categories.map((category) {
@@ -3285,17 +3804,61 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             children: [
                               Padding(
                                 padding: const EdgeInsets.only(
-                                  bottom: 12,
-                                  top: 4,
+                                  bottom: 14,
+                                  top: 10,
                                 ),
-                                child: Text(
-                                  category.toUpperCase(),
-                                  style: const TextStyle(
-                                    fontFamily: 'Recoleta',
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                  ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 4,
+                                      height: 18,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      category.toUpperCase(),
+                                      style: const TextStyle(
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary
+                                            .withValues(alpha: 0.08),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        '${categoryItems.length}',
+                                        style: const TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Divider(
+                                        color: AppColors.primary
+                                            .withValues(alpha: 0.12),
+                                        thickness: 1,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               LayoutBuilder(
@@ -3316,34 +3879,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                     gridDelegate:
                                         SliverGridDelegateWithFixedCrossAxisCount(
                                           crossAxisCount: crossAxisCount,
-                                          childAspectRatio: 0.65,
-                                          crossAxisSpacing: 12,
-                                          mainAxisSpacing: 12,
+                                          childAspectRatio: 0.72,
+                                          crossAxisSpacing: 14,
+                                          mainAxisSpacing: 14,
                                         ),
                                     itemCount: categoryItems.length,
                                     itemBuilder: (context, index) {
                                       final item = categoryItems[index];
                                       final price = item.priceRm;
-                                      return Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.grey.shade300,
-                                            width: 1,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.04,
-                                              ),
-                                              blurRadius: 8,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
+                                      return Material(
+                                        color: Colors.transparent,
                                         child: InkWell(
                                           onTap: () async {
                                             final customization =
@@ -3363,76 +3908,276 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                             }
                                           },
                                           borderRadius: BorderRadius.circular(
-                                            16,
+                                            18,
                                           ),
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Expanded(
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(
+                                          hoverColor: AppColors.primary
+                                              .withValues(alpha: 0.03),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
+                                              border: Border.all(
+                                                color: AppColors.primary
+                                                    .withValues(alpha: 0.1),
+                                                width: 1.2,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.04),
+                                                  blurRadius: 10,
+                                                  offset: const Offset(0, 3),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                Expanded(
+                                                  child: Container(
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                      color: Color(0xFFF7FAF9),
+                                                      borderRadius:
+                                                          BorderRadius.vertical(
+                                                        top: Radius.circular(
+                                                          17,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    child: Stack(
+                                                      children: [
+                                                        Center(
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .all(12),
+                                                            child: item.imageUrl !=
+                                                                    null
+                                                                ? Image.network(
+                                                                    item.imageUrl!,
+                                                                    fit: BoxFit
+                                                                        .contain,
+                                                                    errorBuilder: (
+                                                                      context,
+                                                                      error,
+                                                                      stackTrace,
+                                                                    ) => const Icon(
+                                                                      Icons
+                                                                          .coffee,
+                                                                      size: 48,
+                                                                      color: AppColors
+                                                                          .secondary,
+                                                                    ),
+                                                                  )
+                                                                : const Icon(
+                                                                    Icons
+                                                                        .coffee,
+                                                                    size: 48,
+                                                                    color: AppColors
+                                                                        .secondary,
+                                                                  ),
+                                                          ),
+                                                        ),
+                                                        if (item
+                                                            .isHandcraftedDrink)
+                                                          Positioned(
+                                                            top: 8,
+                                                            left: 8,
+                                                            child: Container(
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .symmetric(
+                                                                horizontal: 7,
+                                                                vertical: 3,
+                                                              ),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: Colors
+                                                                    .white
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.92,
+                                                                    ),
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                          8,
+                                                                        ),
+                                                                border:
+                                                                    Border.all(
+                                                                  color: AppColors
+                                                                      .primary
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.12,
+                                                                      ),
+                                                                ),
+                                                              ),
+                                                              child: const Text(
+                                                                'CRAFT',
+                                                                style:
+                                                                    TextStyle(
+                                                                  fontFamily:
+                                                                      'Afacad',
+                                                                  fontSize:
+                                                                      10.5,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  letterSpacing:
+                                                                      0.6,
+                                                                  color: AppColors
+                                                                      .primary,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                    12,
+                                                    10,
+                                                    12,
                                                     12,
                                                   ),
-                                                  child: Center(
-                                                    child: item.imageUrl != null
-                                                        ? Image.network(
-                                                            item.imageUrl!,
-                                                            fit: BoxFit.contain,
-                                                            errorBuilder:
-                                                                (
-                                                                  context,
-                                                                  error,
-                                                                  stackTrace,
-                                                                ) => const Icon(
-                                                                  Icons.coffee,
-                                                                  size: 48,
-                                                                  color: AppColors
-                                                                      .secondary,
-                                                                ),
-                                                          )
-                                                        : const Icon(
-                                                            Icons.coffee,
-                                                            size: 48,
-                                                            color: AppColors
-                                                                .secondary,
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        item.name,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: const TextStyle(
+                                                          fontFamily:
+                                                              'Recoleta',
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: Color(
+                                                            0xFF1E2826,
                                                           ),
+                                                          height: 1.15,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 3),
+                                                      Text(
+                                                        item.isHandcraftedDrink
+                                                            ? 'Customisable'
+                                                            : (item.categoryName ??
+                                                                'Beverage'),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontFamily: 'Afacad',
+                                                          fontSize: 12.5,
+                                                          color: Colors
+                                                              .grey.shade600,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .spaceBetween,
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          RichText(
+                                                            text: TextSpan(
+                                                              children: [
+                                                                const TextSpan(
+                                                                  text: 'RM ',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    fontFamily:
+                                                                        'Afacad',
+                                                                    fontSize:
+                                                                        13,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    color: AppColors
+                                                                        .primary,
+                                                                  ),
+                                                                ),
+                                                                TextSpan(
+                                                                  text: price
+                                                                      .toStringAsFixed(
+                                                                        2,
+                                                                      ),
+                                                                  style:
+                                                                      const TextStyle(
+                                                                    fontFamily:
+                                                                        'Afacad',
+                                                                    fontSize:
+                                                                        17,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    color: AppColors
+                                                                        .primary,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          Container(
+                                                            width: 32,
+                                                            height: 32,
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: AppColors
+                                                                  .primary,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                        10,
+                                                                      ),
+                                                              boxShadow: [
+                                                                BoxShadow(
+                                                                  color: AppColors
+                                                                      .primary
+                                                                      .withValues(
+                                                                        alpha:
+                                                                            0.25,
+                                                                      ),
+                                                                  blurRadius: 6,
+                                                                  offset:
+                                                                      const Offset(
+                                                                    0,
+                                                                    2,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            child: const Icon(
+                                                              Icons.add_rounded,
+                                                              color:
+                                                                  Colors.white,
+                                                              size: 20,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
-                                              ),
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                    ),
-                                                child: Text(
-                                                  item.name,
-                                                  maxLines: 2,
-                                                  textAlign: TextAlign.center,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    fontFamily: 'Recoleta',
-                                                    fontSize: 15.5,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black87,
-                                                    height: 1.15,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'RM ${price.toStringAsFixed(2)}',
-                                                textAlign: TextAlign.center,
-                                                style: const TextStyle(
-                                                  fontFamily: 'Afacad',
-                                                  fontSize: 14.5,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black87,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 16),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       );

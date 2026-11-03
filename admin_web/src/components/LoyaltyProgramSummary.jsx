@@ -85,7 +85,7 @@ const LoyaltyProgramSummary = ({ overview, onBack }) => {
           <StatCard
             title="Average Tokens per Member"
             value={overview ? averageTokensPerMember.toFixed(2) : '—'}
-            change="Wallet balance"
+          change="C2 Credit balance"
             icon={Coins}
             iconBg="bg-[#6F9F96]"
           />

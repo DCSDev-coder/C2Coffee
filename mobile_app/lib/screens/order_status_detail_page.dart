@@ -125,7 +125,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
               ('fpx', 'FPX Online Banking'),
               ('duitnow_qr', 'DuitNow QR'),
               ('card', 'Debit / Credit Card'),
-              ('ewallet', 'E-wallet'),
+              ('ewallet', 'Online Payment'),
             ])
               ListTile(
                 title: Text(option.$2,
@@ -618,7 +618,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       case 'cancelled':
         return 'This order was cancelled. Contact support if you need help.';
       case 'refunded':
-        return 'This order was refunded. Check your wallet history for any token return.';
+        return 'This order was refunded. Check your C2 Credit history for any token return.';
       default:
         return 'Open My Order for the latest details.';
     }

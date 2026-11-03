@@ -127,7 +127,7 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
           AppNotification.showSuccess(
             context,
             status == 'delivered'
-                ? 'Gift card $code was added to the recipient wallet.'
+                ? 'Gift card $code was added to the recipient C2 Credit.'
                 : 'Gift card $code is active and ready to share.',
           );
         } else {
@@ -473,7 +473,7 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
       'fpx': 'FPX Online Banking',
       'duitnow_qr': 'DuitNow QR',
       'card': 'Credit / Debit Card',
-      'ewallet': 'E-Wallet',
+  'ewallet': 'Online Payment',
     };
     const quickCustomAmounts = [15, 30, 75, 150, 200];
 
@@ -1178,7 +1178,7 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
         AppNotification.showSuccess(
           context,
           purchase.status == 'delivered'
-              ? 'Gift card delivered directly to the recipient wallet.'
+              ? 'Gift card delivered directly to the recipient C2 Credit.'
               : 'Gift card created! Code: ${purchase.code}',
         );
       } else {
@@ -1693,7 +1693,7 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
     final remainingValue = double.tryParse(card.remainingAmount) ?? 0;
     final valueText = 'RM ${originalValue.toStringAsFixed(2)}';
     final valueStatus = card.status == 'depleted'
-        ? (isSent ? 'Transferred to recipient' : 'Added to wallet')
+        ? (isSent ? 'Transferred to recipient' : 'Added to C2 Credit')
         : 'Remaining RM ${remainingValue.toStringAsFixed(2)}';
 
     return Padding(

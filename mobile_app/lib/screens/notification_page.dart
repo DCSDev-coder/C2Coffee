@@ -210,7 +210,7 @@ class _NotificationPageState extends State<NotificationPage> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'New order status alerts, wallet top-ups, and reward updates will continue to appear here automatically.',
+                'New order status alerts, C2 Credit top-ups, and reward updates will continue to appear here automatically.',
                 style: TextStyle(
                   fontFamily: 'Afacad',
                   fontSize: 15.5,

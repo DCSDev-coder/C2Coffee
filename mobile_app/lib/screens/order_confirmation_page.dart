@@ -679,10 +679,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   Widget _buildPaymentMethodSummary(CartSnapshot snapshot) {
     final isToken = _paymentMode == 'token';
     final label = isToken
-        ? 'C2 Token Wallet'
+        ? 'C2 Credit'
         : switch (_directPaymentMethod) {
             'duitnow_qr' => 'DuitNow QR',
-            'ewallet' => 'E-wallet',
+            'ewallet' => 'Online Payment',
             'card' => 'Card',
             _ => 'FPX Online Banking',
           };
@@ -1492,7 +1492,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       child: Text(
                         _paymentMode == 'direct'
                             ? 'Paid securely through CHIP'
-                            : 'Charged from your C2 Token Wallet',
+                            : 'Charged from your C2 Credit',
                         style: const TextStyle(
                           fontFamily: 'Afacad',
                           fontSize: 13.5,
@@ -1883,7 +1883,7 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
     })>[
       (
         key: 'token',
-        label: 'C2 Token Wallet',
+        label: 'C2 Credit',
         icon: Icons.account_balance_wallet_outlined,
         enabled: true,
       ),
@@ -1901,7 +1901,7 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
       ),
       (
         key: 'ewallet',
-        label: 'E-wallet',
+        label: 'Online Payment',
         icon: Icons.account_balance_wallet_outlined,
         enabled: widget.directPaymentMethods.contains('ewallet'),
       ),

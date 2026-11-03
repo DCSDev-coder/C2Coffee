@@ -1,3 +1,9 @@
+// The API currently stores FCM registration tokens for server push delivery.
+// firebase_messaging 17 also exposes Firebase Installation IDs, but those are
+// a different backend contract and cannot replace FCM tokens without an API
+// migration. Keep the token calls until that migration is planned.
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:io';
 
@@ -320,12 +326,12 @@ class PushNotificationService {
       case 'gift_card_received':
         await AppSessionService.instance.loadAuthenticatedState(force: true);
         AppNotification.showSuccess(
-            null, 'A gift card was added to your C2 Token wallet.');
+            null, 'A gift card was added to your C2 Credit.');
         if (opened) _openNotificationDestination(const TopUpWalletPage());
         break;
       case 'gift_card_delivery_pending':
         AppNotification.showWarning(
-            null, 'A gift card is waiting for available wallet space.');
+            null, 'A gift card is waiting for available C2 Credit capacity.');
         if (opened) _openNotificationDestination(const MyRewardsPage());
         break;
     }
@@ -374,14 +380,14 @@ class PushNotificationService {
       'customer_message' => 'Open Notifications to read the latest message.',
       'payment_service_notice' =>
         'Open Notifications to check the affected payment method and time.',
-      'token_topup_paid' => 'Your C2 Tokens are ready in your wallet.',
+      'token_topup_paid' => 'Your C2 Tokens are ready in your C2 Credit.',
       'token_topup_failed' => 'No C2 Tokens were added.',
       'token_topup_cancelled' => 'No C2 Tokens were added.',
-      'token_topup_refunded' => 'Open your wallet for the latest status.',
+      'token_topup_refunded' => 'Open your C2 Credit for the latest status.',
       'token_topup_review' => 'Open Notifications for details.',
-      'gift_card_received' => 'C2 Tokens were added to your wallet.',
+      'gift_card_received' => 'C2 Tokens were added to your C2 Credit.',
       'gift_card_delivery_pending' =>
-        'Make wallet space, then claim your gift card.',
+        'Make space in your C2 Credit, then claim your gift card.',
       _ => null,
     };
     if (title == null || body == null) return;

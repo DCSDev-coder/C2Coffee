@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'loading_order_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -17,7 +18,6 @@ import 'terms_of_use_page.dart';
 import 'about_us_page.dart';
 import 'contact_support_page.dart';
 import 'tutorial_page.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';

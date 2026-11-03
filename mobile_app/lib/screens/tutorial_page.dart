@@ -32,7 +32,7 @@ class TutorialPage extends StatelessWidget {
       icon: Icons.account_balance_wallet_outlined,
       title: 'Pay with C2 Tokens',
       description:
-          'Orders use your prepaid C2 Token balance. One token equals RM 1. Top up from Wallet, choose a package and complete payment with an available method.',
+          'Orders use your prepaid C2 Token balance. One token equals RM 1. Add credit from C2 Credit, choose a package and complete payment with an available method.',
       tip: 'Tokens appear only after the payment provider confirms the top-up.',
     ),
     _GuideSection(
@@ -226,7 +226,7 @@ class _IntroCard extends StatelessWidget {
                 filled: true,
               ),
               _TourButton(
-                label: 'Wallet Tour',
+                label: 'C2 Credit Tour',
                 icon: Icons.account_balance_wallet_outlined,
                 onPressed: onReplayWallet,
                 filled: false,

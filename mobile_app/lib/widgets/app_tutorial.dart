@@ -55,7 +55,7 @@ class AppTutorial {
           eyebrow: 'YOUR BALANCE',
           title: 'Tokens at a glance',
           description:
-              'Your available tokens are always shown here. Tap this wallet to view top-up options and transaction details.',
+              'Your available tokens are always shown here. Tap C2 Credit to view top-up options and transaction details.',
         ),
         _TutorialStep(
           targetKey: targets.bottomNavKeys[1],
@@ -95,10 +95,10 @@ class AppTutorial {
         _TutorialStep(
           targetKey: targets.balanceKey,
           icon: Icons.account_balance_wallet_outlined,
-          eyebrow: 'WALLET SUMMARY',
+          eyebrow: 'C2 CREDIT SUMMARY',
           title: 'Know what you can spend',
           description:
-              'This card shows your available tokens, tokens reserved by pending orders, and the maximum balance your wallet can hold.',
+              'This card shows your available tokens, tokens reserved by pending orders, and the maximum C2 Credit balance you can hold.',
         ),
         _TutorialStep(
           targetKey: targets.packagesKey,
@@ -106,7 +106,7 @@ class AppTutorial {
           eyebrow: 'TOP-UP AMOUNT',
           title: 'Enter your top-up amount',
           description:
-              'Enter any whole-ringgit amount from RM 1 within your remaining wallet capacity. One C2 Token equals RM 1.',
+              'Enter any whole-ringgit amount from RM 1 within your remaining C2 Credit capacity. One C2 Token equals RM 1.',
         ),
         _TutorialStep(
           targetKey: targets.paymentKey,

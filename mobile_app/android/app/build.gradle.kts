@@ -88,6 +88,12 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    firebaseCrashlytics {
+        // Keep release stack traces deobfuscated and upload native symbols.
+        mappingFileUploadEnabled = true
+        nativeSymbolUploadEnabled = true
+    }
 }
 
 dependencies {

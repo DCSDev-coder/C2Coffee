@@ -321,7 +321,7 @@ const LoyaltyTokens = () => {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Token Ledger</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Review wallet balances, token movements, and approved corrections. Customer profiles and order activity stay on Customers.</p>
+          <p className="text-gray-500 text-sm mt-0.5">Review C2 Credit balances, token movements, and approved corrections. Customer profiles and order activity stay on Customers.</p>
         </div>
 
         {loadError && (
@@ -333,16 +333,16 @@ const LoyaltyTokens = () => {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <KPICard
-            title="Wallet Members"
+            title="C2 Credit Members"
             value={isLoading ? '—' : (overview?.summary?.totalMembers ?? 0).toLocaleString('en-US')}
-            change="Customer wallets"
+            change="Customer C2 Credit"
             icon={Users}
             iconBg="bg-[#1F3A34]"
           />
           <KPICard
             title="Tokens Held"
             value={isLoading ? '—' : (overview?.summary?.tokensInCirculation ?? 0).toLocaleString('en-US')}
-            change="Wallet balance"
+            change="C2 Credit balance"
             icon={Coins}
             iconBg="bg-[#6F9F96]"
           />
@@ -356,7 +356,7 @@ const LoyaltyTokens = () => {
             </div>
             <input
               type="text"
-              placeholder="Search wallets by name, phone, or member ID..."
+              placeholder="Search C2 Credit by name, phone, or member ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#1F3A34] focus:border-[#1F3A34]"
@@ -364,7 +364,7 @@ const LoyaltyTokens = () => {
           </div>
 
           <div className="text-xs text-gray-500 lg:ml-2">
-            Showing {groupedMembers.length.toLocaleString('en-US')} wallet members and {filteredTransactions.length.toLocaleString('en-US')} token events
+            Showing {groupedMembers.length.toLocaleString('en-US')} C2 Credit members and {filteredTransactions.length.toLocaleString('en-US')} token events
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -411,11 +411,11 @@ const LoyaltyTokens = () => {
                 <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
                   <tr className="text-left text-xs font-bold text-gray-900">
                     <SortableHeader label="Date & Time" columnKey="time" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Date and time of the latest token activity." />
-                    <SortableHeader label="Wallet Owner" columnKey="customer" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Customer name, contact details, and member ID." />
+                    <SortableHeader label="C2 Credit Owner" columnKey="customer" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Customer name, contact details, and member ID." />
                     <SortableHeader label="Member Tier" columnKey="tier" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Current tier status and benefits band." />
                     <SortableHeader label="Latest Activity" columnKey="activity" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Most recent token earning or redemption transaction." />
                     <SortableHeader label="Tokens" columnKey="tokens" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Token delta on the most recent event." className="text-right" />
-                    <SortableHeader label="Balance" columnKey="balance" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Current total token balance remaining in this customer's wallet." className="text-right" />
+                    <SortableHeader label="Balance" columnKey="balance" currentKey={tokenSortKey} direction={tokenSortDirection} onSort={handleTokenSort} info="Current total token balance remaining in this customer's C2 Credit." className="text-right" />
                     <th className="px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider text-center">Actions</th>
                   </tr>
                 </thead>
@@ -531,12 +531,12 @@ const LoyaltyTokens = () => {
           </div>
         </div>
 
-        {/* Right side: wallet details panel */}
+        {/* Right side: C2 Credit details panel */}
         {selectedCustomer && (
           <div className="w-[35%] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0">
             {/* Header */}
             <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white rounded-t-2xl shrink-0">
-              <h2 className="text-xl font-bold text-gray-900">Wallet Details</h2>
+              <h2 className="text-xl font-bold text-gray-900">C2 Credit Details</h2>
               <button
                 onClick={() => setSelectedCustomer(null)}
                 className="p-1.5 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
@@ -593,7 +593,7 @@ const LoyaltyTokens = () => {
                 {/* Token History */}
                 <div className="pt-2">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-gray-900 text-sm">Recent Wallet Activity</h3>
+                    <h3 className="font-bold text-gray-900 text-sm">Recent C2 Credit Activity</h3>
                     <button
                       onClick={() => setActiveView('tokens')}
                       className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
@@ -644,21 +644,21 @@ const LoyaltyTokens = () => {
                 }}
                 className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >
-                <Edit3 size={16} /> Adjust Wallet
+                <Edit3 size={16} /> Adjust C2 Credit
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Wallet adjustment modal */}
+      {/* C2 Credit adjustment modal */}
       {isEditTokensOpen && selectedCustomer && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-9999 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
           <div className="bg-white rounded-3xl w-full max-w-[440px] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
             <div className="flex justify-between items-center px-6 py-4.5 border-b border-gray-100 bg-white">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-gray-900">Adjust Wallet Tokens</h2>
-                <InfoTooltip content="Add or deduct tokens from customer wallet with mandatory audit reason and confirmation." title="Adjust Wallet" />
+                <h2 className="text-lg font-bold text-gray-900">Adjust C2 Credit Tokens</h2>
+                <InfoTooltip content="Add or deduct tokens from customer C2 Credit with mandatory audit reason and confirmation." title="Adjust C2 Credit" />
               </div>
               <button onClick={() => { setEditTokenPassword(""); setIsEditTokensOpen(false); }} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <X size={20} />
@@ -781,7 +781,7 @@ const LoyaltyTokens = () => {
                     setEditTokenAmount("");
                     setEditTokenPassword("");
                   } catch (error) {
-                    setEditTokenError(error?.message || 'We could not update this token wallet.');
+                    setEditTokenError(error?.message || 'We could not update this C2 Credit balance.');
                   } finally {
                     setIsSavingTokenAdjustment(false);
                   }

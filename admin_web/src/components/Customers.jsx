@@ -726,7 +726,7 @@ const Customers = ({ currentUser }) => {
                     Username
                   </th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tier</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Wallet Tokens</th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">C2 Credit Tokens</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Total Orders</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Order Tokens Spent</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Last Order</th>
@@ -879,7 +879,7 @@ const Customers = ({ currentUser }) => {
 
             <div className="flex justify-between border-y border-gray-100 py-4 mb-6 text-center">
               <div>
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Wallet Tokens</p>
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">C2 Credit Tokens</p>
                 <p className="font-bold text-gray-900">{selectedCustomer.tokens}</p>
               </div>
               <div className="w-px bg-gray-100"></div>

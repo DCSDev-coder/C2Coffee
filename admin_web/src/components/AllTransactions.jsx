@@ -210,7 +210,7 @@ const AllTransactions = ({ onBack }) => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-gray-900">All Transactions</h1>
-              <InfoTooltip content="Comprehensive historical log of order charges, wallet debits, and customer refunds." title="Transaction Ledger" />
+              <InfoTooltip content="Comprehensive historical log of order charges, C2 Credit debits, and customer refunds." title="Transaction Ledger" />
             </div>
             <p className="text-sm text-gray-500 mt-1">
               Live order and refund transactions pulled from the backend.

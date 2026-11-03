@@ -75,7 +75,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
     }
     if (!mounted) return;
     if (result.isSuccess) {
-      TopNotice.success(context, 'Side-work task completed.');
+      TopNotice.success(context, 'Task completed.');
     } else {
       TopNotice.error(context, result.errorMessage!);
     }
@@ -96,7 +96,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
               future: _tasks,
               builder: (context, snapshot) => ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 150),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
                 children: [
                   Center(
                     child: ConstrainedBox(
@@ -111,7 +111,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Side work',
+                                      'Daily Tasks',
                                       style: TextStyle(
                                         color: _ink,
                                         fontSize: 34,
@@ -121,14 +121,14 @@ class _SideWorkPageState extends State<SideWorkPage> {
                                     ),
                                     SizedBox(height: 8),
                                     Text(
-                                      'Cleaning and upkeep tasks published by operations.',
+                                      'Store cleaning, maintenance, and routine tasks.',
                                       style: TextStyle(fontSize: 16),
                                     ),
                                   ],
                                 ),
                               ),
                               IconButton.filledTonal(
-                                tooltip: 'Refresh side work',
+                                tooltip: 'Refresh tasks',
                                 onPressed: _refresh,
                                 icon: const Icon(Icons.refresh_rounded),
                               ),
@@ -165,7 +165,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
         icon: Icons.cloud_off_rounded,
         title: 'Internet connection issue',
         message:
-            'Side-work tasks could not be loaded. Check the connection and refresh.',
+            'Tasks could not be loaded. Check the connection and refresh.',
         onRetry: _refresh,
       );
     }
@@ -192,7 +192,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
         if (tasks.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 55),
-            child: Center(child: Text('No side work scheduled.')),
+            child: Center(child: Text('No tasks scheduled.')),
           )
         else
           ...tasks.map(
@@ -368,7 +368,7 @@ class _SideWorkCompletionSheetState extends State<_SideWorkCompletionSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Complete side work',
+              'Complete task',
               style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 6),

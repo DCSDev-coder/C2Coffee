@@ -572,7 +572,7 @@ export default function ReferralProgram() {
             <div>
               <h2 className="text-sm font-bold text-amber-950">Unresolved Referral Rewards ({rewardJobs.length})</h2>
               <p className="mt-0.5 text-xs text-amber-800">
-                Pending rewards blocked by wallet cap, account issues, or voucher availability. Retry after resolving issues or waive with authorization.
+                Pending rewards blocked by C2 Credit cap, account issues, or voucher availability. Retry after resolving issues or waive with authorization.
               </p>
             </div>
           </div>

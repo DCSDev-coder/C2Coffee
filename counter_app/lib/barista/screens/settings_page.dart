@@ -186,7 +186,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 148),
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
                 children: [
                   const Text(
                     'Workstation',
@@ -1080,7 +1080,7 @@ class _SideWorkPinSheetState extends State<_SideWorkPinSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Complete side work',
+            'Complete task',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),

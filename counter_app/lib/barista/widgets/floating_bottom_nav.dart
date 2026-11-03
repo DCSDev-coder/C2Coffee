@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum NavPage { currentOrder, timetable, sideWork, settings }
+enum NavPage { currentOrder, timetable, tasks, settings }
 
 class FloatingBottomNav extends StatelessWidget {
   const FloatingBottomNav({
@@ -26,7 +26,7 @@ class FloatingBottomNav extends StatelessWidget {
         Icons.calendar_month_rounded,
         'Timetable',
       ),
-      (Icons.checklist_outlined, Icons.checklist_rounded, 'Side work'),
+      (Icons.checklist_outlined, Icons.checklist_rounded, 'Tasks'),
       (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
     ];
 

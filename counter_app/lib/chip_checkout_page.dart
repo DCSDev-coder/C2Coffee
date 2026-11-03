@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'app_colors.dart';
@@ -23,7 +25,7 @@ class ChipCheckoutPage extends StatefulWidget {
 }
 
 class _ChipCheckoutPageState extends State<ChipCheckoutPage> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   Timer? _statusTimer;
   bool _checking = false;
   int _pageProgress = 0;
@@ -33,41 +35,57 @@ class _ChipCheckoutPageState extends State<ChipCheckoutPage> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (progress) {
-            if (mounted) setState(() => _pageProgress = progress);
-          },
-          onNavigationRequest: (request) {
-            final uri = Uri.tryParse(request.url);
-            if (isTrustedPaymentWebViewUri(uri)) {
-              return NavigationDecision.navigate;
-            }
-            if (mounted) {
+    if (!kIsWeb) {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onProgress: (progress) {
+              if (mounted) setState(() => _pageProgress = progress);
+            },
+            onNavigationRequest: (request) {
+              final uri = Uri.tryParse(request.url);
+              if (isTrustedPaymentWebViewUri(uri)) {
+                return NavigationDecision.navigate;
+              }
+              if (mounted) {
+                setState(() {
+                  _statusMessage =
+                      'A payment-page link outside the approved provider was blocked.';
+                });
+              }
+              return NavigationDecision.prevent;
+            },
+            onWebResourceError: (error) {
+              if (!mounted || error.isForMainFrame != true) return;
               setState(() {
                 _statusMessage =
-                    'A payment-page link outside the approved provider was blocked.';
+                    'The payment page could not load. Checking payment status automatically…';
               });
-            }
-            return NavigationDecision.prevent;
-          },
-          onWebResourceError: (error) {
-            if (!mounted || error.isForMainFrame != true) return;
-            setState(() {
-              _statusMessage =
-                  'The payment page could not load. Checking payment status automatically…';
-            });
-          },
-        ),
-      )
-      ..loadRequest(widget.checkoutUri);
+            },
+          ),
+        )
+        ..loadRequest(widget.checkoutUri);
+    } else {
+      unawaited(_openPaymentWindow());
+    }
+
     _statusTimer = Timer.periodic(
       const Duration(seconds: 3),
       (_) => _pollStatus(),
     );
     unawaited(_pollStatus());
+  }
+
+  Future<void> _openPaymentWindow() async {
+    try {
+      if (await canLaunchUrl(widget.checkoutUri)) {
+        await launchUrl(
+          widget.checkoutUri,
+          mode: LaunchMode.externalApplication,
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _pollStatus() async {
@@ -159,9 +177,15 @@ class _ChipCheckoutPageState extends State<ChipCheckoutPage> {
         ),
         body: Column(
           children: [
-            if (_pageProgress < 100)
+            if (!kIsWeb && _pageProgress < 100)
               LinearProgressIndicator(value: _pageProgress / 100),
-            Expanded(child: WebViewWidget(controller: _controller)),
+            Expanded(
+              child: kIsWeb
+                  ? _buildWebCheckoutView()
+                  : (_controller != null
+                      ? WebViewWidget(controller: _controller!)
+                      : const SizedBox.shrink()),
+            ),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
@@ -202,6 +226,124 @@ class _ChipCheckoutPageState extends State<ChipCheckoutPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebCheckoutView() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 520),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.qr_code_2_rounded,
+                  size: 42,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Order ${widget.orderRef}',
+                style: const TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Complete the payment in the secure CHIP gateway window. Once payment is confirmed, this screen will automatically finalize the order.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 16,
+                  color: Colors.black87,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: _openPaymentWindow,
+                  icon: const Icon(Icons.open_in_new_rounded, size: 20),
+                  label: const Text(
+                    'Open CHIP Payment Window',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      _statusMessage,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

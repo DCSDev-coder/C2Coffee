@@ -315,11 +315,11 @@ class ApiService {
           case 'workstation_outlet_required':
             return 'Assign this C2 Store device to one outlet in Admin Web before using shift access.';
           case 'barista_not_clocked_in':
-            return 'Clock in before completing this side-work task.';
+            return 'Clock in before completing this task.';
           case 'invalid_barista_pin':
             return 'The selected barista or PIN is not valid.';
           case 'side_work_not_due':
-            return 'This side-work task is not due yet or is no longer available.';
+            return 'This task is not due yet or is no longer available.';
           case 'printer_not_ready':
             return 'The receipt printer is not ready. Please contact an operations administrator.';
           case 'direct_printer_not_assigned':
@@ -625,7 +625,7 @@ class ApiService {
           : ApiRequestResult.failure(_responseMessage(response));
     } catch (_) {
       return const ApiRequestResult.failure(
-        'Unable to record this side-work task. Check the connection and try again.',
+        'Unable to record this task. Check the connection and try again.',
       );
     }
   }

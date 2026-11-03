@@ -375,7 +375,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _transactionsError = 'Unable to load wallet transactions right now.';
+        _transactionsError = 'Unable to load C2 Credit activity right now.';
         _isTransactionsLoading = false;
       });
     }
@@ -485,7 +485,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       case TopUpPaymentMethod.card:
         return 'Credit or debit card';
       case TopUpPaymentMethod.ewallet:
-        return 'E-wallet';
+        return 'Online Payment';
       case null:
         return 'Choose a payment method';
     }
@@ -533,7 +533,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     if (amount > _remainingWalletCapacity) {
       AppNotification.showError(
         context,
-        'You can add up to $_remainingWalletCapacity tokens without exceeding your wallet cap.',
+        'You can add up to $_remainingWalletCapacity tokens without exceeding your C2 Credit limit.',
       );
       return;
     }
@@ -651,7 +651,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Wallet Information',
+                          'C2 Credit Information',
                           style: TextStyle(
                             fontFamily: 'Recoleta',
                             fontSize: 23,
@@ -785,7 +785,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     ),
                     _buildInfoStatRow(
                       icon: Icons.shield_outlined,
-                      label: 'Maximum Wallet Cap',
+                      label: 'Maximum C2 Credit Cap',
                       value: _formatTokenCount(cap),
                       valueColor: Colors.black87,
                     ),
@@ -876,7 +876,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     return PopScope(
       canPop: true,
       child: AppPageShell(
-        title: 'WALLET',
+        title: 'C2 CREDIT',
         onBack: () => InteractiveFillingLoader.showPop(context),
         backgroundColor: Colors.white,
         scrollController: _scrollController,
@@ -1158,7 +1158,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                   helperMaxLines: 2,
                   errorText: _enteredTopUpAmount != null &&
                           _enteredTopUpAmount! > _remainingWalletCapacity
-                      ? 'This exceeds your remaining wallet capacity (${_formatTokenCount(_remainingWalletCapacity)}).'
+                      ? 'This exceeds your remaining C2 Credit limit (${_formatTokenCount(_remainingWalletCapacity)}).'
                       : null,
                   errorMaxLines: 2,
                   filled: true,
@@ -1316,7 +1316,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'C2 TOKEN WALLET',
+                            'C2 CREDIT',
                             style: TextStyle(
                               fontFamily: 'Afacad',
                               fontSize: 14,
@@ -1352,7 +1352,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                         Border.all(color: Colors.white.withValues(alpha: 0.16)),
                   ),
                   child: Text(
-                    '${_session.tokenReserved} reserved  •  wallet cap ${_session.tokenCap}',
+                    '${_session.tokenReserved} reserved  •  C2 Credit cap ${_session.tokenCap}',
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 15,
@@ -1454,7 +1454,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                             : tokenAmount == null
                                 ? 'Enter how many tokens you want to add, then select how you want to pay.'
                                 : !amountIsValid
-                                    ? 'Enter an amount within your remaining wallet capacity.'
+                                    ? 'Enter an amount within your remaining C2 Credit limit.'
                                     : 'You will add ${_formatTokenCount(tokenAmount)} for RM $tokenAmount using $_paymentMethodLabel. Tokens are credited immediately once payment is confirmed.',
             style: const TextStyle(
               fontFamily: 'Afacad',
@@ -1559,7 +1559,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       TopUpPaymentMethod.duitNowQr => ('DuitNow QR', Icons.qr_code_rounded),
       TopUpPaymentMethod.card => ('Debit / Credit', Icons.credit_card_outlined),
       TopUpPaymentMethod.ewallet => (
-          'E-Wallet',
+          'Online Payment',
           Icons.account_balance_wallet_outlined
         ),
     };
@@ -1682,7 +1682,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           CircularProgressIndicator(color: AppColors.deepTeal),
           const SizedBox(height: 12),
           Text(
-            'Loading wallet transactions...',
+                            'Loading C2 Credit transactions...',
             style: TextStyle(
               fontFamily: 'Afacad',
               fontSize: 16,
@@ -2290,7 +2290,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       case 'referral_reward':
         return 'Referral Reward';
       default:
-        return 'Wallet Transaction';
+        return 'C2 Credit Transaction';
     }
   }
 

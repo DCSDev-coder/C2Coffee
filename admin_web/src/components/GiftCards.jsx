@@ -227,7 +227,7 @@ export default function GiftCards({ currentUser }) {
     event.preventDefault();
     const confirmationPassword = await requestAdminPrompt({
       title: 'Confirm gift-card issue',
-      message: 'Enter your admin password to issue stored value directly to customer.',
+              message: 'Enter your admin password to issue C2 Credit directly to the customer.',
       inputLabel: 'Admin password',
       inputType: 'password',
       confirmLabel: 'Issue gift card'
@@ -699,7 +699,7 @@ export default function GiftCards({ currentUser }) {
                 className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-semibold text-gray-900 focus:border-[#1E433A] focus:ring-1 focus:ring-[#1E433A] outline-none"
               />
               <p className="mt-1 text-[11px] text-gray-400">
-                Optional. A registered phone delivers the value directly to that wallet; leave blank to create a shareable code.
+                          Optional. A registered phone delivers the C2 Credit directly to that customer; leave blank to create a shareable code.
               </p>
             </div>
 

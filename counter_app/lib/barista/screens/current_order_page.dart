@@ -108,7 +108,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                     color: darkGreen,
                     onRefresh: _refreshOrders,
                     child: ListView(
-                      padding: const EdgeInsets.only(top: 16, bottom: 180),
+                      padding: const EdgeInsets.only(top: 16, bottom: 36),
                       children: [
                         // Content
                         Padding(
