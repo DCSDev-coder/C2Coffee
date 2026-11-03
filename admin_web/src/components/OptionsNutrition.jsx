@@ -16,8 +16,7 @@ import {
 import {
   buildConditionalVisibilityOptions,
   inferMenuItemIdsFromTriggerOptions,
-  normalizeOptionIds,
-  resolveGroupActiveMenuItemIds
+  normalizeOptionIds
 } from '../lib/optionVisibility';
 import { useUnsavedChanges } from '../utils/UnsavedChangesContext';
 import RecipeNutrition from './RecipeNutrition';

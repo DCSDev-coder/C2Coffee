@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'api_client.dart';
 import 'payment_navigation_policy.dart';
+import 'safe_error_message.dart';
 
 class CounterPaymentException implements Exception {
   const CounterPaymentException(this.message);
@@ -25,20 +26,10 @@ class CounterPaymentService {
     return decoded is Map ? Map<String, dynamic>.from(decoded) : {};
   }
 
-  Never _failure(String body, String fallback) {
-    try {
-      final decoded = _decode(body);
-      final error = decoded['error'];
-      if (error is Map && error['message'] != null) {
-        throw CounterPaymentException(error['message'].toString());
-      }
-      if (decoded['message'] != null) {
-        throw CounterPaymentException(decoded['message'].toString());
-      }
-    } on FormatException {
-      // Use the safe fallback below.
-    }
-    throw CounterPaymentException(fallback);
+  Never _failure(int statusCode, String fallback) {
+    throw CounterPaymentException(
+      SafeErrorMessage.fromStatus(statusCode, fallback),
+    );
   }
 
   Future<List<String>> paymentMethods(String deviceToken) async {
@@ -47,7 +38,7 @@ class CounterPaymentService {
       token: deviceToken,
     );
     if (response.statusCode != 200) {
-      _failure(response.body, 'Payment methods could not be loaded.');
+      _failure(response.statusCode, 'Payment methods could not be loaded.');
     }
     return (_decode(response.body)['methods'] as List? ?? const [])
         .map((value) => value.toString())
@@ -67,7 +58,7 @@ class CounterPaymentService {
       headers: _sessionHeaders(sessionToken),
     );
     if (response.statusCode != 200) {
-      _failure(response.body, 'The order total could not be confirmed.');
+      _failure(response.statusCode, 'The order total could not be confirmed.');
     }
     return Map<String, dynamic>.from(_decode(response.body)['quote'] as Map);
   }
@@ -85,7 +76,10 @@ class CounterPaymentService {
       headers: _sessionHeaders(sessionToken),
     );
     if (response.statusCode != 200) {
-      _failure(response.body, 'The voucher approval code could not be sent.');
+      _failure(
+        response.statusCode,
+        'The voucher approval code could not be sent.',
+      );
     }
     return _decode(response.body);
   }
@@ -103,7 +97,7 @@ class CounterPaymentService {
       headers: _sessionHeaders(sessionToken),
     );
     if (response.statusCode != 200) {
-      _failure(response.body, 'The voucher approval code is incorrect.');
+      _failure(response.statusCode, 'The voucher approval code is incorrect.');
     }
     return _decode(response.body)['voucher_authorization_token'].toString();
   }
@@ -116,6 +110,7 @@ class CounterPaymentService {
     required List<Map<String, dynamic>> items,
     int? voucherId,
     String? voucherAuthorizationToken,
+    String? idempotencyKey,
   }) async {
     final response = await _apiClient.post(
       '/v1/counter/orders/payment',
@@ -129,11 +124,12 @@ class CounterPaymentService {
       token: deviceToken,
       headers: {
         ..._sessionHeaders(sessionToken),
-        'Idempotency-Key': '${DateTime.now().microsecondsSinceEpoch}',
+        'Idempotency-Key':
+            idempotencyKey ?? '${DateTime.now().microsecondsSinceEpoch}',
       },
     );
     if (response.statusCode != 200) {
-      _failure(response.body, 'Payment could not be started.');
+      _failure(response.statusCode, 'Payment could not be started.');
     }
     return _decode(response.body);
   }
@@ -147,7 +143,7 @@ class CounterPaymentService {
       token: deviceToken,
     );
     if (response.statusCode != 200) {
-      _failure(response.body, 'Payment status could not be checked.');
+      _failure(response.statusCode, 'Payment status could not be checked.');
     }
     return _decode(response.body);
   }

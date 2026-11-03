@@ -6,6 +6,7 @@ import { getUtcConnection } from '../db/mysql.js';
 import { ApiError } from '../http/errors.js';
 import type { ChipPurchase } from '../payments/chip-client.js';
 import { releaseInventoryForOrder } from './inventory.js';
+import { createUserNotification } from '../http/notifications.js';
 
 type PaymentRow = RowDataPacket & {
   payment_id: number;
@@ -17,6 +18,7 @@ type PaymentRow = RowDataPacket & {
   amount_rm: string;
   voucher_id: number | null;
   discount_total_rm: string;
+  user_id: number;
 };
 
 function normalizedStatus(purchase: ChipPurchase): string {
@@ -52,7 +54,7 @@ async function settleChipOrderPurchase(
     await connection.beginTransaction();
     const [rows] = await connection.execute<PaymentRow[]>(
       `SELECT p.id AS payment_id, p.status AS payment_status,
-              o.id AS order_id, o.order_ref, o.status AS order_status, o.store_id,
+              o.id AS order_id, o.order_ref, o.status AS order_status, o.store_id, o.user_id,
               CAST(p.amount_rm AS CHAR) AS amount_rm, o.voucher_id,
               CAST(o.discount_total_rm AS CHAR) AS discount_total_rm
        FROM payments p
@@ -78,8 +80,47 @@ async function settleChipOrderPurchase(
     const payloadHash = crypto.createHash('sha256').update(JSON.stringify(purchase)).digest('hex');
     const amountMatches = amountCents === Math.round(Number(payment.amount_rm) * 100);
     const failure = terminalFailure(status);
+    const latePaidAfterCancellation =
+      status === 'paid' &&
+      amountMatches &&
+      (payment.payment_status === 'cancelled' || payment.order_status === 'cancelled');
 
-    if (status === 'paid' && amountMatches) {
+    if (latePaidAfterCancellation) {
+      await connection.execute(
+        `UPDATE payments SET status = 'paid', paid_at = UTC_TIMESTAMP()
+          WHERE id = :paymentId AND status = 'cancelled'`,
+        { paymentId: payment.payment_id }
+      );
+      const [existingRefunds] = await connection.execute<RowDataPacket[]>(
+        `SELECT id FROM refunds
+          WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed')
+          LIMIT 1 FOR UPDATE`,
+        { orderId: payment.order_id }
+      );
+      if (!existingRefunds[0]) {
+        const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+        await connection.execute(
+          `INSERT INTO refunds
+            (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm,
+             refund_token_amount, status, reason, created_at)
+           VALUES (:orderId, :paymentId, 'direct', :refundRef, :amountRm,
+                   NULL, 'pending', :reason, UTC_TIMESTAMP())`,
+          {
+            orderId: payment.order_id,
+            paymentId: payment.payment_id,
+            refundRef,
+            amountRm: payment.amount_rm,
+            reason: 'Payment completed after the order was cancelled; provider refund required.'
+          }
+        );
+        await createUserNotification(connection, {
+          userId: Number(payment.user_id),
+          type: 'order_cancellation_approved',
+          title: 'Payment received after cancellation; refund pending',
+          body: 'Your payment completed while the cancellation was being processed. A full provider refund has been opened automatically.'
+        });
+      }
+    } else if (status === 'paid' && amountMatches) {
       await connection.execute(
         `UPDATE payments SET status = 'paid', paid_at = UTC_TIMESTAMP()
          WHERE id = :paymentId AND status IN ('pending', 'authorized')`,
@@ -181,14 +222,22 @@ async function settleChipOrderPurchase(
         eventRef,
         eventType: status === 'paid' && !amountMatches ? 'amount_mismatch' : `chip_${status}`,
         payloadHash,
-        result: status === 'paid' && amountMatches ? 'paid' : failure ?? 'not_paid'
+        result: latePaidAfterCancellation
+          ? 'refund_pending'
+          : status === 'paid' && amountMatches
+            ? 'paid'
+            : failure ?? 'not_paid'
       }
     );
     await connection.commit();
     return {
       received: true,
       order_ref: payment.order_ref,
-      status: status === 'paid' && amountMatches ? 'paid' : failure ?? 'pending'
+      status: latePaidAfterCancellation
+        ? 'refund_pending'
+        : status === 'paid' && amountMatches
+          ? 'paid'
+          : failure ?? 'pending'
     };
   } catch (error) {
     await connection.rollback();

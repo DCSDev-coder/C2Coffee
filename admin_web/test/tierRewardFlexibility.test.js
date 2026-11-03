@@ -6,10 +6,12 @@ test('tier rewards use generic benefits, configurable quantities, and server gen
   const source = await readFile(new URL('../src/components/TierManagement.jsx', import.meta.url), 'utf8');
 
   assert.match(source, /benefitType: 'Free'/);
-  assert.match(source, /<option value="Free">Free item/);
+  assert.match(source, /\{ value: 'Free', label: 'Free item\(s\)' \}/);
+  assert.match(source, /REWARD_BENEFIT_OPTIONS\.map/);
   assert.doesNotMatch(source, /<option value="Free Drink">Free Drink<\/option>/);
   assert.doesNotMatch(source, /<option value="Free Food">Free Food<\/option>/);
   assert.match(source, /Items included per claim/);
   assert.match(source, /code: editingTierReward\?\.voucherCode \|\| 'AUTO'/);
-  assert.match(source, /One claim per achievement or birthday reward period/);
+  assert.match(source, /How many separate vouchers a member gets each time they reach this tier/);
+  assert.match(source, /Birthday rewards are issued once per birthday month/);
 });

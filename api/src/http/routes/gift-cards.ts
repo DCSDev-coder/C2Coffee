@@ -12,14 +12,16 @@ import { createUserNotification } from '../notifications.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
 import { assertChipConfigured, cancelChipPurchase, createChipPurchase, getActiveChipMethods, getChipPurchase, isTrustedChipCheckoutUrl, type ChipPaymentMethod } from '../../payments/chip-client.js';
 import { settleChipGiftCardPurchase } from '../../services/chip-gift-card-settlement.js';
+import { creditGiftCardToWallet } from '../../services/gift-cards.js';
+import { deliverPushToUser } from '../../services/push-delivery.js';
 
-const money = z.coerce.number().multipleOf(0.01).min(5).max(5000);
+const money = z.coerce.number().int().min(5).max(5000);
 const tokenAmount = z.coerce.number().int().min(5).max(5000);
 const paymentMethod = z.enum(['fpx', 'duitnow_qr', 'card', 'ewallet']);
 const purchaseSchema = z.object({
   currency: z.enum(['rm', 'token']),
   amount: z.union([money, tokenAmount]),
-  recipient_phone: z.string().trim().min(3).max(30),
+  recipient_phone: z.string().trim().max(30).optional().nullable(),
   recipient_message: z.string().trim().max(280).optional().nullable(),
   payment_method: paymentMethod.optional()
 }).superRefine((value, context) => {
@@ -28,6 +30,9 @@ const purchaseSchema = z.object({
   }
   if (value.currency === 'rm' && !value.payment_method) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['payment_method'], message: 'Choose an RM payment method.' });
+  }
+  if (value.currency === 'rm' && !Number.isInteger(Number(value.amount))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['amount'], message: 'RM gift cards must use a whole-ringgit amount because they are credited as C2 Tokens.' });
   }
 });
 
@@ -71,6 +76,8 @@ type ExistingPurchase = RowDataPacket & {
   status: string;
   purchase_ref: string;
   provider_bill_id: string | null;
+  recipient_user_id: number | null;
+  claimed_at: Date | null;
 };
 
 function readIdempotencyKey(value: string | string[] | undefined): string {
@@ -88,7 +95,7 @@ function isDuplicateKeyError(error: unknown): boolean {
 async function findExistingPurchase(userId: number, idempotencyKey: string): Promise<ExistingPurchase | null> {
   const [rows] = await mysqlPool.query<ExistingPurchase[]>(
     `SELECT gc.id, gc.code, gc.currency, CAST(gc.original_amount AS CHAR) AS original_amount,
-            gc.status, gc.purchase_ref, p.provider_bill_id
+            gc.status, gc.purchase_ref, gc.recipient_user_id, gc.claimed_at, p.provider_bill_id
        FROM gift_cards gc
        LEFT JOIN payments p ON p.gift_card_id = gc.id
       WHERE gc.purchaser_user_id = :userId
@@ -114,7 +121,7 @@ async function purchaseResponse(purchase: ExistingPurchase): Promise<Record<stri
     id: Number(purchase.id),
     code: purchase.code,
     purchase_ref: purchase.purchase_ref,
-    status: purchase.status,
+    status: purchase.status === 'depleted' && purchase.recipient_user_id && purchase.claimed_at ? 'delivered' : purchase.status,
     currency: purchase.currency,
     amount: purchase.currency === 'rm' ? Number(purchase.original_amount).toFixed(2) : Number(purchase.original_amount),
     ...(checkoutUrl ? { checkout_url: checkoutUrl } : {})
@@ -132,7 +139,7 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
     await assertCustomerAccess(request.auth.userId);
     const payload = purchaseSchema.parse(request.body);
     const idempotencyKey = readIdempotencyKey(request.headers['idempotency-key']);
-    payload.recipient_phone = normalizePhoneE164(payload.recipient_phone);
+    payload.recipient_phone = payload.recipient_phone?.trim() ? normalizePhoneE164(payload.recipient_phone) : null;
     const existingPurchase = await findExistingPurchase(request.auth.userId, idempotencyKey);
     if (existingPurchase) return reply.code(200).send(await purchaseResponse(existingPurchase));
     const amount = Number(payload.amount);
@@ -143,6 +150,7 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
     let purchaseRef = '';
     let purchaserName = 'C2 Coffee customer';
     let purchaserEmail = '';
+    let deliveredRecipientUserId: number | null = null;
 
     try {
       await connection.beginTransaction();
@@ -150,6 +158,9 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
       code = buildCode();
       purchaseRef = buildPurchaseRef();
       const isToken = payload.currency === 'token';
+      const [recipientRows] = payload.recipient_phone ? await connection.execute<Array<RowDataPacket & { id: number }>>(`SELECT u.id FROM users u JOIN customer_tenant_memberships ctm ON ctm.user_id = u.id WHERE u.phone_e164 = :phone AND ctm.tenant_id = :tenantId LIMIT 1`, { phone: payload.recipient_phone, tenantId }) : [[]];
+      const recipientUserId = recipientRows[0]?.id ?? null;
+      if (payload.recipient_phone && !recipientUserId) throw new ApiError(404, 'gift_card_recipient_not_found', 'That phone number is not registered for this café. Leave the phone field blank to create a shareable gift-card code.');
       if (isToken) {
         const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
           `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`, { userId: request.auth.userId }
@@ -160,8 +171,8 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
         await connection.execute(`UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { balanceAfter, userId: request.auth.userId });
         const [insert] = await connection.execute<ResultSetHeader>(
           `INSERT INTO gift_cards (tenant_id, code, currency, original_amount, remaining_amount, status, purchaser_user_id, recipient_user_id, recipient_phone, recipient_message, purchase_ref, purchase_idempotency_key, paid_at, created_at)
-           VALUES (:tenantId, :code, 'token', :amount, :amount, 'active', :userId, NULL, :recipientPhone, :message, :purchaseRef, :idempotencyKey, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
-          { tenantId, code, amount, userId: request.auth.userId, recipientPhone: payload.recipient_phone, message: payload.recipient_message ?? null, purchaseRef, idempotencyKey }
+           VALUES (:tenantId, :code, 'token', :amount, :amount, 'active', :userId, :recipientUserId, :recipientPhone, :message, :purchaseRef, :idempotencyKey, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+          { tenantId, code, amount, userId: request.auth.userId, recipientUserId, recipientPhone: payload.recipient_phone, message: payload.recipient_message ?? null, purchaseRef, idempotencyKey }
         );
         cardId = insert.insertId;
         await connection.execute(
@@ -174,6 +185,10 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
            VALUES (:cardId, 'issued', :amount, :amount, :userId, :remarks, UTC_TIMESTAMP())`,
           { cardId, amount, userId: request.auth.userId, remarks: `Token gift card ${code}` }
         );
+        if (recipientUserId) {
+          await creditGiftCardToWallet(connection, cardId, Number(recipientUserId));
+          deliveredRecipientUserId = Number(recipientUserId);
+        }
       } else {
         assertChipConfigured();
         const [profileRows] = await connection.execute<Array<RowDataPacket & { display_name: string | null; email: string | null }>>(
@@ -184,8 +199,8 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
         if (!purchaserEmail) throw new ApiError(409, 'gift_card_email_required', 'Add a verified email address in Settings before buying an RM gift card.');
         const [insert] = await connection.execute<ResultSetHeader>(
           `INSERT INTO gift_cards (tenant_id, code, currency, original_amount, remaining_amount, status, purchaser_user_id, recipient_user_id, recipient_phone, recipient_message, purchase_ref, purchase_idempotency_key, created_at)
-           VALUES (:tenantId, :code, 'rm', :amount, :amount, 'pending_payment', :userId, NULL, :recipientPhone, :message, :purchaseRef, :idempotencyKey, UTC_TIMESTAMP())`,
-          { tenantId, code, amount: amount.toFixed(2), userId: request.auth.userId, recipientPhone: payload.recipient_phone, message: payload.recipient_message ?? null, purchaseRef, idempotencyKey }
+           VALUES (:tenantId, :code, 'rm', :amount, :amount, 'pending_payment', :userId, :recipientUserId, :recipientPhone, :message, :purchaseRef, :idempotencyKey, UTC_TIMESTAMP())`,
+          { tenantId, code, amount: amount.toFixed(2), userId: request.auth.userId, recipientUserId, recipientPhone: payload.recipient_phone, message: payload.recipient_message ?? null, purchaseRef, idempotencyKey }
         );
         cardId = insert.insertId;
         await connection.execute(
@@ -208,7 +223,15 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
     }
 
     if (payload.currency === 'token') {
-      return reply.code(201).send({ id: cardId, code, purchase_ref: purchaseRef, status: 'active', currency: 'token', amount });
+      if (deliveredRecipientUserId) {
+        void deliverPushToUser({
+          userId: deliveredRecipientUserId,
+          title: 'Gift card added to your wallet',
+          body: `${amount} C2 Tokens are ready in your wallet.`,
+          data: { type: 'gift_card_received', gift_card_id: String(cardId) }
+        }).catch((error) => request.log.warn({ err: error, giftCardId: cardId }, 'Gift-card push failed after wallet credit.'));
+      }
+      return reply.code(201).send({ id: cardId, code, purchase_ref: purchaseRef, status: deliveredRecipientUserId ? 'delivered' : 'active', currency: 'token', amount });
     }
 
     let providerPurchaseId = '';
@@ -276,18 +299,13 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
       );
       const card = cards[0];
       if (!card || card.status !== 'active') throw new ApiError(404, 'gift_card_unavailable', 'This gift card is not available to claim.');
-      if (card.recipient_user_id && Number(card.recipient_user_id) !== request.auth.userId) throw new ApiError(409, 'gift_card_claimed', 'This gift card has already been claimed.');
-      if (!phone || card.recipient_phone !== phone) throw new ApiError(403, 'gift_card_recipient_mismatch', 'Sign in using the phone number chosen by the sender to claim this card.');
-      if (Number(card.recipient_user_id) === request.auth.userId && card.claimed_at) {
-        await connection.commit();
-        committed = true;
-        return { claimed: true, gift_card_id: card.id };
-      }
+      if (card.recipient_user_id && Number(card.recipient_user_id) !== request.auth.userId) throw new ApiError(409, 'gift_card_claimed', 'This gift card has already been assigned to another customer.');
+      if (card.recipient_phone && (!phone || card.recipient_phone !== phone)) throw new ApiError(403, 'gift_card_recipient_mismatch', 'Sign in using the recipient phone number to claim this card.');
+      const balanceAfter = await creditGiftCardToWallet(connection, Number(card.id), request.auth.userId);
       await connection.execute(`UPDATE gift_cards SET recipient_user_id = :userId, claimed_at = COALESCE(claimed_at, UTC_TIMESTAMP()) WHERE id = :cardId`, { userId: request.auth.userId, cardId: card.id });
-      await connection.execute(`INSERT INTO gift_card_transactions (gift_card_id, transaction_type, amount, balance_after, actor_user_id, remarks, created_at) VALUES (:cardId, 'claimed', 0, :balance, :userId, 'Claimed by recipient', UTC_TIMESTAMP())`, { cardId: card.id, balance: card.remaining_amount, userId: request.auth.userId });
       await connection.commit();
       committed = true;
-      return { claimed: true, gift_card_id: card.id };
+      return { claimed: true, gift_card_id: card.id, wallet_balance: balanceAfter };
     } catch (error) {
       if (!committed) await connection.rollback();
       throw error;
@@ -308,7 +326,11 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
     if (card.status === 'pending_payment' && card.provider_bill_id) {
       try { await settleChipGiftCardPurchase(card.provider_bill_id, await getChipPurchase(card.provider_bill_id)); } catch (_) { /* status remains safely pending */ }
     }
-    const [fresh] = await mysqlPool.execute<Array<RowDataPacket & { status: string }>>(`SELECT status FROM gift_cards WHERE id = :id`, { id: card.id });
-    return { purchase_ref: card.purchase_ref, status: fresh[0]?.status ?? card.status };
+    const [fresh] = await mysqlPool.execute<Array<RowDataPacket & { status: string; recipient_user_id: number | null; claimed_at: Date | null }>>(`SELECT status, recipient_user_id, claimed_at FROM gift_cards WHERE id = :id`, { id: card.id });
+    const current = fresh[0];
+    const status = current?.status === 'depleted' && current.recipient_user_id && current.claimed_at
+      ? 'delivered'
+      : current?.status ?? card.status;
+    return { purchase_ref: card.purchase_ref, status };
   });
 }

@@ -9,6 +9,39 @@ enum NotificationType {
   info,
 }
 
+String sanitizeUserNotificationMessage(
+  String message, {
+  required NotificationType type,
+}) {
+  final trimmed = message.trim();
+  final lower = trimmed.toLowerCase();
+  final looksTechnical = trimmed.isEmpty ||
+      trimmed.startsWith('{') ||
+      trimmed.startsWith('[') ||
+      lower.contains('<html') ||
+      lower.contains('exception') ||
+      lower.contains('stack trace') ||
+      lower.contains('sqlstate') ||
+      lower.contains('failed host lookup') ||
+      lower.contains('connection refused') ||
+      lower.contains('null check operator') ||
+      lower.contains('is not a subtype') ||
+      RegExp(r'(^|\s)#\d+\s').hasMatch(lower);
+
+  if (!looksTechnical) return trimmed;
+
+  switch (type) {
+    case NotificationType.success:
+      return 'Completed successfully.';
+    case NotificationType.error:
+      return 'Something went wrong. Please try again.';
+    case NotificationType.warning:
+      return 'Please check the information and try again.';
+    case NotificationType.info:
+      return 'Please try again.';
+  }
+}
+
 /// Global floating notification / toast banner that floats at the top
 /// of the screen just below the header, ensuring bottom navigation and action
 /// buttons are never obstructed.
@@ -31,7 +64,10 @@ class AppNotification {
     double? topOffset,
     VoidCallback? onTap,
   }) {
-    final overlayState = (context != null ? Overlay.maybeOf(context, rootOverlay: true) : null) ??
+    final safeMessage = sanitizeUserNotificationMessage(message, type: type);
+    final overlayState = (context != null
+            ? Overlay.maybeOf(context, rootOverlay: true)
+            : null) ??
         navigatorKey.currentState?.overlay;
 
     if (overlayState == null) return;
@@ -59,7 +95,7 @@ class AppNotification {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: _AppNotificationBanner(
-                  message: message,
+                  message: safeMessage,
                   type: type,
                   icon: icon,
                   onDismiss: () {

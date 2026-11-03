@@ -15,8 +15,11 @@ import 'counter_payment_service.dart';
 import 'chip_checkout_page.dart';
 import 'device_printer_worker.dart';
 import 'product_detail_modal.dart';
+import 'app_diagnostics.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppDiagnostics.initialize();
   runApp(const CounterApp());
 }
 

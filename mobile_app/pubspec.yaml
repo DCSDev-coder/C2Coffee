@@ -32,6 +32,7 @@ dependencies:
   cached_network_image: ^3.4.1
   url_launcher: ^6.3.1
   geolocator: ^14.0.2
+  firebase_crashlytics: ^5.4.1
 
 dev_dependencies:
   flutter_test:

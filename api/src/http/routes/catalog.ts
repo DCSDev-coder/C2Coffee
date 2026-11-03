@@ -15,6 +15,7 @@ import {
 } from "../../services/store-availability.js";
 import { assertCustomerAccess, loadMaintenanceForUser } from "../../services/app-maintenance.js";
 import { loadRecipeAvailabilityIssues, summariseAvailability } from "../../services/inventory.js";
+import { autoReopenEmergencyClosures } from "../../services/outlet-emergency.js";
 
 const menuQuerySchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -36,6 +37,8 @@ type StoreRow = RowDataPacket & {
   longitude: string | number | null;
   timezone: string;
   temporarily_closed: number;
+  emergency_closure_active?: number;
+  emergency_expected_reopen_at?: Date | string | null;
   weekly_hours_json: unknown;
 };
 
@@ -1071,10 +1074,13 @@ async function listActiveStores(userId: number): Promise<
     mobile_ordering_status: "open" | "closing_soon" | "closed";
     mobile_order_cutoff_at: string | null;
     temporarily_closed: boolean;
+    emergency_closure_active: boolean;
+    emergency_expected_reopen_at: string | null;
     weekly_hours: ReturnType<typeof normalizeWeeklyHours>;
     status: "active" | "inactive";
   }>
 > {
+  await autoReopenEmergencyClosures(mysqlPool);
   const [rows] = await mysqlPool.query<Array<StoreRow>>(
     `
       SELECT
@@ -1093,6 +1099,15 @@ async function listActiveStores(userId: number): Promise<
         s.longitude,
         s.timezone,
         s.temporarily_closed,
+        EXISTS (
+          SELECT 1 FROM outlet_emergency_closures oec
+           WHERE oec.store_id = s.id AND oec.status = 'active'
+        ) AS emergency_closure_active,
+        (
+          SELECT oec.expected_reopen_at FROM outlet_emergency_closures oec
+           WHERE oec.store_id = s.id AND oec.status = 'active'
+           ORDER BY oec.id DESC LIMIT 1
+        ) AS emergency_expected_reopen_at,
         s.weekly_hours_json
       FROM stores s
       JOIN customer_tenant_memberships ctm ON ctm.tenant_id = s.tenant_id
@@ -1124,6 +1139,10 @@ async function listActiveStores(userId: number): Promise<
       mobile_ordering_status: mobileOrdering.status,
       mobile_order_cutoff_at: mobileOrdering.cutoffAt,
       temporarily_closed: row.temporarily_closed === 1,
+      emergency_closure_active: Number(row.emergency_closure_active ?? 0) === 1,
+      emergency_expected_reopen_at: row.emergency_expected_reopen_at
+        ? new Date(row.emergency_expected_reopen_at).toISOString()
+        : null,
       weekly_hours: normalizeWeeklyHours(row.weekly_hours_json),
       status: row.status,
     };

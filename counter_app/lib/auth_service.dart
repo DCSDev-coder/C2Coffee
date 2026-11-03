@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api_client.dart';
+import 'safe_error_message.dart';
 
 class DeviceActivationResult {
   final bool success;
@@ -132,19 +133,6 @@ class AuthService {
         return const DeviceActivationResult.success();
       }
 
-      try {
-        final payload = jsonDecode(response.body) as Map<String, dynamic>;
-        final error = payload['error'];
-        final message = error is Map<String, dynamic>
-            ? error['message']
-            : payload['message'];
-        if (message is String && message.isNotEmpty) {
-          return DeviceActivationResult.failure(message);
-        }
-      } catch (_) {
-        // Fall back to a status-specific message below.
-      }
-
       if (response.statusCode == 401) {
         return const DeviceActivationResult.failure(
           'This activation code is invalid, expired, or has already been used.',
@@ -156,7 +144,10 @@ class AuthService {
         );
       }
       return DeviceActivationResult.failure(
-        'Activation failed (server response ${response.statusCode}).',
+        SafeErrorMessage.fromStatus(
+          response.statusCode,
+          'Device activation failed. Please check the code and try again.',
+        ),
       );
     } catch (_) {
       return const DeviceActivationResult.failure(

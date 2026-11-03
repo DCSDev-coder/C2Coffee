@@ -136,6 +136,20 @@ The same folder serves the unlisted staff download page at
 excluded from site navigation and marked `noindex`, but possession of the link
 is still the access boundary; it is not password authentication.
 
+## Crash reporting
+
+The app installs guarded Firebase Crashlytics handlers at startup. Register
+the Counter App as a separate Android application (`com.c2coffeeandcandle.counter`)
+and iOS application in the `c2coffeeandcandle` Firebase project, then place the
+generated platform configuration files in the Counter App before release. The
+app remains usable when those files are absent in local development, but no
+Crashlytics event can be delivered until the Counter App registrations are
+present.
+
+Payment retries must reuse the same `idempotencyKey` passed to
+`CounterPaymentService.createPayment`; never generate a new key for a retry of
+the same checkout attempt.
+
 ## Customer session
 
 The device is permanently scoped to one deployment tenant and one outlet.

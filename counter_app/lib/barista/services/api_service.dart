@@ -306,6 +306,12 @@ class ApiService {
             return 'The final scheduled barista must stay clocked in until the shift ends or another scheduled barista takes over.';
           case 'active_orders_require_coverage':
             return 'The final barista cannot clock out while active orders still need coverage.';
+          case 'emergency_active_orders_block':
+            return 'Complete all preparing and ready-for-pickup orders before using emergency closure.';
+          case 'emergency_closure_active':
+            return 'This outlet is already temporarily closed.';
+          case 'barista_not_scheduled':
+            return 'Only a barista scheduled for the current shift can reopen this outlet.';
           case 'workstation_outlet_required':
             return 'Assign this C2 Store device to one outlet in Admin Web before using shift access.';
           case 'barista_not_clocked_in':
@@ -470,6 +476,65 @@ class ApiService {
     } catch (_) {
       return const ApiRequestResult.failure(
         'Unable to update your shift. Check the connection and try again.',
+      );
+    }
+  }
+
+  static Future<ApiRequestResult> emergencyCloseOutlet({
+    required int baristaId,
+    required String pin,
+    required String reasonCode,
+    String? note,
+  }) async {
+    try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/outlet/emergency-close'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+          body: json.encode({
+            'barista_id': baristaId,
+            'pin': pin,
+            'reason_code': reasonCode,
+            'note': note,
+            'idempotency_key':
+                'counter-emergency-$baristaId-${DateTime.now().microsecondsSinceEpoch}',
+          }),
+        ),
+      );
+      return response.statusCode == 200
+          ? ApiRequestResult.success(
+              json.decode(response.body) as Map<String, dynamic>,
+            )
+          : ApiRequestResult.failure(_responseMessage(response));
+    } catch (_) {
+      return const ApiRequestResult.failure(
+        'Unable to close the outlet. Check the connection and try again.',
+      );
+    }
+  }
+
+  static Future<ApiRequestResult> emergencyReopenOutlet({
+    required int baristaId,
+    required String pin,
+  }) async {
+    try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/outlet/emergency-reopen'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+          body: json.encode({'barista_id': baristaId, 'pin': pin}),
+        ),
+      );
+      return response.statusCode == 200
+          ? const ApiRequestResult.success()
+          : ApiRequestResult.failure(_responseMessage(response));
+    } catch (_) {
+      return const ApiRequestResult.failure(
+        'Unable to reopen the outlet. Check the connection and try again.',
       );
     }
   }
@@ -755,9 +820,11 @@ class AttendanceBarista {
 class BaristaAttendanceStatus {
   final List<AttendanceBarista> baristas;
   final List<BaristaAttendance> activeAttendance;
+  final OutletEmergencyClosure? emergencyClosure;
   const BaristaAttendanceStatus({
     required this.baristas,
     required this.activeAttendance,
+    this.emergencyClosure,
   });
   factory BaristaAttendanceStatus.fromJson(
     Map<String, dynamic> json,
@@ -768,7 +835,36 @@ class BaristaAttendanceStatus {
     activeAttendance: (json['active_attendance'] as List? ?? const [])
         .map((item) => BaristaAttendance.fromJson(item as Map<String, dynamic>))
         .toList(),
+    emergencyClosure: json['emergency_closure'] is Map
+        ? OutletEmergencyClosure.fromJson(
+            Map<String, dynamic>.from(json['emergency_closure'] as Map),
+          )
+        : null,
   );
+}
+
+class OutletEmergencyClosure {
+  final int id;
+  final String reasonCode;
+  final DateTime? expectedReopenAt;
+  final DateTime createdAt;
+
+  const OutletEmergencyClosure({
+    required this.id,
+    required this.reasonCode,
+    required this.expectedReopenAt,
+    required this.createdAt,
+  });
+
+  factory OutletEmergencyClosure.fromJson(Map<String, dynamic> json) =>
+      OutletEmergencyClosure(
+        id: (json['id'] as num).toInt(),
+        reasonCode: json['reason_code']?.toString() ?? 'other',
+        expectedReopenAt: DateTime.tryParse(
+          json['expected_reopen_at']?.toString() ?? '',
+        )?.toLocal(),
+        createdAt: DateTime.parse(json['created_at'].toString()).toLocal(),
+      );
 }
 
 class BaristaGuide {

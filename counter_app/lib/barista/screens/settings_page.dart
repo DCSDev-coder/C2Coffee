@@ -92,6 +92,57 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _openEmergencySheet(BaristaAttendanceStatus status) async {
+    final isReopen = status.emergencyClosure != null;
+    final activeIds = status.activeAttendance
+        .map((item) => item.baristaId)
+        .toSet();
+    final choices = status.baristas
+        .where(
+          (item) =>
+              item.pinConfigured && (isReopen || activeIds.contains(item.id)),
+        )
+        .toList();
+    final action = await showModalBottomSheet<_EmergencyAction>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EmergencySheet(
+        baristas: choices,
+        reopening: isReopen,
+        expectedReopenAt: status.emergencyClosure?.expectedReopenAt,
+      ),
+    );
+    if (action == null || !mounted) return;
+    setState(() => _attendanceUpdating = true);
+    final result = isReopen
+        ? await ApiService.emergencyReopenOutlet(
+            baristaId: action.barista.id,
+            pin: action.pin,
+          )
+        : await ApiService.emergencyCloseOutlet(
+            baristaId: action.barista.id,
+            pin: action.pin,
+            reasonCode: action.reasonCode,
+            note: action.note,
+          );
+    if (!mounted) return;
+    setState(() {
+      _attendanceUpdating = false;
+      _attendance = ApiService.fetchAttendanceStatus();
+    });
+    if (!result.isSuccess) {
+      TopNotice.error(context, result.errorMessage!);
+      return;
+    }
+    TopNotice.success(
+      context,
+      isReopen
+          ? 'The outlet is open again and your shift has resumed.'
+          : 'Emergency closure activated. Eligible incoming orders were cancelled and customers were notified.',
+    );
+  }
+
   Future<void> _openGuides(String type, String title) async {
     final guides = await ApiService.fetchGuides();
     if (!mounted) return;
@@ -257,6 +308,36 @@ class _SettingsPageState extends State<SettingsPage> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _attendanceUpdating || status == null
+                                    ? null
+                                    : () => _openEmergencySheet(status),
+                                icon: Icon(
+                                  status?.emergencyClosure == null
+                                      ? Icons.emergency_outlined
+                                      : Icons.lock_open_rounded,
+                                ),
+                                label: Text(
+                                  status?.emergencyClosure == null
+                                      ? 'Emergency close outlet'
+                                      : 'Reopen outlet',
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor:
+                                      status?.emergencyClosure == null
+                                      ? const Color(0xFFB3261E)
+                                      : SettingsPage.green,
+                                  side: BorderSide(
+                                    color: status?.emergencyClosure == null
+                                        ? const Color(0xFFB3261E)
+                                        : SettingsPage.green,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       );
@@ -344,8 +425,8 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
 
   Future<void> _loadConfig() async {
     final config = await DirectPrinterService.instance.loadConfig();
-    final sunmiAvailable =
-        await DirectPrinterService.instance.isSunmiAvailable();
+    final sunmiAvailable = await DirectPrinterService.instance
+        .isSunmiAvailable();
     String? sunmiStatus;
     if (sunmiAvailable) {
       sunmiStatus = await DirectPrinterService.instance.getSunmiStatus();
@@ -472,8 +553,8 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
                   _savedConfig == null
                       ? 'Set up receipt printer'
                       : _savedConfig!.isSunmi
-                          ? 'Printer ready · Sunmi D3 Mini Inner Printer'
-                          : 'Printer ready · ${_savedConfig!.host}:${_savedConfig!.port}',
+                      ? 'Printer ready · Sunmi D3 Mini Inner Printer'
+                      : 'Printer ready · ${_savedConfig!.host}:${_savedConfig!.port}',
                   style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -683,6 +764,187 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
       ),
     );
   }
+}
+
+class _EmergencyAction {
+  final AttendanceBarista barista;
+  final String pin;
+  final String reasonCode;
+  final String? note;
+
+  const _EmergencyAction({
+    required this.barista,
+    required this.pin,
+    required this.reasonCode,
+    this.note,
+  });
+}
+
+class _EmergencySheet extends StatefulWidget {
+  final List<AttendanceBarista> baristas;
+  final bool reopening;
+  final DateTime? expectedReopenAt;
+
+  const _EmergencySheet({
+    required this.baristas,
+    required this.reopening,
+    this.expectedReopenAt,
+  });
+
+  @override
+  State<_EmergencySheet> createState() => _EmergencySheetState();
+}
+
+class _EmergencySheetState extends State<_EmergencySheet> {
+  AttendanceBarista? selected;
+  String pin = '';
+  String reasonCode = 'medical_emergency';
+  String note = '';
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Container(
+      margin: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        24 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.reopening ? 'Reopen outlet' : 'Emergency close outlet',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.reopening
+                  ? 'Reopening resumes ordering and clocks the selected scheduled barista in.'
+                  : 'Preparing or ready-for-pickup orders will block closure. Earlier orders will be cancelled and refunded safely.',
+            ),
+            if (widget.expectedReopenAt != null) ...[
+              const SizedBox(height: 8),
+              Text('Automatic reopening: ${widget.expectedReopenAt}'),
+            ],
+            const SizedBox(height: 18),
+            DropdownButtonFormField<AttendanceBarista>(
+              initialValue: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Barista',
+                border: OutlineInputBorder(),
+              ),
+              items: widget.baristas
+                  .map(
+                    (barista) => DropdownMenuItem(
+                      value: barista,
+                      child: Text(barista.name),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => selected = value),
+            ),
+            if (!widget.reopening) ...[
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                initialValue: reasonCode,
+                decoration: const InputDecoration(
+                  labelText: 'Emergency reason',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'medical_emergency',
+                    child: Text('Medical emergency'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'safety_incident',
+                    child: Text('Safety incident'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'power_outage',
+                    child: Text('Power outage'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'equipment_failure',
+                    child: Text('Equipment failure'),
+                  ),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (value) =>
+                    setState(() => reasonCode = value ?? reasonCode),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                maxLength: 500,
+                maxLines: 3,
+                onChanged: (value) => note = value,
+                decoration: const InputDecoration(
+                  labelText: 'Internal note (optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            TextField(
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 6,
+              onChanged: (value) =>
+                  setState(() => pin = value.replaceAll(RegExp(r'[^0-9]'), '')),
+              decoration: const InputDecoration(
+                labelText: 'Six-digit PIN',
+                border: OutlineInputBorder(),
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 10),
+                FilledButton(
+                  onPressed: selected == null || pin.length != 6
+                      ? null
+                      : () => Navigator.pop(
+                          context,
+                          _EmergencyAction(
+                            barista: selected!,
+                            pin: pin,
+                            reasonCode: reasonCode,
+                            note: note.trim().isEmpty ? null : note.trim(),
+                          ),
+                        ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: widget.reopening
+                        ? SettingsPage.green
+                        : const Color(0xFFB3261E),
+                  ),
+                  child: Text(
+                    widget.reopening
+                        ? 'Reopen outlet'
+                        : 'Confirm emergency closure',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _AttendanceAction {

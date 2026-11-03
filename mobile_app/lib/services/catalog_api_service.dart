@@ -68,6 +68,8 @@ class StoreSummary {
   final bool acceptsMobileOrdersNow;
   final String mobileOrderingStatus;
   final DateTime? mobileOrderCutoffAt;
+  final bool emergencyClosureActive;
+  final DateTime? emergencyExpectedReopenAt;
 
   const StoreSummary({
     required this.id,
@@ -87,6 +89,8 @@ class StoreSummary {
     this.acceptsMobileOrdersNow = true,
     this.mobileOrderingStatus = 'open',
     this.mobileOrderCutoffAt,
+    this.emergencyClosureActive = false,
+    this.emergencyExpectedReopenAt,
   });
 
   String get addressLabel => [
@@ -119,6 +123,10 @@ class StoreSummary {
       mobileOrderCutoffAt: DateTime.tryParse(
         json['mobile_order_cutoff_at'] as String? ?? '',
       )?.toLocal(),
+      emergencyClosureActive: json['emergency_closure_active'] == true,
+      emergencyExpectedReopenAt: DateTime.tryParse(
+        json['emergency_expected_reopen_at'] as String? ?? '',
+      )?.toLocal(),
     );
   }
 }
@@ -135,13 +143,15 @@ class CatalogMenuItem {
   final String? colorHex;
   final String? gradientEndHex;
   final bool isAvailable;
+
   /// 'available', 'sold_out' (ingredient ran out) or 'coming_soon' (stock not
   /// set up yet, so the app hides the item).
   final String availabilityStatus;
   final bool isHandcraftedDrink;
   final bool isQualifyingCup;
   bool get isSoldOut => availabilityStatus == 'sold_out';
-  bool get isVisibleInMenu => isAvailable && availabilityStatus != 'coming_soon';
+  bool get isVisibleInMenu =>
+      isAvailable && availabilityStatus != 'coming_soon';
   bool get isOrderable => isAvailable && availabilityStatus == 'available';
   final bool allowChoiceOfBeans;
   final bool allowEspressoShot;
@@ -666,15 +676,24 @@ class MaintenanceSnapshot {
   final String message;
   final DateTime? expectedEndAt;
 
-  const MaintenanceSnapshot({required this.enabled, required this.blocked, required this.title, required this.message, required this.expectedEndAt});
+  const MaintenanceSnapshot(
+      {required this.enabled,
+      required this.blocked,
+      required this.title,
+      required this.message,
+      required this.expectedEndAt});
 
-  factory MaintenanceSnapshot.fromApi(Map<String, dynamic> json) => MaintenanceSnapshot(
-    enabled: json['enabled'] as bool? ?? false,
-    blocked: json['blocked'] as bool? ?? false,
-    title: json['title'] as String? ?? 'C2 Coffee is under maintenance',
-    message: json['message'] as String? ?? 'We are making improvements. Please check back soon.',
-    expectedEndAt: DateTime.tryParse(json['expected_end_at'] as String? ?? '')?.toLocal(),
-  );
+  factory MaintenanceSnapshot.fromApi(Map<String, dynamic> json) =>
+      MaintenanceSnapshot(
+        enabled: json['enabled'] as bool? ?? false,
+        blocked: json['blocked'] as bool? ?? false,
+        title: json['title'] as String? ?? 'C2 Coffee is under maintenance',
+        message: json['message'] as String? ??
+            'We are making improvements. Please check back soon.',
+        expectedEndAt:
+            DateTime.tryParse(json['expected_end_at'] as String? ?? '')
+                ?.toLocal(),
+      );
 }
 
 class CatalogApiService {

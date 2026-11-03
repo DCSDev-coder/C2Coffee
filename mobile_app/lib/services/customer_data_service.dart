@@ -1284,7 +1284,7 @@ class CustomerDataService {
     required String accessToken,
     required String currency,
     required num amount,
-    required String recipientPhone,
+    String? recipientPhone,
     String? recipientMessage,
     String? paymentMethod,
     required String idempotencyKey,
@@ -1296,7 +1296,7 @@ class CustomerDataService {
       body: {
         'currency': currency,
         'amount': amount,
-        'recipient_phone': recipientPhone,
+        if (recipientPhone != null && recipientPhone.trim().isNotEmpty) 'recipient_phone': recipientPhone.trim(),
         'recipient_message': recipientMessage,
         if (paymentMethod != null) 'payment_method': paymentMethod,
       },

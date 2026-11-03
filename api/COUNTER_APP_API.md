@@ -200,3 +200,39 @@ counter order creation remains disabled until a QR/card provider and its signed
 server callback are configured. Never add a client-side "payment successful"
 button that can mark an order paid. The Counter App should clear its local cart
 and customer session after every completed, cancelled, or idle interaction.
+
+## Emergency outlet closure
+
+An actively clocked-in ordinary barista may request an outlet-scoped emergency
+closure with their six-digit PIN:
+
+```http
+POST /v1/barista/outlet/emergency-close
+X-C2-Workstation-Key: <activated workstation key>
+Content-Type: application/json
+
+{
+  "barista_id": 12,
+  "pin": "123456",
+  "reason_code": "medical_emergency",
+  "note": "Internal staff-only note",
+  "idempotency_key": "counter-emergency-12-..."
+}
+```
+
+`preparing` and `ready_for_pickup` orders block closure. Earlier orders are
+cancelled; paid orders use the existing token or direct-payment refund path.
+The closure clocks out the initiating barista, marks only that outlet
+temporarily closed, records an audit event, and sends persistent plus push
+notifications to customers linked by prior orders at that outlet.
+
+The closure automatically expires at the next published shift. A scheduled
+barista may reopen during the same shift and clock back in:
+
+```http
+POST /v1/barista/outlet/emergency-reopen
+X-C2-Workstation-Key: <activated workstation key>
+Content-Type: application/json
+
+{ "barista_id": 12, "pin": "123456" }
+```

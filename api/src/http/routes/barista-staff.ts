@@ -10,6 +10,11 @@ import { saveMediaAsset } from '../../lib/media-assets.js';
 import { verifyPassword } from '../../lib/password.js';
 import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 import { loadBaristaSoundSettings } from '../../services/barista-sound-settings.js';
+import { createUserNotification } from '../notifications.js';
+import { deliverPushToUser } from '../../services/push-delivery.js';
+import { releaseInventoryForOrder } from '../../services/inventory.js';
+import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
+import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 
 const guideTypeSchema = z.enum(['attire', 'rules', 'drink']);
 const imageUploadSchema = z.object({
@@ -19,6 +24,20 @@ const imageUploadSchema = z.object({
 const attendanceActionSchema = z.object({
   barista_id: z.coerce.number().int().positive(),
   pin: z.string().regex(/^\d{6}$/)
+});
+
+const emergencyReasonSchema = z.enum([
+  'medical_emergency',
+  'safety_incident',
+  'power_outage',
+  'equipment_failure',
+  'other'
+]);
+
+const emergencyActionSchema = attendanceActionSchema.extend({
+  reason_code: emergencyReasonSchema,
+  note: z.string().trim().max(500).nullable().optional(),
+  idempotency_key: z.string().trim().min(16).max(100)
 });
 
 const sideWorkSchema = z.object({
@@ -137,6 +156,43 @@ function guideResponse(row: RowDataPacket) {
     image_url: row.image_url, sort_order: Number(row.sort_order), is_active: !!row.is_active,
     menu_item_name: row.menu_item_name ?? null, created_at: row.created_at, updated_at: row.updated_at
   };
+}
+
+function emergencyCustomerMessage(expectedReopenAt: Date | null, sameDay: boolean): string {
+  if (!expectedReopenAt) {
+    return 'This outlet has closed early today due to an emergency. Please check the app for the next update.';
+  }
+  const reopenLabel = new Intl.DateTimeFormat('en-MY', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    weekday: sameDay ? undefined : 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }).format(expectedReopenAt);
+  return sameDay
+    ? `This outlet is temporarily closed due to an emergency. We expect to reopen during the next scheduled shift at ${reopenLabel}.`
+    : `This outlet has closed early today due to an emergency. The next scheduled shift starts ${reopenLabel}.`;
+}
+
+async function nextPublishedShift(
+  connection: Awaited<ReturnType<typeof mysqlPool.getConnection>>,
+  tenantCode: string,
+  storeId: number
+): Promise<Date | null> {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT CONVERT_TZ(TIMESTAMP(s.shift_date, s.starts_at), '+08:00', '+00:00') AS starts_at
+       FROM barista_dated_shifts s
+       JOIN barista_schedule_publications p
+         ON p.tenant_code = s.tenant_code AND p.schedule_date = s.shift_date
+        AND (p.store_id = s.store_id OR p.store_id IS NULL)
+      WHERE s.tenant_code = :tenantCode
+        AND (s.store_id = :storeId OR s.store_id IS NULL)
+        AND TIMESTAMP(s.shift_date, s.starts_at) > CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')
+      ORDER BY s.shift_date, s.starts_at
+      LIMIT 1`,
+    { tenantCode, storeId }
+  );
+  return rows[0]?.starts_at ? new Date(rows[0].starts_at) : null;
 }
 
 export async function registerBaristaStaffRoutes(app: FastifyInstance) {
@@ -346,7 +402,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     const storeId = await resolveAttendanceStoreId(request);
     const connection = await mysqlPool.getConnection();
     try {
-      const [baristas, access] = await Promise.all([
+      const [baristas, access, closureRows] = await Promise.all([
         connection.query<RowDataPacket[]>(
           `SELECT b.id, b.name, b.pin_hash IS NOT NULL AS pin_configured FROM baristas b
            WHERE b.tenant_code = :tenantCode AND (
@@ -361,11 +417,26 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
           tenantId: request.adminAuth.tenantId,
           tenantCode: request.adminAuth.tenantCode,
           storeId
-        })
+        }),
+        connection.query<RowDataPacket[]>(
+          `SELECT id, reason_code, expected_reopen_at, created_at
+             FROM outlet_emergency_closures
+            WHERE tenant_id = :tenantId AND store_id = :storeId AND status = 'active'
+            ORDER BY id DESC LIMIT 1`,
+          { tenantId: request.adminAuth.tenantId, storeId }
+        )
       ]);
       return {
         baristas: baristas[0].map((row) => ({ id: Number(row.id), name: row.name, pin_configured: !!row.pin_configured })),
-        active_attendance: access.active_attendance
+        active_attendance: access.active_attendance,
+        emergency_closure: closureRows[0][0]
+          ? {
+              id: Number(closureRows[0][0].id),
+              reason_code: String(closureRows[0][0].reason_code),
+              expected_reopen_at: closureRows[0][0].expected_reopen_at ? new Date(closureRows[0][0].expected_reopen_at).toISOString() : null,
+              created_at: new Date(closureRows[0][0].created_at).toISOString()
+            }
+          : null
       };
     } finally {
       connection.release();
@@ -520,6 +591,292 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       );
       await connection.commit();
       return reply.send({ success: true, unchanged: result.affectedRows === 0 });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/barista/outlet/emergency-close', {
+    preHandler: authenticateAdminRequest,
+    config: { rateLimit: { max: 4, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
+    assertStaffAccess(request);
+    const payload = emergencyActionSchema.parse(request.body);
+    const storeId = await resolveAttendanceStoreId(request);
+    const connection = await mysqlPool.getConnection();
+    const pushMessages: Array<{ userId: number; title: string; body: string; type: string }> = [];
+    const cancelledUserIds = new Set<number>();
+    try {
+      await connection.beginTransaction();
+      const [existing] = await connection.query<RowDataPacket[]>(
+        `SELECT id, cancelled_order_count, expected_reopen_at
+           FROM outlet_emergency_closures
+          WHERE tenant_id = :tenantId AND idempotency_key = :idempotencyKey
+          LIMIT 1 FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId, idempotencyKey: payload.idempotency_key }
+      );
+      if (existing[0]) {
+        await connection.commit();
+        return reply.send({ closure: { id: Number(existing[0].id), status: 'active', expected_reopen_at: existing[0].expected_reopen_at }, cancelled_order_count: Number(existing[0].cancelled_order_count), unchanged: true });
+      }
+
+      const [baristas] = await connection.query<RowDataPacket[]>(
+        `SELECT b.id, b.pin_hash
+           FROM baristas b
+           JOIN barista_attendance a ON a.barista_id = b.id
+          WHERE b.id = :baristaId AND b.tenant_code = :tenantCode
+            AND a.tenant_id = :tenantId AND a.store_id = :storeId
+            AND a.clocked_out_at IS NULL
+          LIMIT 1 FOR UPDATE`,
+        { baristaId: payload.barista_id, tenantCode: request.adminAuth.tenantCode, tenantId: request.adminAuth.tenantId, storeId }
+      );
+      const barista = baristas[0];
+      if (!barista?.pin_hash || !(await verifyPassword(payload.pin, barista.pin_hash))) {
+        throw new ApiError(401, 'invalid_barista_pin', 'The selected barista or PIN is not valid.');
+      }
+
+      const [stores] = await connection.query<RowDataPacket[]>(
+        `SELECT id, temporarily_closed FROM stores
+          WHERE id = :storeId AND tenant_id = :tenantId LIMIT 1 FOR UPDATE`,
+        { storeId, tenantId: request.adminAuth.tenantId }
+      );
+      if (!stores[0]) throw new ApiError(404, 'store_not_found', 'The outlet was not found.');
+      const [activeClosure] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM outlet_emergency_closures
+          WHERE tenant_id = :tenantId AND store_id = :storeId AND status = 'active'
+          ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId, storeId }
+      );
+      if (activeClosure[0]) throw new ApiError(409, 'emergency_closure_active', 'This outlet is already temporarily closed.');
+
+      const [orders] = await connection.query<RowDataPacket[]>(
+        `SELECT o.id, o.order_ref, o.user_id, o.status, o.payment_mode,
+                o.token_amount_charged, o.final_total_rm,
+                p.id AS payment_id
+           FROM orders o
+           LEFT JOIN payments p ON p.id = (
+             SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+           )
+          WHERE o.store_id = :storeId
+            AND o.status IN ('pending_payment', 'payment_failed', 'paid', 'accepted', 'preparing', 'ready_for_pickup')
+          ORDER BY o.id FOR UPDATE`,
+        { storeId }
+      );
+      const blockingOrders = orders.filter((order) => ['preparing', 'ready_for_pickup'].includes(String(order.status)));
+      if (blockingOrders.length > 0) {
+        throw new ApiError(409, 'emergency_active_orders_block', 'Complete all preparing and ready-for-pickup orders before closing the outlet.');
+      }
+
+      let cancelledOrderCount = 0;
+      for (const order of orders) {
+        cancelledUserIds.add(Number(order.user_id));
+        const reason = 'Outlet emergency closure before preparation';
+        if (['pending_payment', 'payment_failed'].includes(String(order.status))) {
+          await connection.execute(
+            `UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+              WHERE id = :orderId AND status IN ('pending_payment', 'payment_failed')`,
+            { orderId: order.id }
+          );
+          await connection.execute(
+            `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
+             VALUES (:orderId, :fromStatus, 'cancelled', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`,
+            { orderId: order.id, fromStatus: order.status, adminUserId: request.adminAuth.adminUserId, reason }
+          );
+          await releaseInventoryForOrder(connection, Number(order.id));
+          await restoreGiftCardForRefund(connection, Number(order.id), Number(order.user_id), `Returned after emergency cancellation ${order.order_ref}`);
+          await createUserNotification(connection, { userId: Number(order.user_id), type: 'order_cancelled_emergency', title: 'Order cancelled — outlet temporarily closed', body: 'Your order was cancelled before payment completed because this outlet temporarily closed for an emergency.' });
+          pushMessages.push({ userId: Number(order.user_id), type: 'order_cancelled_emergency', title: 'Order cancelled', body: 'This outlet temporarily closed for an emergency. Your unpaid order was cancelled.' });
+          cancelledOrderCount += 1;
+          continue;
+        }
+
+        await connection.execute(
+          `INSERT INTO order_cancellation_requests (order_id, user_id, status, reason, requested_at, reviewed_at, reviewed_by_admin_user_id, review_reason, created_at, updated_at)
+           VALUES (:orderId, :userId, :status, :reason, UTC_TIMESTAMP(), UTC_TIMESTAMP(), :adminUserId, :reviewReason, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+           ON DUPLICATE KEY UPDATE status = VALUES(status), reviewed_at = VALUES(reviewed_at), reviewed_by_admin_user_id = VALUES(reviewed_by_admin_user_id), review_reason = VALUES(review_reason), updated_at = UTC_TIMESTAMP()`,
+          { orderId: order.id, userId: order.user_id, status: order.payment_mode === 'direct' ? 'refund_pending' : 'completed', reason, adminUserId: request.adminAuth.adminUserId, reviewReason: reason }
+        );
+
+        if (order.payment_mode === 'direct') {
+          const [existingRefunds] = await connection.query<RowDataPacket[]>(
+            `SELECT id FROM refunds WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed') LIMIT 1 FOR UPDATE`,
+            { orderId: order.id }
+          );
+          if (!existingRefunds[0]) {
+            const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
+            await connection.execute(
+              `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_by_admin_id, created_at)
+               VALUES (:orderId, :paymentId, 'direct', :refundRef, :amountRm, NULL, 'pending', :reason, :adminUserId, UTC_TIMESTAMP())`,
+              { orderId: order.id, paymentId: order.payment_id, refundRef, amountRm: order.final_total_rm, reason, adminUserId: request.adminAuth.adminUserId }
+            );
+          }
+          await createUserNotification(connection, { userId: Number(order.user_id), type: 'order_cancellation_approved', title: 'Order cancelled; refund pending', body: 'This outlet temporarily closed for an emergency. Your payment refund is now being processed.' });
+          pushMessages.push({ userId: Number(order.user_id), type: 'order_cancellation_approved', title: 'Order cancelled; refund pending', body: 'This outlet temporarily closed for an emergency. Your refund is being processed.' });
+          cancelledOrderCount += 1;
+          continue;
+        }
+
+        const tokenAmount = Number(order.token_amount_charged);
+        if (tokenAmount <= 0) throw new ApiError(409, 'refund_not_supported', `Order ${order.order_ref} cannot be safely refunded.`);
+        const [existingRefunds] = await connection.query<RowDataPacket[]>(
+          `SELECT id FROM refunds WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed') LIMIT 1 FOR UPDATE`,
+          { orderId: order.id }
+        );
+        if (!existingRefunds[0]) {
+          const [accounts] = await connection.query<RowDataPacket[]>(
+            `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+            { userId: order.user_id }
+          );
+          if (!accounts[0]) throw new ApiError(409, 'token_account_not_found', 'The customer token account was not found.');
+          const balanceAfter = Number(accounts[0].balance_available) + tokenAmount;
+          await connection.execute(`UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { balanceAfter, userId: order.user_id });
+          const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
+          const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, { orderId: Number(order.id), userId: Number(order.user_id), issueCaseRef: `refund:${refundRef}`, reason: `Replacement voucher for emergency-cancelled order ${order.order_ref}` });
+          await connection.execute(
+            `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+             VALUES (:userId, NULL, 'credit', 'refund_return', :orderId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
+            { userId: order.user_id, orderId: order.id, amount: tokenAmount, balanceAfter, remarks: `Emergency cancellation for order ${order.order_ref}` }
+          );
+          await connection.execute(
+            `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_by_admin_id, created_at, completed_at)
+             VALUES (:orderId, :paymentId, 'token', :refundRef, :amountRm, :tokenAmount, 'completed', :reason, :adminUserId, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+            { orderId: order.id, paymentId: order.payment_id, refundRef, amountRm: order.final_total_rm, tokenAmount, reason, adminUserId: request.adminAuth.adminUserId }
+          );
+          await releaseInventoryForOrder(connection, Number(order.id));
+          await restoreGiftCardForRefund(connection, Number(order.id), Number(order.user_id), `Returned after emergency cancellation ${order.order_ref}`);
+          await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status IN ('paid', 'accepted')`, { orderId: order.id });
+          await connection.execute(
+            `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
+             VALUES (:orderId, :fromStatus, 'cancelled', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`,
+            { orderId: order.id, fromStatus: order.status, adminUserId: request.adminAuth.adminUserId, reason }
+          );
+          await createUserNotification(connection, { userId: Number(order.user_id), type: 'order_cancelled', title: 'Order cancelled and tokens returned', body: replacementVoucherIssued ? `${tokenAmount} tokens were returned and an equivalent voucher was restored.` : `${tokenAmount} tokens were returned to your C2 Coffee account.` });
+          pushMessages.push({ userId: Number(order.user_id), type: 'order_cancelled', title: 'Order cancelled and refunded', body: `${tokenAmount} tokens were returned because this outlet temporarily closed for an emergency.` });
+        }
+        cancelledOrderCount += 1;
+      }
+
+      const expectedReopenAt = await nextPublishedShift(connection, request.adminAuth.tenantCode, storeId);
+      await connection.execute(`UPDATE stores SET temporarily_closed = 1, updated_at = UTC_TIMESTAMP() WHERE id = :storeId`, { storeId });
+      const [closureResult] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO outlet_emergency_closures
+          (tenant_id, store_id, barista_id, initiated_by_admin_user_id, idempotency_key, reason_code, note, expected_reopen_at, cancelled_order_count, created_at)
+         VALUES (:tenantId, :storeId, :baristaId, :adminUserId, :idempotencyKey, :reasonCode, :note, :expectedReopenAt, :cancelledOrderCount, UTC_TIMESTAMP())`,
+        { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id, adminUserId: request.adminAuth.adminUserId, idempotencyKey: payload.idempotency_key, reasonCode: payload.reason_code, note: payload.note || null, expectedReopenAt, cancelledOrderCount }
+      );
+      await connection.execute(
+        `UPDATE barista_attendance SET clocked_out_at = UTC_TIMESTAMP()
+          WHERE tenant_id = :tenantId AND store_id = :storeId AND barista_id = :baristaId AND clocked_out_at IS NULL`,
+        { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id }
+      );
+      await connection.execute(
+        `INSERT INTO admin_audit_logs (admin_user_id, effective_roles_json, action_code, target_type, target_id, after_json, ip_address, user_agent, created_at)
+         VALUES (:adminUserId, :roles, 'outlet_emergency_closed', 'store', :storeId, :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        { adminUserId: request.adminAuth.adminUserId, roles: JSON.stringify(request.adminAuth.roles), storeId, afterJson: JSON.stringify({ closure_id: Number(closureResult.insertId), barista_id: payload.barista_id, reason_code: payload.reason_code, expected_reopen_at: expectedReopenAt, cancelled_order_count: cancelledOrderCount }), ipAddress: request.ip, userAgent: request.headers['user-agent'] ?? null }
+      );
+
+      const customerMessage = emergencyCustomerMessage(expectedReopenAt, expectedReopenAt ? malaysiaDate(expectedReopenAt) === malaysiaDate() : false);
+      const [linkedUsers] = await connection.query<RowDataPacket[]>(
+        `SELECT DISTINCT o.user_id FROM orders o JOIN users u ON u.id = o.user_id
+          WHERE o.store_id = :storeId AND u.status = 'active'`,
+        { storeId }
+      );
+      for (const user of linkedUsers) {
+        if (cancelledUserIds.has(Number(user.user_id))) continue;
+        await createUserNotification(connection, { userId: Number(user.user_id), type: 'outlet_emergency_closed', title: 'Outlet temporarily closed', body: customerMessage, data: { store_id: storeId, closure_id: Number(closureResult.insertId), destination: 'home' }, deliveryKey: `outlet-emergency-${closureResult.insertId}-${user.user_id}` });
+        pushMessages.push({ userId: Number(user.user_id), type: 'outlet_emergency_closed', title: 'Outlet temporarily closed', body: customerMessage });
+      }
+      await connection.commit();
+
+      for (const push of pushMessages) {
+        try {
+          await deliverPushToUser({ userId: push.userId, title: push.title, body: push.body, data: { type: push.type, store_id: String(storeId) } });
+        } catch (error) {
+          request.log.warn({ err: error, userId: push.userId, storeId }, 'Emergency closure push delivery failed.');
+        }
+      }
+      return reply.send({ closure: { id: Number(closureResult.insertId), status: 'active', expected_reopen_at: expectedReopenAt?.toISOString() ?? null, message: customerMessage }, cancelled_order_count: cancelledOrderCount, barista_clocked_out: true });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/barista/outlet/emergency-reopen', {
+    preHandler: authenticateAdminRequest,
+    config: { rateLimit: { max: 6, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
+    assertStaffAccess(request);
+    const payload = attendanceActionSchema.parse(request.body);
+    const storeId = await resolveAttendanceStoreId(request);
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [baristas] = await connection.query<RowDataPacket[]>(
+        `SELECT id, pin_hash FROM baristas
+          WHERE id = :baristaId AND tenant_code = :tenantCode AND is_active = 1
+          LIMIT 1 FOR UPDATE`,
+        { baristaId: payload.barista_id, tenantCode: request.adminAuth.tenantCode }
+      );
+      const barista = baristas[0];
+      if (!barista?.pin_hash || !(await verifyPassword(payload.pin, barista.pin_hash))) {
+        throw new ApiError(401, 'invalid_barista_pin', 'The selected barista or PIN is not valid.');
+      }
+      const [closures] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM outlet_emergency_closures
+          WHERE tenant_id = :tenantId AND store_id = :storeId AND status = 'active'
+          ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId, storeId }
+      );
+      if (!closures[0]) {
+        await connection.commit();
+        return reply.send({ reopened: true, unchanged: true });
+      }
+      const [scheduled] = await connection.query<RowDataPacket[]>(
+        `SELECT s.id FROM barista_dated_shifts s
+          WHERE s.tenant_code = :tenantCode AND s.barista_id = :baristaId
+            AND (s.store_id = :storeId OR s.store_id IS NULL)
+            AND (
+              (s.ends_at > s.starts_at AND CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00') BETWEEN TIMESTAMP(s.shift_date, s.starts_at) AND TIMESTAMP(s.shift_date, s.ends_at))
+              OR
+              (s.ends_at < s.starts_at AND CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00') BETWEEN TIMESTAMP(s.shift_date, s.starts_at) AND DATE_ADD(TIMESTAMP(s.shift_date, s.ends_at), INTERVAL 1 DAY))
+            )
+          LIMIT 1`,
+        { tenantCode: request.adminAuth.tenantCode, baristaId: payload.barista_id, storeId }
+      );
+      if (!scheduled[0] && request.adminAuth.isBaristaOnly) {
+        throw new ApiError(409, 'barista_not_scheduled', 'Only a barista scheduled for the current shift can reopen this outlet.');
+      }
+      await connection.execute(
+        `UPDATE outlet_emergency_closures
+            SET status = 'reopened', reopened_at = UTC_TIMESTAMP(),
+                reopened_by_barista_id = :baristaId,
+                reopened_by_admin_user_id = :adminUserId
+          WHERE id = :closureId AND status = 'active'`,
+        { closureId: closures[0].id, baristaId: payload.barista_id, adminUserId: request.adminAuth.adminUserId }
+      );
+      await connection.execute(`UPDATE stores SET temporarily_closed = 0, updated_at = UTC_TIMESTAMP() WHERE id = :storeId`, { storeId });
+      await connection.execute(
+        `INSERT INTO barista_attendance (tenant_id, store_id, barista_id, recorded_by_admin_user_id, clocked_in_at)
+         SELECT :tenantId, :storeId, :baristaId, :adminUserId, UTC_TIMESTAMP()
+          WHERE NOT EXISTS (
+            SELECT 1 FROM barista_attendance
+             WHERE tenant_id = :tenantId AND store_id = :storeId AND barista_id = :baristaId AND clocked_out_at IS NULL
+          )`,
+        { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id, adminUserId: request.adminAuth.adminUserId }
+      );
+      await connection.execute(
+        `INSERT INTO admin_audit_logs (admin_user_id, effective_roles_json, action_code, target_type, target_id, after_json, ip_address, user_agent, created_at)
+         VALUES (:adminUserId, :roles, 'outlet_emergency_reopened', 'store', :storeId, :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        { adminUserId: request.adminAuth.adminUserId, roles: JSON.stringify(request.adminAuth.roles), storeId, afterJson: JSON.stringify({ closure_id: Number(closures[0].id), barista_id: payload.barista_id }), ipAddress: request.ip, userAgent: request.headers['user-agent'] ?? null }
+      );
+      await connection.commit();
+      return reply.send({ reopened: true, barista_clocked_in: true });
     } catch (error) {
       await connection.rollback();
       throw error;

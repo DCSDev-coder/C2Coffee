@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:c2_coffee/authorization/login.dart';
@@ -12,19 +15,81 @@ import 'package:c2_coffee/services/push_notification_service.dart';
 import 'package:c2_coffee/screens/home_page.dart';
 import 'package:c2_coffee/screens/splash_screen.dart';
 import 'package:c2_coffee/utils/app_colors.dart';
+import 'package:c2_coffee/utils/app_diagnostics.dart';
 import 'package:c2_coffee/utils/app_notification.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await PushNotificationService.instance.initialize();
-  await AppColors.loadTier();
-  runApp(const C2CoffeeApp());
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      AppDiagnostics.recordError(
+        details.exception,
+        details.stack ?? StackTrace.current,
+        context: 'Flutter framework error',
+      );
+      if (Firebase.apps.isNotEmpty) {
+        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      }
+    };
+    PlatformDispatcher.instance.onError = (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'Uncaught platform error',
+      );
+      if (Firebase.apps.isNotEmpty) {
+        FirebaseCrashlytics.instance
+            .recordError(error, stackTrace, fatal: true);
+      }
+      return true;
+    };
+    if (kReleaseMode) {
+      ErrorWidget.builder = (_) => const ColoredBox(
+            color: Colors.white,
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Something went wrong. Please reopen this page.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+    }
+
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    await Firebase.initializeApp();
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+      kReleaseMode,
+    );
+    final crashedPreviously =
+        await FirebaseCrashlytics.instance.didCrashOnPreviousExecution();
+    if (crashedPreviously) {
+      await FirebaseCrashlytics.instance.log(
+        'C2 Coffee restarted after a previous crash.',
+      );
+    }
+    await FirebaseCrashlytics.instance.sendUnsentReports();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await PushNotificationService.instance.initialize();
+    await AppColors.loadTier();
+    runApp(const C2CoffeeApp());
+  }, (error, stackTrace) {
+    AppDiagnostics.recordError(
+      error,
+      stackTrace,
+      context: 'Uncaught application error',
+    );
+    if (Firebase.apps.isNotEmpty) {
+      FirebaseCrashlytics.instance.recordError(error, stackTrace, fatal: true);
+    }
+  });
 }
 
 class C2CoffeeApp extends StatelessWidget {
@@ -178,7 +243,12 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
           ],
         ),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'App update check failed',
+      );
       // Update checks are optional. Network or an unpublished manifest must
       // never prevent the customer from opening the app.
     } finally {
@@ -200,7 +270,12 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
           await SecureSessionService.instance.getValidAccessToken();
       if (accessToken == null || accessToken.isEmpty) return;
       await AppSessionService.instance.loadAuthenticatedState(force: true);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'Background session refresh failed',
+      );
       // Ignore refresh failures; the active screen will show the existing state.
     }
   }

@@ -45,7 +45,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   bool _isSubmitting = false;
   RewardVoucher? _selectedVoucher;
-  GiftCard? _selectedGiftCard;
   String? _checkoutError;
   String? _voucherGuidance;
   String? _checkoutIdempotencyKey;
@@ -542,11 +541,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       ignoring: _isSubmitting,
                       child: _buildVoucherCard(snapshot),
                     ),
-                    const SizedBox(height: 10),
-                    IgnorePointer(
-                      ignoring: _isSubmitting,
-                      child: _buildGiftCardCard(),
-                    ),
                     if (_voucherGuidance != null) ...[
                       const SizedBox(height: 10),
                       _buildVoucherGuidance(_voucherGuidance!),
@@ -785,11 +779,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     setState(() {
       _paymentMode = selection.mode;
       _directPaymentMethod = selection.method;
-      if (_selectedGiftCard != null &&
-          _selectedGiftCard!.currency !=
-              (selection.mode == 'token' ? 'token' : 'rm')) {
-        _selectedGiftCard = null;
-      }
     });
   }
 
@@ -1363,92 +1352,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
-  Widget _buildGiftCardCard() {
-    final card = _selectedGiftCard;
-    return InkWell(
-      onTap: () async {
-        final token = await SecureSessionService.instance.getValidAccessToken();
-        if (token == null || token.isEmpty || !mounted) return;
-        try {
-          final cards = await CustomerDataService.instance
-              .getGiftCards(accessToken: token);
-          final compatible = cards
-              .where((item) =>
-                  item.isUsable &&
-                  item.currency == (_paymentMode == 'token' ? 'token' : 'rm'))
-              .toList();
-          if (!mounted) return;
-          final selected = await showModalBottomSheet<GiftCard?>(
-            context: context,
-            builder: (context) => SafeArea(
-                child: ListView(
-              shrinkWrap: true,
-              children: [
-                const ListTile(title: Text('Apply Gift Card')),
-                ListTile(
-                    leading: const Icon(Icons.close),
-                    title: const Text('Do not use a gift card'),
-                    onTap: () => Navigator.pop(context)),
-                ...compatible.map((item) => ListTile(
-                      leading: const Icon(Icons.card_giftcard),
-                      title: Text(item.amountLabel),
-                      subtitle: Text(item.code),
-                      onTap: () => Navigator.pop(context, item),
-                    )),
-                if (compatible.isEmpty)
-                  const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text(
-                          'No matching active gift cards. Claim a card from Rewards first.')),
-              ],
-            )),
-          );
-          if (mounted) setState(() => _selectedGiftCard = selected);
-        } catch (_) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Unable to load gift cards.')));
-          }
-        }
-      },
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-            color: card == null
-                ? Colors.white
-                : AppColors.gold.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-                color: card == null ? AppColors.border : AppColors.gold)),
-        child: Row(children: [
-          const Icon(Icons.card_giftcard_outlined),
-          const SizedBox(width: 13),
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(card?.amountLabel ?? 'Apply Gift Card',
-                    style: const TextStyle(
-                        fontFamily: 'Recoleta', fontWeight: FontWeight.bold)),
-                Text(
-                    card == null
-                        ? 'Use an RM or C2 Token gift card'
-                        : '${card.code} · Tap to change',
-                    style: const TextStyle(fontSize: 13, color: Colors.black54))
-              ])),
-          if (card != null)
-            IconButton(
-                icon: const Icon(Icons.close),
-                tooltip: 'Remove gift card',
-                onPressed: () => setState(() => _selectedGiftCard = null))
-          else
-            const Icon(Icons.chevron_right),
-        ]),
-      ),
-    );
-  }
-
   double _calculateDiscountRm(CartSnapshot snapshot) {
     final voucher = _selectedVoucher;
     if (voucher == null) return 0;
@@ -1470,42 +1373,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   double _finalDirectCharge(CartSnapshot snapshot) {
-    final afterVoucher =
-        max<double>(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
-    return max<double>(0, afterVoucher - _calculateGiftCardRm(snapshot));
-  }
-
-  double _calculateGiftCardRm(CartSnapshot snapshot) {
-    final card = _selectedGiftCard;
-    if (card == null || card.currency != 'rm' || _paymentMode != 'direct') {
-      return 0;
-    }
-    final afterVoucher =
-        max<double>(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
-    final remaining = double.tryParse(card.remainingAmount) ?? 0;
-    return min<double>(afterVoucher, max<double>(0, remaining));
-  }
-
-  int _calculateGiftCardTokens(CartSnapshot snapshot) {
-    final card = _selectedGiftCard;
-    if (card == null || card.currency != 'token' || _paymentMode != 'token') {
-      return 0;
-    }
-    final afterVoucher =
-        max<int>(0, snapshot.subtotalTokens - _calculateDiscountTokens(snapshot));
-    final remaining = (double.tryParse(card.remainingAmount) ?? 0).floor();
-    return min<int>(afterVoucher, max<int>(0, remaining));
+    return max<double>(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
   }
 
   Widget _buildSummaryCard(CartSnapshot snapshot) {
     final discountTokens = _calculateDiscountTokens(snapshot);
-    final giftCardTokens = _calculateGiftCardTokens(snapshot);
     final finalTokens = max(
       0,
-      snapshot.subtotalTokens - discountTokens - giftCardTokens,
+      snapshot.subtotalTokens - discountTokens,
     );
     final directDiscount = _calculateDiscountRm(snapshot);
-    final giftCardRm = _calculateGiftCardRm(snapshot);
     final directTotal = _finalDirectCharge(snapshot);
     final totalQuantity =
         snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
@@ -1544,17 +1421,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               _paymentMode == 'direct'
                   ? '-RM${directDiscount.toStringAsFixed(2)}'
                   : '-${_formatTokenCount(discountTokens)}',
-              isDiscount: true,
-            ),
-          ],
-          if ((_paymentMode == 'direct' && giftCardRm > 0) ||
-              (_paymentMode == 'token' && giftCardTokens > 0)) ...[
-            const SizedBox(height: 10),
-            _buildSummaryRow(
-              'Gift Card (${_selectedGiftCard?.code ?? ''})',
-              _paymentMode == 'direct'
-                  ? '-RM${giftCardRm.toStringAsFixed(2)}'
-                  : '-${_formatTokenCount(giftCardTokens)}',
               isDiscount: true,
             ),
           ],
@@ -1777,10 +1643,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       );
     }
     final discountTokens = _calculateDiscountTokens(snapshot);
-    final giftCardTokens = _calculateGiftCardTokens(snapshot);
     final effectiveTokenCharge = max(
       0,
-      snapshot.subtotalTokens - discountTokens - giftCardTokens,
+      snapshot.subtotalTokens - discountTokens,
     );
     final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
     final canPlaceOrder = hasEnoughBalance;
@@ -1872,12 +1737,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       await showPendingPaymentServiceNotice(context);
       if (!mounted) return;
 
-      final activeGiftCardCode = _selectedGiftCard != null &&
-              _selectedGiftCard!.currency ==
-                  (_paymentMode == 'token' ? 'token' : 'rm')
-          ? _selectedGiftCard!.code
-          : null;
-
       final checkoutResult = _paymentMode == 'direct'
           ? await CheckoutApiService.instance.createDirectOrder(
               accessToken: accessToken,
@@ -1886,7 +1745,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               idempotencyKey: _checkoutIdempotencyKey ??=
                   _newCheckoutIdempotencyKey(),
               appliedVoucherId: _selectedVoucher?.id,
-              giftCardCode: activeGiftCardCode,
             )
           : await CheckoutApiService.instance.createTokenOrder(
               accessToken: accessToken,
@@ -1894,7 +1752,6 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               idempotencyKey: _checkoutIdempotencyKey ??=
                   _newCheckoutIdempotencyKey(),
               appliedVoucherId: _selectedVoucher?.id,
-              giftCardCode: activeGiftCardCode,
             );
 
       final checkoutUrl = checkoutResult.payment?['checkout_url'] as String?;

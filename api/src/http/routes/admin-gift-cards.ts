@@ -8,16 +8,18 @@ import { requireAdminActionConfirmation } from '../../admin/action-confirmation.
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { normalizePhoneE164 } from '../../lib/phone.js';
+import { creditGiftCardToWallet } from '../../services/gift-cards.js';
+import { deliverPushToUser } from '../../services/push-delivery.js';
 
 const issueSchema = z.object({
   currency: z.enum(['rm', 'token']),
   amount: z.coerce.number().positive().max(5000),
-  recipient_phone: z.string().trim().min(3).max(30),
+  recipient_phone: z.string().trim().max(30).optional().nullable(),
   recipient_message: z.string().trim().max(280).optional().nullable(),
   reason: z.string().trim().min(3).max(500),
   confirmation_password: z.string().trim().min(8).max(200)
 }).superRefine((value, context) => {
-  if (value.currency === 'token' && !Number.isInteger(value.amount)) context.addIssue({ code: z.ZodIssueCode.custom, path: ['amount'], message: 'Token gift cards require a whole number.' });
+  if (!Number.isInteger(value.amount)) context.addIssue({ code: z.ZodIssueCode.custom, path: ['amount'], message: 'Gift cards require a whole value because they are credited as C2 Tokens.' });
 });
 const statusSchema = z.object({ status: z.enum(['active', 'suspended', 'cancelled']), reason: z.string().trim().min(3).max(500), confirmation_password: z.string().trim().min(8).max(200) });
 const listSchema = z.object({ q: z.string().trim().max(100).optional().default(''), limit: z.coerce.number().int().min(1).max(500).optional().default(100) });
@@ -54,21 +56,39 @@ export async function registerAdminGiftCardRoutes(app: FastifyInstance): Promise
   app.post('/v1/admin/gift-cards', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireGiftCardControl(request);
     const payload = issueSchema.parse(request.body);
-    payload.recipient_phone = normalizePhoneE164(payload.recipient_phone);
+    payload.recipient_phone = payload.recipient_phone?.trim() ? normalizePhoneE164(payload.recipient_phone) : null;
     const connection = await mysqlPool.getConnection();
     let committed = false;
+    let deliveredRecipientUserId: number | null = null;
+    let issuedCardId = 0;
     try {
       await connection.beginTransaction();
       await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
       const cardCode = code();
+      const [recipientRows] = payload.recipient_phone ? await connection.execute<Array<RowDataPacket & { id: number }>>(`SELECT u.id FROM users u JOIN customer_tenant_memberships ctm ON ctm.user_id = u.id WHERE u.phone_e164 = :phone AND ctm.tenant_id = :tenantId LIMIT 1`, { phone: payload.recipient_phone, tenantId: request.adminAuth.tenantId }) : [[]];
+      const recipientUserId = recipientRows[0]?.id ?? null;
+      if (payload.recipient_phone && !recipientUserId) throw new ApiError(404, 'gift_card_recipient_not_found', 'That phone number is not registered for this café. Leave the phone field blank to create a shareable gift-card code.');
       const [insert] = await connection.execute<ResultSetHeader>(
         `INSERT INTO gift_cards (tenant_id, code, currency, original_amount, remaining_amount, status, recipient_user_id, recipient_phone, recipient_message, purchase_ref, paid_at, created_by_admin_id, created_at)
-         VALUES (:tenantId, :code, :currency, :amount, :amount, 'active', NULL, :phone, :message, :purchaseRef, UTC_TIMESTAMP(), :adminId, UTC_TIMESTAMP())`,
-        { tenantId: request.adminAuth.tenantId, code: cardCode, currency: payload.currency, amount: payload.amount, phone: payload.recipient_phone, message: payload.recipient_message ?? null, purchaseRef: `ADM-${crypto.randomUUID().slice(0, 12).toUpperCase()}`, adminId: request.adminAuth.adminUserId }
+         VALUES (:tenantId, :code, :currency, :amount, :amount, 'active', :recipientUserId, :phone, :message, :purchaseRef, UTC_TIMESTAMP(), :adminId, UTC_TIMESTAMP())`,
+        { tenantId: request.adminAuth.tenantId, code: cardCode, currency: payload.currency, amount: payload.amount, recipientUserId, phone: payload.recipient_phone, message: payload.recipient_message ?? null, purchaseRef: `ADM-${crypto.randomUUID().slice(0, 12).toUpperCase()}`, adminId: request.adminAuth.adminUserId }
       );
+      issuedCardId = Number(insert.insertId);
       await connection.execute(`INSERT INTO gift_card_transactions (gift_card_id, transaction_type, amount, balance_after, actor_admin_id, remarks, created_at) VALUES (:cardId, 'issued', :amount, :amount, :adminId, :remarks, UTC_TIMESTAMP())`, { cardId: insert.insertId, amount: payload.amount, adminId: request.adminAuth.adminUserId, remarks: payload.reason });
+      if (recipientUserId) {
+        await creditGiftCardToWallet(connection, Number(insert.insertId), Number(recipientUserId), null);
+        deliveredRecipientUserId = Number(recipientUserId);
+      }
       await connection.execute(`INSERT INTO admin_audit_logs (admin_user_id, effective_roles_json, action_code, target_type, target_id, reason_note, ip_address, user_agent, created_at) VALUES (:adminId, :roles, 'gift_card_issued', 'gift_card', :cardId, :reason, :ip, :userAgent, UTC_TIMESTAMP())`, { adminId: request.adminAuth.adminUserId, roles: JSON.stringify(request.adminAuth.roles), cardId: insert.insertId, reason: payload.reason, ip: request.ip, userAgent: String(request.headers['user-agent'] ?? '').slice(0, 512) || null });
       await connection.commit(); committed = true;
+      if (deliveredRecipientUserId) {
+        void deliverPushToUser({
+          userId: deliveredRecipientUserId,
+          title: 'Gift card added to your wallet',
+          body: `${payload.amount} C2 Tokens are ready in your wallet.`,
+          data: { type: 'gift_card_received', gift_card_id: String(issuedCardId) }
+        }).catch((error) => request.log.warn({ err: error, giftCardId: issuedCardId }, 'Admin gift-card push failed after wallet credit.'));
+      }
       return reply.code(201).send({ id: insert.insertId, code: cardCode, status: 'active' });
     } catch (error) { if (!committed) await connection.rollback(); throw error; } finally { connection.release(); }
   });

@@ -8,8 +8,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_session_service.dart';
 import '../services/customer_data_service.dart';
+import '../services/payment_security.dart';
 import '../services/secure_session_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/app_diagnostics.dart';
 import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
 
@@ -20,8 +22,7 @@ class GiftCardsPage extends StatefulWidget {
   State<GiftCardsPage> createState() => _GiftCardsPageState();
 }
 
-class _GiftCardsPageState extends State<GiftCardsPage>
-    with WidgetsBindingObserver {
+class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserver {
   final AppSessionService _session = AppSessionService.instance;
 
   bool _loading = true;
@@ -116,18 +117,18 @@ class _GiftCardsPageState extends State<GiftCardsPage>
     try {
       final token = await SecureSessionService.instance.getValidAccessToken();
       if (token == null || token.isEmpty) return;
-      final status = await CustomerDataService.instance
-          .getGiftCardPurchaseStatus(
-              accessToken: token, purchaseRef: purchaseRef);
+      final status = await CustomerDataService.instance.getGiftCardPurchaseStatus(accessToken: token, purchaseRef: purchaseRef);
       if (!mounted) return;
       if (status != 'pending_payment') {
         final code = _pendingGiftCardCode ?? '';
         _pendingPurchaseRef = null;
         _pendingGiftCardCode = null;
-        if (status == 'active') {
+        if (status == 'active' || status == 'delivered') {
           AppNotification.showSuccess(
             context,
-            'Gift card $code is active and ready to share.',
+            status == 'delivered'
+                ? 'Gift card $code was added to the recipient wallet.'
+                : 'Gift card $code is active and ready to share.',
           );
         } else {
           AppNotification.showError(
@@ -137,7 +138,12 @@ class _GiftCardsPageState extends State<GiftCardsPage>
         }
       }
       await _load();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'Gift-card payment reconciliation failed',
+      );
       // Keep reference for next resume
     } finally {
       _refreshingPendingPurchase = false;
@@ -154,10 +160,14 @@ class _GiftCardsPageState extends State<GiftCardsPage>
       if (token == null || token.isEmpty) {
         throw Exception('Please sign in again.');
       }
-      final cards = await CustomerDataService.instance
-          .getGiftCards(accessToken: token, includeHistory: true);
+      final cards = await CustomerDataService.instance.getGiftCards(accessToken: token, includeHistory: true);
       if (mounted) setState(() => _cards = cards);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'Gift-card list loading failed',
+      );
       if (mounted) {
         setState(() => _error = 'Unable to load gift cards right now.');
       }
@@ -173,9 +183,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
   }
 
   Future<void> _shareGiftCard(GiftCard card) async {
-    final valueText = card.currency == 'rm'
-        ? 'RM ${card.originalAmount}'
-        : '${card.originalAmount} C2 Tokens';
+    final valueText = card.currency == 'rm' ? 'RM ${card.originalAmount}' : '${card.originalAmount} C2 Tokens';
     final note = (card.recipientMessage ?? '').trim();
     final messageLines = <String>[
       'Here is a C2 Coffee Gift Card ($valueText) for you! ☕🎁',
@@ -201,9 +209,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-            final safeBottom = bottomInset > 0
-                ? bottomInset + 12
-                : MediaQuery.paddingOf(context).bottom + 18;
+            final safeBottom = bottomInset > 0 ? bottomInset + 12 : MediaQuery.paddingOf(context).bottom + 18;
             final currentText = controller.text.trim();
             return Container(
               decoration: const BoxDecoration(
@@ -284,9 +290,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                       color: AppColors.surfaceLight,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: currentText.isNotEmpty
-                            ? AppColors.primary
-                            : AppColors.border,
+                        color: currentText.isNotEmpty ? AppColors.primary : AppColors.border,
                         width: currentText.isNotEmpty ? 1.5 : 1,
                       ),
                     ),
@@ -379,9 +383,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
-                          onPressed: currentText.isEmpty
-                              ? null
-                              : () => Navigator.pop(context, currentText.toUpperCase()),
+                          onPressed: currentText.isEmpty ? null : () => Navigator.pop(context, currentText.toUpperCase()),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.35),
@@ -419,7 +421,12 @@ class _GiftCardsPageState extends State<GiftCardsPage>
       if (!mounted) return;
       AppNotification.showSuccess(context, 'Gift card claimed! Ready to use at checkout.');
       await _load();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'Gift-card claim failed',
+      );
       if (mounted) {
         AppNotification.showError(
           context,
@@ -441,10 +448,14 @@ class _GiftCardsPageState extends State<GiftCardsPage>
 
     Set<String> availableMethods = const {};
     try {
-      availableMethods = (await CustomerDataService.instance
-              .getGiftCardPaymentMethods(accessToken: token))
-          .methods;
-    } catch (_) {}
+      availableMethods = (await CustomerDataService.instance.getGiftCardPaymentMethods(accessToken: token)).methods;
+    } catch (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'Gift-card payment methods loading failed',
+      );
+    }
 
     if (!mounted) return;
 
@@ -473,14 +484,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
     final cardGradient = preset?.gradient ?? defaultGradient;
     final cardShadow = preset?.shadowColor ?? AppColors.primary.withValues(alpha: 0.26);
 
-    final request = await showModalBottomSheet<
-        ({
-          String currency,
-          num amount,
-          String phone,
-          String message,
-          String? method
-        })>(
+    final request = await showModalBottomSheet<({String currency, num amount, String? phone, String message, String? method})>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -489,23 +493,17 @@ class _GiftCardsPageState extends State<GiftCardsPage>
           builder: (context, setSheetState) {
             final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
             final isKeyboardOpen = bottomInset > 0;
-            final safeBottom = isKeyboardOpen
-                ? bottomInset + 10.0
-                : MediaQuery.paddingOf(context).bottom + 18.0;
+            final safeBottom = isKeyboardOpen ? bottomInset + 10.0 : MediaQuery.paddingOf(context).bottom + 18.0;
 
             final parsedCustom = num.tryParse(customAmountController.text.trim()) ?? 0;
-            final effectiveAmount = isCustomMode
-                ? (payWith == 'token' ? parsedCustom.floor() : parsedCustom)
-                : (preset?.amount ?? 30);
-            final isValidAmount = effectiveAmount >= 5 && effectiveAmount <= 5000;
+            final effectiveAmount = isCustomMode ? (payWith == 'token' ? parsedCustom.floor() : parsedCustom) : (preset?.amount ?? 30);
+            final isValidAmount = effectiveAmount >= 5 && effectiveAmount <= 5000 && effectiveAmount % 1 == 0;
             final displayAmountStr = payWith == 'rm'
                 ? effectiveAmount.toDouble().toStringAsFixed(
                       effectiveAmount % 1 == 0 ? 0 : 2,
                     )
                 : '${effectiveAmount.floor()}';
-            final sheetTitle = isCustomMode
-                ? 'Custom Gift Card'
-                : (preset?.title ?? 'Custom Gift Card');
+            final sheetTitle = isCustomMode ? 'Custom Gift Card' : (preset?.title ?? 'Custom Gift Card');
 
             final tokenBal = _session.tokenBalance;
             final hasEnoughTokens = tokenBal >= effectiveAmount && effectiveAmount >= 5;
@@ -553,9 +551,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                               if (!isKeyboardOpen) ...[
                                 const SizedBox(height: 1),
                                 Text(
-                                  isCustomMode
-                                      ? 'Enter any amount from 5 to 5,000.'
-                                      : 'Send to a friend or yourself for easy coffee redemption.',
+                                  isCustomMode ? 'Enter any amount from 5 to 5,000.' : 'Send to a friend or yourself for easy coffee redemption.',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 13.5,
@@ -648,9 +644,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                         ),
                                       ),
                                       Text(
-                                        effectiveAmount > 0
-                                            ? 'RM $displayAmountStr'
-                                            : 'RM —',
+                                        effectiveAmount > 0 ? 'RM $displayAmountStr' : 'RM —',
                                         style: const TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 27,
@@ -704,9 +698,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  payWith == 'rm'
-                                      ? 'CUSTOM AMOUNT (RM)'
-                                      : 'CUSTOM AMOUNT (TOKENS)',
+                                  payWith == 'rm' ? 'CUSTOM AMOUNT (RM)' : 'CUSTOM AMOUNT (TOKENS)',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 12,
@@ -721,9 +713,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                     fontFamily: 'Afacad',
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
-                                    color: isValidAmount
-                                        ? AppColors.brandText.withValues(alpha: 0.45)
-                                        : Colors.redAccent,
+                                    color: isValidAmount ? AppColors.brandText.withValues(alpha: 0.45) : Colors.redAccent,
                                   ),
                                 ),
                               ],
@@ -734,9 +724,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                 color: AppColors.surfaceLight,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: !isValidAmount && customAmountController.text.isNotEmpty
-                                      ? Colors.redAccent
-                                      : AppColors.primary.withValues(alpha: 0.45),
+                                  color: !isValidAmount && customAmountController.text.isNotEmpty ? Colors.redAccent : AppColors.primary.withValues(alpha: 0.45),
                                   width: 1.3,
                                 ),
                               ),
@@ -807,14 +795,10 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                           vertical: 6,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? AppColors.primary
-                                              : AppColors.surfaceLight,
+                                          color: isSelected ? AppColors.primary : AppColors.surfaceLight,
                                           borderRadius: BorderRadius.circular(999),
                                           border: Border.all(
-                                            color: isSelected
-                                                ? AppColors.primary
-                                                : AppColors.border,
+                                            color: isSelected ? AppColors.primary : AppColors.border,
                                           ),
                                         ),
                                         child: Text(
@@ -823,9 +807,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                             fontFamily: 'Afacad',
                                             fontSize: 12.5,
                                             fontWeight: FontWeight.w700,
-                                            color: isSelected
-                                                ? Colors.white
-                                                : AppColors.brandText,
+                                            color: isSelected ? Colors.white : AppColors.brandText,
                                           ),
                                         ),
                                       ),
@@ -858,14 +840,10 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                     duration: const Duration(milliseconds: 160),
                                     padding: const EdgeInsets.all(11),
                                     decoration: BoxDecoration(
-                                      color: payWith == 'token'
-                                          ? AppColors.primary.withValues(alpha: 0.08)
-                                          : AppColors.surfaceLight,
+                                      color: payWith == 'token' ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceLight,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: payWith == 'token'
-                                            ? AppColors.primary
-                                            : AppColors.border,
+                                        color: payWith == 'token' ? AppColors.primary : AppColors.border,
                                         width: payWith == 'token' ? 1.5 : 1,
                                       ),
                                     ),
@@ -881,13 +859,9 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                               height: 20,
                                             ),
                                             Icon(
-                                              payWith == 'token'
-                                                  ? Icons.check_circle_rounded
-                                                  : Icons.radio_button_unchecked_rounded,
+                                              payWith == 'token' ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
                                               size: 16,
-                                              color: payWith == 'token'
-                                                  ? AppColors.primary
-                                                  : Colors.black26,
+                                              color: payWith == 'token' ? AppColors.primary : Colors.black26,
                                             ),
                                           ],
                                         ),
@@ -906,9 +880,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                           style: TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 12,
-                                            color: hasEnoughTokens
-                                                ? AppColors.primary
-                                                : Colors.redAccent,
+                                            color: hasEnoughTokens ? AppColors.primary : Colors.redAccent,
                                           ),
                                         ),
                                       ],
@@ -924,14 +896,10 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                     duration: const Duration(milliseconds: 160),
                                     padding: const EdgeInsets.all(11),
                                     decoration: BoxDecoration(
-                                      color: payWith == 'rm'
-                                          ? AppColors.primary.withValues(alpha: 0.08)
-                                          : AppColors.surfaceLight,
+                                      color: payWith == 'rm' ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceLight,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: payWith == 'rm'
-                                            ? AppColors.primary
-                                            : AppColors.border,
+                                        color: payWith == 'rm' ? AppColors.primary : AppColors.border,
                                         width: payWith == 'rm' ? 1.5 : 1,
                                       ),
                                     ),
@@ -960,13 +928,9 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                               ),
                                             ),
                                             Icon(
-                                              payWith == 'rm'
-                                                  ? Icons.check_circle_rounded
-                                                  : Icons.radio_button_unchecked_rounded,
+                                              payWith == 'rm' ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
                                               size: 16,
-                                              color: payWith == 'rm'
-                                                  ? AppColors.primary
-                                                  : Colors.black26,
+                                              color: payWith == 'rm' ? AppColors.primary : Colors.black26,
                                             ),
                                           ],
                                         ),
@@ -1143,15 +1107,12 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                         Expanded(
                           flex: 2,
                           child: ElevatedButton(
-                            onPressed: !isValidAmount ||
-                                    (payWith == 'token' && !hasEnoughTokens) ||
-                                    (payWith == 'rm' && paymentMethod == null) ||
-                                    phoneController.text.trim().length < 3
+                            onPressed: !isValidAmount || (payWith == 'token' && !hasEnoughTokens) || (payWith == 'rm' && paymentMethod == null)
                                 ? null
                                 : () => Navigator.pop(context, (
                                       currency: payWith,
                                       amount: effectiveAmount,
-                                      phone: phoneController.text.trim(),
+                                      phone: phoneController.text.trim().isEmpty ? null : phoneController.text.trim(),
                                       message: messageController.text.trim(),
                                       method: paymentMethod,
                                     )),
@@ -1164,9 +1125,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
                             child: Text(
-                              payWith == 'token'
-                                  ? 'Confirm & Send'
-                                  : 'Pay RM ${effectiveAmount > 0 ? effectiveAmount.toDouble().toStringAsFixed(2) : "0.00"}',
+                              payWith == 'token' ? 'Confirm & Send' : 'Pay RM ${effectiveAmount > 0 ? effectiveAmount.toDouble().toStringAsFixed(2) : "0.00"}',
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
                                 fontSize: 15,
@@ -1200,16 +1159,27 @@ class _GiftCardsPageState extends State<GiftCardsPage>
       );
 
       if (purchase.checkoutUrl != null && purchase.checkoutUrl!.isNotEmpty) {
+        if (!isTrustedPaymentCheckoutUrl(purchase.checkoutUrl!)) {
+          throw StateError('Untrusted gift-card checkout URL.');
+        }
         _pendingPurchaseRef = purchase.purchaseRef;
         _pendingGiftCardCode = purchase.code;
-        await launchUrl(Uri.parse(purchase.checkoutUrl!), mode: LaunchMode.externalApplication);
+        final opened = await launchUrl(
+          Uri.parse(purchase.checkoutUrl!),
+          mode: LaunchMode.externalApplication,
+        );
+        if (!opened) {
+          throw StateError('Gift-card checkout page did not open.');
+        }
       }
 
       if (!mounted) return;
-      if (purchase.status == 'active') {
+      if (purchase.status == 'active' || purchase.status == 'delivered') {
         AppNotification.showSuccess(
           context,
-          'Gift card created! Code: ${purchase.code}',
+          purchase.status == 'delivered'
+              ? 'Gift card delivered directly to the recipient wallet.'
+              : 'Gift card created! Code: ${purchase.code}',
         );
       } else {
         AppNotification.showSuccess(
@@ -1218,7 +1188,12 @@ class _GiftCardsPageState extends State<GiftCardsPage>
         );
       }
       await _load();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppDiagnostics.recordError(
+        error,
+        stackTrace,
+        context: 'Gift-card purchase failed',
+      );
       if (mounted) {
         AppNotification.showError(
           context,
@@ -1714,9 +1689,12 @@ class _GiftCardsPageState extends State<GiftCardsPage>
   Widget _buildTransactionRow(GiftCard card) {
     final isSent = card.ownership == 'purchased';
     final dateStr = DateFormat('MMMM d, yyyy').format(card.createdAt);
-    final valueText = card.currency == 'rm'
-        ? 'RM ${double.tryParse(card.remainingAmount)?.toStringAsFixed(2) ?? card.remainingAmount}'
-        : '${card.remainingAmount} Tokens';
+    final originalValue = double.tryParse(card.originalAmount) ?? 0;
+    final remainingValue = double.tryParse(card.remainingAmount) ?? 0;
+    final valueText = 'RM ${originalValue.toStringAsFixed(2)}';
+    final valueStatus = card.status == 'depleted'
+        ? (isSent ? 'Transferred to recipient' : 'Added to wallet')
+        : 'Remaining RM ${remainingValue.toStringAsFixed(2)}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 11),
@@ -1727,9 +1705,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isSent
-                  ? const Color(0xFFC05844).withValues(alpha: 0.12)
-                  : AppColors.primary.withValues(alpha: 0.10),
+              color: isSent ? const Color(0xFFC05844).withValues(alpha: 0.12) : AppColors.primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -1745,9 +1721,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isSent
-                      ? 'Gift to ${card.recipientPhone ?? 'Friend'}'
-                      : 'Received Gift Card',
+                  isSent ? 'Gift to ${card.recipientPhone ?? 'Friend'}' : 'Received Gift Card',
                   style: TextStyle(
                     fontFamily: 'Afacad',
                     fontSize: 15,
@@ -1777,6 +1751,16 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                   fontFamily: 'Recoleta',
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
+                  color: isSent ? const Color(0xFFC05844) : AppColors.primary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                valueStatus,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                   color: isSent ? const Color(0xFFC05844) : AppColors.primary,
                 ),
               ),

@@ -32,6 +32,7 @@ import {
   reserveInventoryForOrder
 } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
+import { autoReopenEmergencyClosures } from '../../services/outlet-emergency.js';
 import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
 
@@ -538,6 +539,7 @@ export async function registerCheckoutRoutes(
     try {
       await connection.beginTransaction();
 
+      await autoReopenEmergencyClosures(connection, payload.store_id);
       const store = await _loadStore(connection, payload.store_id);
       if (!store || store.status !== 'active' || store.supports_pickup !== 1) {
         throw new ApiError(404, 'store_not_found', 'Store was not found.');

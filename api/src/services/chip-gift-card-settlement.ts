@@ -6,6 +6,8 @@ import { getUtcConnection } from '../db/mysql.js';
 import { ApiError } from '../http/errors.js';
 import { createUserNotification } from '../http/notifications.js';
 import type { ChipPurchase } from '../payments/chip-client.js';
+import { creditGiftCardToWallet } from './gift-cards.js';
+import { deliverPushToUser } from './push-delivery.js';
 
 type PaymentRow = RowDataPacket & {
   payment_id: number;
@@ -16,6 +18,7 @@ type PaymentRow = RowDataPacket & {
   original_amount: string;
   remaining_amount: string;
   card_status: string;
+  recipient_user_id: number | null;
 };
 
 function chipStatus(purchase: ChipPurchase): string {
@@ -35,7 +38,7 @@ export async function settleChipGiftCardPurchase(purchaseId: string, purchase: C
     await connection.beginTransaction();
     const [rows] = await connection.execute<PaymentRow[]>(
       `SELECT p.id AS payment_id, p.status AS payment_status, gc.id AS gift_card_id,
-              gc.purchaser_user_id, gc.purchase_ref, CAST(gc.original_amount AS CHAR) AS original_amount,
+              gc.purchaser_user_id, gc.recipient_user_id, gc.purchase_ref, CAST(gc.original_amount AS CHAR) AS original_amount,
               CAST(gc.remaining_amount AS CHAR) AS remaining_amount, gc.status AS card_status
          FROM payments p
          JOIN gift_cards gc ON gc.id = p.gift_card_id
@@ -63,7 +66,7 @@ export async function settleChipGiftCardPurchase(purchaseId: string, purchase: C
       return { received: true, duplicate: true };
     }
 
-    if (payment.payment_status === 'paid' && payment.card_status === 'active') {
+    if (payment.payment_status === 'paid' && ['active', 'depleted'].includes(payment.card_status)) {
       await connection.commit();
       committed = true;
       return { received: true, duplicate: true };
@@ -111,23 +114,51 @@ export async function settleChipGiftCardPurchase(purchaseId: string, purchase: C
        VALUES (:giftCardId, 'issued', :amount, :balanceAfter, :userId, :remarks, UTC_TIMESTAMP())`,
       { giftCardId: payment.gift_card_id, amount: payment.original_amount, balanceAfter: payment.remaining_amount, userId: payment.purchaser_user_id, remarks: `Paid gift card ${payment.purchase_ref}` }
     );
+    let deliveredToWallet = false;
+    if (payment.recipient_user_id) {
+      try {
+        await creditGiftCardToWallet(connection, payment.gift_card_id, Number(payment.recipient_user_id), payment.purchaser_user_id);
+        deliveredToWallet = true;
+      } catch (error) {
+        if (!(error instanceof ApiError) || !['token_wallet_cap_exceeded', 'token_account_missing'].includes(error.code)) throw error;
+        await createUserNotification(connection, {
+          userId: Number(payment.recipient_user_id),
+          type: 'gift_card_delivery_pending',
+          title: 'Gift card waiting for wallet space',
+          body: 'Your gift card is safe, but your C2 Token wallet needs enough available capacity before you claim it.',
+          data: { gift_card_id: payment.gift_card_id, purchase_ref: payment.purchase_ref },
+          deliveryKey: `gift_card_delivery_pending:${payment.gift_card_id}`
+        });
+      }
+    }
     await connection.execute(
       `INSERT INTO payment_events (payment_id, provider_event_id, event_type, event_payload_hash, processed_at, process_result, created_at)
-       VALUES (:paymentId, :eventId, 'chip_gift_card_paid', :hash, UTC_TIMESTAMP(), 'activated', UTC_TIMESTAMP())`,
-      { paymentId: payment.payment_id, eventId, hash }
+       VALUES (:paymentId, :eventId, 'chip_gift_card_paid', :hash, UTC_TIMESTAMP(), :result, UTC_TIMESTAMP())`,
+      { paymentId: payment.payment_id, eventId, hash, result: deliveredToWallet ? 'delivered_to_wallet' : 'activated' }
     );
     if (payment.purchaser_user_id) {
       await createUserNotification(connection, {
         userId: payment.purchaser_user_id,
         type: 'gift_card_paid',
-        title: 'Gift card ready',
-        body: 'Your RM gift card is ready to share.',
+        title: deliveredToWallet ? 'Gift card delivered' : 'Gift card ready',
+        body: deliveredToWallet ? 'Your RM gift card was added to the recipient’s C2 Token wallet.' : 'Your RM gift card is active and safely waiting for the recipient.',
         data: { gift_card_id: payment.gift_card_id, purchase_ref: payment.purchase_ref },
         deliveryKey: `gift_card_paid:${payment.gift_card_id}`
       });
     }
     await connection.commit();
     committed = true;
+    if (payment.recipient_user_id) {
+      const push = deliveredToWallet
+        ? { title: 'Gift card added to your wallet', body: `${Number(payment.original_amount)} C2 Tokens are ready in your wallet.`, type: 'gift_card_received' }
+        : { title: 'Gift card waiting for wallet space', body: 'Your gift card is safe. Make wallet space, then claim it from Gift Cards.', type: 'gift_card_delivery_pending' };
+      void deliverPushToUser({
+        userId: Number(payment.recipient_user_id),
+        title: push.title,
+        body: push.body,
+        data: { type: push.type, gift_card_id: String(payment.gift_card_id) }
+      }).catch((error) => console.warn('[gift-card-settlement] push delivery failed after commit', { giftCardId: payment.gift_card_id, error: error instanceof Error ? error.message : String(error) }));
+    }
     return { received: true, activated: true };
   } catch (error) {
     if (!committed) await connection.rollback();

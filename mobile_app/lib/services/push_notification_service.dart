@@ -317,6 +317,17 @@ class PushNotificationService {
             null, 'Your top-up needs review. Open Notifications for details.');
         if (opened) _openNotificationDestination(const TopUpWalletPage());
         break;
+      case 'gift_card_received':
+        await AppSessionService.instance.loadAuthenticatedState(force: true);
+        AppNotification.showSuccess(
+            null, 'A gift card was added to your C2 Token wallet.');
+        if (opened) _openNotificationDestination(const TopUpWalletPage());
+        break;
+      case 'gift_card_delivery_pending':
+        AppNotification.showWarning(
+            null, 'A gift card is waiting for available wallet space.');
+        if (opened) _openNotificationDestination(const MyRewardsPage());
+        break;
     }
   }
 
@@ -349,6 +360,8 @@ class PushNotificationService {
       'token_topup_cancelled' => 'Top-up cancelled',
       'token_topup_refunded' => 'Top-up refunded',
       'token_topup_review' => 'Top-up under review',
+      'gift_card_received' => 'Gift card received',
+      'gift_card_delivery_pending' => 'Gift card waiting',
       _ => null,
     };
     final body = switch (type) {
@@ -366,6 +379,9 @@ class PushNotificationService {
       'token_topup_cancelled' => 'No C2 Tokens were added.',
       'token_topup_refunded' => 'Open your wallet for the latest status.',
       'token_topup_review' => 'Open Notifications for details.',
+      'gift_card_received' => 'C2 Tokens were added to your wallet.',
+      'gift_card_delivery_pending' =>
+        'Make wallet space, then claim your gift card.',
       _ => null,
     };
     if (title == null || body == null) return;

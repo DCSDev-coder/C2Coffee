@@ -45,7 +45,6 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _remoteAvatarPath;
   bool _marketingNotifications = true;
   bool _marketingPreferenceLoading = true;
-
   Map<String, String?> userProfile = {
     'username': '',
     'email': '',
@@ -392,9 +391,10 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        final String currentSelection = (_remoteAvatarPath != null || _pickedImage != null)
-            ? 'custom'
-            : (_presetAvatarPath ?? 'assets/images/dato.png');
+        final String currentSelection =
+            (_remoteAvatarPath != null || _pickedImage != null)
+                ? 'custom'
+                : (_presetAvatarPath ?? 'assets/images/dato.png');
 
         return Dialog(
           backgroundColor: Colors.white,
@@ -672,7 +672,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Column(
       children: [
-         InkWell(
+        InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           child: Padding(
@@ -2023,7 +2023,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               width: 42,
                               height: 42,
                               decoration: BoxDecoration(
-                                color: AppColors.deepTeal.withValues(alpha: 0.08),
+                                color:
+                                    AppColors.deepTeal.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
@@ -2089,7 +2090,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(
-                            color: _destructiveActionColor.withValues(alpha: 0.35),
+                            color:
+                                _destructiveActionColor.withValues(alpha: 0.35),
                             width: 1.1,
                           ),
                           boxShadow: [
@@ -2106,7 +2108,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               width: 42,
                               height: 42,
                               decoration: BoxDecoration(
-                                color: _destructiveActionColor.withValues(alpha: 0.1),
+                                color: _destructiveActionColor.withValues(
+                                    alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(

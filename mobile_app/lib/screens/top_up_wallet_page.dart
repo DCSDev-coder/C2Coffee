@@ -321,7 +321,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       await launchUrl(Uri.parse(topup.checkoutUrl),
           mode: LaunchMode.externalApplication);
     } on ApiException catch (error) {
-      if (mounted) AppNotification.showError(context, error.message);
+      if (mounted) AppNotification.showError(context, _friendlyMessage(error));
     } catch (_) {
       if (mounted) {
         AppNotification.showError(

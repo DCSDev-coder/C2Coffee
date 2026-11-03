@@ -1251,12 +1251,17 @@ class _MenuPageState extends State<MenuPage> {
   }
 
   String _storeOrderingLabel(StoreSummary store) {
+    if (store.emergencyClosureActive) {
+      final reopen = store.emergencyExpectedReopenAt;
+      if (reopen == null) return 'Temporarily closed — emergency';
+      return 'Emergency closure · expected ${TimeOfDay.fromDateTime(reopen).format(context)}';
+    }
     final minutes = _minutesUntilMobileOrderCutoff(store);
     if (_isMobileOrderingClosingSoon(store) && minutes != null) {
       return '$minutes ${minutes == 1 ? 'minute' : 'minutes'} before closing';
     }
     if (_acceptsMobileOrders(store)) return 'Open';
-    return 'Close';
+    return 'Closed';
   }
 
   Future<void> _loadStoreDistances() async {

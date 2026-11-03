@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, RefreshCw, Search, ShieldAlert, Gift, Coins,
@@ -27,6 +27,14 @@ const money = (value, currency) =>
   currency === 'rm'
     ? `RM ${Number(value || 0).toFixed(2)}`
     : `${Number(value || 0).toLocaleString()} Tokens`;
+
+function reportGiftCardError(operation, error) {
+  console.error(`[GiftCards] ${operation}`, {
+    code: error?.code || 'unexpected_error',
+    status: error?.status || 0,
+    error
+  });
+}
 
 // Modern KPI Stat Card matching Admin Dashboard standard
 const StatCard = ({ title, value, info, icon: Icon, iconBg = 'bg-[#1E433A]', iconColor = 'text-white', badge }) => (
@@ -62,30 +70,81 @@ export default function GiftCards({ currentUser }) {
   const [showIssue, setShowIssue] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [copiedCode, setCopiedCode] = useState(null);
+  const issueButtonRef = useRef(null);
+  const issueDialogRef = useRef(null);
+  const submittingRef = useRef(false);
+  submittingRef.current = submitting;
 
   const canControl = Array.isArray(currentUser?.roles) && currentUser.roles.includes('super_admin');
 
-  const refresh = async () => {
+  const loadCards = useCallback(async (searchValue = '') => {
     setLoading(true);
     try {
-      const data = await loadAdminGiftCards({ search });
+      const data = await loadAdminGiftCards({ search: searchValue });
       setCards(data.gift_cards || []);
     } catch (error) {
-      showAdminError(`Unable to load gift cards: ${error.message}`);
+      reportGiftCardError('Unable to load cards', error);
+      showAdminError('Unable to load gift cards. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    void refresh();
   }, []);
 
-  const copyToClipboard = (code) => {
-    navigator.clipboard?.writeText(code);
-    setCopiedCode(code);
-    showAdminSuccess(`Copied gift card code ${code}`);
-    setTimeout(() => setCopiedCode((prev) => (prev === code ? null : prev)), 2000);
+  const refresh = useCallback(() => loadCards(search), [loadCards, search]);
+
+  useEffect(() => {
+    void loadCards();
+  }, [loadCards]);
+
+  useEffect(() => {
+    if (!showIssue) return undefined;
+
+    const previouslyFocused = document.activeElement;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !submittingRef.current) {
+        event.preventDefault();
+        setShowIssue(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !issueDialogRef.current) return;
+
+      const focusable = [...issueDialogRef.current.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      issueDialogRef.current?.querySelector('select, input, textarea, button')?.focus();
+    });
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus();
+    };
+  }, [showIssue]);
+
+  const copyToClipboard = async (code) => {
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      showAdminSuccess(`Copied gift card code ${code}`);
+      setTimeout(() => setCopiedCode((prev) => (prev === code ? null : prev)), 2000);
+    } catch (error) {
+      reportGiftCardError('Unable to copy card code', error);
+      showAdminError('Unable to copy the gift card code. Please copy it manually.');
+    }
   };
 
   const outstanding = useMemo(() => ({
@@ -187,7 +246,8 @@ export default function GiftCards({ currentUser }) {
       await refresh();
       showAdminSuccess(`Gift card issued successfully. Code: ${result.code}`);
     } catch (error) {
-      showAdminError(error.message);
+      reportGiftCardError('Unable to issue card', error);
+      showAdminError('Unable to issue the gift card. Please review the details and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -230,7 +290,8 @@ export default function GiftCards({ currentUser }) {
       await refresh();
       showAdminSuccess(`Gift card ${card.code} status updated to ${status}.`);
     } catch (error) {
-      showAdminError(error.message);
+      reportGiftCardError('Unable to update card status', error);
+      showAdminError('Unable to update the gift card. Please try again.');
     }
   };
 
@@ -258,6 +319,7 @@ export default function GiftCards({ currentUser }) {
           </button>
           {canControl && (
             <button
+              ref={issueButtonRef}
               onClick={() => setShowIssue(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-4 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-[#16332c] transition-colors"
             >
@@ -548,6 +610,7 @@ export default function GiftCards({ currentUser }) {
       {canControl && showIssue && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-md animate-in fade-in duration-200">
           <form
+            ref={issueDialogRef}
             onSubmit={issue}
             role="dialog"
             aria-modal="true"
@@ -568,6 +631,7 @@ export default function GiftCards({ currentUser }) {
                 type="button"
                 onClick={() => setShowIssue(false)}
                 className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                aria-label="Close issue gift card dialog"
               >
                 <X size={18} />
               </button>
@@ -615,7 +679,7 @@ export default function GiftCards({ currentUser }) {
                 required
                 min="1"
                 max="5000"
-                step={form.currency === 'rm' ? '0.01' : '1'}
+                step="1"
                 placeholder={form.currency === 'rm' ? '25.00' : '50'}
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
@@ -629,14 +693,13 @@ export default function GiftCards({ currentUser }) {
                 Recipient Phone
               </label>
               <input
-                required
                 placeholder="+60123456789 or 0123456789"
                 value={form.recipient_phone}
                 onChange={(e) => setForm({ ...form, recipient_phone: e.target.value })}
                 className="mt-1.5 w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-semibold text-gray-900 focus:border-[#1E433A] focus:ring-1 focus:ring-[#1E433A] outline-none"
               />
               <p className="mt-1 text-[11px] text-gray-400">
-                The recipient must claim the card using this matching phone number in the mobile app.
+                Optional. A registered phone delivers the value directly to that wallet; leave blank to create a shareable code.
               </p>
             </div>
 
