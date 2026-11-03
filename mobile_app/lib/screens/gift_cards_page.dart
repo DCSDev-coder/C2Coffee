@@ -431,8 +431,8 @@ class _GiftCardsPageState extends State<GiftCardsPage>
     }
   }
 
-  // Procedure for purchasing the selected preset Gift Card
-  Future<void> _buyPreset(({int amount, String title, List<Color> gradient, Color shadowColor, Color accentColor}) preset) async {
+  // Procedure for purchasing a preset or Custom Amount Gift Card
+  Future<void> _buyPreset([({int amount, String title, List<Color> gradient, Color shadowColor, Color accentColor})? preset]) async {
     final token = await SecureSessionService.instance.getValidAccessToken();
     if (token == null || token.isEmpty) {
       if (mounted) AppNotification.showError(context, 'Please sign in again.');
@@ -448,6 +448,11 @@ class _GiftCardsPageState extends State<GiftCardsPage>
 
     if (!mounted) return;
 
+    final isInitialCustom = preset == null;
+    var isCustomMode = isInitialCustom;
+    final customAmountController = TextEditingController(
+      text: preset != null ? '${preset.amount}' : '30',
+    );
     final phoneController = TextEditingController();
     final messageController = TextEditingController();
     var payWith = 'token'; // 'token' or 'rm'
@@ -459,11 +464,19 @@ class _GiftCardsPageState extends State<GiftCardsPage>
       'card': 'Credit / Debit Card',
       'ewallet': 'E-Wallet',
     };
+    const quickCustomAmounts = [15, 30, 75, 150, 200];
+
+    final defaultGradient = [
+      AppColors.primary,
+      Color.lerp(AppColors.primary, AppColors.gold, 0.35)!,
+    ];
+    final cardGradient = preset?.gradient ?? defaultGradient;
+    final cardShadow = preset?.shadowColor ?? AppColors.primary.withValues(alpha: 0.26);
 
     final request = await showModalBottomSheet<
         ({
           String currency,
-          int amount,
+          num amount,
           String phone,
           String message,
           String? method
@@ -479,12 +492,27 @@ class _GiftCardsPageState extends State<GiftCardsPage>
             final safeBottom = isKeyboardOpen
                 ? bottomInset + 10.0
                 : MediaQuery.paddingOf(context).bottom + 18.0;
+
+            final parsedCustom = num.tryParse(customAmountController.text.trim()) ?? 0;
+            final effectiveAmount = isCustomMode
+                ? (payWith == 'token' ? parsedCustom.floor() : parsedCustom)
+                : (preset?.amount ?? 30);
+            final isValidAmount = effectiveAmount >= 5 && effectiveAmount <= 5000;
+            final displayAmountStr = payWith == 'rm'
+                ? effectiveAmount.toDouble().toStringAsFixed(
+                      effectiveAmount % 1 == 0 ? 0 : 2,
+                    )
+                : '${effectiveAmount.floor()}';
+            final sheetTitle = isCustomMode
+                ? 'Custom Gift Card'
+                : (preset?.title ?? 'Custom Gift Card');
+
             final tokenBal = _session.tokenBalance;
-            final hasEnoughTokens = tokenBal >= preset.amount;
+            final hasEnoughTokens = tokenBal >= effectiveAmount && effectiveAmount >= 5;
 
             return Container(
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * 0.80,
+                maxHeight: MediaQuery.sizeOf(context).height * 0.82,
               ),
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -514,7 +542,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                preset.title,
+                                sheetTitle,
                                 style: TextStyle(
                                   fontFamily: 'Recoleta',
                                   fontSize: 20,
@@ -525,7 +553,9 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                               if (!isKeyboardOpen) ...[
                                 const SizedBox(height: 1),
                                 Text(
-                                  'Send to a friend or yourself for easy coffee redemption.',
+                                  isCustomMode
+                                      ? 'Enter any amount from 5 to 5,000.'
+                                      : 'Send to a friend or yourself for easy coffee redemption.',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 13.5,
@@ -536,6 +566,33 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                             ],
                           ),
                         ),
+                        if (!isCustomMode)
+                          TextButton.icon(
+                            onPressed: () {
+                              setSheetState(() => isCustomMode = true);
+                            },
+                            style: TextButton.styleFrom(
+                              backgroundColor: AppColors.surfaceLight,
+                              foregroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                                side: BorderSide(color: AppColors.border),
+                              ),
+                            ),
+                            icon: const Icon(Icons.tune_rounded, size: 14),
+                            label: const Text(
+                              'Custom',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(width: 4),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
                           visualDensity: VisualDensity.compact,
@@ -557,17 +614,17 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                             // Compact Card Preview (auto-collapses while keyboard is open so sheet stays low)
                             Container(
                               width: double.infinity,
-                              height: 100,
+                              height: 96,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
-                                  colors: preset.gradient,
+                                  colors: cardGradient,
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                                 borderRadius: BorderRadius.circular(18),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: preset.shadowColor,
+                                    color: cardShadow,
                                     blurRadius: 12,
                                     offset: const Offset(0, 4),
                                   ),
@@ -591,10 +648,12 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                         ),
                                       ),
                                       Text(
-                                        'RM ${preset.amount}',
+                                        effectiveAmount > 0
+                                            ? 'RM $displayAmountStr'
+                                            : 'RM —',
                                         style: const TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 28,
+                                          fontSize: 27,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
                                           height: 1.0,
@@ -612,9 +671,9 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                           color: Colors.white.withValues(alpha: 0.22),
                                           borderRadius: BorderRadius.circular(999),
                                         ),
-                                        child: const Text(
-                                          'GIFT CARD',
-                                          style: TextStyle(
+                                        child: Text(
+                                          isCustomMode ? 'CUSTOM PASS' : 'GIFT CARD',
+                                          style: const TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 10,
                                             fontWeight: FontWeight.w800,
@@ -637,6 +696,145 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                               ),
                             ),
                             const SizedBox(height: 14),
+                          ],
+
+                          // Custom Amount Input Section (shown when Custom Gift Card is selected)
+                          if (isCustomMode) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  payWith == 'rm'
+                                      ? 'CUSTOM AMOUNT (RM)'
+                                      : 'CUSTOM AMOUNT (TOKENS)',
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                    color: AppColors.brandText.withValues(alpha: 0.6),
+                                  ),
+                                ),
+                                Text(
+                                  'Min. 5 – Max. 5,000',
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isValidAmount
+                                        ? AppColors.brandText.withValues(alpha: 0.45)
+                                        : Colors.redAccent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceLight,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: !isValidAmount && customAmountController.text.isNotEmpty
+                                      ? Colors.redAccent
+                                      : AppColors.primary.withValues(alpha: 0.45),
+                                  width: 1.3,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      payWith == 'rm' ? 'RM' : 'TOKENS',
+                                      style: TextStyle(
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: customAmountController,
+                                      keyboardType: TextInputType.numberWithOptions(
+                                        decimal: payWith == 'rm',
+                                      ),
+                                      onChanged: (_) => setSheetState(() {}),
+                                      style: TextStyle(
+                                        fontFamily: 'Recoleta',
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.brandText,
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText: 'Enter amount (e.g. 30)',
+                                        hintStyle: TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                          color: AppColors.brandText.withValues(alpha: 0.38),
+                                        ),
+                                        border: InputBorder.none,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: quickCustomAmounts.map((amt) {
+                                  final isSelected = effectiveAmount == amt;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        customAmountController.text = '$amt';
+                                        setSheetState(() {});
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? AppColors.primary
+                                              : AppColors.surfaceLight,
+                                          borderRadius: BorderRadius.circular(999),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? AppColors.primary
+                                                : AppColors.border,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          payWith == 'rm' ? 'RM $amt' : '$amt Tokens',
+                                          style: TextStyle(
+                                            fontFamily: 'Afacad',
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : AppColors.brandText,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                           ],
 
                           // Payment Choice (Token or RM)
@@ -695,7 +893,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                         ),
                                         const SizedBox(height: 5),
                                         Text(
-                                          '${preset.amount} Tokens',
+                                          '${effectiveAmount > 0 ? effectiveAmount.floor() : 0} Tokens',
                                           style: TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 14.5,
@@ -774,7 +972,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                                         ),
                                         const SizedBox(height: 5),
                                         Text(
-                                          'RM ${preset.amount}.00',
+                                          'RM ${effectiveAmount > 0 ? effectiveAmount.toDouble().toStringAsFixed(2) : "0.00"}',
                                           style: TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 14.5,
@@ -945,13 +1143,14 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                         Expanded(
                           flex: 2,
                           child: ElevatedButton(
-                            onPressed: (payWith == 'token' && !hasEnoughTokens) ||
+                            onPressed: !isValidAmount ||
+                                    (payWith == 'token' && !hasEnoughTokens) ||
                                     (payWith == 'rm' && paymentMethod == null) ||
                                     phoneController.text.trim().length < 3
                                 ? null
                                 : () => Navigator.pop(context, (
                                       currency: payWith,
-                                      amount: preset.amount,
+                                      amount: effectiveAmount,
                                       phone: phoneController.text.trim(),
                                       message: messageController.text.trim(),
                                       method: paymentMethod,
@@ -967,7 +1166,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                             child: Text(
                               payWith == 'token'
                                   ? 'Confirm & Send'
-                                  : 'Pay RM ${preset.amount}.00',
+                                  : 'Pay RM ${effectiveAmount > 0 ? effectiveAmount.toDouble().toStringAsFixed(2) : "0.00"}',
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
                                 fontSize: 15,
@@ -1155,6 +1354,8 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                     Expanded(child: _buildStoreCardItem(_presets[3])),
                   ],
                 ),
+                const SizedBox(height: 12),
+                _buildCustomAmountCard(),
               ],
             ),
 
@@ -1234,6 +1435,160 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                 ),
                 itemBuilder: (context, index) => _buildTransactionRow(_cards[index]),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Full-width Custom Amount Gift Card option right below the 2x2 presets
+  Widget _buildCustomAmountCard() {
+    final prim = AppColors.primary;
+    final gold = AppColors.gold;
+    return GestureDetector(
+      onTap: _submitting ? null : () => _buyPreset(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Mini Custom Gift Pass graphic
+            Container(
+              width: 64,
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    prim,
+                    Color.lerp(prim, gold, 0.35)!,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: prim.withValues(alpha: 0.22),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'C2',
+                    style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white.withValues(alpha: 0.95),
+                      height: 1.0,
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Icon(
+                        Icons.tune_rounded,
+                        size: 11,
+                        color: Colors.white,
+                      ),
+                      Text(
+                        '✦ ✦',
+                        style: TextStyle(
+                          fontSize: 8.5,
+                          color: AppColors.softGold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Custom Gift Card',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.brandText,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Row(
+                    children: [
+                      Image.asset(
+                        'assets/images/coin.png',
+                        width: 13,
+                        height: 13,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'Enter any amount (5 – 5,000)',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: prim.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Customise',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: prim,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 11,
+                    color: prim,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
