@@ -149,20 +149,26 @@ async function settleChipOrderPurchase(
          WHERE id = :paymentId AND status IN ('pending', 'authorized')`,
         { paymentId: payment.payment_id, status: failure }
       );
-      await connection.execute(
-        `UPDATE orders SET status = :orderStatus,
-             cancelled_at = CASE WHEN :orderStatus = 'cancelled' THEN UTC_TIMESTAMP() ELSE cancelled_at END
-         WHERE id = :orderId AND status = 'pending_payment'`,
-        {
-          orderId: payment.order_id,
-          orderStatus: failure === 'cancelled' ? 'cancelled' : 'payment_failed'
+      // A failed customer-app payment remains attached to the same pending
+      // order so the customer can safely choose another payment method. Keep
+      // its inventory reservation until payment succeeds or the order is
+      // explicitly cancelled. Counter orders retain their terminal behavior.
+      if (orderChannel === 'counter') {
+        await connection.execute(
+          `UPDATE orders SET status = :orderStatus,
+               cancelled_at = CASE WHEN :orderStatus = 'cancelled' THEN UTC_TIMESTAMP() ELSE cancelled_at END
+           WHERE id = :orderId AND status = 'pending_payment'`,
+          {
+            orderId: payment.order_id,
+            orderStatus: failure === 'cancelled' ? 'cancelled' : 'payment_failed'
+          }
+        );
+        if (
+          payment.order_status === 'pending_payment' &&
+          ['pending', 'authorized'].includes(payment.payment_status)
+        ) {
+          await releaseInventoryForOrder(connection, payment.order_id);
         }
-      );
-      if (
-        payment.order_status === 'pending_payment' &&
-        ['pending', 'authorized'].includes(payment.payment_status)
-      ) {
-        await releaseInventoryForOrder(connection, payment.order_id);
       }
     }
 

@@ -4,6 +4,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 
 import { authenticateRequest } from '../../auth/guard.js';
+import { env } from '../../config/env.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { createUserNotification } from '../notifications.js';
@@ -20,6 +21,16 @@ import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTie
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 import { issueFriendRewardAtClaim, type ReferralProgramSnapshot } from '../../services/referrals.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
+import {
+  cancelChipPurchase,
+  createChipPurchase,
+  getChipPurchase,
+  isTrustedChipCheckoutUrl,
+  type ChipPaymentMethod
+} from '../../payments/chip-client.js';
+import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
+import { releaseInventoryForOrder } from '../../services/inventory.js';
+import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import {
   evaluateVoucherTopUpEligibility,
   getVoucherTopUpMinimum
@@ -185,12 +196,16 @@ type OrderSummaryRow = RowDataPacket & {
   collected_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  payment_status: 'pending' | 'authorized' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded' | null;
+  payment_method: string | null;
+  payment_expires_at: Date | null;
   store_id: number;
   store_name: string;
   item_count: number;
   primary_item_name: string | null;
   barista_name: string | null;
   barista_username: string | null;
+  cancellation_request_status: 'pending' | 'approved' | 'rejected' | 'refund_pending' | 'completed' | 'withdrawn' | null;
 };
 
 type OrderItemRow = RowDataPacket & {
@@ -687,7 +702,7 @@ async function syncCurrentTierAchievementRewards(
 
   const tiers = getActiveLoyaltyTiers(await loadLoyaltyTiers());
   const tier = getTierByCode(tiers, currentTier);
-  const templateIds = (tier?.rewardConfig?.voucherTemplateIds ?? []).slice(0, 1);
+  const templateIds = tier?.rewardConfig?.voucherTemplateIds ?? [];
 
   // Tier rewards are current-tier benefits, not a cumulative catalogue. Keep
   // history, but make every previous-tier or superseded entitlement unusable.
@@ -701,14 +716,14 @@ async function syncCurrentTierAchievementRewards(
         AND status = 'claimable'
         AND (
           tier_code <> :currentTier
-          OR :currentTemplateId IS NULL
-          OR voucher_template_id <> :currentTemplateId
+          OR :currentTemplateIds = '[]'
+          OR NOT JSON_CONTAINS(CAST(:currentTemplateIds AS JSON), CAST(voucher_template_id AS JSON))
         )
     `,
     {
       userId,
       currentTier,
-      currentTemplateId: templateIds[0] ?? null
+      currentTemplateIds: JSON.stringify(templateIds)
     }
   );
 
@@ -742,30 +757,41 @@ async function syncCurrentTierAchievementRewards(
   if (!hasReachedTier) return;
 
   for (const voucherTemplateId of templateIds) {
-    await mysqlPool.execute(
-      `
-        INSERT IGNORE INTO user_tier_reward_entitlements (
-          user_id, tenant_id, voucher_template_id, tier_code, status,
-          issue_case_ref, unlocked_at
-        )
-        SELECT
-          :userId, vt.tenant_id, vt.id, :tierCode, 'claimable',
-          :issueCaseRef, UTC_TIMESTAMP()
-        FROM voucher_templates vt
-        JOIN customer_tenant_memberships ctm
-          ON ctm.tenant_id = vt.tenant_id
-         AND ctm.user_id = :userId
-        WHERE vt.id = :voucherTemplateId
-          AND vt.is_active = 1
-          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
-      `,
-      {
-        userId,
-        voucherTemplateId,
-        issueCaseRef: `tier_unlock:${tier.code}:${voucherTemplateId}`,
-        tierCode: tier.code
-      }
+    const [limitRows] = await mysqlPool.query<Array<RowDataPacket & { limit_per_user: number | null }>>(
+      'SELECT limit_per_user FROM voucher_templates WHERE id = :voucherTemplateId LIMIT 1',
+      { voucherTemplateId }
     );
+    const claimCount = Math.max(1, Math.min(20, Number(limitRows[0]?.limit_per_user ?? 1) || 1));
+
+    for (let claimNumber = 1; claimNumber <= claimCount; claimNumber += 1) {
+      await mysqlPool.execute(
+        `
+          INSERT IGNORE INTO user_tier_reward_entitlements (
+            user_id, tenant_id, voucher_template_id, tier_code, status,
+            issue_case_ref, unlocked_at
+          )
+          SELECT
+            :userId, vt.tenant_id, vt.id, :tierCode, 'claimable',
+            :issueCaseRef, UTC_TIMESTAMP()
+          FROM voucher_templates vt
+          JOIN customer_tenant_memberships ctm
+            ON ctm.tenant_id = vt.tenant_id
+           AND ctm.user_id = :userId
+          WHERE vt.id = :voucherTemplateId
+            AND vt.is_active = 1
+            AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
+        `,
+        {
+          userId,
+          voucherTemplateId,
+          // First claim keeps the legacy reference so existing rows stay valid.
+          issueCaseRef: claimNumber === 1
+            ? `tier_unlock:${tier.code}:${voucherTemplateId}`
+            : `tier_unlock:${tier.code}:${voucherTemplateId}:${claimNumber}`,
+          tierCode: tier.code
+        }
+      );
+    }
   }
 }
 
@@ -1571,10 +1597,7 @@ export async function registerCustomerDataRoutes(
         JOIN loyalty_tiers lt
           ON lt.code = utre.tier_code
          AND lt.is_active = 1
-         AND CAST(
-           JSON_UNQUOTE(JSON_EXTRACT(lt.reward_config_json, '$.voucherTemplateIds[0]'))
-           AS UNSIGNED
-         ) = utre.voucher_template_id
+         AND JSON_CONTAINS(COALESCE(JSON_EXTRACT(lt.reward_config_json, '$.voucherTemplateIds'), JSON_ARRAY()), CAST(utre.voucher_template_id AS JSON))
         JOIN loyalty_tier_snapshots current_tier
           ON current_tier.id = (
             SELECT latest.id
@@ -1592,7 +1615,7 @@ export async function registerCustomerDataRoutes(
           AND vt.is_active = 1
           AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
         ORDER BY utre.unlocked_at DESC, utre.id DESC
-        LIMIT 1
+        LIMIT :limit
       `,
       { userId, limit }
     );
@@ -1860,10 +1883,7 @@ export async function registerCustomerDataRoutes(
           JOIN loyalty_tiers lt
             ON lt.code = utre.tier_code
            AND lt.is_active = 1
-           AND CAST(
-             JSON_UNQUOTE(JSON_EXTRACT(lt.reward_config_json, '$.voucherTemplateIds[0]'))
-             AS UNSIGNED
-           ) = utre.voucher_template_id
+           AND JSON_CONTAINS(COALESCE(JSON_EXTRACT(lt.reward_config_json, '$.voucherTemplateIds'), JSON_ARRAY()), CAST(utre.voucher_template_id AS JSON))
           JOIN loyalty_tier_snapshots current_tier
             ON current_tier.id = (
               SELECT latest.id
@@ -1992,8 +2012,126 @@ export async function registerCustomerDataRoutes(
     }
   });
 
+  app.post('/v1/orders/:orderId/cancellation-request', { preHandler: authenticateRequest }, async (request, reply) => {
+    const params = z.object({ orderId: z.coerce.number().int().positive() }).parse(request.params);
+    const payload = z.object({
+      reason: z.string().trim().min(3).max(500).optional().default('Customer requested cancellation before preparation.')
+    }).parse(request.body ?? {});
+    const connection = await getUtcConnection();
+    let committed = false;
+    try {
+      await connection.beginTransaction();
+      const [orders] = await connection.execute<Array<RowDataPacket & {
+        id: number;
+        order_ref: string;
+        user_id: number;
+        status: string;
+        payment_mode: 'token' | 'direct';
+        payment_status: string | null;
+      }>>(
+        `SELECT o.id, o.order_ref, o.user_id, o.status, o.payment_mode,
+                p.status AS payment_status
+         FROM orders o
+         LEFT JOIN payments p ON p.id = (
+           SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+         )
+         WHERE o.id = :orderId AND o.user_id = :userId
+         LIMIT 1 FOR UPDATE`,
+        { orderId: params.orderId, userId: request.auth.userId }
+      );
+      const order = orders[0];
+      if (!order) throw new ApiError(404, 'order_not_found', 'Order not found.');
+      if (!['paid', 'accepted'].includes(order.status) ||
+          (order.payment_mode === 'direct' && order.payment_status !== 'paid')) {
+        throw new ApiError(409, 'cancellation_not_available', 'Cancellation requests are only available for paid orders before preparation starts.');
+      }
+      const [existing] = await connection.execute<Array<RowDataPacket & { id: number; status: string }>>(
+        `SELECT id, status FROM order_cancellation_requests WHERE order_id = :orderId LIMIT 1 FOR UPDATE`,
+        { orderId: order.id }
+      );
+      if (existing[0]) {
+        throw new ApiError(409, 'cancellation_request_exists', 'This order already has a cancellation request. Please contact the store if you need help with the earlier decision.');
+      }
+      const [inserted] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO order_cancellation_requests (order_id, user_id, status, reason, requested_at, created_at, updated_at)
+         VALUES (:orderId, :userId, 'pending', :reason, UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+        { orderId: order.id, userId: request.auth.userId, reason: payload.reason }
+      );
+      await createUserNotification(connection, {
+        userId: request.auth.userId,
+        type: 'order_cancellation_requested',
+        title: 'Cancellation request sent',
+        body: order.payment_mode === 'token'
+          ? 'The barista will review your request before preparation starts. Your tokens remain reserved until a decision is made.'
+          : 'The barista will review your request before preparation starts. Any direct-payment refund requires payment-provider processing.'
+      });
+      await connection.commit();
+      committed = true;
+      return reply.send({ status: 'pending', cancellation_request_id: inserted.insertId });
+    } catch (error) {
+      if (!committed) await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.post('/v1/orders/:orderId/cancel', { preHandler: authenticateRequest }, async (request) => {
     const { orderId } = request.params as { orderId: string };
+
+    // Reconcile the latest direct-payment attempt before opening the order
+    // transaction. This prevents a customer from cancelling locally while
+    // CHIP has already accepted the payment, and also closes an active CHIP
+    // checkout before the order reservation is released.
+    const [preflightRows] = await mysqlPool.query<Array<RowDataPacket & {
+      id: number;
+      status: string;
+      payment_mode: 'token' | 'direct';
+      payment_id: number | null;
+      payment_status: string | null;
+      provider_bill_id: string | null;
+    }>>(
+      `SELECT o.id, o.status, o.payment_mode,
+              p.id AS payment_id, p.status AS payment_status, p.provider_bill_id
+       FROM orders o
+       LEFT JOIN payments p ON p.id = (
+         SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+       )
+       WHERE o.id = :orderId AND o.user_id = :userId
+       LIMIT 1`,
+      { orderId, userId: request.auth.userId }
+    );
+    const preflight = preflightRows[0];
+    if (!preflight) {
+      throw new ApiError(404, 'order_not_found', 'Order not found.');
+    }
+    if (preflight.status === 'pending_payment' && preflight.payment_mode === 'direct') {
+      if (preflight.provider_bill_id) {
+        let purchase = await getChipPurchase(preflight.provider_bill_id);
+        let providerStatus = typeof purchase.status === 'string'
+          ? purchase.status.trim().toLowerCase()
+          : 'unknown';
+        if (providerStatus === 'paid') {
+          await settleChipMobilePurchase(preflight.provider_bill_id, purchase, 'customer_cancel_paid_check');
+          throw new ApiError(409, 'order_already_paid', 'This payment has already completed. Cancellation is not available here.');
+        }
+        if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
+          purchase = await cancelChipPurchase(preflight.provider_bill_id);
+          providerStatus = typeof purchase.status === 'string'
+            ? purchase.status.trim().toLowerCase()
+            : 'unknown';
+          if (providerStatus === 'paid') {
+            await settleChipMobilePurchase(preflight.provider_bill_id, purchase, 'customer_cancel_paid_race');
+            throw new ApiError(409, 'order_already_paid', 'This payment completed while it was being cancelled. Cancellation is not available here.');
+          }
+        }
+        if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
+          throw new ApiError(409, 'payment_still_pending', 'The payment could not be closed safely yet. Please check its status again.');
+        }
+        await settleChipMobilePurchase(preflight.provider_bill_id, purchase, 'customer_cancel_reconcile');
+      }
+    }
+
     const connection = await getUtcConnection();
     let committed = false;
 
@@ -2007,11 +2145,18 @@ export async function registerCustomerDataRoutes(
         final_total_rm: string;
         token_amount_charged: number;
         status: string;
+        payment_id: number | null;
+        payment_status: string | null;
       }>>(
         `
-          SELECT id, order_ref, user_id, payment_mode, final_total_rm, token_amount_charged, status
-          FROM orders
-          WHERE id = :orderId AND user_id = :userId
+          SELECT o.id, o.order_ref, o.user_id, o.payment_mode, o.final_total_rm,
+                 o.token_amount_charged, o.status,
+                 p.id AS payment_id, p.status AS payment_status
+          FROM orders o
+          LEFT JOIN payments p ON p.id = (
+            SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+          )
+          WHERE o.id = :orderId AND o.user_id = :userId
           LIMIT 1
           FOR UPDATE
         `,
@@ -2020,6 +2165,62 @@ export async function registerCustomerDataRoutes(
       const order = orders[0];
       if (!order) {
         throw new ApiError(404, 'order_not_found', 'Order not found.');
+      }
+      if (order.status === 'pending_payment' && order.payment_mode === 'direct') {
+        if (order.payment_id !== preflight.payment_id) {
+          throw new ApiError(409, 'order_payment_changed', 'The payment attempt changed. Please refresh the order and try again.');
+        }
+        if (order.payment_status === 'paid') {
+          throw new ApiError(409, 'order_already_paid', 'This payment has already completed. Cancellation is not available here.');
+        }
+        if (order.payment_id && ['pending', 'authorized'].includes(order.payment_status ?? '')) {
+          await connection.execute(
+            `UPDATE payments SET status = 'cancelled', failed_at = UTC_TIMESTAMP()
+             WHERE id = :paymentId AND status IN ('pending', 'authorized')`,
+            { paymentId: order.payment_id }
+          );
+        }
+        await releaseInventoryForOrder(connection, order.id);
+        await restoreGiftCardForRefund(
+          connection,
+          order.id,
+          request.auth.userId,
+          'Restored after customer cancelled unpaid order.'
+        );
+        await connection.execute(
+          `UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+           WHERE id = :orderId AND status = 'pending_payment'`,
+          { orderId: order.id }
+        );
+        await connection.execute(
+          `
+            INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
+            VALUES (:orderId, 'pending_payment', 'cancelled', 'customer', :userId,
+                    'Cancelled by customer before direct payment completed', UTC_TIMESTAMP())
+          `,
+          { orderId: order.id, userId: request.auth.userId }
+        );
+        await createUserNotification(connection, {
+          userId: request.auth.userId,
+          type: 'order_cancelled',
+          title: 'Unpaid order cancelled',
+          body: 'Your payment attempt was closed and no payment was taken. You can place a new order when ready.'
+        });
+        await connection.commit();
+        committed = true;
+        return {
+          status: 'cancelled',
+          returned_tokens: 0,
+          token_balance: null,
+          payment_cancelled: true
+        };
+      }
+      if (['paid', 'accepted'].includes(order.status)) {
+        throw new ApiError(
+          409,
+          'cancellation_request_required',
+          'Paid orders require a barista-approved cancellation request. Please use Request cancellation.'
+        );
       }
       if (order.status !== 'paid') {
         throw new ApiError(
@@ -2208,6 +2409,10 @@ export async function registerCustomerDataRoutes(
           o.collected_at,
           o.created_at,
           o.updated_at,
+          p.status AS payment_status,
+          p.payment_method,
+          p.expires_at AS payment_expires_at,
+          ocr.status AS cancellation_request_status,
           s.id AS store_id,
           s.name AS store_name,
           NULL AS barista_name,
@@ -2217,6 +2422,16 @@ export async function registerCustomerDataRoutes(
         FROM orders o
         JOIN stores s
           ON s.id = o.store_id
+        LEFT JOIN payments p
+          ON p.id = (
+            SELECT p2.id
+            FROM payments p2
+            WHERE p2.order_id = o.id
+            ORDER BY p2.id DESC
+            LIMIT 1
+          )
+        LEFT JOIN order_cancellation_requests ocr
+          ON ocr.order_id = o.id
         LEFT JOIN order_items oi
           ON oi.order_id = o.id
         WHERE o.user_id = :userId
@@ -2235,6 +2450,10 @@ export async function registerCustomerDataRoutes(
           o.collected_at,
           o.created_at,
           o.updated_at,
+          p.status,
+          p.payment_method,
+          p.expires_at,
+          ocr.status,
           s.id,
           s.name
         ORDER BY o.id DESC
@@ -2375,6 +2594,10 @@ export async function registerCustomerDataRoutes(
         collected_at: row.collected_at?.toISOString() ?? null,
         created_at: row.created_at.toISOString(),
         updated_at: row.updated_at.toISOString(),
+        payment_status: row.payment_status,
+        payment_method: row.payment_method,
+        payment_expires_at: row.payment_expires_at?.toISOString() ?? null,
+        cancellation_request_status: row.cancellation_request_status,
         store: {
           id: row.store_id,
           name: row.store_name
@@ -2395,6 +2618,248 @@ export async function registerCustomerDataRoutes(
       active_order: activeOrder,
       orders
     };
+  });
+
+  app.get('/v1/orders/:orderId/payment', { preHandler: authenticateRequest }, async (request) => {
+    const params = z.object({ orderId: z.coerce.number().int().positive() }).parse(request.params);
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      id: number;
+      status: string;
+      payment_status: string | null;
+      payment_method: string | null;
+      payment_expires_at: Date | null;
+      provider_bill_id: string | null;
+      final_total_rm: string;
+    }>>(
+      `SELECT o.id, o.status, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+              p.status AS payment_status, p.payment_method, p.expires_at AS payment_expires_at,
+              p.provider_bill_id
+       FROM orders o
+       LEFT JOIN payments p ON p.id = (
+         SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+       )
+       WHERE o.id = :orderId AND o.user_id = :userId
+       LIMIT 1`,
+      { orderId: params.orderId, userId: request.auth.userId }
+    );
+    const row = rows[0];
+    if (!row) throw new ApiError(404, 'order_not_found', 'Order was not found.');
+    if (row.status !== 'pending_payment' || !row.provider_bill_id) {
+      return {
+        status: row.payment_status ?? row.status,
+        checkout_url: null,
+        payment_method: row.payment_method,
+        amount_rm: row.final_total_rm,
+        expires_at: row.payment_expires_at?.toISOString() ?? null
+      };
+    }
+
+    const purchase = await getChipPurchase(row.provider_bill_id);
+    const checkoutUrl = typeof purchase.checkout_url === 'string' && isTrustedChipCheckoutUrl(purchase.checkout_url)
+      ? purchase.checkout_url
+      : null;
+    const providerStatus = typeof purchase.status === 'string' ? purchase.status.toLowerCase() : 'unknown';
+    const providerTerminal = ['paid', 'failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus);
+    if (providerTerminal) {
+      await settleChipMobilePurchase(row.provider_bill_id, purchase, 'customer_status_check');
+    }
+    return {
+      status: providerStatus === 'paid' ? 'paid' : providerStatus,
+      checkout_url: providerTerminal ? null : checkoutUrl,
+      payment_method: row.payment_method,
+      amount_rm: row.final_total_rm,
+      expires_at: row.payment_expires_at?.toISOString() ?? null
+    };
+  });
+
+  app.post('/v1/orders/:orderId/payment/retry', { preHandler: authenticateRequest }, async (request) => {
+    const params = z.object({ orderId: z.coerce.number().int().positive() }).parse(request.params);
+    const payload = z.object({
+      payment_method: z.enum(['fpx', 'duitnow_qr', 'card', 'ewallet'])
+    }).parse(request.body);
+
+    const [currentRows] = await mysqlPool.query<Array<RowDataPacket & {
+      id: number;
+      order_ref: string;
+      status: string;
+      final_total_rm: string;
+      payment_id: number | null;
+      payment_status: string | null;
+      provider_bill_id: string | null;
+      payment_expires_at: Date | null;
+    }>>(
+      `SELECT o.id, o.order_ref, o.status, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+              p.id AS payment_id, p.status AS payment_status, p.provider_bill_id,
+              p.expires_at AS payment_expires_at
+       FROM orders o
+       LEFT JOIN payments p ON p.id = (
+         SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+       )
+       WHERE o.id = :orderId AND o.user_id = :userId
+       LIMIT 1`,
+      { orderId: params.orderId, userId: request.auth.userId }
+    );
+    const current = currentRows[0];
+    if (!current) throw new ApiError(404, 'order_not_found', 'Order was not found.');
+    if (current.status !== 'pending_payment') {
+      throw new ApiError(409, 'order_payment_not_retryable', 'This order no longer needs payment.');
+    }
+    if (!current.payment_id) {
+      throw new ApiError(409, 'order_payment_not_retryable', 'This order does not have a payment attempt to retry.');
+    }
+
+    let retryableStatus = current.payment_status ?? '';
+    if (current.provider_bill_id) {
+      let purchase = await getChipPurchase(current.provider_bill_id);
+      let providerStatus = typeof purchase.status === 'string'
+        ? purchase.status.trim().toLowerCase()
+        : 'unknown';
+
+      if (providerStatus === 'paid') {
+        await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_check');
+        throw new ApiError(409, 'order_payment_not_retryable', 'This payment has already been completed.');
+      }
+
+      if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
+        const paymentExpired = current.payment_expires_at != null &&
+          current.payment_expires_at.getTime() <= Date.now();
+        if (!paymentExpired) {
+          throw new ApiError(409, 'payment_still_pending', 'The current payment is still available. Retry it or wait for the final status before choosing another method.');
+        }
+
+        // The local checkout window has ended. Cancel the provider purchase
+        // first so there can never be two payable CHIP gates for one order.
+        purchase = await cancelChipPurchase(current.provider_bill_id);
+        providerStatus = typeof purchase.status === 'string'
+          ? purchase.status.trim().toLowerCase()
+          : 'unknown';
+        if (providerStatus === 'paid') {
+          await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_cancel_race');
+          throw new ApiError(409, 'order_payment_not_retryable', 'This payment was completed while its status was being checked.');
+        }
+        if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
+          throw new ApiError(409, 'payment_still_pending', 'The previous payment could not be closed safely yet. Please check its status again.');
+        }
+      }
+
+      await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_reconcile');
+      retryableStatus = providerStatus === 'cancelled' ? 'cancelled' : 'failed';
+    } else if (['pending', 'authorized'].includes(retryableStatus)) {
+      const paymentExpired = current.payment_expires_at != null &&
+        current.payment_expires_at.getTime() <= Date.now();
+      if (!paymentExpired) {
+        throw new ApiError(409, 'payment_still_pending', 'The current payment is still being prepared. Please try again shortly.');
+      }
+      await mysqlPool.execute(
+        `UPDATE payments SET status = 'failed', failed_at = UTC_TIMESTAMP()
+         WHERE id = :paymentId AND status IN ('pending', 'authorized')`,
+        { paymentId: current.payment_id }
+      );
+      retryableStatus = 'failed';
+    }
+
+    if (!['failed', 'cancelled'].includes(retryableStatus)) {
+      throw new ApiError(409, 'payment_still_pending', 'The previous payment has not reached a safe retry state.');
+    }
+
+    const retryReference = `${current.order_ref}-R-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const connection = await getUtcConnection();
+    let paymentId = 0;
+    let customerName = 'C2 Coffee customer';
+    let customerEmail = '';
+    try {
+      await connection.beginTransaction();
+      const [lockedRows] = await connection.execute<Array<RowDataPacket & {
+        status: string;
+        final_total_rm: string;
+        payment_id: number | null;
+        payment_status: string | null;
+      }>>(
+        `SELECT o.status, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+                p.id AS payment_id, p.status AS payment_status
+         FROM orders o
+         LEFT JOIN payments p ON p.id = (
+           SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+         )
+         WHERE o.id = :orderId AND o.user_id = :userId LIMIT 1 FOR UPDATE`,
+        { orderId: params.orderId, userId: request.auth.userId }
+      );
+      if (lockedRows[0]?.status !== 'pending_payment' ||
+          lockedRows[0].payment_id !== current.payment_id ||
+          !['failed', 'cancelled'].includes(lockedRows[0].payment_status ?? '')) {
+        throw new ApiError(409, 'order_payment_not_retryable', 'This order no longer needs payment.');
+      }
+      const [profiles] = await connection.execute<Array<RowDataPacket & {
+        display_name: string | null;
+        email: string | null;
+      }>>(
+        `SELECT display_name, email FROM user_profiles WHERE user_id = :userId LIMIT 1`,
+        { userId: request.auth.userId }
+      );
+      if (!profiles[0]?.email?.trim()) {
+        throw new ApiError(409, 'direct_payment_email_required', 'Add a verified email address before paying directly.');
+      }
+      customerName = profiles[0].display_name?.trim() || customerName;
+      customerEmail = profiles[0].email.trim();
+      const [result] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO payments
+           (order_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at, expires_at)
+         VALUES (:orderId, 'chip', :paymentMethod, :paymentRef, :amountRm, 'pending', UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL 15 MINUTE))`,
+        {
+          orderId: params.orderId,
+          paymentMethod: payload.payment_method,
+          paymentRef: retryReference,
+          amountRm: lockedRows[0].final_total_rm
+        }
+      );
+      paymentId = result.insertId;
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+    try {
+      const purchase = await createChipPurchase({
+        reference: retryReference,
+        customerEmail,
+        customerName,
+        amountCents: Math.round(Number(current.final_total_rm) * 100),
+        description: `C2 Coffee order ${current.order_ref} payment retry`,
+        method: payload.payment_method as ChipPaymentMethod,
+        callbackUrl: `${env.PUBLIC_API_BASE_URL.replace(/\/+$/, '')}/payments/chip/callback`
+      });
+      const [attachResult] = await mysqlPool.execute<ResultSetHeader>(
+        `UPDATE payments SET provider_bill_id = :providerBillId
+         WHERE id = :paymentId AND status = 'pending'`,
+        { providerBillId: purchase.id, paymentId }
+      );
+      if (attachResult.affectedRows !== 1) {
+        try {
+          await cancelChipPurchase(purchase.id);
+        } catch (cancelError) {
+          request.log.error({ err: cancelError, providerPurchaseId: purchase.id }, 'Unable to cancel detached CHIP retry purchase');
+        }
+        throw new ApiError(409, 'payment_attempt_no_longer_active', 'The payment attempt changed before the payment page was ready. Please try again.');
+      }
+      return {
+        order_id: current.id,
+        status: 'pending',
+        payment_method: payload.payment_method,
+        checkout_url: purchase.checkoutUrl,
+        amount_rm: current.final_total_rm,
+        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+      };
+    } catch (error) {
+      await mysqlPool.execute(
+        `UPDATE payments SET status = 'failed', failed_at = UTC_TIMESTAMP()
+         WHERE id = :paymentId AND status = 'pending'`,
+        { paymentId }
+      );
+      throw error;
+    }
   });
 
   app.get('/v1/referrals', { preHandler: authenticateRequest }, async (request) => {

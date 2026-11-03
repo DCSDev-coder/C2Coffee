@@ -12,7 +12,8 @@ import { ApiError } from '../errors.js';
 import { createUserNotification } from '../notifications.js';
 import { z } from 'zod';
 import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
-import { consumeInventoryForOrder, reverseInventoryForOrder } from '../../services/inventory.js';
+import { consumeInventoryForOrder, releaseInventoryForOrder, reverseInventoryForOrder } from '../../services/inventory.js';
+import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 
 function formatDisplayDate(dateObj: Date): string {
   if (!dateObj) return '';
@@ -213,6 +214,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           p.provider as paymentProvider,
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
+          ocr.status as cancellationRequestStatus,
+          ocr.reason as cancellationRequestReason,
+          ocr.requested_at as cancellationRequestedAt,
           NULL as baristaName,
           o.ready_at,
           o.created_at,
@@ -224,6 +228,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         LEFT JOIN payments p ON o.id = p.order_id
+        LEFT JOIN order_cancellation_requests ocr ON ocr.order_id = o.id
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
           AND (
@@ -349,6 +354,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           status: capitalizeWords(o.status),
           payment: o.paymentMode || '',
           paymentStatus: capitalizeWords(o.paymentStatus || ''),
+          cancellationRequestStatus: o.cancellationRequestStatus || null,
+          cancellationRequestReason: o.cancellationRequestReason || null,
+          cancellationRequestedAt: o.cancellationRequestedAt ? new Date(o.cancellationRequestedAt).toISOString() : null,
           txnId: o.txnId || `TXN${o.internal_id}`,
           baristaName: o.baristaName || '',
           baristaUsername: '',
@@ -666,6 +674,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           r.refund_token_amount as token_amount,
           r.reason as reason,
           r.payment_mode as paymentMethod,
+          r.provider_refund_ref as providerRefundRef,
           r.status as status,
           r.created_at as requestedAt,
           r.reviewed_at as reviewedAt,
@@ -712,6 +721,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           tokenAmount: Number(r.token_amount || 0),
           reason: r.reason || 'Other',
           paymentMethod: r.paymentMethod || '',
+          providerRefundRef: r.providerRefundRef || '',
           status: capitalizeWords(r.status),
           requestedAt: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`,
           orderDate: `${formatDisplayDate(ordDate)} – ${formatDisplayTime(ordDate)}`,
@@ -736,9 +746,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     requireRefundApprovalAccess(request);
 
     const { refundRef } = request.params as { refundRef: string };
-    const { decision, confirmation_password: confirmationPassword } = z.object({
+    const { decision, confirmation_password: confirmationPassword, provider_refund_ref: providerRefundRef } = z.object({
       decision: z.enum(['approved', 'rejected']),
-      confirmation_password: z.string().trim().min(8).max(200)
+      confirmation_password: z.string().trim().min(8).max(200),
+      provider_refund_ref: z.string().trim().min(3).max(255).optional()
     }).parse(request.body);
 
     const connection = await mysqlPool.getConnection();
@@ -751,17 +762,27 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         status: string;
         order_id: number;
         payment_mode: 'token' | 'direct';
+        payment_id: number | null;
+        payment_status: string | null;
         refund_token_amount: number | null;
+        provider_refund_ref: string | null;
         user_id: number;
         order_status: string;
         order_ref: string;
         created_by_admin_id: number | null;
+        cancellation_request_id: number | null;
+        cancellation_request_status: string | null;
       }>>(
         `
-          SELECT r.id, r.status, r.order_id, r.payment_mode, r.refund_token_amount, r.created_by_admin_id,
-                 o.user_id, o.status AS order_status, o.order_ref
+          SELECT r.id, r.status, r.order_id, r.payment_id, r.payment_mode, r.refund_token_amount,
+                 r.provider_refund_ref, r.created_by_admin_id,
+                 o.user_id, o.status AS order_status, o.order_ref,
+                 p.status AS payment_status,
+                 ocr.id AS cancellation_request_id, ocr.status AS cancellation_request_status
           FROM refunds r
           JOIN orders o ON o.id = r.order_id
+          LEFT JOIN order_cancellation_requests ocr ON ocr.order_id = o.id
+          LEFT JOIN payments p ON p.id = r.payment_id
           JOIN stores s ON s.id = o.store_id
           JOIN admin_tenants t ON t.id = s.tenant_id
           WHERE r.refund_ref = :refundRef
@@ -780,6 +801,86 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
       if (refund.created_by_admin_id === request.adminAuth.adminUserId) {
         throw new ApiError(403, 'refund_self_approval_forbidden', 'The admin who requested this refund cannot review it.');
+      }
+
+      if (decision === 'approved' && ['cancelled', 'refunded'].includes(refund.order_status)) {
+        throw new ApiError(409, 'refund_already_settled', 'This order has already been cancelled or refunded. No second refund is allowed.');
+      }
+
+      if (refund.payment_mode === 'direct') {
+        if (decision === 'approved' && !['paid', 'partially_refunded'].includes(refund.payment_status ?? '')) {
+          throw new ApiError(409, 'payment_not_refundable', 'The direct payment is not in a refundable state. Confirm the provider payment status first.');
+        }
+        if (decision === 'approved' && !providerRefundRef) {
+          throw new ApiError(400, 'provider_refund_reference_required', 'Enter the payment provider refund reference before completing this direct refund.');
+        }
+        if (decision === 'rejected') {
+          await connection.execute(
+            `UPDATE order_cancellation_requests
+             SET status = 'rejected', review_reason = 'The payment-provider refund was not completed.', reviewed_at = UTC_TIMESTAMP(), reviewed_by_admin_user_id = :adminUserId
+             WHERE id = :requestId AND status = 'refund_pending'`,
+            { requestId: refund.cancellation_request_id, adminUserId: request.adminAuth.adminUserId }
+          );
+          await createUserNotification(connection, {
+            userId: refund.user_id,
+            type: 'order_cancellation_rejected',
+            title: 'Cancellation refund not completed',
+            body: 'The direct-payment refund could not be completed. Please contact the store if you need help.'
+          });
+        } else {
+          await connection.execute(
+            `UPDATE payments SET status = 'refunded'
+             WHERE id = :paymentId AND status IN ('paid', 'partially_refunded')`,
+            { paymentId: refund.payment_id }
+          );
+          await releaseInventoryForOrder(connection, refund.order_id);
+          await restoreGiftCardForRefund(
+            connection,
+            refund.order_id,
+            refund.user_id,
+            `Returned after direct-payment refund ${refundRef}`
+          );
+          const loyaltyReversal = await reverseOrderLoyalty(
+            refund.order_id,
+            refund.user_id,
+            connection,
+            request.adminAuth.adminUserId
+          );
+          const referralReversal = await reverseReferralForRefundedOrder(
+            connection,
+            refund.order_id,
+            request.adminAuth.adminUserId
+          );
+          await connection.execute(
+            `UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+             WHERE id = :orderId AND status IN ('paid', 'accepted')`,
+            { orderId: refund.order_id }
+          );
+          await connection.execute(
+            `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
+             VALUES (:orderId, :fromStatus, 'cancelled', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`,
+            {
+              orderId: refund.order_id,
+              fromStatus: refund.order_status,
+              adminUserId: request.adminAuth.adminUserId,
+              reason: `Completed direct-payment cancellation refund ${refundRef}`
+            }
+          );
+          await connection.execute(
+            `UPDATE order_cancellation_requests
+             SET status = 'completed', review_reason = 'Payment-provider refund confirmed.', reviewed_at = UTC_TIMESTAMP(), reviewed_by_admin_user_id = :adminUserId
+             WHERE id = :requestId AND status = 'refund_pending'`,
+            { requestId: refund.cancellation_request_id, adminUserId: request.adminAuth.adminUserId }
+          );
+          await createUserNotification(connection, {
+            userId: refund.user_id,
+            type: 'refund_completed',
+            title: 'Refund completed',
+            body: loyaltyReversal.rewardNeedsReview || referralReversal.needsReview
+              ? 'Your direct payment refund is complete. A reward linked to this order requires staff review.'
+              : 'Your direct payment refund is complete.'
+          });
+        }
       }
 
       if (decision === 'approved' && refund.payment_mode === 'token') {
@@ -824,6 +925,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           { orderId: refund.order_id }
         );
         await reverseInventoryForOrder(connection, refund.order_id);
+        await restoreGiftCardForRefund(
+          connection,
+          refund.order_id,
+          refund.user_id,
+          `Returned after token refund ${refundRef}`
+        );
         const loyaltyReversal = await reverseOrderLoyalty(
           refund.order_id,
           refund.user_id,
@@ -872,13 +979,20 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       await connection.execute(
         `
           UPDATE refunds
-          SET status = :decision,
+          SET status = CASE WHEN :decision = 'approved' AND :paymentMode = 'direct' THEN 'completed' ELSE :decision END,
+              provider_refund_ref = COALESCE(:providerRefundRef, provider_refund_ref),
               reviewed_by_admin_id = :adminUserId,
               reviewed_at = UTC_TIMESTAMP(),
               completed_at = CASE WHEN :decision = 'approved' THEN UTC_TIMESTAMP() ELSE completed_at END
           WHERE id = :refundId
         `,
-        { decision, adminUserId: request.adminAuth.adminUserId, refundId: refund.id }
+        {
+          decision,
+          paymentMode: refund.payment_mode,
+          providerRefundRef: providerRefundRef ?? null,
+          adminUserId: request.adminAuth.adminUserId,
+          refundId: refund.id
+        }
       );
       await connection.execute(
         `
@@ -902,7 +1016,240 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       await connection.commit();
       committed = true;
 
-      return reply.send({ refund_ref: refundRef, status: decision });
+      return reply.send({
+        refund_ref: refundRef,
+        status: decision === 'approved' && refund.payment_mode === 'direct' ? 'completed' : decision
+      });
+    } catch (error) {
+      if (!committed) await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.patch('/v1/admin/orders/:orderId/cancellation-request', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireOrderAccess(request);
+    const { orderId } = request.params as { orderId: string };
+    const payload = z.object({
+      decision: z.enum(['approved', 'rejected']),
+      review_reason: z.string().trim().min(3).max(500).optional()
+    }).parse(request.body);
+    const connection = await mysqlPool.getConnection();
+    let committed = false;
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute<Array<RowDataPacket & {
+        id: number;
+        order_ref: string;
+        user_id: number;
+        store_id: number;
+        status: string;
+        payment_mode: 'token' | 'direct';
+        token_amount_charged: number;
+        final_total_rm: string;
+        payment_id: number | null;
+        payment_status: string | null;
+        request_id: number | null;
+        request_status: string | null;
+        request_reason: string | null;
+      }>>(
+        `SELECT o.id, o.order_ref, o.user_id, o.store_id, o.status, o.payment_mode,
+                o.token_amount_charged, o.final_total_rm,
+                p.id AS payment_id, p.status AS payment_status,
+                ocr.id AS request_id, ocr.status AS request_status, ocr.reason AS request_reason
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         LEFT JOIN payments p ON p.id = (
+           SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
+         )
+         LEFT JOIN order_cancellation_requests ocr ON ocr.order_id = o.id
+         WHERE o.order_ref = :orderId AND t.code = :tenantCode
+           AND (:isBaristaOnly = 0 OR EXISTS (
+             SELECT 1 FROM admin_user_store_assignments aus
+             WHERE aus.admin_user_id = :adminUserId AND aus.store_id = o.store_id
+           ))
+         LIMIT 1 FOR UPDATE`,
+        {
+          orderId,
+          tenantCode: request.adminAuth.tenantCode,
+          adminUserId: request.adminAuth.adminUserId,
+          isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0
+        }
+      );
+      const order = rows[0];
+      if (!order) return reply.status(404).send({ error: { code: 'not_found', message: 'Order not found' } });
+      if (request.adminAuth.roles.includes('barista')) {
+        const access = await resolveBaristaShiftAccess(connection, {
+          tenantId: request.adminAuth.tenantId,
+          tenantCode: request.adminAuth.tenantCode,
+          storeId: Number(order.store_id)
+        });
+        if (!access.can_prepare_orders) throw new ApiError(409, 'shift_access_locked', access.message);
+      }
+      if (order.request_id == null || order.request_status !== 'pending') {
+        throw new ApiError(409, 'cancellation_request_not_pending', 'There is no pending cancellation request for this order.');
+      }
+      if (!['paid', 'accepted'].includes(order.status)) {
+        await connection.execute(
+          `UPDATE order_cancellation_requests
+           SET status = 'rejected', review_reason = 'Preparation has already started.', reviewed_at = UTC_TIMESTAMP(), reviewed_by_admin_user_id = :adminUserId
+           WHERE id = :requestId AND status = 'pending'`,
+          { requestId: order.request_id, adminUserId: request.adminAuth.adminUserId }
+        );
+        await connection.commit();
+        committed = true;
+        throw new ApiError(409, 'cancellation_too_late', 'Preparation has already started, so this request was declined.');
+      }
+
+      if (payload.decision === 'rejected') {
+        await connection.execute(
+          `UPDATE order_cancellation_requests
+           SET status = 'rejected', review_reason = :reviewReason, reviewed_at = UTC_TIMESTAMP(), reviewed_by_admin_user_id = :adminUserId
+           WHERE id = :requestId AND status = 'pending'`,
+          {
+            requestId: order.request_id,
+            reviewReason: payload.review_reason ?? 'The store could not approve this request before preparation.',
+            adminUserId: request.adminAuth.adminUserId
+          }
+        );
+        await createUserNotification(connection, {
+          userId: Number(order.user_id),
+          type: 'order_cancellation_rejected',
+          title: 'Cancellation request declined',
+          body: payload.review_reason ?? 'Your order will continue as planned because preparation has not been cancelled.'
+        });
+        await connection.commit();
+        committed = true;
+        return reply.send({ status: 'rejected' });
+      }
+
+      if (order.payment_mode === 'direct') {
+        const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+        await connection.execute(
+          `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_by_admin_id, created_at)
+           VALUES (:orderId, :paymentId, 'direct', :refundRef, :amountRm, NULL, 'pending', :reason, :adminUserId, UTC_TIMESTAMP())`,
+          {
+            orderId: order.id,
+            paymentId: order.payment_id,
+            refundRef,
+            amountRm: order.final_total_rm,
+            reason: 'Barista-approved direct-payment cancellation before preparation',
+            adminUserId: request.adminAuth.adminUserId
+          }
+        );
+        await connection.execute(
+          `UPDATE order_cancellation_requests
+           SET status = 'refund_pending', review_reason = :reviewReason, reviewed_at = UTC_TIMESTAMP(), reviewed_by_admin_user_id = :adminUserId
+           WHERE id = :requestId AND status = 'pending'`,
+          {
+            requestId: order.request_id,
+            reviewReason: payload.review_reason ?? 'Approved by barista; payment-provider refund still required.',
+            adminUserId: request.adminAuth.adminUserId
+          }
+        );
+        await createUserNotification(connection, {
+          userId: Number(order.user_id),
+          type: 'order_cancellation_approved',
+          title: 'Cancellation approved; refund pending',
+          body: 'The store approved your request. Your direct payment must now be refunded through the payment provider; the order remains protected until that is confirmed.'
+        });
+        await connection.commit();
+        committed = true;
+        return reply.send({ status: 'refund_pending', payment_refund_required: true });
+      }
+
+      const tokenAmount = Number(order.token_amount_charged);
+      // Token checkouts are settled from the token ledger and normally have no
+      // provider payment row. The direct-payment branch above handles the
+      // provider-paid requirement separately.
+      if (tokenAmount <= 0) {
+        throw new ApiError(409, 'refund_not_supported', 'This token order cannot be returned safely because its paid token amount is unavailable.');
+      }
+      const [existingRefunds] = await connection.execute<Array<RowDataPacket & { id: number }>>(
+        `SELECT id FROM refunds
+         WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed')
+         LIMIT 1 FOR UPDATE`,
+        { orderId: order.id }
+      );
+      if (existingRefunds[0]) {
+        throw new ApiError(409, 'refund_already_in_progress', 'A refund has already been created for this order. No second token return is allowed.');
+      }
+      const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
+        `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+        { userId: order.user_id }
+      );
+      if (!accounts[0]) throw new ApiError(409, 'token_account_not_found', 'The customer token account was not found.');
+      const balanceAfter = Number(accounts[0].balance_available) + tokenAmount;
+      await connection.execute(
+        `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
+        { balanceAfter, userId: order.user_id }
+      );
+      const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
+      const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, {
+        orderId: order.id,
+        userId: order.user_id,
+        issueCaseRef: `refund:${refundRef}`,
+        reason: `Replacement voucher for cancelled order ${order.order_ref}`
+      });
+      await connection.execute(
+        `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+         VALUES (:userId, NULL, 'credit', 'refund_return', :orderId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
+        { userId: order.user_id, orderId: order.id, amount: tokenAmount, balanceAfter, remarks: `Approved cancellation for order ${order.order_ref}` }
+      );
+      await connection.execute(
+        `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_by_admin_id, created_at, completed_at)
+         VALUES (:orderId, :paymentId, 'token', :refundRef, :amountRm, :tokenAmount, 'completed', :reason, :adminUserId, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+        {
+          orderId: order.id,
+          paymentId: order.payment_id,
+          refundRef,
+          amountRm: order.final_total_rm,
+          tokenAmount,
+          reason: 'Barista-approved customer cancellation before preparation',
+          adminUserId: request.adminAuth.adminUserId
+        }
+      );
+      await releaseInventoryForOrder(connection, order.id);
+      await restoreGiftCardForRefund(
+        connection,
+        order.id,
+        Number(order.user_id),
+        `Returned after cancelled order ${order.order_ref}`
+      );
+      await connection.execute(
+        `UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+         WHERE id = :orderId AND status IN ('paid', 'accepted')`,
+        { orderId: order.id }
+      );
+      await connection.execute(
+        `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
+         VALUES (:orderId, :fromStatus, 'cancelled', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`,
+        {
+          orderId: order.id,
+          fromStatus: order.status,
+          adminUserId: request.adminAuth.adminUserId,
+          reason: 'Cancellation approved by barista before preparation'
+        }
+      );
+      await connection.execute(
+        `UPDATE order_cancellation_requests
+         SET status = 'completed', review_reason = :reviewReason, reviewed_at = UTC_TIMESTAMP(), reviewed_by_admin_user_id = :adminUserId
+         WHERE id = :requestId AND status = 'pending'`,
+        { requestId: order.request_id, reviewReason: payload.review_reason ?? 'Approved before preparation.', adminUserId: request.adminAuth.adminUserId }
+      );
+      await createUserNotification(connection, {
+        userId: Number(order.user_id),
+        type: 'order_cancelled',
+        title: 'Cancellation approved',
+        body: replacementVoucherIssued
+          ? `${tokenAmount} tokens were returned and an equivalent voucher was added to your account.`
+          : `${tokenAmount} tokens were returned to your C2 Coffee account.`
+      });
+      await connection.commit();
+      committed = true;
+      return reply.send({ status: 'completed', returned_tokens: tokenAmount, token_balance: balanceAfter, replacement_voucher_issued: replacementVoucherIssued });
     } catch (error) {
       if (!committed) await connection.rollback();
       throw error;
@@ -932,10 +1279,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       const [rows] = await connection.execute<RowDataPacket[]>(
         `SELECT o.id, o.user_id, o.status, o.store_id,
                 COALESCE(o.is_guest, 0) AS is_guest,
-                COALESCE(o.order_channel, 'mobile') AS order_channel
+                COALESCE(o.order_channel, 'mobile') AS order_channel,
+                ocr.status AS cancellation_request_status
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
+         LEFT JOIN order_cancellation_requests ocr ON ocr.order_id = o.id
          WHERE o.order_ref = :orderId
            AND t.code = :tenantCode
            AND (
@@ -974,6 +1323,15 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         if (!access.can_prepare_orders) {
           throw new ApiError(409, 'shift_access_locked', access.message);
         }
+      }
+
+      if (effectiveStatus === 'preparing' &&
+          ['pending', 'refund_pending'].includes(rows[0].cancellation_request_status ?? '')) {
+        throw new ApiError(
+          409,
+          'cancellation_request_pending',
+          'Review or resolve the customer cancellation request before preparation starts.'
+        );
       }
 
       if (fromStatus === effectiveStatus) {

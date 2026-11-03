@@ -313,7 +313,9 @@ class _BaristaPageState extends State<BaristaPage> {
 
   Widget _detailPageForItem(Map<String, dynamic> item) {
     final isDrink = item['isDrink'] as bool? ?? false;
-    if (isDrink) {
+    final hasConfiguredOptions =
+        (item['modifierGroups'] as List?)?.isNotEmpty ?? false;
+    if (isDrink || hasConfiguredOptions) {
       return MontBrogaPage(item: item);
     }
     return SimpleProductDetailPage(item: item);

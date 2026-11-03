@@ -20,6 +20,7 @@ import '../widgets/poster_popup.dart';
 import '../widgets/app_tutorial.dart';
 import '../widgets/profile_avatar_style.dart';
 import '../widgets/notification_indicator.dart';
+import '../widgets/token_price_pair.dart';
 import 'loading_order_page.dart';
 import 'menu_page.dart';
 import 'my_rewards_page.dart';
@@ -321,7 +322,7 @@ class _HomePageState extends State<HomePage> {
         continue;
       }
       for (final item in category.items) {
-        if (item.isAvailable) {
+        if (item.isOrderable) {
           itemsById[item.id] = CatalogPresentation.toLegacyItem(
               item, category.code, category.name);
         }
@@ -946,7 +947,7 @@ class _HomePageState extends State<HomePage> {
 
     for (final category in _session.menuCategories) {
       for (final item in category.items) {
-        if (item.code == targetCode && item.isAvailable) {
+        if (item.code == targetCode && item.isOrderable) {
           return CatalogPresentation.toLegacyItem(
             item,
             category.code,
@@ -961,7 +962,9 @@ class _HomePageState extends State<HomePage> {
 
   Widget _detailPageForItem(Map<String, dynamic> item) {
     final isDrink = item['isDrink'] as bool? ?? false;
-    if (isDrink) {
+    final hasConfiguredOptions =
+        (item['modifierGroups'] as List?)?.isNotEmpty ?? false;
+    if (isDrink || hasConfiguredOptions) {
       return MontBrogaPage(item: item);
     }
     return SimpleProductDetailPage(item: item);
@@ -993,7 +996,7 @@ class _HomePageState extends State<HomePage> {
                     child: _buildActionButtonLabel(
                       'MY\nORDER',
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: 20,
                     ),
                   ),
                 ),
@@ -1015,7 +1018,7 @@ class _HomePageState extends State<HomePage> {
                     child: _buildActionButtonLabel(
                       'MY\nREFERRAL',
                       color: AppColors.brandText,
-                      fontSize: 24,
+                      fontSize: 18,
                     ),
                   ),
                 ),
@@ -1075,7 +1078,7 @@ class _HomePageState extends State<HomePage> {
             'Partnership',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 24,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.brandText,
             ),
@@ -1121,7 +1124,7 @@ class _HomePageState extends State<HomePage> {
                                 const Text('SPONSORED',
                                     style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 12,
+                                        fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white70,
                                         letterSpacing: 1.2)),
@@ -1131,7 +1134,7 @@ class _HomePageState extends State<HomePage> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 15,
+                                        fontSize: 13.5,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white)),
                               Text(banner.title,
@@ -1139,7 +1142,7 @@ class _HomePageState extends State<HomePage> {
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                       fontFamily: 'Recoleta',
-                                      fontSize: 23,
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                               if (banner.actionType != 'none')
@@ -1149,7 +1152,7 @@ class _HomePageState extends State<HomePage> {
                                         : 'Learn more',
                                     style: const TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 15,
+                                        fontSize: 13.5,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white)),
                             ],
@@ -1184,7 +1187,7 @@ class _HomePageState extends State<HomePage> {
                 title,
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 24,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: AppColors.brandText,
                 ),
@@ -1197,7 +1200,7 @@ class _HomePageState extends State<HomePage> {
                       'See all',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                       ),
@@ -1239,9 +1242,8 @@ class _HomePageState extends State<HomePage> {
             builder: (context, constraints) {
               // Keep home cards readable on phones while retaining the horizontal browse pattern.
               final cardWidth =
-                  (constraints.maxWidth * 0.46).clamp(168.0, 220.0);
-              final cardHeight = cardWidth * 1.58;
-              final detailsHeight = cardHeight * 0.39;
+                  (constraints.maxWidth * 0.46).clamp(165.0, 210.0);
+              final cardHeight = cardWidth * 1.36;
 
               return SizedBox(
                 height: cardHeight,
@@ -1255,7 +1257,10 @@ class _HomePageState extends State<HomePage> {
                       onTap: () {
                         InteractiveFillingLoader.show(
                           context,
-                          targetPage: (item['isDrink'] as bool? ?? false)
+                          targetPage: ((item['isDrink'] as bool? ?? false) ||
+                                  ((item['modifierGroups'] as List?)
+                                          ?.isNotEmpty ??
+                                      false))
                               ? MontBrogaPage(item: item)
                               : SimpleProductDetailPage(item: item),
                         );
@@ -1281,46 +1286,43 @@ class _HomePageState extends State<HomePage> {
                             Expanded(
                               child: Padding(
                                 padding:
-                                    const EdgeInsets.fromLTRB(12, 14, 12, 8),
-                                child: CatalogProductImage(
-                                  assetPath: item['image'] as String?,
-                                  imageUrl: item['image_url'] as String?,
-                                  fit: BoxFit.contain,
+                                    const EdgeInsets.fromLTRB(12, 12, 12, 6),
+                                child: Center(
+                                  child: CatalogProductImage(
+                                    assetPath: item['image'] as String?,
+                                    imageUrl: item['image_url'] as String?,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
                             ),
-                            SizedBox(
-                              height: detailsHeight,
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              child: SizedBox(
+                                width: double.infinity,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        item['name']?.toString() ?? 'Item',
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontFamily: 'Recoleta',
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.bold,
+                                    SizedBox(
+                                      height: 36,
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          item['name']?.toString() ?? 'Item',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontFamily: 'Recoleta',
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.bold,
+                                            height: 1.15,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _formatPrice(item),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontFamily: 'Afacad',
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.brandText,
-                                      ),
-                                    ),
+                                    const SizedBox(height: 6),
+                                    _buildPriceBadge(item),
                                   ],
                                 ),
                               ),
@@ -1338,6 +1340,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildPriceBadge(Map<String, dynamic> item) {
+    final priceText = _formatPrice(item);
+    if (priceText.isEmpty) return const SizedBox.shrink();
+
+    final isToken = _showTokenPrice && priceText.contains('token');
+    if (isToken) {
+      final tokenCount = _tokenPriceForItem(item) ??
+          int.tryParse(priceText.replaceAll(RegExp(r'[^0-9]'), '')) ??
+          0;
+      return TokenPricePair(
+        tokenValue: tokenCount,
+        asBadge: true,
+      );
+    }
+
+    return RmPriceChip(
+      price: priceText,
+    );
+  }
+
   Widget _buildHomeLoadingState() {
     return Column(
       children: [
@@ -1350,7 +1372,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildProductCardsSkeleton() {
     return SizedBox(
-      height: 240,
+      height: 220,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const NeverScrollableScrollPhysics(),

@@ -23,6 +23,7 @@ type StockRow = RowDataPacket & {
   id: number;
   on_hand_quantity: string;
   reserved_quantity: string;
+  average_unit_cost_rm: string;
 };
 
 function quantity(value: unknown): number {
@@ -124,7 +125,8 @@ async function lockStock(
 ): Promise<StockRow> {
   const [rows] = await connection.query<StockRow[]>(
     `SELECT id, CAST(on_hand_quantity AS CHAR) AS on_hand_quantity,
-            CAST(reserved_quantity AS CHAR) AS reserved_quantity
+            CAST(reserved_quantity AS CHAR) AS reserved_quantity,
+            CAST(average_unit_cost_rm AS CHAR) AS average_unit_cost_rm
        FROM inventory_store_stocks
       WHERE store_id = :storeId AND inventory_item_id = :inventoryItemId
       LIMIT 1 FOR UPDATE`,
@@ -345,4 +347,67 @@ export async function reverseInventoryForOrder(
     reversedComponents += 1;
   }
   return { reversedComponents, releasedComponents };
+}
+
+export type RecipeAvailabilityStatus = 'available' | 'sold_out' | 'coming_soon';
+
+export type RecipeAvailabilityRow = {
+  store_id: number;
+  store_name: string;
+  menu_item_id: number;
+  menu_item_name: string;
+  inventory_item_id: number;
+  inventory_item_name: string;
+  status: Exclude<RecipeAvailabilityStatus, 'available'>;
+};
+
+/**
+ * Lists base-recipe ingredients that stop a menu item from being sold at a
+ * store: no stock record at all ("coming_soon" - not set up yet) or less
+ * available stock than one serving needs ("sold_out"). Items without a recipe
+ * never appear here because they consume no stock.
+ */
+export async function loadRecipeAvailabilityIssues(
+  executor: { query: PoolConnection['query'] },
+  scope: { storeId?: number; tenantId?: number }
+): Promise<RecipeAvailabilityRow[]> {
+  const [rows] = await executor.query<Array<RowDataPacket & {
+    store_id: number; store_name: string; menu_item_id: number; menu_item_name: string;
+    inventory_item_id: number; inventory_item_name: string; has_stock: number; available: string; required: string;
+  }>>(
+    `SELECT s.id AS store_id, s.name AS store_name, mi.id AS menu_item_id, mi.name AS menu_item_name,
+            ii.id AS inventory_item_id, ii.name AS inventory_item_name,
+            IF(ss.id IS NULL, 0, 1) AS has_stock,
+            CAST(COALESCE(ss.on_hand_quantity - ss.reserved_quantity, 0) AS CHAR) AS available,
+            CAST(r.quantity_per_menu_item AS CHAR) AS required
+       FROM inventory_menu_item_recipes r
+       JOIN stores s ON s.tenant_id = r.tenant_id
+       JOIN menu_items mi ON mi.id = r.menu_item_id AND mi.is_active = 1
+       JOIN inventory_items ii ON ii.id = r.inventory_item_id
+       LEFT JOIN inventory_store_stocks ss
+         ON ss.store_id = s.id AND ss.inventory_item_id = r.inventory_item_id
+      WHERE (:storeId IS NULL OR s.id = :storeId)
+        AND (:tenantId IS NULL OR s.tenant_id = :tenantId)
+        AND r.quantity_per_menu_item > 0
+        AND (ss.id IS NULL OR (ss.on_hand_quantity - ss.reserved_quantity) < r.quantity_per_menu_item)`,
+    { storeId: scope.storeId ?? null, tenantId: scope.tenantId ?? null }
+  );
+  return rows.map((row) => ({
+    store_id: Number(row.store_id),
+    store_name: row.store_name,
+    menu_item_id: Number(row.menu_item_id),
+    menu_item_name: row.menu_item_name,
+    inventory_item_id: Number(row.inventory_item_id),
+    inventory_item_name: row.inventory_item_name,
+    status: Number(row.has_stock) === 1 ? 'sold_out' : 'coming_soon'
+  }));
+}
+
+export function summariseAvailability(rows: RecipeAvailabilityRow[]): Map<number, RecipeAvailabilityStatus> {
+  const result = new Map<number, RecipeAvailabilityStatus>();
+  for (const row of rows) {
+    // Unconfigured stock outranks sold out because it needs admin action.
+    if (row.status === 'coming_soon' || !result.has(row.menu_item_id)) result.set(row.menu_item_id, row.status);
+  }
+  return result;
 }

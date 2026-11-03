@@ -12,11 +12,12 @@ import ViewProfile from "./ViewProfile";
 import OutletFilter from './OutletFilter';
 
 const ITEMS_PER_PAGE = 10;
-const STATUSES = ["All Status", "Pending", "Approved", "Rejected"];
+const STATUSES = ["All Status", "Pending", "Approved", "Completed", "Rejected"];
 
 const statusClass = {
   Pending: "bg-amber-100 text-amber-800",
   Approved: "bg-emerald-100 text-emerald-800",
+  Completed: "bg-emerald-100 text-emerald-800",
   Rejected: "bg-rose-100 text-rose-700",
 };
 
@@ -53,6 +54,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
   const [isCreating, setIsCreating] = useState(false);
   const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const [confirmationPassword, setConfirmationPassword] = useState("");
+  const [providerRefundRef, setProviderRefundRef] = useState("");
   const canReviewRefunds =
     Array.isArray(currentUser?.roles) &&
     currentUser.roles.includes("super_admin");
@@ -74,12 +76,12 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
     void loadRefunds();
   }, [loadRefunds]);
 
-  const reviewRefund = async (refund, decision, password) => {
+  const reviewRefund = async (refund, decision, password, providerRef = "") => {
     if (refund.status !== "Pending") return;
     setActionId(refund.id);
     setError("");
     try {
-      await reviewAdminRefund(refund.id, decision, password);
+      await reviewAdminRefund(refund.id, decision, password, providerRef);
       await loadRefunds();
       setSelectedRefund(null);
     } catch (requestError) {
@@ -124,9 +126,11 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
           action.refund,
           action.decision,
           confirmationPassword,
+          providerRefundRef,
         );
       }
       setConfirmationPassword("");
+      setProviderRefundRef("");
       setPendingConfirmation(null);
     } catch {
       // The request error is displayed in the existing page alert.
@@ -450,26 +454,28 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   disabled={actionId === selectedRefund.id}
-                  onClick={() =>
+                  onClick={() => {
                     setPendingConfirmation({
                       type: "review",
                       refund: selectedRefund,
                       decision: "rejected",
-                    })
-                  }
+                    });
+                    setProviderRefundRef("");
+                  }}
                   className="rounded-lg border border-red-300 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
                 >
                   Reject
                 </button>
                 <button
                   disabled={actionId === selectedRefund.id}
-                  onClick={() =>
+                  onClick={() => {
                     setPendingConfirmation({
                       type: "review",
                       refund: selectedRefund,
                       decision: "approved",
-                    })
-                  }
+                    });
+                    setProviderRefundRef("");
+                  }}
                   className="flex items-center justify-center gap-2 rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50"
                 >
                   <Check size={16} />
@@ -581,12 +587,32 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                 className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none"
               />
             </label>
+            {pendingConfirmation.type === "review" &&
+              pendingConfirmation.decision === "approved" &&
+              String(pendingConfirmation.refund?.paymentMethod || "").toLowerCase() === "direct" && (
+                <label className="mt-4 block text-sm font-bold text-gray-700">
+                  Payment provider refund reference
+                  <input
+                    required
+                    minLength={3}
+                    maxLength={255}
+                    value={providerRefundRef}
+                    onChange={(event) => setProviderRefundRef(event.target.value)}
+                    placeholder="CHIP refund reference"
+                    className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none"
+                  />
+                  <span className="mt-1 block text-xs font-normal text-gray-500">
+                    Enter the reference returned by the payment provider after the refund is confirmed.
+                  </span>
+                </label>
+              )}
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => {
                   setPendingConfirmation(null);
                   setConfirmationPassword("");
+                  setProviderRefundRef("");
                 }}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
               >

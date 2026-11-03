@@ -248,12 +248,16 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                     orderId: order.orderId,
                                     customerDetails: order.customerDetails,
                                     items: order.items,
+                                    cancellationRequestStatus:
+                                        order.cancellationRequestStatus,
                                     isActionLoading: _updatingOrderIds.contains(
                                       order.orderId,
                                     ),
                                     onActionPressed: () {
                                       if (order.status ==
-                                          OrderStatus.newOrder) {
+                                              OrderStatus.newOrder &&
+                                          order.cancellationRequestStatus ==
+                                              null) {
                                         _startPreparing(order);
                                       } else {
                                         _openOrderDetails(order);

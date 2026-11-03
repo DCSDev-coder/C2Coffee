@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
+import '../services/payment_security.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
@@ -26,9 +28,11 @@ class OrderStatusDetailPage extends StatefulWidget {
 class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   late CustomerOrder _order;
   Timer? _pollTimer;
+  Timer? _paymentTimer;
   bool _isRefreshing = false;
   bool _isCollecting = false;
   bool _isCancelling = false;
+  bool _isRetryingPayment = false;
   bool _isEmailingReceipt = false;
   String? _errorMessage;
 
@@ -37,6 +41,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
     super.initState();
     _order = widget.order;
     _startPolling();
+    _startPaymentTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshOrder(silent: true);
     });
@@ -45,7 +50,124 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _paymentTimer?.cancel();
     super.dispose();
+  }
+
+  void _startPaymentTimer() {
+    _paymentTimer?.cancel();
+    if (_order.status != 'pending_payment' || _order.paymentExpiresAt == null) {
+      return;
+    }
+    _paymentTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  String _paymentCountdown() {
+    final expiresAt = _order.paymentExpiresAt;
+    if (expiresAt == null) return 'Payment window is being checked.';
+    final remaining = expiresAt.difference(DateTime.now());
+    if (remaining.isNegative || remaining.inSeconds <= 0) {
+      return 'Payment window expired. Check the status before trying again.';
+    }
+    final minutes = remaining.inMinutes;
+    final seconds = remaining.inSeconds % 60;
+    return 'Payment window: $minutes:${seconds.toString().padLeft(2, '0')} remaining';
+  }
+
+  Future<void> _continuePayment() async {
+    if (_isRefreshing) return;
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Missing access token.',
+            code: 'missing_access_token');
+      }
+      final payment = await CustomerDataService.instance.getOrderPayment(
+        accessToken: accessToken,
+        orderId: _order.id,
+      );
+      final checkoutUrl = payment['checkout_url'] as String?;
+      if (checkoutUrl == null || !isTrustedPaymentCheckoutUrl(checkoutUrl)) {
+        await _refreshOrder(silent: true);
+        if (!mounted) return;
+        await _retryPayment();
+        return;
+      }
+      await launchUrl(Uri.parse(checkoutUrl),
+          mode: LaunchMode.externalApplication);
+    } on ApiException catch (error) {
+      if (mounted) AppNotification.showError(context, _friendlyMessage(error));
+    } catch (_) {
+      if (mounted) {
+        AppNotification.showError(
+            context, 'Unable to reopen the payment page right now.');
+      }
+    }
+  }
+
+  Future<void> _retryPayment() async {
+    if (_isRetryingPayment) return;
+    final method = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Choose another payment method',
+            style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final option in const [
+              ('fpx', 'FPX Online Banking'),
+              ('duitnow_qr', 'DuitNow QR'),
+              ('card', 'Debit / Credit Card'),
+              ('ewallet', 'E-wallet'),
+            ])
+              ListTile(
+                title: Text(option.$2,
+                    style: const TextStyle(fontFamily: 'Afacad')),
+                leading: Icon(Icons.payment, color: AppColors.deepTeal),
+                onTap: () => Navigator.of(dialogContext).pop(option.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (method == null || !mounted) return;
+    setState(() => _isRetryingPayment = true);
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Missing access token.',
+            code: 'missing_access_token');
+      }
+      final payment = await CustomerDataService.instance.retryOrderPayment(
+        accessToken: accessToken,
+        orderId: _order.id,
+        paymentMethod: method,
+      );
+      final checkoutUrl = payment['checkout_url'] as String?;
+      if (checkoutUrl == null || !isTrustedPaymentCheckoutUrl(checkoutUrl)) {
+        throw ApiException('The new payment page is not available yet.');
+      }
+      await launchUrl(Uri.parse(checkoutUrl),
+          mode: LaunchMode.externalApplication);
+      await _refreshOrder(silent: true);
+    } on ApiException catch (error) {
+      if (mounted) AppNotification.showError(context, _friendlyMessage(error));
+    } catch (_) {
+      if (mounted) {
+        AppNotification.showError(
+            context, 'Unable to start another payment method right now.');
+      }
+    } finally {
+      if (mounted) setState(() => _isRetryingPayment = false);
+    }
   }
 
   void _startPolling() {
@@ -98,6 +220,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
           _order = latest!;
           _errorMessage = null;
         });
+        _startPaymentTimer();
         if (!_order.isActive) {
           _pollTimer?.cancel();
         }
@@ -220,9 +343,27 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   }
 
   bool get _canCancelOrder =>
-      _order.status == 'paid' &&
-      _order.paymentMode == 'token' &&
-      _order.tokenAmountCharged > 0;
+      _order.status == 'pending_payment' && _order.paymentMode == 'direct';
+
+  bool get _canRequestCancellation =>
+      const {'paid', 'accepted'}.contains(_order.status) &&
+      (_order.paymentMode == 'token' || _order.paymentStatus == 'paid') &&
+      _order.cancellationRequestStatus == null;
+
+  bool get _hasCancellationRequest =>
+      _order.cancellationRequestStatus != null &&
+      _order.cancellationRequestStatus != 'rejected' &&
+      _order.cancellationRequestStatus != 'withdrawn';
+
+  bool get _paymentConfirmed =>
+      const {
+        'paid',
+        'accepted',
+        'preparing',
+        'ready_for_pickup',
+        'collected',
+      }.contains(_order.status) &&
+      _order.paymentStatus != 'refunded';
 
   Future<void> _cancelOrder() async {
     if (_isCancelling) return;
@@ -238,9 +379,11 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
             color: AppColors.deepTeal,
           ),
         ),
-        content: const Text(
-          'This is only available before the store starts preparing your order. Your tokens will be returned immediately and this cannot be undone.',
-          style: TextStyle(fontFamily: 'Afacad', height: 1.35),
+        content: Text(
+          _order.status == 'pending_payment'
+              ? 'This will close the current payment attempt and cancel the unpaid order. No payment will be taken, and you can place a new order later.'
+              : 'This is only available before the store starts preparing your order. Your tokens will be returned immediately and this cannot be undone.',
+          style: const TextStyle(fontFamily: 'Afacad', height: 1.35),
         ),
         actions: [
           TextButton(
@@ -281,9 +424,12 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       }
       await _refreshOrder(silent: true);
       if (!mounted) return;
+      final returnedTokens = (result['returned_tokens'] as num?)?.toInt() ?? 0;
       AppNotification.showSuccess(
         context,
-        '${result['returned_tokens'] ?? 0} tokens returned. Your order is cancelled.',
+        returnedTokens > 0
+            ? '$returnedTokens tokens returned. Your order is cancelled.'
+            : 'Your unpaid order is cancelled. No payment was taken.',
       );
     } on ApiException catch (error) {
       if (!mounted) return;
@@ -293,6 +439,72 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
     } catch (_) {
       if (!mounted) return;
       const message = 'Unable to cancel this order right now.';
+      setState(() => _errorMessage = message);
+      AppNotification.showError(context, message);
+    } finally {
+      if (mounted) setState(() => _isCancelling = false);
+    }
+  }
+
+  Future<void> _requestCancellation() async {
+    if (_isCancelling) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(
+          'Request cancellation?',
+          style: TextStyle(
+            fontFamily: 'Recoleta',
+            fontWeight: FontWeight.bold,
+            color: AppColors.deepTeal,
+          ),
+        ),
+        content: const Text(
+          'Your request will be sent to the barista. The order stays active until the store decides, and the request may be declined once preparation begins.',
+          style: TextStyle(fontFamily: 'Afacad', height: 1.35),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Keep order')),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepTeal,
+                foregroundColor: Colors.white),
+            child: const Text('Send request'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _isCancelling = true;
+      _errorMessage = null;
+    });
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw ApiException('Missing access token.',
+            code: 'missing_access_token');
+      }
+      await CustomerDataService.instance.requestOrderCancellation(
+        accessToken: accessToken,
+        orderId: _order.id,
+      );
+      await _refreshOrder(silent: true);
+      if (!mounted) return;
+      AppNotification.showSuccess(
+          context, 'Cancellation request sent to the barista.');
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = _friendlyMessage(error));
+      AppNotification.showError(context, _friendlyMessage(error));
+    } catch (_) {
+      if (!mounted) return;
+      const message = 'Unable to send the cancellation request right now.';
       setState(() => _errorMessage = message);
       AppNotification.showError(context, message);
     } finally {
@@ -633,6 +845,79 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
             ),
             const SizedBox(height: 28),
             _buildWorkflowTracker(status),
+            if (status == 'pending_payment' &&
+                _order.paymentMode == 'direct') ...[
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Payment still in progress',
+                        style: TextStyle(
+                            fontFamily: 'Recoleta',
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepTeal)),
+                    const SizedBox(height: 6),
+                    Text(_paymentCountdown(),
+                        style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 16,
+                            color: Colors.black87)),
+                    const SizedBox(height: 8),
+                    const Text(
+                        'Retry reopens the current payment when it is still available. If its window has closed, you can safely choose another payment method for this same order.',
+                        style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 15,
+                            height: 1.3,
+                            color: Colors.black54)),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                            child: OutlinedButton(
+                                onPressed: _isRefreshing
+                                    ? null
+                                    : () => _refreshOrder(),
+                                child: const Text('CHECK STATUS'))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: ElevatedButton(
+                                onPressed: _continuePayment,
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.deepTeal,
+                                    foregroundColor: Colors.white),
+                                child: const Text('RETRY PAYMENT'))),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: _isRetryingPayment ? null : _retryPayment,
+                        child: Text(
+                          _isRetryingPayment
+                              ? 'CHECKING PAYMENT...'
+                              : 'USE ANOTHER PAYMENT METHOD',
+                          style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
             Text(
               _statusTitle(status),
@@ -668,30 +953,32 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                 ),
               ),
             ],
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _isEmailingReceipt ? null : _emailReceipt,
-                icon: const Icon(Icons.email_outlined),
-                label: Text(
-                  _isEmailingReceipt ? 'SENDING RECEIPT...' : 'EMAIL RECEIPT',
-                  style: const TextStyle(
-                    fontFamily: 'Recoleta',
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            if (_paymentConfirmed) ...[
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isEmailingReceipt ? null : _emailReceipt,
+                  icon: const Icon(Icons.email_outlined),
+                  label: Text(
+                    _isEmailingReceipt ? 'SENDING RECEIPT...' : 'EMAIL RECEIPT',
+                    style: const TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.deepTeal,
-                  side: BorderSide(color: AppColors.border),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.deepTeal,
+                    side: BorderSide(color: AppColors.border),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
             const SizedBox(height: 12),
             if (canCollect)
               SizedBox(
@@ -741,6 +1028,36 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                   ),
                 ),
               ),
+            if (_canRequestCancellation) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: _isCancelling ? null : _requestCancellation,
+                  child: Text(
+                    _isCancelling
+                        ? 'SENDING REQUEST...'
+                        : 'REQUEST CANCELLATION',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepTeal,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            if (_hasCancellationRequest) ...[
+              const SizedBox(height: 12),
+              Text(
+                _order.cancellationRequestStatus == 'refund_pending'
+                    ? 'Cancellation approved. Direct-payment refund is still pending provider confirmation.'
+                    : 'Cancellation request sent. The barista will decide before preparation starts.',
+                textAlign: TextAlign.center,
+                style:
+                    TextStyle(fontFamily: 'Afacad', color: AppColors.deepTeal),
+              ),
+            ],
             if (_canCancelOrder) ...[
               const SizedBox(height: 12),
               SizedBox(
@@ -748,12 +1065,11 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
                 child: TextButton(
                   onPressed: _isCancelling ? null : _cancelOrder,
                   child: Text(
-                    _isCancelling ? 'CANCELLING...' : 'CANCEL ORDER',
+                    _isCancelling ? 'CANCELLING...' : 'CANCEL UNPAID PAYMENT',
                     style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
-                    ),
+                        fontFamily: 'Afacad',
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal),
                   ),
                 ),
               ),

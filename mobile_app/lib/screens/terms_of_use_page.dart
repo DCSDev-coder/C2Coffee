@@ -75,7 +75,7 @@ class TermsOfUsePage extends StatelessWidget {
             number: '8',
             title: 'Cancellations, Refunds & Billing Queries',
             body:
-                '8.1 Customers may freely edit the cart before checkout. After checkout, an order may be cancelled in the App only while it remains unprepared. Once the store starts preparation, customer self-cancellation is not available.\n\n'
+                '8.1 Customers may freely edit the cart before checkout. After a paid order is placed, a cancellation request may be submitted while the order is still waiting to be prepared. The barista must approve the request. Once preparation starts, the request may be declined. Token returns are processed after approval; direct-payment refunds require payment-provider confirmation.\n\n'
                 '8.2 In the event of store unavailability, equipment breakdown, out-of-stock items, duplicate billing, or a verified technical issue, C2 Coffee store management or authorized administrators may cancel, refund, or return tokens through official administrative channels.\n\n'
                 '8.3 Please submit a billing or payment discrepancy through Profile > Settings > Contact Support or support@c2coffeeandcandle.com, with the order reference and relevant evidence, within fourteen (14) days where reasonably possible. This requested timeframe does not limit rights that cannot be excluded under applicable law.',
           ),

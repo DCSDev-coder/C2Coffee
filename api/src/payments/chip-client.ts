@@ -138,6 +138,18 @@ export async function getChipPurchase(id: string): Promise<ChipPurchase> {
   return body;
 }
 
+export async function cancelChipPurchase(id: string): Promise<ChipPurchase> {
+  assertChipConfigured();
+  const response = await chipRequest(`purchases/${encodeURIComponent(id)}/cancel/`, {
+    method: 'POST'
+  });
+  const body = await response.json().catch(() => null) as ChipPurchase | null;
+  if (!response.ok || !body || body.id !== id) {
+    throw new ApiError(502, 'topup_gateway_error', 'Unable to close the previous CHIP payment safely.');
+  }
+  return body;
+}
+
 async function getChipCallbackPublicKey(): Promise<string> {
   assertChipConfigured();
   if (cachedCallbackPublicKey && cachedCallbackPublicKey.expiresAt > Date.now()) {

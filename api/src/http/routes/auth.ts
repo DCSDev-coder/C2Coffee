@@ -194,6 +194,11 @@ function tierRewardBenefitLabel(scope: Record<string, unknown>): string {
     benefit = scopeLabel === 'All menu items' ? 'Free item' : 'Free drink';
   } else if (benefitType === 'Free Food') {
     benefit = scopeLabel === 'All menu items' ? 'Free item' : 'Free food';
+  } else if (benefitType === 'Free') {
+    // Generic free-item rewards store their complete, quantity-aware label.
+    // Return it directly so the scope is not appended twice.
+    if (storedBenefit) return storedBenefit;
+    benefit = 'Free item';
   }
 
   return `${benefit} - ${scopeLabel}`;

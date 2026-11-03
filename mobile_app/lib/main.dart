@@ -44,8 +44,8 @@ class C2CoffeeApp extends StatelessWidget {
           builder: (context, child) => MediaQuery.withClampedTextScaling(
             // Keep labels readable by default while protecting compact cards
             // and controls from large accessibility-scale overflows.
-            minScaleFactor: 1.08,
-            maxScaleFactor: 1.25,
+            minScaleFactor: 0.95,
+            maxScaleFactor: 1.15,
             child: AppLifecycleRefreshGate(
               child: child ?? const SizedBox.shrink(),
             ),

@@ -187,7 +187,7 @@ class _MenuPageState extends State<MenuPage> {
         categoryIndex < _session.menuCategories.length;
         categoryIndex++) {
       final category = _session.menuCategories[categoryIndex];
-      for (final item in category.items.where((item) => item.isAvailable)) {
+      for (final item in category.items.where((item) => item.isVisibleInMenu)) {
         final legacyItem = CatalogPresentation.toLegacyItem(
             item, category.code, category.name);
         if (query.isNotEmpty) {
@@ -475,7 +475,7 @@ class _MenuPageState extends State<MenuPage> {
                                 'Arrange your menu',
                                 style: TextStyle(
                                   fontFamily: 'Recoleta',
-                                  fontSize: 23,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.brandText,
                                 ),
@@ -485,7 +485,7 @@ class _MenuPageState extends State<MenuPage> {
                                 'Choose how items appear in every category.',
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 16,
+                                  fontSize: 13.5,
                                   color: Colors.black54,
                                 ),
                               ),
@@ -522,7 +522,7 @@ class _MenuPageState extends State<MenuPage> {
                                     sort.label,
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 17,
+                                      fontSize: 14.5,
                                       fontWeight: selectedSortOrder == sort
                                           ? FontWeight.w700
                                           : FontWeight.w500,
@@ -559,7 +559,7 @@ class _MenuPageState extends State<MenuPage> {
                               'Reset',
                               style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 17,
+                                fontSize: 14.5,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -585,7 +585,7 @@ class _MenuPageState extends State<MenuPage> {
                               'Apply',
                               style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 17,
+                                fontSize: 14.5,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -672,7 +672,7 @@ class _MenuPageState extends State<MenuPage> {
                       'MENU',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 22,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                         letterSpacing: 1.2,
@@ -733,7 +733,7 @@ class _MenuPageState extends State<MenuPage> {
                                           TextAlignVertical.center,
                                       style: TextStyle(
                                         fontFamily: 'Afacad',
-                                        fontSize: 17,
+                                        fontSize: 14.5,
                                         color: AppColors.brandText,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -741,7 +741,7 @@ class _MenuPageState extends State<MenuPage> {
                                         hintText: 'Search menu items...',
                                         hintStyle: TextStyle(
                                           fontFamily: 'Afacad',
-                                          fontSize: 16,
+                                          fontSize: 14,
                                           color: Color(0xFF9CA3AF),
                                         ),
                                         border: InputBorder.none,
@@ -882,7 +882,7 @@ class _MenuPageState extends State<MenuPage> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 15,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.2,
                           color: _showTokenPrice
@@ -975,7 +975,7 @@ class _MenuPageState extends State<MenuPage> {
                                         banner.eyebrow,
                                         style: const TextStyle(
                                           fontFamily: 'Afacad',
-                                          fontSize: 13,
+                                          fontSize: 11.5,
                                           fontWeight: FontWeight.w700,
                                           letterSpacing: 1.1,
                                           color: Colors.white70,
@@ -988,7 +988,7 @@ class _MenuPageState extends State<MenuPage> {
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
                                           fontFamily: 'Recoleta',
-                                          fontSize: 22,
+                                          fontSize: 17,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
                                         ),
@@ -1000,7 +1000,7 @@ class _MenuPageState extends State<MenuPage> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
-                                    vertical: 7,
+                                    vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
                                     color: Colors.white,
@@ -1010,7 +1010,7 @@ class _MenuPageState extends State<MenuPage> {
                                     banner.actionLabel,
                                     style: TextStyle(
                                       fontFamily: 'Afacad',
-                                      fontSize: 15,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.deepTeal,
                                     ),
@@ -1142,7 +1142,7 @@ class _MenuPageState extends State<MenuPage> {
                               'Choose pickup outlet',
                               style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 22,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
@@ -1152,7 +1152,7 @@ class _MenuPageState extends State<MenuPage> {
                               'Nearest outlets appear first',
                               style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 16,
+                                fontSize: 13.5,
                                 color: Colors.white.withValues(alpha: 0.82),
                               ),
                             ),
@@ -1171,7 +1171,7 @@ class _MenuPageState extends State<MenuPage> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 16,
+                              fontSize: 14,
                               color: Colors.black54,
                             ),
                           ),
@@ -1434,7 +1434,7 @@ class _MenuPageState extends State<MenuPage> {
                                 'Choose your route',
                                 style: TextStyle(
                                   fontFamily: 'Recoleta',
-                                  fontSize: 22,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                 ),
@@ -1446,7 +1446,7 @@ class _MenuPageState extends State<MenuPage> {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 16,
+                                  fontSize: 13.5,
                                   color: Colors.white.withValues(alpha: 0.82),
                                 ),
                               ),
@@ -1462,7 +1462,7 @@ class _MenuPageState extends State<MenuPage> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 15,
+                      fontSize: 13.5,
                       color: Colors.black54,
                       height: 1.25,
                     ),
@@ -1574,7 +1574,7 @@ class _MenuPageState extends State<MenuPage> {
                           style: TextStyle(
                             fontFamily: 'Recoleta',
                             fontWeight: FontWeight.bold,
-                            fontSize: 18,
+                            fontSize: 16,
                             color: AppColors.deepTeal,
                           ),
                           maxLines: 1,
@@ -1611,7 +1611,7 @@ class _MenuPageState extends State<MenuPage> {
                         softWrap: false,
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 15,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
                           color: Colors.black54,
                         ),
@@ -1627,7 +1627,7 @@ class _MenuPageState extends State<MenuPage> {
             onTap: _openStoreDirection,
             borderRadius: BorderRadius.circular(20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.secondary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
@@ -1641,15 +1641,15 @@ class _MenuPageState extends State<MenuPage> {
                 children: [
                   Icon(
                     Icons.directions_outlined,
-                    size: 16,
+                    size: 15,
                     color: AppColors.deepTeal,
                   ),
-                  const SizedBox(width: 5),
+                  const SizedBox(width: 4),
                   Text(
                     'Direction',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 15,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: AppColors.deepTeal,
                     ),
@@ -1754,7 +1754,7 @@ class _MenuPageState extends State<MenuPage> {
                       'Checkout',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 17,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         height: 1,
@@ -1882,13 +1882,13 @@ class _MenuPageState extends State<MenuPage> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight:
                                 isSelected ? FontWeight.bold : FontWeight.w600,
                             color: isSelected
                                 ? AppColors.deepTeal
                                 : Colors.black87,
-                            height: 1.1,
+                            height: 1.15,
                           ),
                         ),
                       ),
@@ -1964,7 +1964,7 @@ class _MenuPageState extends State<MenuPage> {
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 0.65,
+              childAspectRatio: 0.73,
             ),
             itemBuilder: (_, __) => Container(
               padding: const EdgeInsets.all(12),
@@ -2019,7 +2019,7 @@ class _MenuPageState extends State<MenuPage> {
             section.title,
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: AppColors.deepTeal,
             ),
@@ -2033,19 +2033,61 @@ class _MenuPageState extends State<MenuPage> {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 0.65,
+            childAspectRatio: 0.73,
           ),
           itemCount: section.items.length,
           itemBuilder: (context, itemIndex) {
             final item = section.items[itemIndex];
+            final soldOut = item['isSoldOut'] == true;
             return GestureDetector(
-              onTap: () {
-                InteractiveFillingLoader.show(
-                  context,
-                  targetPage: _detailPageForItem(item),
-                );
-              },
-              child: _buildMenuItemCard(item),
+              onTap: soldOut
+                  ? null
+                  : () {
+                      InteractiveFillingLoader.show(
+                        context,
+                        targetPage: _detailPageForItem(item),
+                      );
+                    },
+              child: soldOut
+                  ? Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Opacity(
+                            opacity: 0.45,
+                            child: ColorFiltered(
+                              colorFilter: const ColorFilter.mode(
+                                Colors.grey,
+                                BlendMode.saturation,
+                              ),
+                              child: _buildMenuItemCard(item),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 10,
+                          left: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'Sold out',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : _buildMenuItemCard(item),
             );
           },
         ),
@@ -2056,7 +2098,9 @@ class _MenuPageState extends State<MenuPage> {
 
   Widget _detailPageForItem(Map<String, dynamic> item) {
     final isDrink = item['isDrink'] as bool? ?? false;
-    if (isDrink) {
+    final hasConfiguredOptions =
+        (item['modifierGroups'] as List?)?.isNotEmpty ?? false;
+    if (isDrink || hasConfiguredOptions) {
       return MontBrogaPage(item: item);
     }
     return SimpleProductDetailPage(item: item);
@@ -2080,9 +2124,8 @@ class _MenuPageState extends State<MenuPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            flex: 6,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
               child: Center(
                 child: CatalogProductImage(
                   assetPath: item['image'] as String?,
@@ -2091,40 +2134,36 @@ class _MenuPageState extends State<MenuPage> {
               ),
             ),
           ),
-          Expanded(
-            flex: 4,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 34,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
                     child: _ResponsiveMenuItemName(
                       name: item['name']?.toString() ?? 'Item',
                     ),
                   ),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _showTokenPrice
-                        ? TokenPricePair(
-                            key: const ValueKey('tokenPrice'),
-                            tokenValue: _displayTokenValueForItem(item),
-                            tokenFontSize: 13,
-                            tokenColor: AppColors.deepTeal,
-                          )
-                        : Text(
-                            _rmPriceForItem(item),
-                            key: const ValueKey('rmPrice'),
-                            style: TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal,
-                            ),
-                          ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 6),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _showTokenPrice
+                      ? TokenPricePair(
+                          key: const ValueKey('tokenPrice'),
+                          tokenValue: _displayTokenValueForItem(item),
+                          asBadge: true,
+                        )
+                      : RmPriceChip(
+                          key: const ValueKey('rmPrice'),
+                          price: _rmPriceForItem(item),
+                        ),
+                ),
+              ],
             ),
           ),
         ],
@@ -2147,7 +2186,7 @@ class _MenuPageState extends State<MenuPage> {
               title,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.deepTeal,
               ),
@@ -2158,7 +2197,7 @@ class _MenuPageState extends State<MenuPage> {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 17,
+                fontSize: 14.5,
               ),
             ),
             if (onRetry != null) ...[
@@ -2184,7 +2223,7 @@ class _ResponsiveMenuItemName extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const sizes = <double>[17, 16, 15, 14, 13];
+        const sizes = <double>[14, 13.5, 13, 12.5, 12];
         final words = name.trim().split(RegExp(r'\s+'));
 
         for (final fontSize in sizes) {
@@ -2243,7 +2282,7 @@ class _ResponsiveMenuItemName extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             fontFamily: 'Recoleta',
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: FontWeight.bold,
           ),
         );
@@ -2312,7 +2351,7 @@ class _StorePickerOption extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 18,
+                          fontSize: 15.5,
                           fontWeight: FontWeight.w700,
                           color: AppColors.brandText,
                         ),
@@ -2324,7 +2363,7 @@ class _StorePickerOption extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontFamily: 'Afacad',
-                          fontSize: 14,
+                          fontSize: 12.5,
                           color: Colors.black54,
                         ),
                       ),

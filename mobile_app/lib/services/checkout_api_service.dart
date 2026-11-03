@@ -83,6 +83,7 @@ class CheckoutApiService {
     required CartSnapshot cart,
     required String idempotencyKey,
     int? appliedVoucherId,
+    String? giftCardCode,
   }) async {
     return _createOrder(
       accessToken: accessToken,
@@ -90,6 +91,7 @@ class CheckoutApiService {
       paymentMode: 'token',
       idempotencyKey: idempotencyKey,
       appliedVoucherId: appliedVoucherId,
+      giftCardCode: giftCardCode,
     );
   }
 
@@ -99,6 +101,7 @@ class CheckoutApiService {
     required String idempotencyKey,
     required String paymentMethod,
     int? appliedVoucherId,
+    String? giftCardCode,
   }) {
     return _createOrder(
       accessToken: accessToken,
@@ -107,6 +110,7 @@ class CheckoutApiService {
       paymentMethod: paymentMethod,
       idempotencyKey: idempotencyKey,
       appliedVoucherId: appliedVoucherId,
+      giftCardCode: giftCardCode,
     );
   }
 
@@ -186,6 +190,7 @@ class CheckoutApiService {
     String? paymentMethod,
     required String idempotencyKey,
     int? appliedVoucherId,
+    String? giftCardCode,
   }) async {
     final Map<String, dynamic> requestPayload = {
       'store_id': cart.storeId,
@@ -197,6 +202,9 @@ class CheckoutApiService {
     }
     if (appliedVoucherId != null) {
       requestPayload['applied_voucher_id'] = appliedVoucherId;
+    }
+    if (giftCardCode != null && giftCardCode.trim().isNotEmpty) {
+      requestPayload['gift_card_code'] = giftCardCode.trim();
     }
 
     final response = await _client

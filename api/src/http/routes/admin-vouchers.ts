@@ -11,6 +11,7 @@ import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers } from '../../se
 
 const voucherBenefitTypeSchema = z.enum([
   'Discount',
+  'Free',
   'Free Drink',
   'Free Food',
   'Percentage Off',
@@ -144,7 +145,7 @@ const voucherCreateUpdateSchema = z.object({
     });
   }
 
-  if (value.audience !== 'manual_issue_only' && value.limitPerUser != null && value.limitPerUser > 1) {
+  if (value.type !== 'Tier Reward' && value.audience !== 'manual_issue_only' && value.limitPerUser != null && value.limitPerUser > 1) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['limitPerUser'],
@@ -219,6 +220,7 @@ type PromotionRule = {
 
 const BENEFIT_TYPES = new Set([
   'Discount',
+  'Free',
   'Free Drink',
   'Free Food',
   'Percentage Off',
@@ -589,7 +591,11 @@ function deriveReward(payload: VoucherPayload): string {
   if (explicitReward) return explicitReward;
 
   const scopeLabel = voucherScopeLabel(payload);
-  const promoLabel = payload.benefitType === 'Free Food' ? 'Food' : 'Drink';
+  const promoLabel = payload.benefitType === 'Free Food'
+    ? 'Food'
+    : payload.benefitType === 'Free Drink'
+      ? 'Drink'
+      : 'Item';
 
   if (payload.promotionKind === 'bundle') {
     const buyQty = payload.qualifyingQuantity || 1;
@@ -603,6 +609,11 @@ function deriveReward(payload: VoucherPayload): string {
 
   if (payload.benefitType === 'Free Food') {
     return `${scopeLabel === 'All menu items' ? 'Free item' : 'Free food'} - ${scopeLabel}`;
+  }
+
+  if (payload.benefitType === 'Free') {
+    const quantity = Math.max(1, payload.rewardQuantity || 1);
+    return `${quantity === 1 ? 'Free item' : `${quantity} free items`} - ${scopeLabel}`;
   }
 
   if (payload.benefitType === 'Discount' || payload.benefitType === 'Percentage Off') {
@@ -1041,10 +1052,9 @@ function buildVoucherWriteBindings(
   if (hasColumn(columns, 'limit_per_user')) {
     columnsToWrite.push('limit_per_user');
     placeholders.push(':limitPerUser');
-    // A tier reward maps to one entitlement per customer and reward period.
-    // Enforce that invariant even if a stale or custom client sends a larger
-    // value.
-    values.limitPerUser = voucherType === 'tier_reward' ? 1 : (payload.limitPerUser ?? 1);
+    // For tier rewards this is the number of claims a member receives each
+    // time they unlock the tier (e.g. "RM1 OFF x5").
+    values.limitPerUser = payload.limitPerUser ?? 1;
   }
 
   if (hasColumn(columns, 'image_url')) {
@@ -1464,7 +1474,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     let discountValue = 0;
     let tokenValue: number | null = null;
 
-    if (payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
+    if (payload.benefitType === 'Free' || payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
       discountMode = 'free_drink';
       discountValue = 1;
       voucherType = 'campaign_token_equivalent';
@@ -1575,7 +1585,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     let discountValue = 0;
     let tokenValue: number | null = null;
 
-    if (payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
+    if (payload.benefitType === 'Free' || payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
       discountMode = 'free_drink';
       discountValue = 1;
       voucherType = 'campaign_token_equivalent';
@@ -1599,7 +1609,7 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     if (payload.type === 'Tier Reward') {
       voucherType = 'tier_reward';
     }
-    const limitPerUser = voucherType === 'tier_reward' ? 1 : (payload.limitPerUser ?? 1);
+    const limitPerUser = payload.limitPerUser ?? 1;
 
     const eligibleItems = normalizeEligibleItems(payload.eligibleItems);
     const productKinds = normalizeScopeCodes(payload.productKinds);

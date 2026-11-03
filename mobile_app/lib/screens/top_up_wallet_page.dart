@@ -298,6 +298,38 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     }
   }
 
+  Future<void> _continuePendingTopUp() async {
+    final topupRef = _pendingTopUpRef;
+    if (topupRef == null || _isRefreshingPendingTopUp) return;
+    try {
+      final token = await SecureSessionService.instance.getValidAccessToken();
+      if (token == null || token.isEmpty) {
+        throw ApiException('Missing access token.',
+            code: 'missing_access_token');
+      }
+      final topup = await CustomerDataService.instance.getOnlineTopUp(
+        accessToken: token,
+        topupRef: topupRef,
+      );
+      if (topup.status != 'pending_payment') {
+        await _refreshReturnedTopUp(force: true);
+        return;
+      }
+      if (!isTrustedPaymentCheckoutUrl(topup.checkoutUrl)) {
+        throw ApiException('The payment page is no longer available.');
+      }
+      await launchUrl(Uri.parse(topup.checkoutUrl),
+          mode: LaunchMode.externalApplication);
+    } on ApiException catch (error) {
+      if (mounted) AppNotification.showError(context, error.message);
+    } catch (_) {
+      if (mounted) {
+        AppNotification.showError(
+            context, 'Unable to reopen the payment page right now.');
+      }
+    }
+  }
+
   void _handleSessionChanged() {
     if (mounted) {
       setState(() {});
@@ -981,8 +1013,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                             boxShadow: selected
                                 ? [
                                     BoxShadow(
-                                      color:
-                                          brandColor.withValues(alpha: 0.22),
+                                      color: brandColor.withValues(alpha: 0.22),
                                       blurRadius: 10,
                                       offset: const Offset(0, 4),
                                     ),
@@ -1074,10 +1105,10 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                   fontFamily: 'Recoleta',
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: (_enteredTopUpAmount != null ||
-                          _amountFocusNode.hasFocus)
-                      ? Colors.black87
-                      : Colors.grey.shade500,
+                  color:
+                      (_enteredTopUpAmount != null || _amountFocusNode.hasFocus)
+                          ? Colors.black87
+                          : Colors.grey.shade500,
                 ),
                 decoration: InputDecoration(
                   prefixIcon: Padding(
@@ -1462,7 +1493,11 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: canContinue ? _startTopUp : null,
+              onPressed: _pendingTopUpRef != null
+                  ? _continuePendingTopUp
+                  : canContinue
+                      ? _startTopUp
+                      : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepTeal,
                 disabledBackgroundColor: AppColors.border,
@@ -1480,7 +1515,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                         : _isPaymentMethodsLoading
                             ? 'CHECKING PAYMENT METHODS...'
                             : _pendingTopUpRef != null
-                                ? 'PAYMENT PENDING'
+                                ? 'RETRY PAYMENT'
                                 : 'CONTINUE TO PAYMENT',
                 style: const TextStyle(
                   fontFamily: 'Recoleta',
@@ -1811,9 +1846,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         children: [
           for (var i = 0; i < visibleList.length; i++) ...[
             _buildTransactionRow(visibleList[i]),
-            if (i < visibleList.length - 1 ||
-                remainingCount > 0 ||
-                canCollapse)
+            if (i < visibleList.length - 1 || remainingCount > 0 || canCollapse)
               Divider(
                 height: 1,
                 color: AppColors.border.withValues(alpha: 0.65),
@@ -1948,8 +1981,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     final createdLabel =
         DateFormat('EEEE, dd MMM yyyy • h:mm a').format(transaction.createdAt);
     final isCredit = transaction.isCredit;
-    final amountColor =
-        isCredit ? const Color(0xFF2E7D32) : AppColors.deepTeal;
+    final amountColor = isCredit ? const Color(0xFF2E7D32) : AppColors.deepTeal;
     final sign = isCredit ? '+' : '-';
 
     showDialog(
@@ -2138,8 +2170,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     final isCredit = transaction.isCredit;
     final amountLabel =
         '${isCredit ? '+' : '-'} ${_formatTokenCount(transaction.amount)}';
-    final amountColor =
-        isCredit ? const Color(0xFF2E7D32) : AppColors.deepTeal;
+    final amountColor = isCredit ? const Color(0xFF2E7D32) : AppColors.deepTeal;
 
     return InkWell(
       onTap: () => _showTransactionDetailsDialog(transaction),
@@ -2151,9 +2182,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isCredit
-                    ? const Color(0xFFE8F5E9)
-                    : AppColors.surfaceLight,
+                color:
+                    isCredit ? const Color(0xFFE8F5E9) : AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(

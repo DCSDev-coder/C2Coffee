@@ -512,6 +512,7 @@ export async function reviewAdminRefund(
   refundRef,
   decision,
   confirmationPassword,
+  providerRefundRef = "",
 ) {
   return adminRequest(
     `/v1/admin/refunds/${encodeURIComponent(refundRef)}/review`,
@@ -520,6 +521,7 @@ export async function reviewAdminRefund(
       body: JSON.stringify({
         decision,
         confirmation_password: confirmationPassword,
+        ...(providerRefundRef ? { provider_refund_ref: providerRefundRef } : {}),
       }),
     },
   );
@@ -529,6 +531,20 @@ export async function loadAdminVouchers({ includeTierRewards = false } = {}) {
   return adminRequest(
     `/v1/admin/vouchers${includeTierRewards ? "?include_tier_rewards=true" : ""}`,
   );
+}
+
+export async function loadAdminGiftCards({ search = '', limit = 100 } = {}) {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (search.trim()) query.set('q', search.trim());
+  return adminRequest(`/v1/admin/gift-cards?${query}`);
+}
+
+export async function issueAdminGiftCard(payload) {
+  return adminRequest('/v1/admin/gift-cards', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateAdminGiftCardStatus(giftCardId, payload) {
+  return adminRequest(`/v1/admin/gift-cards/${giftCardId}/status`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
 export async function loadAdminAuditLogs(params = {}) {

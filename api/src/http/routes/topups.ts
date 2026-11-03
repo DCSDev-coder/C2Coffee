@@ -18,6 +18,7 @@ import {
 import { topUpRequestSchema } from '../../payments/topup-request.js';
 import { settleChipTopUpPurchase } from '../../services/chip-topup-settlement.js';
 import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
+import { settleChipGiftCardPurchase } from '../../services/chip-gift-card-settlement.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
 
 type CustomerTopUpRow = RowDataPacket & {
@@ -158,8 +159,8 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
       );
 
       await connection.execute(
-        `INSERT INTO payments (topup_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at)
-         VALUES (:topupId, 'chip', :paymentMethod, :topupRef, :amount, 'pending', UTC_TIMESTAMP())`,
+        `INSERT INTO payments (topup_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at, expires_at)
+         VALUES (:topupId, 'chip', :paymentMethod, :topupRef, :amount, 'pending', UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL 15 MINUTE))`,
         { topupId, topupRef, paymentMethod, amount: rmAmount.toFixed(2) }
       );
       await connection.commit();
@@ -238,14 +239,18 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
     const [paymentRows] = await mysqlPool.query<Array<RowDataPacket & {
       order_id: number | null;
       topup_id: number | null;
+      gift_card_id: number | null;
     }>>(
-      `SELECT order_id, topup_id FROM payments
+      `SELECT order_id, topup_id, gift_card_id FROM payments
        WHERE provider = 'chip' AND provider_bill_id = :purchaseId
        LIMIT 1`,
       { purchaseId: callback.id }
     );
     if (paymentRows[0]?.order_id != null) {
       return settleChipMobilePurchase(callback.id, purchase, 'customer_callback');
+    }
+    if (paymentRows[0]?.gift_card_id != null) {
+      return settleChipGiftCardPurchase(callback.id, purchase);
     }
     return settleChipTopUpPurchase(callback.id, purchase, { logger: request.log });
   });
@@ -254,7 +259,7 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
     const params = z.object({ topupRef: z.string().trim().min(1).max(50) }).parse(request.params);
     const [rows] = await mysqlPool.execute<Array<CustomerTopUpRow>>(
       `SELECT tt.id, tt.topup_ref, tt.token_amount, CAST(tt.rm_amount AS CHAR) AS rm_amount, tt.status, tt.expires_at,
-              p.provider_bill_id, p.status AS payment_status
+              p.provider_bill_id, p.status AS payment_status, p.payment_method
        FROM token_topups tt
        JOIN payments p ON p.topup_id = tt.id
        WHERE tt.topup_ref = :topupRef AND tt.user_id = :userId
@@ -266,11 +271,23 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
     const status = topup.status === 'pending_payment' && topup.expires_at && topup.expires_at.getTime() <= Date.now()
       ? 'expired'
       : topup.status;
+    let checkoutUrl: string | null = null;
+    if (topup.provider_bill_id && topup.status === 'pending_payment' && topup.payment_status === 'pending') {
+      try {
+        const purchase = await getChipPurchase(topup.provider_bill_id);
+        const candidate = typeof purchase.checkout_url === 'string' ? purchase.checkout_url : '';
+        if (candidate) checkoutUrl = candidate;
+      } catch (_) {
+        // The status response remains useful even if CHIP is temporarily unavailable.
+      }
+    }
     return {
       topup_ref: topup.topup_ref,
       token_amount: topup.token_amount,
       amount_rm: topup.rm_amount,
       status,
+      payment_method: topup.payment_method,
+      checkout_url: checkoutUrl,
       expires_at: topup.expires_at?.toISOString() ?? null
     };
   });

@@ -60,6 +60,16 @@ test('production readiness requires every current release migration', async () =
   assert.match(readiness, /Latest schema migrations/);
 });
 
+test('production readiness allows multiple claims for tier reward templates', async () => {
+  const readiness = await source('src/scripts/production-readiness.ts');
+  assert.match(
+    readiness,
+    /vt\.voucher_type <> 'tier_reward'[\s\S]{0,220}COALESCE\(JSON_UNQUOTE\(JSON_EXTRACT\(vt\.eligible_scope_json, '\$\.audience'\)\), 'all_customers'\) <> 'manual_issue_only'[\s\S]{0,120}COALESCE\(vt\.limit_per_user, 1\) > 1/
+  );
+  assert.match(readiness, /vt\.limit_per_user < 1/);
+  assert.match(readiness, /vt\.limit_per_user > vt\.total_quantity/);
+});
+
 test('menu restore clears the archive timestamp without undefined bind values', async () => {
   const menu = await source('src/http/routes/admin-menu.ts');
   assert.match(menu, /payload\.is_active[\s\S]{0,220}archived_at = NULL/);

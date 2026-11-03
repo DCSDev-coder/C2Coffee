@@ -81,6 +81,8 @@ async function requireVoucherIntegrity(): Promise<void> {
             OR (vt.limit_per_user IS NOT NULL AND vt.limit_per_user < 1)
             OR (vt.total_quantity IS NOT NULL AND vt.limit_per_user > vt.total_quantity)
             OR (
+              vt.voucher_type <> 'tier_reward'
+              AND
               COALESCE(JSON_UNQUOTE(JSON_EXTRACT(vt.eligible_scope_json, '$.audience')), 'all_customers') <> 'manual_issue_only'
               AND COALESCE(vt.limit_per_user, 1) > 1
             )
@@ -182,7 +184,14 @@ async function requireLatestSchema(): Promise<void> {
     '119_expand_inventory_operations.sql',
     '120_complete_inventory_procurement.sql',
     '121_link_inventory_movements_to_supplier.sql',
-    '122_trace_inventory_usage_and_receipt_batches.sql'
+    '122_trace_inventory_usage_and_receipt_batches.sql',
+    '123_add_payment_expiry.sql',
+    '124_create_order_cancellation_requests.sql',
+    '125_harden_refund_provider_linkage.sql',
+    '126_scope_menu_catalog_to_tenants.sql',
+    '127_allow_multiple_tier_rewards.sql',
+    '128_create_gift_cards.sql',
+    '129_harden_gift_card_purchases.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,
@@ -192,6 +201,53 @@ async function requireLatestSchema(): Promise<void> {
   const missing = required.filter((filename) => !applied.has(filename));
   if (missing.length > 0) {
     throw new Error(`Latest schema migrations are missing: ${missing.join(', ')}.`);
+  }
+}
+
+async function requireGiftCardIntegrity(): Promise<void> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+    invalid_balances: number;
+    paid_unusable_cards: number;
+    duplicate_issues: number;
+    payment_reviews: number;
+  }>>(
+    `SELECT
+       (SELECT COUNT(*)
+          FROM gift_cards
+         WHERE original_amount <= 0
+            OR remaining_amount < 0
+            OR remaining_amount > original_amount
+            OR (status = 'depleted' AND remaining_amount <> 0)) AS invalid_balances,
+       (SELECT COUNT(*)
+          FROM payments p
+          JOIN gift_cards gc ON gc.id = p.gift_card_id
+         WHERE p.status = 'paid'
+           AND gc.status IN ('pending_payment', 'cancelled', 'expired')) AS paid_unusable_cards,
+       (SELECT COUNT(*)
+          FROM (
+            SELECT gift_card_id
+              FROM gift_card_transactions
+             WHERE transaction_type = 'issued'
+             GROUP BY gift_card_id
+            HAVING COUNT(*) > 1
+          ) duplicate_issue_rows) AS duplicate_issues,
+       (SELECT COUNT(*)
+          FROM payment_events pe
+          JOIN payments p ON p.id = pe.payment_id
+         WHERE p.gift_card_id IS NOT NULL
+           AND pe.process_result LIKE '%needs_review') AS payment_reviews`
+  );
+  const row = rows[0];
+  const invalidBalances = Number(row?.invalid_balances ?? 0);
+  const paidUnusableCards = Number(row?.paid_unusable_cards ?? 0);
+  const duplicateIssues = Number(row?.duplicate_issues ?? 0);
+  const paymentReviews = Number(row?.payment_reviews ?? 0);
+  if (invalidBalances || paidUnusableCards || duplicateIssues || paymentReviews) {
+    throw new Error(
+      `Gift-card integrity failure: ${invalidBalances} invalid balance(s), ` +
+      `${paidUnusableCards} paid unusable card(s), ${duplicateIssues} duplicate issue transaction(s), ` +
+      `${paymentReviews} payment event(s) needing review.`
+    );
   }
 }
 
@@ -239,13 +295,18 @@ async function main(): Promise<void> {
   const checks: Check[] = [
     {
       name: 'Latest schema migrations',
-      detail: 'All current release migrations through inventory management must be applied.',
+      detail: 'All current release migrations, including gift-card hardening, must be applied.',
       run: requireLatestSchema
     },
     {
       name: 'Inventory integrity',
       detail: 'Outlet stock balances, active order reservations, and terminal order allocations must reconcile.',
       run: requireInventoryIntegrity
+    },
+    {
+      name: 'Gift-card integrity',
+      detail: 'Stored-value balances, paid cards, issue transactions, and payment review events must reconcile.',
+      run: requireGiftCardIntegrity
     },
     {
       name: 'Production environment',

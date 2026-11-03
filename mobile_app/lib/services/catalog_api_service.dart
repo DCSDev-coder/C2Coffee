@@ -135,8 +135,14 @@ class CatalogMenuItem {
   final String? colorHex;
   final String? gradientEndHex;
   final bool isAvailable;
+  /// 'available', 'sold_out' (ingredient ran out) or 'coming_soon' (stock not
+  /// set up yet, so the app hides the item).
+  final String availabilityStatus;
   final bool isHandcraftedDrink;
   final bool isQualifyingCup;
+  bool get isSoldOut => availabilityStatus == 'sold_out';
+  bool get isVisibleInMenu => isAvailable && availabilityStatus != 'coming_soon';
+  bool get isOrderable => isAvailable && availabilityStatus == 'available';
   final bool allowChoiceOfBeans;
   final bool allowEspressoShot;
   final bool allowChoiceOfMilk;
@@ -166,6 +172,7 @@ class CatalogMenuItem {
     required this.colorHex,
     required this.gradientEndHex,
     required this.isAvailable,
+    this.availabilityStatus = 'available',
     required this.isHandcraftedDrink,
     required this.isQualifyingCup,
     required this.allowChoiceOfBeans,
@@ -207,6 +214,7 @@ class CatalogMenuItem {
       colorHex: json['color_hex'] as String?,
       gradientEndHex: json['gradient_end_hex'] as String?,
       isAvailable: json['is_available'] as bool? ?? true,
+      availabilityStatus: json['availability_status'] as String? ?? 'available',
       isHandcraftedDrink: json['is_handcrafted_drink'] as bool? ?? false,
       isQualifyingCup: json['is_qualifying_cup'] as bool? ?? false,
       allowChoiceOfBeans: json['allow_choice_of_beans'] as bool? ?? false,

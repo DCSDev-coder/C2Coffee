@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
+import { loadRecipeAvailabilityIssues } from '../../services/inventory.js';
 
 const id = z.coerce.number().int().positive();
 const quantity = z.coerce.number().positive().max(10_000_000);
@@ -139,7 +140,7 @@ async function lockStock(connection: PoolConnection, tenantId: number, storeId: 
     `INSERT INTO inventory_store_stocks (tenant_id, store_id, inventory_item_id)
      SELECT :tenantId, :storeId, ii.id FROM inventory_items ii
       WHERE ii.id = :itemId AND ii.tenant_id = :tenantId
-     ON DUPLICATE KEY UPDATE id = id`,
+     ON DUPLICATE KEY UPDATE id = inventory_store_stocks.id`,
     { tenantId, storeId, itemId }
   );
   const [rows] = await connection.query<RowDataPacket[]>(
@@ -864,6 +865,12 @@ export async function registerAdminInventoryOperationsRoutes(app: FastifyInstanc
       await connection.commit();
       return reply.code(201).send({ id: result.insertId, return_ref: returnRef });
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
+  });
+
+  app.get('/v1/admin/inventory/availability-issues', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAccess(request);
+    const issues = await loadRecipeAvailabilityIssues(mysqlPool, { tenantId: request.adminAuth.tenantId });
+    return { issues };
   });
 
   app.get('/v1/admin/inventory/option-recipes', { preHandler: authenticateAdminRequest }, async (request) => {

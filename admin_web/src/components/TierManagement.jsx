@@ -139,16 +139,39 @@ function emptyTierRewardForm(tiers = []) {
     tierId: firstEligibleTier ? String(firstEligibleTier.id) : '',
     rewardTiming: 'achievement',
     name: '',
-    benefitType: 'Free Drink',
+    benefitType: 'Free',
     discountValue: '',
     productKinds: ['drink', 'food', 'merchandise', 'candle'],
     subcategoryCodes: [],
     eligibleItems: [],
     rewardQuantity: 1,
+    qualifyingQuantity: 1,
+    rewardMode: 'same',
+    rewardItems: [],
     limitPerUser: 1,
     description: ''
   };
 }
+
+const REWARD_BENEFIT_OPTIONS = [
+  { value: 'Cash Voucher', label: 'Fixed RM discount (e.g. RM1 OFF)' },
+  { value: 'Discount', label: 'Percentage discount' },
+  { value: 'Free', label: 'Free item(s)' },
+  { value: 'Bundle', label: 'Buy X, get Y free' }
+];
+
+const normalizeRewardBenefit = (voucher) => {
+  if (voucher?.promotionKind === 'bundle') return 'Bundle';
+  if (voucher?.benefitType === 'Cash Voucher') return 'Cash Voucher';
+  if (['Percentage Off', 'Discount'].includes(voucher?.benefitType)) return 'Discount';
+  return 'Free';
+};
+
+const sameSet = (left = [], right = []) => {
+  const a = [...new Set(left)].sort();
+  const b = [...new Set(right)].sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+};
 
 function deriveTierRewardMenuItems(response) {
   return (response?.categories || []).flatMap((category) => (category.items || []).map((item) => ({
@@ -319,6 +342,10 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
   const eligibleTiers = tiers.filter((tier) => tier.isActive);
   const allProductKinds = ['drink', 'food', 'merchandise', 'candle'];
   const isDiscount = form.benefitType === 'Discount';
+  const isCash = form.benefitType === 'Cash Voucher';
+  const isBundle = form.benefitType === 'Bundle';
+  const hasDiscountValue = isDiscount || isCash;
+  const rewardPickerItems = menuItems;
   const scopedItems = menuItems.filter((item) =>
     form.productKinds.includes(item.productKindCode)
     && (form.subcategoryCodes.length === 0 || form.subcategoryCodes.includes(item.subcategoryCode))
@@ -348,7 +375,7 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
         <form onSubmit={onSave} className="space-y-5 overflow-y-auto p-6">
           <section className="rounded-xl border border-[#D7E4E0] bg-[#F8FBFA] p-4">
             <h3 className="font-bold text-gray-900">1. Reward timing</h3>
-            <p className="mt-0.5 text-xs text-gray-500">Achievement rewards are issued once. Birthday rewards appear only during the member's birthday month and only for their current tier.</p>
+            <p className="mt-0.5 text-xs text-gray-500">Achievement rewards unlock when the tier is reached (add as many as you need). Birthday rewards appear only during the member's birthday month and only for their current tier.</p>
             <label className="mt-3 block text-xs font-medium text-gray-500">When should members receive it?</label>
             <select disabled={isEditing} value={form.rewardTiming} onChange={(event) => onChange({ rewardTiming: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1F3A34] disabled:cursor-not-allowed disabled:bg-gray-100">
               <option value="achievement">When this tier is achieved</option>
@@ -371,6 +398,7 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
             <div>
               <h3 className="font-bold text-gray-900">2. Reward</h3>
               <p className="mt-0.5 text-xs text-gray-500">This is managed in Tier Management and does not appear in the normal Vouchers list.</p>
+              <p className="mt-0.5 text-[11px] text-gray-400">A unique VCH code is generated automatically when the reward is created.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -379,22 +407,38 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500">Benefit</label>
-                <select value={form.benefitType} onChange={(event) => onChange({ benefitType: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1F3A34]">
-                  <option value="Free Drink">Free Drink</option>
-                  <option value="Free Food">Free Food</option>
-                  <option value="Discount">Discount</option>
+                <select
+                  value={form.benefitType}
+                  onChange={(event) => onChange({
+                    benefitType: event.target.value,
+                    ...(['Discount', 'Cash Voucher'].includes(event.target.value) ? { rewardQuantity: 1 } : {})
+                  })}
+                  className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                >
+                  {REWARD_BENEFIT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
-              {isDiscount && (
+              {hasDiscountValue && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500">Discount percent</label>
-                  <input required type="number" min="1" max="100" value={form.discountValue} onChange={(event) => onChange({ discountValue: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                  <label className="block text-xs font-medium text-gray-500">{isCash ? 'Discount amount (RM)' : 'Discount percent'}</label>
+                  <input required type="number" min={isCash ? '0.01' : '1'} max={isCash ? '1000' : '100'} step={isCash ? '0.01' : '1'} value={form.discountValue} onChange={(event) => onChange({ discountValue: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                  <p className="mt-1 text-[11px] text-gray-400">{isCash ? 'Taken off the eligible items, e.g. 1 = RM1 OFF.' : 'Percentage taken off the eligible items.'}</p>
                 </div>
               )}
-              <div>
-                <label className="block text-xs font-medium text-gray-500">Items per redemption</label>
-                <input required type="number" min="1" max="20" value={form.rewardQuantity} onChange={(event) => onChange({ rewardQuantity: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
-              </div>
+              {isBundle && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500">Customer buys (qty)</label>
+                  <input required type="number" min="1" max="20" value={form.qualifyingQuantity} onChange={(event) => onChange({ qualifyingQuantity: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                  <p className="mt-1 text-[11px] text-gray-400">Items from the eligible list below that must be in the cart.</p>
+                </div>
+              )}
+              {(form.benefitType === 'Free' || isBundle) && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500">{isBundle ? 'Customer gets free (qty)' : 'Items included per claim'}</label>
+                  <input required type="number" min="1" max="20" value={form.rewardQuantity} onChange={(event) => onChange({ rewardQuantity: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                  <p className="mt-1 text-[11px] text-gray-400">{isBundle ? 'e.g. Buy 3 get 1 free: buys 3, gets free 1.' : 'Choose how many eligible products become free in one claim (1–20).'}</p>
+                </div>
+              )}
             </div>
             <div>
               <p className="text-xs font-medium text-gray-500">Eligible menu items</p>
@@ -454,16 +498,45 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
             </div>
           </section>
 
+          {isBundle && (
+            <section className="space-y-3 rounded-lg border border-dashed border-[#BFD3CE] p-3">
+              <div>
+                <p className="text-xs font-bold text-gray-700">Which item is free?</p>
+                <select value={form.rewardMode} onChange={(event) => onChange({ rewardMode: event.target.value, rewardItems: [] })} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1F3A34]">
+                  <option value="same">Same kind of item they bought (e.g. Buy 2 drinks, 1 drink free)</option>
+                  <option value="different">A specific item (e.g. Buy 1 drink, free curry puff)</option>
+                </select>
+              </div>
+              {form.rewardMode === 'different' && (
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 p-3">
+                  {rewardPickerItems.length === 0 && <p className="text-xs text-gray-500">No active menu items found.</p>}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {rewardPickerItems.map((item) => (
+                      <label key={item.id} className="flex items-center gap-2 text-xs text-gray-700">
+                        <input type="checkbox" checked={form.rewardItems.includes(item.name)} onChange={() => onChange({ rewardItems: form.rewardItems.includes(item.name) ? form.rewardItems.filter((name) => name !== item.name) : [...form.rewardItems, item.name] })} className="rounded text-[#1F3A34] focus:ring-[#1F3A34]" />
+                        {item.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           <section className="space-y-3 border-t border-[#DDE9E5] pt-4">
             <div>
               <h3 className="font-bold text-gray-900">3. Limits</h3>
-              <p className="mt-0.5 text-xs text-gray-500">{form.rewardTiming === 'birthday_month' ? 'Birthday rewards expire at the end of the member\'s birthday month.' : 'Achievement rewards are issued once per tier.'}</p>
+              <p className="mt-0.5 text-xs text-gray-500">{form.rewardTiming === 'birthday_month' ? 'Birthday rewards expire at the end of the member\'s birthday month.' : 'Achievement rewards are issued when the member reaches this tier. A tier can hold as many rewards as you like.'}</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-medium text-gray-500">Uses per customer</label>
-                <div className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">1</div>
-                <p className="mt-1 text-[11px] text-gray-400">One claim per achievement or birthday reward period.</p>
+                <label className="block text-xs font-medium text-gray-500">Number of claims</label>
+                {form.rewardTiming === 'birthday_month' ? (
+                  <div className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">1</div>
+                ) : (
+                  <input required type="number" min="1" max="20" value={form.limitPerUser} onChange={(event) => onChange({ limitPerUser: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                )}
+                <p className="mt-1 text-[11px] text-gray-400">{form.rewardTiming === 'birthday_month' ? 'Birthday rewards are issued once per birthday month.' : 'How many separate vouchers a member gets each time they reach this tier (e.g. RM1 OFF × 5 = 5 claims). Each claim is used on its own order.'}</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500">Description</label>
@@ -659,14 +732,20 @@ const TierManagement = () => {
       tierId: String(tierId),
       rewardTiming: timing,
       name: voucher.name || '',
-      benefitType: voucher.benefitType || 'Free Drink',
+      benefitType: normalizeRewardBenefit(voucher),
       discountValue: voucher.discountValue ?? '',
       productKinds: voucher.productKinds?.length ? voucher.productKinds : ['drink', 'food', 'merchandise', 'candle'],
       subcategoryCodes: voucher.subcategoryCodes || [],
       eligibleItems: (voucher.eligibleItems || []).filter((item) => item !== 'All Items'),
       rewardQuantity: voucher.rewardQuantity || 1,
-      // Never carry a legacy multi-use value back into the editor.
-      limitPerUser: 1,
+      qualifyingQuantity: voucher.qualifyingQuantity || 1,
+      rewardMode: voucher.promotionKind === 'bundle'
+        && (voucher.rewardItems || []).filter((item) => item !== 'All Items').length > 0
+        && !sameSet(voucher.rewardItems, voucher.eligibleItems)
+        ? 'different' : 'same',
+      rewardItems: voucher.promotionKind === 'bundle' && !sameSet(voucher.rewardItems, voucher.eligibleItems)
+        ? (voucher.rewardItems || []).filter((item) => item !== 'All Items') : [],
+      limitPerUser: timing === 'birthday_month' ? 1 : (Number(voucher.limitPerUser) || 1),
       description: voucher.description || ''
     } : {
       ...emptyTierRewardForm(sortedTiers),
@@ -679,36 +758,48 @@ const TierManagement = () => {
     setTierRewardForm((current) => ({ ...current, ...patch }));
   };
 
-  const buildTierRewardPayload = () => ({
-    code: editingTierReward?.voucherCode || `TIER_${tierRewardForm.rewardTiming === 'birthday_month' ? 'BIRTHDAY_' : ''}${slugify(tierRewardForm.name) || 'REWARD'}`,
-    name: String(tierRewardForm.name || '').trim(),
-    type: 'Tier Reward',
-    benefitType: tierRewardForm.benefitType,
-    promotionKind: 'standard',
-    status: 'Active',
-    tier: 'All Tiers',
-    discountValue: Number(tierRewardForm.discountValue) || 0,
-    productKinds: tierRewardForm.productKinds,
-    subcategoryCodes: tierRewardForm.subcategoryCodes,
-    eligibleItems: tierRewardForm.eligibleItems.length > 0 ? tierRewardForm.eligibleItems : ['All Items'],
-    rewardProductKinds: tierRewardForm.productKinds,
-    rewardSubcategoryCodes: tierRewardForm.subcategoryCodes,
-    rewardItems: tierRewardForm.eligibleItems,
-    qualifyingQuantity: 1,
-    rewardQuantity: Number(tierRewardForm.rewardQuantity) || 1,
-    expiry: null,
-    totalQty: null,
-    limitPerUser: 1,
-    description: tierRewardForm.description || (tierRewardForm.rewardTiming === 'birthday_month' ? `Birthday-month tier reward: ${tierRewardForm.name}` : `Tier achievement reward: ${tierRewardForm.name}`),
-    imageUrl: null,
-    audience: 'all_customers',
-    availabilityMode: 'always',
-    activeDays: [],
-    startTime: null,
-    endTime: null,
-    annualDate: null,
-    monthlyDay: null
-  });
+  const buildTierRewardPayload = () => {
+    const isBundle = tierRewardForm.benefitType === 'Bundle';
+    const isFixedOrPercent = ['Discount', 'Cash Voucher'].includes(tierRewardForm.benefitType);
+    const differentReward = isBundle && tierRewardForm.rewardMode === 'different' && tierRewardForm.rewardItems.length > 0;
+    const rewardKinds = differentReward
+      ? [...new Set(tierRewardMenuItems.filter((item) => tierRewardForm.rewardItems.includes(item.name)).map((item) => item.productKindCode))]
+      : [];
+    const claims = tierRewardForm.rewardTiming === 'birthday_month'
+      ? 1
+      : Math.min(20, Math.max(1, Number(tierRewardForm.limitPerUser) || 1));
+
+    return {
+      code: editingTierReward?.voucherCode || 'AUTO',
+      name: String(tierRewardForm.name || '').trim(),
+      type: 'Tier Reward',
+      benefitType: isBundle ? 'Free' : tierRewardForm.benefitType,
+      promotionKind: isBundle ? 'bundle' : 'standard',
+      status: 'Active',
+      tier: 'All Tiers',
+      discountValue: Number(tierRewardForm.discountValue) || 0,
+      productKinds: tierRewardForm.productKinds,
+      subcategoryCodes: tierRewardForm.subcategoryCodes,
+      eligibleItems: tierRewardForm.eligibleItems.length > 0 ? tierRewardForm.eligibleItems : ['All Items'],
+      rewardProductKinds: rewardKinds,
+      rewardSubcategoryCodes: [],
+      rewardItems: differentReward ? tierRewardForm.rewardItems : [],
+      qualifyingQuantity: isBundle ? Math.max(1, Number(tierRewardForm.qualifyingQuantity) || 1) : 1,
+      rewardQuantity: isFixedOrPercent ? 1 : Math.max(1, Number(tierRewardForm.rewardQuantity) || 1),
+      expiry: null,
+      totalQty: null,
+      limitPerUser: claims,
+      description: tierRewardForm.description || (tierRewardForm.rewardTiming === 'birthday_month' ? `Birthday-month tier reward: ${tierRewardForm.name}` : `Tier achievement reward: ${tierRewardForm.name}`),
+      imageUrl: null,
+      audience: 'all_customers',
+      availabilityMode: 'always',
+      activeDays: [],
+      startTime: null,
+      endTime: null,
+      annualDate: null,
+      monthlyDay: null
+    };
+  };
 
   const handleSaveTierReward = async (event) => {
     event.preventDefault();
@@ -721,8 +812,8 @@ const TierManagement = () => {
       showAdminError('Choose at least one eligible menu item type.');
       return;
     }
-    if (!editingTierReward && tierRewardForm.rewardTiming === 'achievement' && tierRewardIds(tier).length > 0) {
-      showAdminError(`${tier.name} already has an achievement reward. Edit or remove it before adding another.`);
+    if (tierRewardForm.benefitType === 'Bundle' && tierRewardForm.rewardMode === 'different' && tierRewardForm.rewardItems.length === 0) {
+      showAdminError('Choose which item is free for this Buy X, get Y free reward.');
       return;
     }
     if (!editingTierReward && tierRewardForm.rewardTiming === 'birthday_month' && tierBirthdayRewardIds(tier).length > 0) {
@@ -745,7 +836,7 @@ const TierManagement = () => {
         });
         await updateAdminTier(tier.id, {
           rewardConfig: {
-            voucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? tierRewardIds(tier) : [Number(createdVoucher.db_id)],
+            voucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? tierRewardIds(tier) : [...new Set([...tierRewardIds(tier), Number(createdVoucher.db_id)])],
             birthdayVoucherTemplateIds: tierRewardForm.rewardTiming === 'birthday_month' ? [Number(createdVoucher.db_id)] : tierBirthdayRewardIds(tier)
           }
         });
@@ -894,7 +985,7 @@ const TierManagement = () => {
 
       <div className="rounded-2xl border border-[#D7E4E0] bg-[#F4F8F7] px-4 py-3 text-xs text-gray-700">
         <span className="font-bold text-[#1F3A34]">How rewards work: </span>
-        Achievement rewards issue once when a member reaches a tier. Birthday-month rewards are available only during that member&apos;s birthday month.
+        A tier can hold several achievement rewards, each with its own number of claims. Birthday-month rewards are available only during that member&apos;s birthday month.
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 shrink-0">
@@ -1036,7 +1127,7 @@ const TierManagement = () => {
                                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${reward.timing === 'birthday_month' ? 'bg-[#FFF4DD] text-[#996514]' : 'bg-[#EEF3FF] text-[#32549A]'}`}>{reward.timing === 'birthday_month' ? 'Birthday month' : 'Achievement'}</span>
                                     <span className="truncate text-xs font-bold text-gray-900">{reward.voucher?.name || `Reward #${reward.voucherTemplateId}`}</span>
                                   </div>
-                                  <p className="mt-1 text-[11px] text-gray-500">{reward.voucher?.benefitType || 'Voucher'}{reward.voucher?.status ? ` · ${reward.voucher.status}` : ''}</p>
+                                  <p className="mt-1 text-[11px] text-gray-500">{reward.voucher?.reward || reward.voucher?.benefitType || 'Voucher'}{reward.timing === 'achievement' && Number(reward.voucher?.limitPerUser) > 1 ? ` · ×${reward.voucher.limitPerUser} claims` : ''}{reward.voucher?.status ? ` · ${reward.voucher.status}` : ''}</p>
                                 </div>
                                 <div className="flex shrink-0 gap-1">
                                   <button type="button" onClick={() => openTierRewardModal(tier.id, reward)} className="rounded-md border border-[#BFD3CE] p-1.5 text-[#1F3A34] hover:bg-white" aria-label={`Edit ${reward.voucher?.name || 'tier reward'}`} title="Edit reward"><Edit3 size={13} /></button>

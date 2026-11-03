@@ -137,8 +137,12 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
 
   String _formatDiscount(RewardVoucher voucher) {
     final t = voucher.template;
+    final rewardQuantity = t.rewardQuantity;
+    if (t.benefitLabel == 'Free') {
+      return '$rewardQuantity Free ${rewardQuantity == 1 ? 'Item' : 'Items'}';
+    }
     if (t.benefitLabel == 'Free Food') {
-      return '1 Free Food Item';
+      return '$rewardQuantity Free Food ${rewardQuantity == 1 ? 'Item' : 'Items'}';
     }
     if (t.benefitLabel == 'Birthday Voucher') {
       return 'Birthday Treat';
@@ -151,7 +155,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
       case 'fixed_token':
         return '${t.tokenValue ?? t.discountValue} Tokens Off';
       case 'free_drink':
-        return '1 Free Drink';
+        return '$rewardQuantity Free ${rewardQuantity == 1 ? 'Drink' : 'Drinks'}';
       default:
         return t.name;
     }

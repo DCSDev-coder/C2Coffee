@@ -14,6 +14,7 @@ import {
   normalizeWeeklyHours,
 } from "../../services/store-availability.js";
 import { assertCustomerAccess, loadMaintenanceForUser } from "../../services/app-maintenance.js";
+import { loadRecipeAvailabilityIssues, summariseAvailability } from "../../services/inventory.js";
 
 const menuQuerySchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -122,6 +123,7 @@ type MenuItemResponse = {
   base_calories_kcal: number;
   image_url: string | null;
   is_available: boolean;
+  availability_status: "available" | "sold_out" | "coming_soon";
   is_handcrafted_drink: boolean;
   is_qualifying_cup: boolean;
   allow_choice_of_beans: boolean;
@@ -805,6 +807,7 @@ export async function loadCatalogMenu(storeId: number) {
         base_calories_kcal: row.base_calories_kcal,
         image_url: _resolveImageUrl(row.image_url),
         is_available: row.is_available === 1,
+        availability_status: "available",
         is_handcrafted_drink: row.is_handcrafted_drink === 1,
         is_qualifying_cup: row.is_qualifying_cup === 1,
         allow_choice_of_beans: row.allow_choice_of_beans === 1,
@@ -1012,6 +1015,15 @@ export async function loadCatalogMenu(storeId: number) {
     item.modifier_groups = item.modifier_groups.filter(
       (group) => group.options.length > 0,
     );
+  }
+
+  const stockStatus = summariseAvailability(
+    await loadRecipeAvailabilityIssues(mysqlPool, { storeId }),
+  );
+  for (const category of categories.values()) {
+    for (const item of category.items) {
+      item.availability_status = stockStatus.get(item.id) ?? "available";
+    }
   }
 
   for (const category of categories.values()) {

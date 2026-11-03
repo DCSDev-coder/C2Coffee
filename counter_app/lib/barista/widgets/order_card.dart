@@ -17,6 +17,7 @@ class CurrentOrder {
   final DateTime orderDate;
   final String customerDetails;
   final List<OrderItem> items;
+  String? cancellationRequestStatus;
 
   CurrentOrder({
     required this.status,
@@ -25,6 +26,7 @@ class CurrentOrder {
     required this.orderDate,
     required this.customerDetails,
     required this.items,
+    this.cancellationRequestStatus,
   });
 }
 
@@ -37,6 +39,7 @@ class OrderCard extends StatelessWidget {
   final VoidCallback? onActionPressed;
   final VoidCallback? onTap;
   final bool isActionLoading;
+  final String? cancellationRequestStatus;
 
   const OrderCard({
     super.key,
@@ -48,6 +51,7 @@ class OrderCard extends StatelessWidget {
     this.onActionPressed,
     this.onTap,
     this.isActionLoading = false,
+    this.cancellationRequestStatus,
   });
 
   @override
@@ -116,6 +120,29 @@ class OrderCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8.0),
+              if (cancellationRequestStatus == 'pending' ||
+                  cancellationRequestStatus == 'refund_pending')
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4D6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    cancellationRequestStatus == 'refund_pending'
+                        ? 'Cancellation approved — refund pending; do not prepare'
+                        : 'Cancellation requested — review before preparing',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF8A5A00),
+                    ),
+                  ),
+                ),
 
               // Order ID & Chevron
               Row(

@@ -59,6 +59,7 @@ class CatalogPresentation {
       'isMerchandise': isMerchandise,
       'isCandle': isCandle,
       'isAvailable': item.isAvailable,
+      'isSoldOut': item.isSoldOut,
       'allowChoiceOfBeans': item.allowChoiceOfBeans,
       'allowEspressoShot': item.allowEspressoShot,
       'allowChoiceOfMilk': item.allowChoiceOfMilk,

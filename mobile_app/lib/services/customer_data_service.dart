@@ -104,6 +104,81 @@ class OnlineTopUpPaymentMethods {
   }
 }
 
+class GiftCard {
+  final int id;
+  final String code;
+  final String currency;
+  final String originalAmount;
+  final String remainingAmount;
+  final String status;
+  final String ownership;
+  final bool isRedeemable;
+  final String? recipientPhone;
+  final String? recipientMessage;
+  final String? purchaseRef;
+  final DateTime createdAt;
+
+  const GiftCard({
+    required this.id,
+    required this.code,
+    required this.currency,
+    required this.originalAmount,
+    required this.remainingAmount,
+    required this.status,
+    required this.ownership,
+    this.isRedeemable = true,
+    required this.recipientPhone,
+    required this.recipientMessage,
+    required this.purchaseRef,
+    required this.createdAt,
+  });
+
+  factory GiftCard.fromApi(Map<String, dynamic> json) => GiftCard(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        code: json['code'] as String? ?? '',
+        currency: json['currency'] as String? ?? 'token',
+        originalAmount: json['original_amount']?.toString() ?? '0',
+        remainingAmount: json['remaining_amount']?.toString() ?? '0',
+        status: json['status'] as String? ?? 'active',
+        ownership: json['ownership'] as String? ?? 'received',
+        isRedeemable: json['is_redeemable'] as bool? ??
+            (json['ownership'] as String? ?? 'received') == 'received',
+        recipientPhone: json['recipient_phone'] as String?,
+        recipientMessage: json['recipient_message'] as String?,
+        purchaseRef: json['purchase_ref'] as String?,
+        createdAt: _parseApiDate(json['created_at'] as String),
+      );
+
+  bool get isUsable =>
+      isRedeemable &&
+      status == 'active' &&
+      (double.tryParse(remainingAmount) ?? 0) > 0;
+  String get amountLabel => currency == 'rm'
+      ? 'RM ${double.tryParse(remainingAmount)?.toStringAsFixed(2) ?? remainingAmount}'
+      : '${double.tryParse(remainingAmount)?.toStringAsFixed(0) ?? remainingAmount} C2 Tokens';
+}
+
+class GiftCardPurchase {
+  final String code;
+  final String purchaseRef;
+  final String status;
+  final String? checkoutUrl;
+
+  const GiftCardPurchase(
+      {required this.code,
+      required this.purchaseRef,
+      required this.status,
+      this.checkoutUrl});
+
+  factory GiftCardPurchase.fromApi(Map<String, dynamic> json) =>
+      GiftCardPurchase(
+        code: json['code'] as String? ?? '',
+        purchaseRef: json['purchase_ref'] as String? ?? '',
+        status: json['status'] as String? ?? 'pending_payment',
+        checkoutUrl: json['checkout_url'] as String?,
+      );
+}
+
 class RewardVoucherTemplate {
   final String code;
   final String name;
@@ -171,6 +246,11 @@ class RewardVoucherTemplate {
   }
 
   String get displayLabel => name.trim().isNotEmpty ? name : typeLabel;
+
+  int get rewardQuantity {
+    final value = (promotionRule['reward_quantity'] as num?)?.toInt() ?? 1;
+    return value.clamp(1, 20).toInt();
+  }
 
   String get benefitLabel {
     if (benefitType.trim().isNotEmpty) {
@@ -966,6 +1046,9 @@ class CustomerOrder {
   final int dailyOrderNumber;
   final String status;
   final String paymentMode;
+  final String? paymentStatus;
+  final String? paymentMethod;
+  final DateTime? paymentExpiresAt;
   final String finalTotalRm;
   final int tokenAmountCharged;
   final DateTime pickupSlotAt;
@@ -976,6 +1059,7 @@ class CustomerOrder {
   final String? primaryItemName;
   final String? baristaName;
   final String? baristaUsername;
+  final String? cancellationRequestStatus;
   final List<CustomerOrderItem> items;
   final List<CustomerOrderStatusEvent> statusHistory;
 
@@ -985,6 +1069,9 @@ class CustomerOrder {
     required this.dailyOrderNumber,
     required this.status,
     required this.paymentMode,
+    required this.paymentStatus,
+    required this.paymentMethod,
+    required this.paymentExpiresAt,
     required this.finalTotalRm,
     required this.tokenAmountCharged,
     required this.pickupSlotAt,
@@ -995,6 +1082,7 @@ class CustomerOrder {
     required this.primaryItemName,
     required this.baristaName,
     required this.baristaUsername,
+    required this.cancellationRequestStatus,
     required this.items,
     required this.statusHistory,
   });
@@ -1002,6 +1090,7 @@ class CustomerOrder {
   CustomerOrder copyWith({
     String? status,
     List<CustomerOrderStatusEvent>? statusHistory,
+    String? cancellationRequestStatusOverride,
   }) {
     return CustomerOrder(
       id: id,
@@ -1009,6 +1098,9 @@ class CustomerOrder {
       dailyOrderNumber: dailyOrderNumber,
       status: status ?? this.status,
       paymentMode: paymentMode,
+      paymentStatus: paymentStatus,
+      paymentMethod: paymentMethod,
+      paymentExpiresAt: paymentExpiresAt,
       finalTotalRm: finalTotalRm,
       tokenAmountCharged: tokenAmountCharged,
       pickupSlotAt: pickupSlotAt,
@@ -1019,6 +1111,8 @@ class CustomerOrder {
       primaryItemName: primaryItemName,
       baristaName: baristaName,
       baristaUsername: baristaUsername,
+      cancellationRequestStatus:
+          cancellationRequestStatusOverride ?? cancellationRequestStatus,
       items: items,
       statusHistory: statusHistory ?? this.statusHistory,
     );
@@ -1044,6 +1138,10 @@ class CustomerOrder {
       dailyOrderNumber: (json['daily_order_number'] as num?)?.toInt() ?? 0,
       status: json['status'] as String? ?? '',
       paymentMode: json['payment_mode'] as String? ?? '',
+      paymentStatus: json['payment_status'] as String?,
+      paymentMethod: json['payment_method'] as String?,
+      paymentExpiresAt:
+          _parseNullableDate(json['payment_expires_at'] as String?),
       finalTotalRm: json['final_total_rm'] as String? ?? '0.00',
       tokenAmountCharged: (json['token_amount_charged'] as num?)?.toInt() ?? 0,
       pickupSlotAt: _parseApiDate(json['pickup_slot_at'] as String),
@@ -1056,6 +1154,7 @@ class CustomerOrder {
       primaryItemName: json['primary_item_name'] as String?,
       baristaName: json['barista_name'] as String?,
       baristaUsername: json['barista_username'] as String?,
+      cancellationRequestStatus: json['cancellation_request_status'] as String?,
       items: (json['items'] as List? ?? const [])
           .map((item) => CustomerOrderItem.fromApi(
                 Map<String, dynamic>.from(item as Map),
@@ -1166,6 +1265,72 @@ class CustomerDataService {
               Map<String, dynamic>.from(item as Map),
             ))
         .toList();
+  }
+
+  Future<List<GiftCard>> getGiftCards({
+    required String accessToken,
+    bool includeHistory = false,
+  }) async {
+    final response = await _get(
+      '/gift-cards${includeHistory ? '?include_history=true' : ''}',
+      accessToken: accessToken,
+    );
+    return (response['gift_cards'] as List? ?? const [])
+        .map((item) => GiftCard.fromApi(Map<String, dynamic>.from(item as Map)))
+        .toList();
+  }
+
+  Future<GiftCardPurchase> purchaseGiftCard({
+    required String accessToken,
+    required String currency,
+    required num amount,
+    required String recipientPhone,
+    String? recipientMessage,
+    String? paymentMethod,
+    required String idempotencyKey,
+  }) async {
+    final response = await _post(
+      '/gift-cards',
+      accessToken: accessToken,
+      headers: {'Idempotency-Key': idempotencyKey},
+      body: {
+        'currency': currency,
+        'amount': amount,
+        'recipient_phone': recipientPhone,
+        'recipient_message': recipientMessage,
+        if (paymentMethod != null) 'payment_method': paymentMethod,
+      },
+    );
+    return GiftCardPurchase.fromApi(response);
+  }
+
+  Future<OnlineTopUpPaymentMethods> getGiftCardPaymentMethods({
+    required String accessToken,
+  }) async {
+    final response = await _get(
+      '/gift-cards/payment-methods',
+      accessToken: accessToken,
+    );
+    return OnlineTopUpPaymentMethods.fromApi(response);
+  }
+
+  Future<String> getGiftCardPurchaseStatus({
+    required String accessToken,
+    required String purchaseRef,
+  }) async {
+    final response = await _get(
+      '/gift-cards/purchases/${Uri.encodeComponent(purchaseRef)}',
+      accessToken: accessToken,
+    );
+    return response['status'] as String? ?? 'pending_payment';
+  }
+
+  Future<void> claimGiftCard({
+    required String accessToken,
+    required String code,
+  }) async {
+    await _post('/gift-cards/claim',
+        accessToken: accessToken, body: {'code': code});
   }
 
   Future<OnlineTopUpPaymentMethods> getChipPaymentMethods({
@@ -1341,6 +1506,43 @@ class CustomerDataService {
     );
   }
 
+  Future<Map<String, dynamic>> requestOrderCancellation({
+    required String accessToken,
+    required int orderId,
+    String? reason,
+  }) {
+    return _post(
+      '/orders/$orderId/cancellation-request',
+      accessToken: accessToken,
+      body: {
+        'reason':
+            reason ?? 'Customer requested cancellation before preparation.'
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> getOrderPayment({
+    required String accessToken,
+    required int orderId,
+  }) {
+    return _get(
+      '/orders/$orderId/payment',
+      accessToken: accessToken,
+    );
+  }
+
+  Future<Map<String, dynamic>> retryOrderPayment({
+    required String accessToken,
+    required int orderId,
+    required String paymentMethod,
+  }) {
+    return _post(
+      '/orders/$orderId/payment/retry',
+      accessToken: accessToken,
+      body: {'payment_method': paymentMethod},
+    );
+  }
+
   Future<ReferralSnapshot> getReferralInfo({
     required String accessToken,
   }) async {
@@ -1366,6 +1568,7 @@ class CustomerDataService {
     String path, {
     required String accessToken,
     required Map<String, dynamic> body,
+    Map<String, String> headers = const {},
   }) async {
     http.Response response = await _client
         .post(
@@ -1373,6 +1576,7 @@ class CustomerDataService {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $accessToken',
+            ...headers,
           },
           body: jsonEncode(body),
         )
@@ -1388,6 +1592,7 @@ class CustomerDataService {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer $refreshed',
+                ...headers,
               },
               body: jsonEncode(body),
             )

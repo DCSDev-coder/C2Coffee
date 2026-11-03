@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'counter_cart_modifiers.dart';
 import 'counter_menu.dart';
+import 'barista/services/api_service.dart';
 
 class ProductDetailModal extends StatefulWidget {
   final CounterMenuItem item;
@@ -31,6 +32,32 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
   bool _hasLibraryGroup(String keyword) =>
       counterHasLibraryGroup(widget.item, keyword);
+
+  List<CounterModifierGroup> get _activeLibraryGroups {
+    final selectedOptionIds = _librarySelections.values
+        .expand((ids) => ids)
+        .toSet();
+    return widget.item.modifierGroups.where((group) {
+      if (group.hiddenWhenOptionIds.isNotEmpty) {
+        if (group.hiddenWhenOptionIds.any(selectedOptionIds.contains)) {
+          return false;
+        }
+        final parentGroupsWithRule = widget.item.modifierGroups.where(
+          (otherGroup) =>
+              otherGroup.id != group.id &&
+              otherGroup.options.any(
+                (opt) => group.hiddenWhenOptionIds.contains(opt.id),
+              ),
+        );
+        for (final parentGroup in parentGroupsWithRule) {
+          if ((_librarySelections[parentGroup.id] ?? const []).isEmpty) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -98,7 +125,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
 
   void _onAddToCart() {
     final missing = <int>{};
-    for (final group in widget.item.modifierGroups) {
+    for (final group in _activeLibraryGroups) {
       if (group.name.toLowerCase() == 'order type') {
         continue;
       }
@@ -384,6 +411,22 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      if (option.imageUrl != null) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            ApiService.resolveAssetUrl(option.imageUrl!),
+                            height: 54,
+                            width: 72,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const SizedBox(
+                              height: 54,
+                              width: 72,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       Expanded(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -589,7 +632,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
       ],
 
       // Dynamic Library options mapping
-      for (final group in widget.item.modifierGroups)
+      for (final group in _activeLibraryGroups)
         if (group.name.toLowerCase() != 'order type') _buildLibraryGroup(group),
     ];
   }
@@ -756,10 +799,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                 widget.item.name,
                 style: TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: isLandscape ? 30 : 26,
+                  fontSize: isLandscape ? 22 : 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.charcoal,
-                  height: 1.1,
+                  height: 1.15,
                 ),
               ),
             ),
@@ -773,7 +816,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                 'RM ${widget.item.priceRm.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontFamily: 'Recoleta',
-                  fontSize: 18,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.bold,
                   color: AppColors.primary,
                 ),
@@ -786,7 +829,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
           _itemDescription,
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 16,
+            fontSize: 13.5,
             color: Colors.black54,
             height: 1.35,
           ),
@@ -892,7 +935,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                                 'Customize Your Order',
                                 style: TextStyle(
                                   fontFamily: 'Recoleta',
-                                  fontSize: 22,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.primary,
                                 ),
@@ -902,7 +945,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                                 'Select your preferred options below',
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 15,
+                                  fontSize: 13.5,
                                   color: Colors.black54,
                                 ),
                               ),

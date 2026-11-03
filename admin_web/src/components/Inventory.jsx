@@ -12,6 +12,7 @@ import { showAdminError, showAdminSuccess } from '../lib/adminToast';
 import { exportToCSV } from '../utils/exportToCSV';
 import InfoTooltip from './InfoTooltip';
 import InventoryOperations from './InventoryOperations';
+import StockAvailabilityAlert from './StockAvailabilityAlert';
 
 const unitLabels = { piece: 'pcs', gram: 'g', millilitre: 'ml' };
 const emptyItem = { name: '', code: '', barcode: '', category: 'ingredient', unit_code: 'piece' };
@@ -462,6 +463,7 @@ export default function Inventory() {
   return (
     <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
+        <div className="mb-4 empty:hidden"><StockAvailabilityAlert /></div>
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>

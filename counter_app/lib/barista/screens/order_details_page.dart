@@ -500,10 +500,62 @@ class _PreparationWorkspaceState extends State<_PreparationWorkspace> {
             color: widget.darkGreen,
           ),
         if (preparing) const SizedBox(height: 16),
+        if (widget.order.cancellationRequestStatus == 'pending' ||
+            widget.order.cancellationRequestStatus == 'refund_pending') ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF4D6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5B94D)),
+            ),
+            child: Text(
+              widget.order.cancellationRequestStatus == 'refund_pending'
+                  ? 'Cancellation approved\nDo not prepare this order. The direct-payment refund is pending provider confirmation.'
+                  : 'Customer cancellation request\nReview this before starting preparation. Approving a token order returns the tokens. Direct-payment approval leaves the refund pending provider confirmation.',
+              style: TextStyle(
+                fontSize: 16,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (widget.order.cancellationRequestStatus == 'pending') ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _submitting
+                        ? null
+                        : () => _reviewCancellation('rejected'),
+                    child: const Text('Decline'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _submitting
+                        ? null
+                        : () => _reviewCancellation('approved'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.darkGreen,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Approve'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ],
         SizedBox(
           height: 56,
           child: ElevatedButton.icon(
-            onPressed: _submitting
+            onPressed:
+                _submitting ||
+                    widget.order.cancellationRequestStatus == 'refund_pending'
                 ? null
                 : () => _changeStatus(
                     preparing ? 'ready_for_pickup' : 'preparing',
@@ -538,6 +590,36 @@ class _PreparationWorkspaceState extends State<_PreparationWorkspace> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _reviewCancellation(String decision) async {
+    setState(() => _submitting = true);
+    final result = await ApiService.reviewCancellationRequest(
+      widget.order.orderId,
+      decision,
+    );
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    if (!result.isSuccess) {
+      TopNotice.error(context, result.errorMessage!);
+      return;
+    }
+    final reviewStatus = result.data?['status']?.toString();
+    widget.order.cancellationRequestStatus =
+        reviewStatus ?? (decision == 'approved' ? 'completed' : 'rejected');
+    if (reviewStatus == 'completed') {
+      widget.order.status = OrderStatus.completed;
+      globalCurrentOrders.value = List.from(globalCurrentOrders.value)
+        ..removeWhere((order) => order.orderId == widget.order.orderId);
+    } else {
+      globalCurrentOrders.value = List.from(globalCurrentOrders.value);
+    }
+    TopNotice.success(
+      context,
+      decision == 'approved'
+          ? 'Cancellation approved.'
+          : 'Cancellation request declined.',
     );
   }
 }

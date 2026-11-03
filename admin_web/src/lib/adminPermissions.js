@@ -10,6 +10,7 @@ const PAGE_ROLES = {
   Inventory: ['super_admin', 'operations_admin'],
   Marketing: ['super_admin', 'marketing_admin'],
   Voucher: ['super_admin', 'marketing_admin'],
+  'Gift Cards': ['super_admin', 'marketing_admin', 'support_admin'],
   'Referral Program': ['super_admin', 'marketing_admin'],
   'Token Ledger': ['super_admin'],
   'Tier Management': ['super_admin'],
@@ -34,8 +35,8 @@ const PAGE_ROLES = {
 export const ADMIN_ROLE_SECTIONS = {
   super_admin: 'All Admin Web sections',
   operations_admin: 'Orders, refunds, inventory, menu setup, barista operations, and staff guides',
-  marketing_admin: 'Menu, campaigns, vouchers, referrals, and product reports',
-  support_admin: 'Customer lookup and refund requests',
+  marketing_admin: 'Menu, campaigns, vouchers, gift cards, referrals, and product reports',
+  support_admin: 'Customer lookup, gift-card lookup, and refund requests',
   barista: 'Barista Console and workspace only'
 };
 

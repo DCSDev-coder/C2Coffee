@@ -208,59 +208,73 @@ export async function processOrderLoyalty(
     for (const tier of unlockedTiers) {
       const unlockedVoucherTemplateIds: number[] = [];
 
-      for (const voucherTemplateId of (tier.rewardConfig?.voucherTemplateIds ?? []).slice(0, 1)) {
-        const [entitlementResult] = await connection.execute<ResultSetHeader>(
-          `
-            INSERT IGNORE INTO user_tier_reward_entitlements (
-              user_id, tenant_id, voucher_template_id, tier_code, status,
-              issue_case_ref, source_order_id, unlocked_at
-            )
-            SELECT
-              :userId,
-              vt.tenant_id,
-              vt.id,
-              :tierCode,
-              'claimable',
-              :issueCaseRef,
-              :orderId,
-              UTC_TIMESTAMP()
-            FROM voucher_templates vt
-            JOIN orders o
-              ON o.id = :orderId
-             AND o.user_id = :userId
-             AND o.store_id IS NOT NULL
-            JOIN stores s
-              ON s.id = o.store_id
-             AND s.tenant_id = vt.tenant_id
-            WHERE vt.id = :voucherTemplateId
-              AND vt.is_active = 1
-          `,
-          {
-            userId,
-            orderId,
-            voucherTemplateId,
-            issueCaseRef: `tier_unlock:${tier.code}:${voucherTemplateId}`,
-            tierCode: tier.code
-          }
+      for (const voucherTemplateId of tier.rewardConfig?.voucherTemplateIds ?? []) {
+        // limit_per_user on a tier reward template = number of claims granted
+        // per unlock (e.g. "RM1 OFF x5"). Each claim gets its own entitlement.
+        const [limitRows] = await connection.query<Array<RowDataPacket & { limit_per_user: number | null }>>(
+          'SELECT limit_per_user FROM voucher_templates WHERE id = :voucherTemplateId LIMIT 1',
+          { voucherTemplateId }
         );
+        const claimCount = Math.max(1, Math.min(20, Number(limitRows[0]?.limit_per_user ?? 1) || 1));
 
-        if (entitlementResult.affectedRows > 0) {
-          unlockedVoucherTemplateIds.push(voucherTemplateId);
-          await connection.execute(
-            `INSERT INTO loyalty_order_reward_issues (
-               order_id, user_id, user_voucher_id, tier_reward_entitlement_id,
-               tier_code, reversal_status, created_at
-             ) VALUES (
-               :orderId, :userId, NULL, :entitlementId,
-               :tierCode, 'active', UTC_TIMESTAMP()
-             )`,
+        for (let claimNumber = 1; claimNumber <= claimCount; claimNumber += 1) {
+          const [entitlementResult] = await connection.execute<ResultSetHeader>(
+            `
+              INSERT IGNORE INTO user_tier_reward_entitlements (
+                user_id, tenant_id, voucher_template_id, tier_code, status,
+                issue_case_ref, source_order_id, unlocked_at
+              )
+              SELECT
+                :userId,
+                vt.tenant_id,
+                vt.id,
+                :tierCode,
+                'claimable',
+                :issueCaseRef,
+                :orderId,
+                UTC_TIMESTAMP()
+              FROM voucher_templates vt
+              JOIN orders o
+                ON o.id = :orderId
+               AND o.user_id = :userId
+               AND o.store_id IS NOT NULL
+              JOIN stores s
+                ON s.id = o.store_id
+               AND s.tenant_id = vt.tenant_id
+              WHERE vt.id = :voucherTemplateId
+                AND vt.is_active = 1
+            `,
             {
-              orderId,
               userId,
-              entitlementId: entitlementResult.insertId,
+              orderId,
+              voucherTemplateId,
+              issueCaseRef: claimNumber === 1
+                ? `tier_unlock:${tier.code}:${voucherTemplateId}`
+                : `tier_unlock:${tier.code}:${voucherTemplateId}:${claimNumber}`,
               tierCode: tier.code
             }
           );
+
+          if (entitlementResult.affectedRows > 0) {
+            if (!unlockedVoucherTemplateIds.includes(voucherTemplateId)) {
+              unlockedVoucherTemplateIds.push(voucherTemplateId);
+            }
+            await connection.execute(
+              `INSERT INTO loyalty_order_reward_issues (
+                 order_id, user_id, user_voucher_id, tier_reward_entitlement_id,
+                 tier_code, reversal_status, created_at
+               ) VALUES (
+                 :orderId, :userId, NULL, :entitlementId,
+                 :tierCode, 'active', UTC_TIMESTAMP()
+               )`,
+              {
+                orderId,
+                userId,
+                entitlementId: entitlementResult.insertId,
+                tierCode: tier.code
+              }
+            );
+          }
         }
       }
 

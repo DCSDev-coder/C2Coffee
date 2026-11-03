@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package,
+  LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package, Gift,
   Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap
 } from 'lucide-react';
 
@@ -22,6 +22,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Inventory', icon: Package, section: 'Menu setup' },
     { name: 'Marketing', icon: Megaphone, section: 'Marketing & loyalty' },
     { name: 'Voucher', icon: Ticket, section: 'Marketing & loyalty' },
+    { name: 'Gift Cards', icon: Gift, section: 'Marketing & loyalty' },
     { name: 'Referral Program', icon: Share2, section: 'Marketing & loyalty' },
     { name: 'Token Ledger', icon: Coins, section: 'Marketing & loyalty' },
     { name: 'Tier Management', icon: Crown, section: 'Marketing & loyalty' },

@@ -62,6 +62,33 @@ class ApiService {
     }
   }
 
+  static Future<ApiRequestResult> reviewCancellationRequest(
+    String orderId,
+    String decision,
+  ) async {
+    try {
+      final response = await _authenticatedRequest(
+        (headers) => http.patch(
+          Uri.parse('$baseUrl/admin/orders/$orderId/cancellation-request'),
+          headers: headers,
+          body: json.encode({'decision': decision}),
+        ),
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return ApiRequestResult.success(
+          decoded is Map<String, dynamic> ? decoded : null,
+        );
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (e) {
+      debugPrint('Review cancellation error: $e');
+      return const ApiRequestResult.failure(
+        'Unable to review this cancellation request. Check the connection and try again.',
+      );
+    }
+  }
+
   static Future<ApiRequestResult> login(
     String identifier,
     String password,
@@ -234,6 +261,8 @@ class ApiService {
                 customerDetails:
                     '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
                 items: parsedItems,
+                cancellationRequestStatus: json['cancellationRequestStatus']
+                    ?.toString(),
               );
             })
             .whereType<CurrentOrder>()
@@ -676,19 +705,20 @@ class BaristaSoundSettings {
       sideWorkBeeps = 3,
       sideWorkStyle = 'two_tone';
 
-  factory BaristaSoundSettings.fromJson(Map<String, dynamic> json) =>
-      BaristaSoundSettings(
-        volumePercent: (json['volume_percent'] as num?)?.toInt() ?? 70,
-        incomingOrderEnabled: _soundEnabled(json['incoming_order_enabled']),
-        incomingOrderBeeps: (json['incoming_order_beeps'] as num?)?.toInt() ?? 4,
-        incomingOrderStyle: _soundStyle(json['incoming_order_style'], 'two_tone'),
-        clockInBeeps: (json['clock_in_beeps'] as num?)?.toInt() ?? 1,
-        clockInStyle: _soundStyle(json['clock_in_style'], 'short'),
-        clockOutBeeps: (json['clock_out_beeps'] as num?)?.toInt() ?? 2,
-        clockOutStyle: _soundStyle(json['clock_out_style'], 'long'),
-        sideWorkBeeps: (json['side_work_beeps'] as num?)?.toInt() ?? 3,
-        sideWorkStyle: _soundStyle(json['side_work_style'], 'two_tone'),
-      );
+  factory BaristaSoundSettings.fromJson(
+    Map<String, dynamic> json,
+  ) => BaristaSoundSettings(
+    volumePercent: (json['volume_percent'] as num?)?.toInt() ?? 70,
+    incomingOrderEnabled: _soundEnabled(json['incoming_order_enabled']),
+    incomingOrderBeeps: (json['incoming_order_beeps'] as num?)?.toInt() ?? 4,
+    incomingOrderStyle: _soundStyle(json['incoming_order_style'], 'two_tone'),
+    clockInBeeps: (json['clock_in_beeps'] as num?)?.toInt() ?? 1,
+    clockInStyle: _soundStyle(json['clock_in_style'], 'short'),
+    clockOutBeeps: (json['clock_out_beeps'] as num?)?.toInt() ?? 2,
+    clockOutStyle: _soundStyle(json['clock_out_style'], 'long'),
+    sideWorkBeeps: (json['side_work_beeps'] as num?)?.toInt() ?? 3,
+    sideWorkStyle: _soundStyle(json['side_work_style'], 'two_tone'),
+  );
 
   static String _soundStyle(Object? value, String fallback) {
     final style = value?.toString();
@@ -813,9 +843,10 @@ class BaristaSideWorkTask {
 
 class ApiRequestResult {
   final String? errorMessage;
+  final Map<String, dynamic>? data;
 
-  const ApiRequestResult.success() : errorMessage = null;
-  const ApiRequestResult.failure(this.errorMessage);
+  const ApiRequestResult.success([this.data]) : errorMessage = null;
+  const ApiRequestResult.failure(this.errorMessage) : data = null;
 
   bool get isSuccess => errorMessage == null;
 }

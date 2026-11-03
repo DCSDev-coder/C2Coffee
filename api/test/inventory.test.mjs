@@ -87,3 +87,8 @@ test('inventory administration is tenant scoped and order lifecycle hooks cover 
   assert.match(orders, /consumeInventoryForOrder\(connection, internalId\)/);
   assert.match(orders, /reverseInventoryForOrder\(connection, refund\.order_id\)/);
 });
+
+test('stock lock selects average cost so collection can price the consumption movement', async () => {
+  const code = await source('src/services/inventory.ts');
+  assert.match(code, /CAST\(average_unit_cost_rm AS CHAR\) AS average_unit_cost_rm/);
+});

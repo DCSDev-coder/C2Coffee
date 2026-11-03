@@ -21,7 +21,29 @@ List<Map<String, dynamic>> buildCounterCartModifiers({
     }
   }
 
+  final selectedOptionIdSet = selections.values
+      .expand((ids) => ids)
+      .toSet();
+
   for (final group in item.modifierGroups) {
+    if (group.hiddenWhenOptionIds.isNotEmpty) {
+      if (group.hiddenWhenOptionIds.any(selectedOptionIdSet.contains)) {
+        continue;
+      }
+      final parentGroupsWithRule = item.modifierGroups.where(
+        (otherGroup) =>
+            otherGroup.id != group.id &&
+            otherGroup.options.any(
+              (opt) => group.hiddenWhenOptionIds.contains(opt.id),
+            ),
+      );
+      final missingParentSelection = parentGroupsWithRule.any(
+        (parentGroup) => (selections[parentGroup.id] ?? const []).isEmpty,
+      );
+      if (missingParentSelection) {
+        continue;
+      }
+    }
     var selectedOptionIds = selections[group.id] ?? const <int>[];
     if (_normalize(group.name) == 'order type' && orderType != null) {
       final selectedOrderType = group.options.where(

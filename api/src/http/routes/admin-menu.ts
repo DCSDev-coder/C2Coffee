@@ -383,6 +383,12 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         FROM menu_categories c
         LEFT JOIN menu_items i
           ON i.category_id = c.id
+         AND EXISTS (
+           SELECT 1
+           FROM menu_item_tenants tenant_item
+           WHERE tenant_item.menu_item_id = i.id
+             AND tenant_item.tenant_id = :tenantId
+         )
         LEFT JOIN menu_subcategories sc
           ON sc.id = i.subcategory_id
         LEFT JOIN (
@@ -407,7 +413,8 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         LEFT JOIN item_modifier_options imo
           ON imo.modifier_group_id = img.id
         ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC, tp.tier_code ASC
-      `
+      `,
+      { tenantId: request.adminAuth.tenantId }
     );
 
     return buildMenuResponse(rows);
@@ -491,6 +498,12 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         FROM menu_categories c
         JOIN menu_items i
           ON i.category_id = c.id
+         AND EXISTS (
+           SELECT 1
+           FROM menu_item_tenants tenant_item
+           WHERE tenant_item.menu_item_id = i.id
+             AND tenant_item.tenant_id = :tenantId
+         )
         LEFT JOIN menu_subcategories sc
           ON sc.id = i.subcategory_id
         LEFT JOIN (
@@ -522,6 +535,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC, tp.tier_code ASC
       `,
       {
+        tenantId: request.adminAuth.tenantId,
         tenantCode: request.adminAuth.tenantCode,
         storeId: reportQuery.store_id ?? null,
         selectedDate: safeSelectedDate,
@@ -626,13 +640,22 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       );
 
       const menuItemId = itemResult[0].insertId;
+      await connection.execute(
+        `INSERT INTO menu_item_tenants (tenant_id, menu_item_id)
+         VALUES (:tenantId, :menuItemId)`,
+        { tenantId: request.adminAuth.tenantId, menuItemId }
+      );
       await upsertMenuTokenPrices(connection, menuItemId, payload.token_prices);
       await replaceMenuModifiers(connection, menuItemId, payload.modifier_groups);
+
+      if (payload.is_active === false) {
+        await unlinkArchivedMenuItemConfiguration(connection, menuItemId);
+      }
 
       await connection.commit();
 
       return {
-        item: await loadMenuItemById(menuItemId)
+        item: await loadMenuItemById(menuItemId, request.adminAuth.tenantId)
       };
     } catch (error) {
       await connection.rollback();
@@ -707,10 +730,13 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
             c.code AS category_code
           FROM menu_items i
           JOIN menu_categories c ON c.id = i.category_id
+          JOIN menu_item_tenants tenant_item
+            ON tenant_item.menu_item_id = i.id
+           AND tenant_item.tenant_id = :tenantId
           WHERE i.id = :menuItemId
           LIMIT 1
         `,
-        { menuItemId }
+        { menuItemId, tenantId: request.adminAuth.tenantId }
       );
 
       if (!existingRows[0]) {
@@ -836,10 +862,14 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       await upsertMenuTokenPrices(connection, menuItemId, payload.token_prices);
       await replaceMenuModifiers(connection, menuItemId, payload.modifier_groups);
 
+      if (payload.is_active === false) {
+        await unlinkArchivedMenuItemConfiguration(connection, menuItemId);
+      }
+
       await connection.commit();
 
       return {
-        item: await loadMenuItemById(menuItemId)
+        item: await loadMenuItemById(menuItemId, request.adminAuth.tenantId)
       };
     } catch (error) {
       await connection.rollback();
@@ -878,9 +908,12 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
               WHERE lce.menu_item_id = i.id
             ) AS cup_event_count
           FROM menu_items i
+          JOIN menu_item_tenants tenant_item
+            ON tenant_item.menu_item_id = i.id
+           AND tenant_item.tenant_id = :tenantId
           WHERE i.id = :menuItemId
         `,
-        { menuItemId }
+        { menuItemId, tenantId: request.adminAuth.tenantId }
       );
 
       const item = rows[0];
@@ -910,19 +943,37 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       return { ok: true, mode: 'deleted' };
     }
 
-    const [result] = await mysqlPool.execute<ResultSetHeader>(
-      `
-        UPDATE menu_items
-        SET is_active = 0,
-            archived_at = COALESCE(archived_at, UTC_TIMESTAMP()),
-            updated_at = UTC_TIMESTAMP()
-        WHERE id = :menuItemId
-      `,
-      { menuItemId }
-    );
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.execute<ResultSetHeader>(
+        `
+          UPDATE menu_items
+          SET is_active = 0,
+              archived_at = COALESCE(archived_at, UTC_TIMESTAMP()),
+              updated_at = UTC_TIMESTAMP()
+          WHERE id = :menuItemId
+            AND EXISTS (
+              SELECT 1
+              FROM menu_item_tenants tenant_item
+              WHERE tenant_item.menu_item_id = menu_items.id
+                AND tenant_item.tenant_id = :tenantId
+            )
+        `,
+        { menuItemId, tenantId: request.adminAuth.tenantId }
+      );
 
-    if (result.affectedRows === 0) {
-      throw new ApiError(404, 'menu_item_not_found', 'Menu item was not found.');
+      if (result.affectedRows === 0) {
+        throw new ApiError(404, 'menu_item_not_found', 'Menu item was not found.');
+      }
+
+      await unlinkArchivedMenuItemConfiguration(connection, menuItemId);
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
 
     return { ok: true };
@@ -1498,7 +1549,7 @@ function buildProductReportResponse(menuResponse: AdminMenuResponse): ProductRep
     };
   }
 
-async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | null> {
+async function loadMenuItemById(menuItemId: number, tenantId: number): Promise<AdminMenuItem | null> {
   const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(
     `
       SELECT
@@ -1557,6 +1608,9 @@ async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | nul
         imo.is_active AS modifier_option_is_active
       FROM menu_items i
       JOIN menu_categories c ON c.id = i.category_id
+      JOIN menu_item_tenants tenant_item
+        ON tenant_item.menu_item_id = i.id
+       AND tenant_item.tenant_id = :tenantId
       LEFT JOIN menu_subcategories sc ON sc.id = i.subcategory_id
       LEFT JOIN (
         SELECT
@@ -1582,7 +1636,7 @@ async function loadMenuItemById(menuItemId: number): Promise<AdminMenuItem | nul
       WHERE i.id = :menuItemId
       ORDER BY tp.tier_code ASC
     `,
-    { menuItemId }
+    { menuItemId, tenantId }
   );
 
   const response = buildMenuResponse(rows);
@@ -1896,6 +1950,43 @@ async function replaceMenuModifiers(
       );
     }
   }
+}
+
+/**
+ * Archive removes an item from current setup, but never from historical data.
+ * Order modifier snapshots and inventory usage/revision records intentionally
+ * retain their menu-item references for reporting and audit purposes.
+ */
+async function unlinkArchivedMenuItemConfiguration(
+  connection: Awaited<ReturnType<typeof mysqlPool.getConnection>>,
+  menuItemId: number
+): Promise<void> {
+  await connection.execute(
+    'DELETE FROM menu_option_group_items WHERE menu_item_id = :menuItemId',
+    { menuItemId }
+  );
+  await connection.execute(
+    'DELETE FROM menu_item_option_exclusions WHERE menu_item_id = :menuItemId',
+    { menuItemId }
+  );
+  await connection.execute(
+    'DELETE FROM menu_item_option_nutrition_overrides WHERE menu_item_id = :menuItemId',
+    { menuItemId }
+  );
+  await connection.execute(
+    'DELETE FROM inventory_menu_item_recipes WHERE menu_item_id = :menuItemId',
+    { menuItemId }
+  );
+  await connection.execute(
+    'DELETE FROM item_modifier_groups WHERE menu_item_id = :menuItemId',
+    { menuItemId }
+  );
+  await connection.execute(
+    `UPDATE menu_item_recipe_versions
+     SET status = 'archived'
+     WHERE menu_item_id = :menuItemId AND status = 'active'`,
+    { menuItemId }
+  );
 }
 
 function generateMenuCode(name: string): string {

@@ -4,6 +4,7 @@ class CounterModifierOption {
   final String name;
   final String priceDeltaRm;
   final bool isDefault;
+  final String? imageUrl;
 
   const CounterModifierOption({
     required this.id,
@@ -11,6 +12,7 @@ class CounterModifierOption {
     required this.name,
     required this.priceDeltaRm,
     required this.isDefault,
+    this.imageUrl,
   });
 
   factory CounterModifierOption.fromApi(Map<String, dynamic> json) {
@@ -20,6 +22,9 @@ class CounterModifierOption {
       name: json['name'] as String? ?? '',
       priceDeltaRm: json['price_delta_rm'] as String? ?? '0.00',
       isDefault: json['is_default'] as bool? ?? false,
+      imageUrl: json['image_url']?.toString().trim().isNotEmpty == true
+          ? json['image_url'].toString().trim()
+          : null,
     );
   }
 }
@@ -32,6 +37,7 @@ class CounterModifierGroup {
   final int minSelect;
   final int maxSelect;
   final bool isRequired;
+  final List<int> hiddenWhenOptionIds;
   final List<CounterModifierOption> options;
 
   const CounterModifierGroup({
@@ -42,6 +48,7 @@ class CounterModifierGroup {
     required this.minSelect,
     required this.maxSelect,
     required this.isRequired,
+    this.hiddenWhenOptionIds = const [],
     required this.options,
   });
 
@@ -62,6 +69,10 @@ class CounterModifierGroup {
       minSelect: (json['min_select'] as num?)?.toInt() ?? 0,
       maxSelect: (json['max_select'] as num?)?.toInt() ?? 1,
       isRequired: json['is_required'] as bool? ?? false,
+      hiddenWhenOptionIds: (json['hidden_when_option_ids'] as List? ?? const [])
+          .whereType<num>()
+          .map((id) => id.toInt())
+          .toList(),
       options: options,
     );
   }

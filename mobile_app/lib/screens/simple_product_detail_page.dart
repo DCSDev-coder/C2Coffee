@@ -198,7 +198,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                           _itemName,
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 30,
+                            fontSize: 22,
                             fontWeight: FontWeight.w900,
                             color: Colors.black,
                           ),
@@ -208,7 +208,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                           _itemDescription,
                           style: const TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 16,
+                            fontSize: 13.5,
                             color: Colors.black87,
                           ),
                         ),
@@ -289,7 +289,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                       'Total',
                       style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 18,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold),
                     ),
                     Column(
@@ -352,7 +352,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                               quantity.toString(),
                               style: const TextStyle(
                                   fontFamily: 'Recoleta',
-                                  fontSize: 18,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -430,7 +430,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                           'ADD TO CART',
                           style: TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 16,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),

@@ -14,7 +14,19 @@ html {
   text-size-adjust: 100%;
 }
 
-/* Scaled font-size to comfortably fit 1080p, 2K/1440p, 4K and smaller laptop screens */
+/* Scaled font-size to comfortably fit tablets, laptops, 1080p, 2K/1440p, and 4K screens */
+@media (max-width: 1023px) {
+  html {
+    font-size: 13.5px;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  html {
+    font-size: 14px;
+  }
+}
+
 @media (min-width: 1280px) and (max-width: 1535px) {
   html {
     font-size: 14.5px;

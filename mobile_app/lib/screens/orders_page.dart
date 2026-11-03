@@ -522,7 +522,7 @@ class _OrdersPageState extends State<OrdersPage>
                       orderTitle,
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 22,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: AppColors.deepTeal,
                       ),
@@ -532,7 +532,7 @@ class _OrdersPageState extends State<OrdersPage>
                       order.store.name,
                       style: const TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 16,
+                        fontSize: 13.5,
                         color: Colors.black87,
                       ),
                     ),
@@ -661,7 +661,7 @@ class _OrdersPageState extends State<OrdersPage>
                       : 'RM ${order.finalTotalRm}',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.gold,
                   ),
@@ -671,7 +671,7 @@ class _OrdersPageState extends State<OrdersPage>
                     'RM ${order.finalTotalRm}',
                     style: const TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 16,
+                      fontSize: 13.5,
                       color: Colors.black54,
                     ),
                   ),
@@ -685,7 +685,7 @@ class _OrdersPageState extends State<OrdersPage>
                   '${order.tokenAmountCharged} tokens',
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.gold,
                   ),

@@ -21,7 +21,7 @@ import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { deliverPushToStaff } from '../../services/push-delivery.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
-import { createChipPurchase, getChipPurchase, type ChipPaymentMethod } from '../../payments/chip-client.js';
+import { cancelChipPurchase, createChipPurchase, getChipPurchase, type ChipPaymentMethod } from '../../payments/chip-client.js';
 import {
   isStoreAcceptingMobileOrdersNow,
   isStoreOpenNow
@@ -31,6 +31,7 @@ import {
   releaseInventoryForOrder,
   reserveInventoryForOrder
 } from '../../services/inventory.js';
+import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
 
@@ -39,6 +40,7 @@ const createOrderSchema = z.object({
   payment_mode: z.enum(['token', 'direct']),
   payment_method: z.enum(['fpx', 'duitnow_qr', 'card', 'ewallet']).nullish(),
   applied_voucher_id: z.coerce.number().int().positive().nullish(),
+  gift_card_code: z.string().trim().min(8).max(40).nullish(),
   items: z
     .array(
       z.object({
@@ -874,19 +876,50 @@ export async function registerCheckoutRoutes(
         tokenAmountCharged = Math.max(0, tokenAmountCharged - discountTokens);
       }
 
+      discountRm = normalizeMoney(discountRm);
+      let finalTotalRm = Math.max(
+        0,
+        normalizeMoney(totalBeforeDiscountRm - discountRm)
+      );
+      let appliedGiftCard: { id: number; currency: 'rm' | 'token'; remainingAmount: number; code: string } | null = null;
+      let giftCardAmountRm = 0;
+      let giftCardTokenAmount = 0;
+
+      if (payload.gift_card_code) {
+        const [giftCardRows] = await connection.execute<Array<RowDataPacket & { id: number; currency: 'rm' | 'token'; remaining_amount: string; code: string }>>(
+          `SELECT id, currency, CAST(remaining_amount AS CHAR) AS remaining_amount, code
+             FROM gift_cards
+            WHERE code = :code
+              AND recipient_user_id = :userId
+              AND claimed_at IS NOT NULL
+              AND tenant_id = :tenantId
+              AND status = 'active'
+              AND (expires_at IS NULL OR expires_at > UTC_TIMESTAMP())
+            LIMIT 1 FOR UPDATE`,
+          { code: payload.gift_card_code.toUpperCase(), userId: request.auth.userId, tenantId: store.tenant_id }
+        );
+        const giftCard = giftCardRows[0];
+        if (!giftCard || Number(giftCard.remaining_amount) <= 0) {
+          throw new ApiError(400, 'gift_card_unavailable', 'That gift card is unavailable, empty, or belongs to another customer.');
+        }
+        appliedGiftCard = { id: Number(giftCard.id), currency: giftCard.currency, remainingAmount: Number(giftCard.remaining_amount), code: giftCard.code };
+        if (giftCard.currency === 'token') {
+          if (!isTokenCheckout) throw new ApiError(400, 'gift_card_currency_mismatch', 'A token gift card can only be used with token checkout.');
+          giftCardTokenAmount = Math.min(tokenAmountCharged, Math.floor(appliedGiftCard.remainingAmount));
+          tokenAmountCharged -= giftCardTokenAmount;
+        } else {
+          if (isTokenCheckout) throw new ApiError(400, 'gift_card_currency_mismatch', 'An RM gift card can only be used with RM checkout.');
+          giftCardAmountRm = Math.min(finalTotalRm, appliedGiftCard.remainingAmount);
+          finalTotalRm = normalizeMoney(finalTotalRm - giftCardAmountRm);
+        }
+      }
       if (isTokenCheckout && bootstrap.token_balance < tokenAmountCharged) {
         throw new ApiError(
           400,
           'insufficient_token_balance',
-          'Your wallet balance is not enough to complete this checkout.'
+          'Your wallet balance plus this gift card is not enough to complete this checkout.'
         );
       }
-
-      discountRm = normalizeMoney(discountRm);
-      const finalTotalRm = Math.max(
-        0,
-        normalizeMoney(totalBeforeDiscountRm - discountRm)
-      );
       const directPaymentRequired = !isTokenCheckout && finalTotalRm > 0;
       const orderPaid = isTokenCheckout || !directPaymentRequired;
 
@@ -912,6 +945,9 @@ export async function registerCheckoutRoutes(
             final_total_rm,
             token_amount_charged,
             voucher_id,
+            gift_card_id,
+            gift_card_amount_rm,
+            gift_card_token_amount,
             pickup_slot_at,
             paid_at,
             created_at
@@ -930,6 +966,9 @@ export async function registerCheckoutRoutes(
             :finalTotalRm,
             :tokenAmountCharged,
             :voucherId,
+            :giftCardId,
+            :giftCardAmountRm,
+            :giftCardTokenAmount,
             :pickupSlotAt,
             :paidAt,
             UTC_TIMESTAMP()
@@ -947,6 +986,9 @@ export async function registerCheckoutRoutes(
           finalTotalRm: finalTotalRm.toFixed(2),
           tokenAmountCharged,
           voucherId: appliedVoucher ? appliedVoucher.id : null,
+          giftCardId: appliedGiftCard?.id ?? null,
+          giftCardAmountRm: giftCardAmountRm.toFixed(2),
+          giftCardTokenAmount,
           pickupSlotAt: _formatMySqlDateTime(pickupSlot),
             orderStatus: orderPaid ? 'paid' : 'pending_payment',
           paymentMode: payload.payment_mode,
@@ -955,6 +997,24 @@ export async function registerCheckoutRoutes(
       );
 
       const orderId = orderResult.insertId;
+
+      if (appliedGiftCard && (giftCardAmountRm > 0 || giftCardTokenAmount > 0)) {
+        const usedAmount = appliedGiftCard.currency === 'rm' ? giftCardAmountRm : giftCardTokenAmount;
+        const balanceAfter = normalizeMoney(appliedGiftCard.remainingAmount - usedAmount);
+        await connection.execute(
+          `UPDATE gift_cards
+              SET remaining_amount = :balanceAfter,
+                  status = CASE WHEN :balanceAfter = 0 THEN 'depleted' ELSE 'active' END,
+                  updated_at = UTC_TIMESTAMP()
+            WHERE id = :giftCardId AND status = 'active'`,
+          { giftCardId: appliedGiftCard.id, balanceAfter }
+        );
+        await connection.execute(
+          `INSERT INTO gift_card_transactions (gift_card_id, transaction_type, amount, balance_after, order_id, actor_user_id, remarks, created_at)
+           VALUES (:giftCardId, 'redeemed', :amount, :balanceAfter, :orderId, :userId, :remarks, UTC_TIMESTAMP())`,
+          { giftCardId: appliedGiftCard.id, amount: usedAmount, balanceAfter, orderId, userId: request.auth.userId, remarks: `Checkout gift card ${appliedGiftCard.code}` }
+        );
+      }
 
       // A customer becomes visible to the store tenant as soon as an order is placed.
       await connection.execute(
@@ -1291,9 +1351,9 @@ export async function registerCheckoutRoutes(
         }
         await connection.execute(
           `INSERT INTO payments (
-             order_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at
+             order_id, provider, payment_method, provider_payment_ref, amount_rm, status, created_at, expires_at
            ) VALUES (
-             :orderId, 'chip', :paymentMethod, :orderRef, :amountRm, 'pending', UTC_TIMESTAMP()
+             :orderId, 'chip', :paymentMethod, :orderRef, :amountRm, 'pending', UTC_TIMESTAMP(), DATE_ADD(UTC_TIMESTAMP(), INTERVAL 15 MINUTE)
            )`,
           {
             orderId,
@@ -1351,18 +1411,27 @@ export async function registerCheckoutRoutes(
             method: payload.payment_method as ChipPaymentMethod,
             callbackUrl: customerPaymentCallbackUrl()
           });
-          await mysqlPool.execute(
+          const [attachResult] = await mysqlPool.execute<ResultSetHeader>(
             `UPDATE payments
              SET provider_bill_id = :purchaseId
              WHERE order_id = :orderId AND provider = 'chip' AND status = 'pending'`,
             { purchaseId: purchase.id, orderId }
           );
+          if (attachResult.affectedRows !== 1) {
+            try {
+              await cancelChipPurchase(purchase.id);
+            } catch (cancelError) {
+              request.log.error({ err: cancelError, providerPurchaseId: purchase.id }, 'Unable to cancel detached CHIP checkout purchase');
+            }
+            throw new ApiError(409, 'payment_attempt_no_longer_active', 'The payment attempt changed before the payment page was ready. Please try again.');
+          }
           directPaymentResponse = {
             provider: 'chip',
             status: 'pending',
             payment_method: payload.payment_method,
             checkout_url: purchase.checkoutUrl,
-            amount_rm: finalTotalRm.toFixed(2)
+            amount_rm: finalTotalRm.toFixed(2),
+            expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString()
           };
         } catch (error) {
           await mysqlPool.execute(
@@ -1379,6 +1448,12 @@ export async function registerCheckoutRoutes(
           try {
             await inventoryConnection.beginTransaction();
             await releaseInventoryForOrder(inventoryConnection, orderId);
+            await restoreGiftCardForRefund(
+              inventoryConnection,
+              orderId,
+              request.auth.userId,
+              'Restored after direct payment creation failed.'
+            );
             await inventoryConnection.commit();
           } catch (inventoryError) {
             await inventoryConnection.rollback();

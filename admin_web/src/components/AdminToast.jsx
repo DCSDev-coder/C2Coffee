@@ -41,10 +41,10 @@ export default function AdminToast() {
   const StatusIcon = isError ? AlertCircle : CheckCircle2;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-5 z-[100000] flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 top-5 z-[2147483647] flex justify-center px-4">
       <div
-        role="status"
-        aria-live="polite"
+        role={isError ? "alert" : "status"}
+        aria-live={isError ? "assertive" : "polite"}
         className={`pointer-events-auto flex max-w-[min(92vw,42rem)] items-center gap-3 rounded-full border px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(23,63,55,0.28)] ${isError ? "border-red-200 bg-[#8F3428]" : "border-emerald-200 bg-[#173F37]"}`}
       >
         <StatusIcon className={`h-5 w-5 shrink-0 ${isError ? "text-red-100" : "text-emerald-300"}`} aria-hidden="true" />

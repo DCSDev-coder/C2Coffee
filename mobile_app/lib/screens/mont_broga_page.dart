@@ -104,7 +104,25 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
           .map((id) => id.toInt())
           .toSet();
       if (hiddenWhen.isNotEmpty) {
-        return !hiddenWhen.any(selectedOptionIds.contains);
+        if (hiddenWhen.any(selectedOptionIds.contains)) {
+          return false;
+        }
+        final parentGroupsWithRule = _libraryGroups.where((otherGroup) {
+          if (otherGroup['id'] == group['id']) return false;
+          final options = (otherGroup['options'] as List? ?? const [])
+              .whereType<Map>();
+          return options.any(
+            (opt) => hiddenWhen.contains((opt['id'] as num?)?.toInt()),
+          );
+        });
+        for (final parentGroup in parentGroupsWithRule) {
+          final parentId = parentGroup['id'] as int?;
+          if (parentId != null &&
+              (_librarySelections[parentId] ?? const []).isEmpty) {
+            return false;
+          }
+        }
+        return true;
       }
       // Existing outlets that have not configured a rule keep the established
       // cold-only Ice Level behaviour until an administrator adds one.
@@ -729,7 +747,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
             title,
             style: const TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 19,
+              fontSize: 16,
               fontWeight: FontWeight.w900,
               color: Colors.black,
             ),
@@ -739,7 +757,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               'Pick 1 *',
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 13,
+                fontSize: 12,
                 color: AppColors.deepTeal,
                 fontWeight: FontWeight.bold,
               ),
@@ -749,7 +767,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               subtitle,
               style: const TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 13,
+                fontSize: 12,
                 color: Colors.black54,
               ),
             ),
@@ -818,7 +836,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 15,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w900,
                 color: isSelected ? textColor : Colors.grey.shade600,
                 height: 1.1,
@@ -836,7 +854,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 13,
+                fontSize: 11.5,
                 fontWeight: FontWeight.bold,
                 color: isSelected
                     ? textColor.withValues(alpha: 0.9)
@@ -875,7 +893,9 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                   isMulti ? 'Choose up to ${group['maxSelect'] ?? 1}' : ''),
           LayoutBuilder(
             builder: (context, constraints) {
-              final cardHeight = isBean ? 194.0 : 130.0;
+              final hasAnyImage = options.any((option) =>
+                  isSecureRemoteImageSource(option['imageUrl']?.toString()));
+              final cardHeight = hasAnyImage ? 178.0 : 130.0;
               final cardWidth = ((constraints.maxWidth - 8 - 8) / 2)
                   .clamp(0.0, double.infinity);
 
@@ -964,16 +984,13 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                if (isBean &&
-                                    isSecureRemoteImageSource(imageUrl)) ...[
+                                if (isSecureRemoteImageSource(imageUrl)) ...[
                                   ClipRRect(
                                       borderRadius: BorderRadius.circular(8),
                                       child: Opacity(
-                                          // A darken blend affects the entire image canvas,
-                                          // including transparent pixels, and creates a grey tile.
                                           opacity: isSelected ? 1 : .65,
                                           child: Image.network(imageUrl!,
-                                              height: 64,
+                                              height: 72,
                                               width: 106,
                                               fit: BoxFit.contain,
                                               errorBuilder: (_, __, ___) =>
@@ -984,7 +1001,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                         fontFamily: 'Recoleta',
-                                        fontSize: 15,
+                                        fontSize: 13.5,
                                         fontWeight: FontWeight.w900,
                                         color: isSelected
                                             ? Colors.white
@@ -1002,7 +1019,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           fontFamily: 'Afacad',
-                                          fontSize: 13,
+                                          fontSize: 11.5,
                                           fontWeight: FontWeight.w700,
                                           color: isSelected
                                               ? Colors.white
@@ -1149,7 +1166,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             widget.item['name']?.toString() ?? 'Mont Broga',
                             style: const TextStyle(
                               fontFamily: 'Recoleta',
-                              fontSize: 30,
+                              fontSize: 22,
                               fontWeight: FontWeight.w900,
                               color: Colors.black,
                             ),
@@ -1159,7 +1176,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             _itemDescription,
                             style: const TextStyle(
                               fontFamily: 'Afacad',
-                              fontSize: 16,
+                              fontSize: 13.5,
                               color: Colors.black87,
                             ),
                           ),
@@ -1605,7 +1622,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                       'Total',
                       style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 18,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87),
                     ),
@@ -1673,7 +1690,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                               quantity.toString(),
                               style: const TextStyle(
                                   fontFamily: 'Recoleta',
-                                  fontSize: 18,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -1763,7 +1780,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                           'ADD TO CART',
                           style: TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 16,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),

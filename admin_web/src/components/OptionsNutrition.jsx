@@ -5,6 +5,7 @@ import InfoTooltip from './InfoTooltip';
 import {
   createAdminOptionGroup,
   deleteAdminOptionGroup,
+  getAdminApiBaseUrl,
   loadAdminMenu,
   loadAdminOptionLibrary,
   updateAdminMenuNutrition,
@@ -12,6 +13,12 @@ import {
   updateAdminOptionGroup,
   updateAdminOptionGroupOrder
 } from '../lib/adminApi';
+import {
+  buildConditionalVisibilityOptions,
+  inferMenuItemIdsFromTriggerOptions,
+  normalizeOptionIds,
+  resolveGroupActiveMenuItemIds
+} from '../lib/optionVisibility';
 import { useUnsavedChanges } from '../utils/UnsavedChangesContext';
 import RecipeNutrition from './RecipeNutrition';
 import { requestAdminConfirm } from '../lib/adminDialog';
@@ -44,7 +51,6 @@ const emptyGroup = () => ({
   ]
 });
 
-const isBeanGroup = (name) => /\bbeans?\b/i.test(name || '');
 const emptyOption = () => ({
   name: '',
   image_url: null,
@@ -78,15 +84,28 @@ const tokenAdjustmentClass = (value) => {
   return 'text-gray-500';
 };
 
+const resolveOptionImageUrl = (imageUrl) => {
+  const trimmed = String(imageUrl ?? '').trim();
+  if (!trimmed) return '';
+  if (/^data:/i.test(trimmed) || /^blob:/i.test(trimmed)) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${getAdminApiBaseUrl()}${normalizedPath}`;
+};
+
 export default function OptionsNutrition() {
   const [groups, setGroups] = useState([]);
   const [drinks, setDrinks] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
+  const [catalogItems, setCatalogItems] = useState([]);
+  const [showArchivedBindings, setShowArchivedBindings] = useState(false);
   const [nutritionItems, setNutritionItems] = useState([]);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [isSavingNutrition, setIsSavingNutrition] = useState(false);
   const [message, setMessage] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [visibilityMode, setVisibilityMode] = useState('show_when');
   const [nutritionDrafts, setNutritionDrafts] = useState({});
   const [initialNutrition, setInitialNutrition] = useState({});
   const [loading, setLoading] = useState(true);
@@ -99,19 +118,20 @@ export default function OptionsNutrition() {
     try {
       const [library, menu] = await Promise.all([loadAdminOptionLibrary(), loadAdminMenu()]);
       setGroups(library.groups || []);
-      const menuItems = (menu.categories || [])
-        .filter((category) => category.is_active)
+      const catalogItems = (menu.categories || [])
         .flatMap((category) =>
           (category.items || [])
-            .filter((item) => item.is_active)
             .map((item) => ({
               ...item,
               category_name: category.name,
-              product_kind_code: category.product_kind_code
+              product_kind_code: category.product_kind_code,
+              is_archived: !item.is_active || Boolean(item.archived_at)
             }))
         )
         .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+      const menuItems = catalogItems.filter((item) => !item.is_archived);
       const drinkItems = menuItems.filter((item) => item.product_kind_code === 'drink');
+      setCatalogItems(catalogItems);
       setDrinks(drinkItems);
       setMenuItems(menuItems);
       setNutritionItems(menuItems.filter((item) => item.product_kind_code !== 'drink'));
@@ -139,12 +159,148 @@ export default function OptionsNutrition() {
 
   const allDrinkIds = useMemo(() => drinks.map((drink) => drink.id), [drinks]);
   const allMenuItemIds = useMemo(() => menuItems.map((item) => item.id), [menuItems]);
+  const activeFormMenuItemIds = useMemo(
+    () => (form?.menu_item_ids || []).map(Number).filter((itemId) => allMenuItemIds.includes(itemId)),
+    [allMenuItemIds, form?.menu_item_ids]
+  );
+  const pickerItems = useMemo(() => {
+    const selectedIds = new Set((form?.menu_item_ids || []).map(Number));
+    return catalogItems.filter((item) => !item.is_archived || (showArchivedBindings && selectedIds.has(Number(item.id))));
+  }, [catalogItems, form?.menu_item_ids, showArchivedBindings]);
+  const menuItemsByCategory = useMemo(() => {
+    const grouped = new Map();
+    pickerItems.forEach((item) => {
+      const category = item.category_name || 'Other items';
+      if (!grouped.has(category)) grouped.set(category, []);
+      grouped.get(category).push(item);
+    });
+    return [...grouped.entries()].sort(([categoryA], [categoryB]) => categoryA.localeCompare(categoryB));
+  }, [pickerItems]);
+
+  const conditionalVisibilityOptions = useMemo(
+    () => buildConditionalVisibilityOptions(groups, form?.id, form?.hidden_when_option_ids),
+    [groups, form?.id, form?.hidden_when_option_ids]
+  );
+  const selectedConditionalVisibilityIds = useMemo(
+    () => normalizeOptionIds(form?.hidden_when_option_ids),
+    [form?.hidden_when_option_ids]
+  );
+  const selectedAppearWhenIds = useMemo(
+    () => normalizeOptionIds(form?.appear_when_option_ids),
+    [form?.appear_when_option_ids]
+  );
+
+  const deriveAppearWhenOptionIds = useCallback((groupList, currentGroupId, hiddenOptionIds) => {
+    const hiddenSet = new Set(normalizeOptionIds(hiddenOptionIds));
+    const currentId = Number(currentGroupId);
+    const appearIds = [];
+
+    for (const parentGroup of Array.isArray(groupList) ? groupList : []) {
+      if (Number(parentGroup?.id) === currentId || parentGroup?.is_active === false) continue;
+      const activeOptions = (Array.isArray(parentGroup?.options) ? parentGroup.options : [])
+        .filter((opt) => opt?.is_active !== false && Number.isInteger(Number(opt?.id)) && Number(opt?.id) > 0);
+      if (activeOptions.length === 0) continue;
+      const hiddenInGroup = activeOptions.filter((opt) => hiddenSet.has(Number(opt.id)));
+      if (hiddenInGroup.length > 0 && hiddenInGroup.length < activeOptions.length) {
+        for (const opt of activeOptions) {
+          if (!hiddenSet.has(Number(opt.id))) {
+            appearIds.push(Number(opt.id));
+          }
+        }
+      }
+    }
+    return appearIds;
+  }, []);
+
+  const toggleConditionalVisibilityOption = useCallback((optionId, checked, mode = visibilityMode) => {
+    const numericOptionId = Number(optionId);
+    if (!Number.isInteger(numericOptionId) || numericOptionId <= 0) return;
+
+    setForm((current) => {
+      if (!current) return current;
+      const currentId = Number(current.id);
+      let nextHiddenSet = new Set(normalizeOptionIds(current.hidden_when_option_ids));
+      let nextAppearSet = new Set(normalizeOptionIds(current.appear_when_option_ids));
+
+      const parentGroup = (Array.isArray(groups) ? groups : []).find((grp) =>
+        Number(grp?.id) !== currentId &&
+        (Array.isArray(grp?.options) ? grp.options : []).some((opt) => Number(opt?.id) === numericOptionId)
+      );
+      const activeGroupOptionIds = (Array.isArray(parentGroup?.options) ? parentGroup.options : [])
+        .filter((opt) => opt?.is_active !== false)
+        .map((opt) => Number(opt.id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+      if (mode === 'show_when') {
+        if (checked) nextAppearSet.add(numericOptionId);
+        else nextAppearSet.delete(numericOptionId);
+
+        if (activeGroupOptionIds.length > 0) {
+          activeGroupOptionIds.forEach((id) => nextHiddenSet.delete(id));
+          const shownInGroup = activeGroupOptionIds.filter((id) => nextAppearSet.has(id));
+          if (shownInGroup.length > 0 && shownInGroup.length < activeGroupOptionIds.length) {
+            activeGroupOptionIds.forEach((id) => {
+              if (!nextAppearSet.has(id)) nextHiddenSet.add(id);
+            });
+          }
+        }
+      } else {
+        if (checked) nextHiddenSet.add(numericOptionId);
+        else nextHiddenSet.delete(numericOptionId);
+
+        if (activeGroupOptionIds.length > 0) {
+          activeGroupOptionIds.forEach((id) => nextAppearSet.delete(id));
+          const hiddenInGroup = activeGroupOptionIds.filter((id) => nextHiddenSet.has(id));
+          if (hiddenInGroup.length > 0 && hiddenInGroup.length < activeGroupOptionIds.length) {
+            activeGroupOptionIds.forEach((id) => {
+              if (!nextHiddenSet.has(id)) nextAppearSet.add(id);
+            });
+          }
+        }
+      }
+
+      const currentActiveItemIds = normalizeOptionIds(current.menu_item_ids)
+        .filter((itemId) => allMenuItemIds.includes(itemId));
+      let nextMenuItemIds = current.menu_item_ids || [];
+
+      if (currentActiveItemIds.length === 0) {
+        const inherited = inferMenuItemIdsFromTriggerOptions(
+          groups,
+          [...nextHiddenSet, ...nextAppearSet],
+          allMenuItemIds,
+          allDrinkIds,
+          parentGroup?.id ? [Number(parentGroup.id)] : []
+        );
+        if (inherited.length > 0) {
+          nextMenuItemIds = inherited;
+        }
+      }
+
+      return {
+        ...current,
+        menu_item_ids: nextMenuItemIds,
+        hidden_when_option_ids: [...nextHiddenSet],
+        appear_when_option_ids: [...nextAppearSet]
+      };
+    });
+    setModalError('');
+  }, [allDrinkIds, allMenuItemIds, groups, visibilityMode]);
 
   const openNewGroup = () => {
-    setForm({ ...emptyGroup(), applies_to: 'all_items', menu_item_ids: [...allMenuItemIds] });
+    setShowArchivedBindings(false);
+    setModalError('');
+    setVisibilityMode('show_when');
+    setForm({
+      ...emptyGroup(),
+      applies_to: 'all_items',
+      menu_item_ids: [...allMenuItemIds],
+      appear_when_option_ids: []
+    });
   };
 
   const openExistingGroup = (group) => {
+    setShowArchivedBindings(false);
+    setModalError('');
     const selectedIds = group.applies_to === 'all_items'
       ? allMenuItemIds
       : group.applies_to === 'all_drinks'
@@ -154,6 +310,9 @@ export default function OptionsNutrition() {
       ...option,
       is_default: Boolean(option.is_default)
     }));
+    const hiddenOptionIds = normalizeOptionIds(group.hidden_when_option_ids);
+    const appearOptionIds = deriveAppearWhenOptionIds(groups, group.id, hiddenOptionIds);
+    setVisibilityMode(hiddenOptionIds.length > 0 && appearOptionIds.length === 0 ? 'hide_when' : 'show_when');
     setForm({
       ...group,
       applies_to: 'selected_items',
@@ -162,6 +321,8 @@ export default function OptionsNutrition() {
       max_select: 1,
       is_required: true,
       menu_item_ids: [...selectedIds],
+      hidden_when_option_ids: hiddenOptionIds,
+      appear_when_option_ids: appearOptionIds,
       options
     });
   };
@@ -214,14 +375,23 @@ export default function OptionsNutrition() {
       }
     }
 
-    const selectedItemIds = [...new Set((formData.menu_item_ids || []).map(Number))]
+    let selectedItemIds = [...new Set((formData.menu_item_ids || []).map(Number))]
       .filter((itemId) => allMenuItemIds.includes(itemId));
     if (selectedItemIds.length === 0) {
-      throw new Error('Keep at least one menu item selected for this option group.');
+      selectedItemIds = inferMenuItemIdsFromTriggerOptions(
+        groups,
+        [...(formData.hidden_when_option_ids || []), ...(formData.appear_when_option_ids || [])],
+        allMenuItemIds,
+        allDrinkIds
+      );
+    }
+    if (selectedItemIds.length === 0) {
+      throw new Error('Select at least one active menu item for this option group.');
     }
 
     setSaving(true);
     setMessage('');
+    setModalError('');
     try {
       const payload = {
         ...formData,
@@ -255,17 +425,19 @@ export default function OptionsNutrition() {
         await createAdminOptionGroup(payload);
       }
       setForm(null);
+      setModalError('');
       setMessage('Option group saved.');
       await load();
       return true;
     } catch (error) {
       const errMsg = error.message || 'Unable to save option group.';
       setMessage(errMsg);
+      setModalError(errMsg);
       throw new Error(errMsg);
     } finally {
       setSaving(false);
     }
-  }, [allDrinkIds, allMenuItemIds, form]);
+  }, [allDrinkIds, allMenuItemIds, form, groups]);
 
   // Register unsaved changes guard for page navigation
   useEffect(() => {
@@ -327,7 +499,9 @@ export default function OptionsNutrition() {
     try {
       await saveOptionGroup(form);
     } catch (error) {
-      setMessage(error.message || 'Unable to save option group.');
+      const errMsg = error.message || 'Unable to save option group.';
+      setMessage(errMsg);
+      setModalError(errMsg);
     }
   };
 
@@ -368,16 +542,29 @@ export default function OptionsNutrition() {
     });
   };
 
+  const setSelectedMenuItems = (itemIds, selected) => {
+    const ids = itemIds.map(Number);
+    setForm((current) => {
+      if (!current) return current;
+      const currentIds = new Set(current.menu_item_ids || []);
+      ids.forEach((id) => {
+        if (selected) currentIds.add(id);
+        else currentIds.delete(id);
+      });
+      return { ...current, menu_item_ids: [...currentIds] };
+    });
+  };
+
   const uploadChoiceImage = async (file, index) => {
     if (!file) return;
     setSaving(true);
-    setMessage('Uploading bean image...');
+    setMessage('Uploading choice image...');
     try {
       const uploaded = await uploadAdminOptionImage(file);
       updateOption(index, { image_url: uploaded.image_url });
-      setMessage('Bean image uploaded. Save the option group to publish it.');
+      setMessage('Choice image uploaded. Save the option group to publish it.');
     } catch (error) {
-      setMessage(error.message || 'Unable to upload the bean image.');
+      setMessage(error.message || 'Unable to upload the choice image.');
     } finally {
       setSaving(false);
     }
@@ -452,11 +639,25 @@ export default function OptionsNutrition() {
                       <h3 className="font-bold text-gray-900 text-sm">{group.name}</h3>
                       <span className="rounded-full bg-[#E8F3F0] px-2.5 py-0.5 text-[11px] font-bold text-[#1E433A]">
                         {group.applies_to === 'all_items'
-                          ? 'All menu items'
+                          ? `All ${menuItems.length} active items`
                           : group.applies_to === 'all_drinks'
-                            ? 'All drinks'
-                            : `${group.menu_item_ids.length} selected items`}
+                            ? `All ${drinks.length} active drinks`
+                            : `${(group.menu_item_ids || []).filter((itemId) => allMenuItemIds.includes(Number(itemId))).length} active items selected`}
                       </span>
+                      {normalizeOptionIds(group.hidden_when_option_ids).length > 0 && (() => {
+                        const appearIds = deriveAppearWhenOptionIds(groups, group.id, group.hidden_when_option_ids);
+                        const optionLookup = new Map(
+                          groups.flatMap((grp) => (grp.options || []).map((opt) => [Number(opt.id), `${grp.name}: ${opt.name}`]))
+                        );
+                        const labelText = appearIds.length > 0
+                          ? `Appears when ${appearIds.map((id) => optionLookup.get(id)).filter(Boolean).join(' or ')}`
+                          : `Hidden when ${normalizeOptionIds(group.hidden_when_option_ids).map((id) => optionLookup.get(id)).filter(Boolean).join(' or ')}`;
+                        return (
+                          <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                            {labelText}
+                          </span>
+                        );
+                      })()}
                       {!group.is_active && (
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold text-gray-600">
                           Disabled
@@ -489,14 +690,22 @@ export default function OptionsNutrition() {
                       className="rounded-xl bg-gray-50/70 border border-gray-100 px-3 py-2 text-sm flex items-center justify-between"
                     >
                       <div className="flex items-center min-w-0 mr-2">
-                        <span
-                          className="mr-2 inline-block h-3 w-3 rounded-full shrink-0 shadow-2xs"
-                          style={{
-                            background: option.gradient_end_hex
-                              ? `linear-gradient(${gradientDirectionToDeg(option.gradient_direction)}, ${option.color_hex || '#2D655D'}, ${option.gradient_end_hex})`
-                              : option.color_hex || '#2D655D'
-                          }}
-                        />
+                        {option.image_url ? (
+                          <img
+                            src={resolveOptionImageUrl(option.image_url)}
+                            alt=""
+                            className="mr-2 h-8 w-10 shrink-0 rounded-md object-contain bg-white border border-gray-100"
+                          />
+                        ) : (
+                          <span
+                            className="mr-2 inline-block h-3 w-3 rounded-full shrink-0 shadow-2xs"
+                            style={{
+                              background: option.gradient_end_hex
+                                ? `linear-gradient(${gradientDirectionToDeg(option.gradient_direction)}, ${option.color_hex || '#2D655D'}, ${option.gradient_end_hex})`
+                                : option.color_hex || '#2D655D'
+                            }}
+                          />
+                        )}
                         <span className="font-semibold text-gray-900 text-xs truncate">{option.name}</span>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-0.5 text-[11px]">
@@ -686,66 +895,210 @@ export default function OptionsNutrition() {
                       title="Item Availability"
                     />
                   </div>
-                  <span className="text-[11px] font-semibold text-gray-500">
-                    {form.menu_item_ids.length} of {menuItems.length} selected
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const selectedIds = new Set((form.menu_item_ids || []).map(Number));
+                      const activeSelectedCount = allMenuItemIds.filter((id) => selectedIds.has(Number(id))).length;
+                      const archivedSelectedCount = (catalogItems || []).filter((item) => item.is_archived && selectedIds.has(Number(item.id))).length;
+                      return (
+                        <span className="text-[11px] font-semibold text-gray-500">
+                          {activeSelectedCount} of {menuItems.length} active selected
+                          {archivedSelectedCount > 0 && ` · ${archivedSelectedCount} archived linked`}
+                        </span>
+                      );
+                    })()}
+                    <select
+                      value={showArchivedBindings ? 'show_archived' : 'active_only'}
+                      onChange={(event) => setShowArchivedBindings(event.target.value === 'show_archived')}
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-600 outline-none focus:border-[#2E5E58]"
+                      aria-label="Archived menu item visibility"
+                    >
+                      <option value="active_only">Active items only</option>
+                      <option value="show_archived">Show archived linked</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMenuItems(allMenuItemIds, true)}
+                      disabled={form.menu_item_ids.length === menuItems.length}
+                      className="rounded-lg border border-[#B9D9D1] bg-white px-2.5 py-1 text-[11px] font-bold text-[#1E433A] hover:bg-[#E8F3F0] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMenuItems(pickerItems.map((item) => item.id), false)}
+                      disabled={form.menu_item_ids.length === 0}
+                      className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-bold text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Clear all
+                    </button>
+                  </div>
                 </div>
-                <div className="grid max-h-40 gap-2 overflow-y-auto rounded-2xl border border-gray-200 p-3 sm:grid-cols-2 bg-gray-50/40">
-                  {menuItems.map((item) => (
-                    <label key={item.id} className="flex items-center gap-2 text-xs p-1 rounded-lg hover:bg-white transition-colors cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.menu_item_ids.includes(item.id)}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            menu_item_ids: e.target.checked
-                              ? [...form.menu_item_ids, item.id]
-                              : form.menu_item_ids.filter((id) => id !== item.id)
-                          })
-                        }
-                        className="rounded border-gray-300 text-[#1E433A] accent-[#1E433A]"
-                      />
-                      <span className="font-semibold text-gray-800 truncate">{item.name}</span>
-                      <span className="text-[10px] text-gray-400 shrink-0">({item.category_name})</span>
-                    </label>
-                  ))}
+                <div className="max-h-72 space-y-3 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50/40 p-3">
+                  {menuItemsByCategory.map(([category, categoryItems]) => {
+                    const categoryIds = categoryItems.map((item) => item.id);
+                    const activeCategoryIds = categoryItems.filter((item) => !item.is_archived).map((item) => item.id);
+                    const selectedActiveCount = activeCategoryIds.filter((id) => form.menu_item_ids.includes(id)).length;
+                    const selectedArchivedCount = categoryItems.filter((item) => item.is_archived && form.menu_item_ids.includes(item.id)).length;
+                    const allSelected = activeCategoryIds.length > 0 && activeCategoryIds.every((id) => form.menu_item_ids.includes(id));
+                    return (
+                      <section key={category} className="rounded-xl border border-gray-200 bg-white p-2.5">
+                        <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-xs font-bold text-gray-800">{category}</h3>
+                            <p className="text-[10px] text-gray-400">
+                              {selectedActiveCount} of {activeCategoryIds.length} active selected
+                              {selectedArchivedCount > 0 && ` · ${selectedArchivedCount} archived linked`}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedMenuItems(activeCategoryIds, true)}
+                              disabled={allSelected || activeCategoryIds.length === 0}
+                              className="rounded-md px-1.5 py-1 text-[10px] font-bold text-[#1E433A] hover:bg-[#E8F3F0] disabled:cursor-not-allowed disabled:opacity-35"
+                            >
+                              Select category
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedMenuItems(categoryIds, false)}
+                              disabled={selectedActiveCount + selectedArchivedCount === 0}
+                              className="rounded-md px-1.5 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-35"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid gap-1 sm:grid-cols-2">
+                          {categoryItems.map((item) => (
+                            <label key={item.id} className="flex min-w-0 items-center gap-2 rounded-lg p-1.5 text-xs transition-colors hover:bg-gray-50 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={form.menu_item_ids.includes(item.id)}
+                                onChange={(event) => setSelectedMenuItems([item.id], event.target.checked)}
+                                className="rounded border-gray-300 text-[#1E433A] accent-[#1E433A]"
+                              />
+                              <span className="min-w-0 truncate font-semibold text-gray-800">
+                                {item.name}
+                                {item.is_archived && <span className="ml-1.5 font-normal text-[10px] text-amber-700">(Archived)</span>}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
                 </div>
               </fieldset>
 
-              {form.id && (
-                <fieldset className="rounded-2xl border border-[#D7E7E2] bg-[#F6FBF9] p-4">
-                  <div className="flex items-center gap-1.5 mb-1.5">
+              <fieldset className="rounded-2xl border border-[#D7E7E2] bg-[#F6FBF9] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5">
                     <legend className="text-xs font-bold text-[#2E5E58] uppercase tracking-wider">Conditional Visibility</legend>
                     <InfoTooltip
-                      content="Optional dependency rules. E.g., hide the 'Ice Level' group when the customer selects 'Temperature: Hot' or 'Hotter'."
+                      content="Control when this option group appears or hides based on another option group (e.g., show 'Choice of Sparkling' when a choice from 'Choose of Water' is selected, or hide 'Ice Level' when 'Temperature: Hot' is selected)."
                       title="Conditional Display"
                     />
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 max-h-36 overflow-y-auto">
-                    {groups.filter((group) => group.id !== form.id).flatMap((group) => (group.options || []).filter((option) => option.is_active).map((option) => (
-                      <label key={option.id} className="flex items-center gap-2 rounded-xl border border-[#D7E7E2] bg-white px-3 py-2 text-xs text-slate-700 hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs">
+                  <div className="inline-flex rounded-xl border border-[#C6DDD6] bg-white p-0.5 text-[11px] font-bold shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setVisibilityMode('show_when')}
+                      className={`rounded-lg px-2.5 py-1 transition-colors cursor-pointer ${
+                        visibilityMode === 'show_when'
+                          ? 'bg-[#1E433A] text-white'
+                          : 'text-[#2E5E58] hover:bg-[#E8F3F0]'
+                      }`}
+                    >
+                      Appear when selected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVisibilityMode('hide_when')}
+                      className={`rounded-lg px-2.5 py-1 transition-colors cursor-pointer ${
+                        visibilityMode === 'hide_when'
+                          ? 'bg-[#1E433A] text-white'
+                          : 'text-[#2E5E58] hover:bg-[#E8F3F0]'
+                      }`}
+                    >
+                      Hide when selected
+                    </button>
+                  </div>
+                </div>
+                <p className="mb-2.5 text-[11px] text-[#55736D]">
+                  {visibilityMode === 'show_when'
+                    ? 'Tick the choice(s) from another option group that should make this group appear. Ticking a choice also automatically links that group’s active menu items if none are selected above.'
+                    : 'Tick the choice(s) from another option group that should hide this group when selected by the customer.'}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2 max-h-40 overflow-y-auto">
+                  {conditionalVisibilityOptions.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-[#D7E4DF] px-3 py-3 text-xs text-[#55736D] sm:col-span-2">
+                      No other option choices are available yet.
+                    </p>
+                  ) : conditionalVisibilityOptions.map((option) => {
+                    const checked = visibilityMode === 'show_when'
+                      ? selectedAppearWhenIds.includes(option.id)
+                      : selectedConditionalVisibilityIds.includes(option.id);
+                    return (
+                      <label key={option.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs transition-colors cursor-pointer shadow-2xs ${
+                        checked
+                          ? 'border-[#2E5E58] bg-[#E8F3F0]/70 text-[#1E433A]'
+                          : 'border-[#D7E7E2] bg-white text-slate-700 hover:bg-gray-50'
+                      }`}>
                         <input
                           type="checkbox"
-                          checked={(form.hidden_when_option_ids || []).includes(option.id)}
-                          onChange={(event) => {
-                            const current = form.hidden_when_option_ids || [];
-                            setForm({
-                              ...form,
-                              hidden_when_option_ids: event.target.checked
-                                ? [...current, option.id]
-                                : current.filter((id) => id !== option.id)
-                            });
-                          }}
+                          checked={checked}
+                          onChange={(event) => toggleConditionalVisibilityOption(option.id, event.target.checked, visibilityMode)}
                           className="rounded border-gray-300 text-[#1E433A] accent-[#1E433A]"
                         />
-                        <span className="font-semibold">{group.name}:</span>
-                        <span>{option.name}</span>
+                        <span className="font-semibold">{option.groupName}:</span>
+                        <span>{option.optionName}</span>
+                        {!option.isActive && <span className="ml-auto text-[10px] font-semibold text-amber-700">(Inactive)</span>}
                       </label>
-                    )))}
-                  </div>
-                </fieldset>
-              )}
+                    );
+                  })}
+                </div>
+                {(selectedAppearWhenIds.length > 0 || selectedConditionalVisibilityIds.length > 0) && (() => {
+                  const triggerItemIds = inferMenuItemIdsFromTriggerOptions(
+                    groups,
+                    [...selectedConditionalVisibilityIds, ...selectedAppearWhenIds],
+                    allMenuItemIds,
+                    allDrinkIds
+                  );
+                  const missingTriggerItems = triggerItemIds.filter((id) => !activeFormMenuItemIds.includes(id));
+                  const appearLabels = conditionalVisibilityOptions
+                    .filter((opt) => selectedAppearWhenIds.includes(opt.id))
+                    .map((opt) => `${opt.groupName}: ${opt.optionName}`);
+                  const hiddenLabels = conditionalVisibilityOptions
+                    .filter((opt) => selectedConditionalVisibilityIds.includes(opt.id))
+                    .map((opt) => `${opt.groupName}: ${opt.optionName}`);
+                  return (
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#C6DDD6] bg-white/90 px-3 py-2 text-[11px] text-[#1E433A]">
+                      <div>
+                        {appearLabels.length > 0 ? (
+                          <span>
+                            <strong>Appears when customer selects:</strong> {appearLabels.join(' or ')}
+                          </span>
+                        ) : (
+                          <span>
+                            <strong>Hidden when customer selects:</strong> {hiddenLabels.join(' or ')}
+                          </span>
+                        )}
+                      </div>
+                      {triggerItemIds.length > 0 && missingTriggerItems.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMenuItems(triggerItemIds, true)}
+                          className="rounded-lg bg-[#E8F3F0] px-2.5 py-1 text-[11px] font-bold text-[#1E433A] hover:bg-[#D4EAE4] cursor-pointer"
+                        >
+                          Sync {triggerItemIds.length} active item{triggerItemIds.length === 1 ? '' : 's'} from parent group
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </fieldset>
 
               <div>
                 <div className="mb-2.5 flex items-center justify-between">
@@ -821,7 +1174,13 @@ export default function OptionsNutrition() {
                           <button
                             type="button"
                             disabled={form.options.length === 1}
-                            onClick={() => {
+                            onClick={async () => {
+                              if (option.inventory_recipe_count > 0 && !await requestAdminConfirm({
+                                title: 'Remove choice and unlink stock?',
+                                message: `“${option.name || 'This choice'}” uses ${option.inventory_recipe_count} inventory ingredient${option.inventory_recipe_count === 1 ? '' : 's'}. Removing it unlinks that stock recipe when you save.`,
+                                confirmLabel: 'Remove',
+                                tone: 'danger'
+                              })) return;
                               const options = form.options.filter((_, optionIndex) => optionIndex !== index);
                               setForm({ ...form, options });
                             }}
@@ -836,18 +1195,17 @@ export default function OptionsNutrition() {
                       {/* Row 2: Visual Styling & Default Choice Selection */}
                       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100">
                         <div className="flex flex-wrap items-center gap-3">
-                          {isBeanGroup(form.name) && (
-                            <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5">
                               <div className="flex items-center gap-1">
-                                <span className="text-xs font-bold text-gray-700">Bean Image</span>
-                                <InfoTooltip content="Square PNG, JPG, or WebP. Appears illuminated when chosen in the customer app." title="Bean Image" />
+                                <span className="text-xs font-bold text-gray-700">Choice Image</span>
+                                <InfoTooltip content="Optional PNG, JPG, or WebP. Recommended 1200 × 900 px (4:3). The app displays it inside the card without cropping; transparent product images work well." title="Choice Image" />
                               </div>
                               <label className="flex h-8 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-gray-300 bg-white hover:bg-gray-50 shadow-2xs">
                                 {option.image_url ? (
                                   <img
-                                    src={option.image_url}
-                                    alt={`${option.name || 'Bean'} preview`}
-                                    className="h-full w-full object-cover"
+                                    src={resolveOptionImageUrl(option.image_url)}
+                                    alt={`${option.name || 'Choice'} preview`}
+                                    className="h-full w-full object-contain"
                                   />
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-[11px] text-gray-500">
@@ -862,8 +1220,16 @@ export default function OptionsNutrition() {
                                   onChange={(event) => uploadChoiceImage(event.target.files?.[0], index)}
                                 />
                               </label>
+                              {option.image_url && (
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-semibold text-gray-500 hover:text-red-600"
+                                  onClick={() => updateOption(index, { image_url: null })}
+                                >
+                                  Remove
+                                </button>
+                              )}
                             </div>
-                          )}
 
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-bold text-gray-700">Card Color:</span>
@@ -936,11 +1302,11 @@ export default function OptionsNutrition() {
                       {/* Availability Accordion */}
                       <details className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2 text-xs">
                         <summary className="cursor-pointer font-semibold text-gray-600 hover:text-gray-900 flex items-center justify-between">
-                          <span>Available for {form.menu_item_ids.filter((itemId) => !(option.excluded_menu_item_ids || []).includes(itemId)).length} of {form.menu_item_ids.length} selected items</span>
+                          <span>Available for {activeFormMenuItemIds.filter((itemId) => !(option.excluded_menu_item_ids || []).includes(itemId)).length} of {activeFormMenuItemIds.length} active selected items</span>
                           <span className="text-[10px] text-gray-400 font-normal">Click to restrict items</span>
                         </summary>
                         <div className="mt-2.5 pt-2 border-t border-gray-200/60 grid max-h-32 gap-1.5 overflow-y-auto sm:grid-cols-2">
-                          {menuItems.filter((item) => form.menu_item_ids.includes(item.id)).map((item) => (
+                          {menuItems.filter((item) => activeFormMenuItemIds.includes(item.id)).map((item) => (
                             <label key={item.id} className="flex items-center gap-2 text-xs text-gray-700 p-1 hover:bg-white rounded transition-colors cursor-pointer">
                               <input
                                 type="checkbox"
@@ -959,20 +1325,30 @@ export default function OptionsNutrition() {
                 </div>
               </div>
             </div>
-            <div className="flex shrink-0 justify-end gap-3 border-t p-4 sm:p-5 bg-gray-50/50">
-              <button
-                type="button"
-                onClick={() => setForm(null)}
-                className="rounded-xl border border-gray-200 px-5 py-2.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={saving}
-                className="rounded-xl bg-[#1E433A] px-6 py-2.5 text-xs font-bold text-white hover:bg-[#16342D] disabled:opacity-60 shadow-xs transition-all cursor-pointer"
-              >
-                {saving ? 'Saving...' : 'Save Option Group'}
-              </button>
+            <div className="flex shrink-0 flex-col gap-2 border-t p-4 sm:p-5 bg-gray-50/50">
+              {modalError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">
+                  {modalError}
+                </div>
+              )}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalError('');
+                    setForm(null);
+                  }}
+                  className="rounded-xl border border-gray-200 px-5 py-2.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={saving}
+                  className="rounded-xl bg-[#1E433A] px-6 py-2.5 text-xs font-bold text-white hover:bg-[#16342D] disabled:opacity-60 shadow-xs transition-all cursor-pointer"
+                >
+                  {saving ? 'Saving...' : 'Save Option Group'}
+                </button>
+              </div>
             </div>
           </form>
         </div>,

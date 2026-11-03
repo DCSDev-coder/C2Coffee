@@ -11,6 +11,7 @@ import 'referral_page.dart';
 import 'dart:io';
 import '../widgets/order_status_banner.dart';
 import 'my_rewards_page.dart';
+import 'gift_cards_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
 
@@ -299,7 +300,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       '${_session.tokenBalance}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 34,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
                         color: AppColors.softGold,
                         height: 1.1,
@@ -309,7 +310,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'tokens',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 18,
+                        fontSize: 14,
                         color: Colors.black54,
                       ),
                     ),
@@ -329,7 +330,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       '${_session.cupsLast180d}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 34,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                         height: 1.1,
@@ -339,7 +340,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       'cups collected',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 18,
+                        fontSize: 14,
                         color: Colors.black54,
                       ),
                     ),
@@ -448,133 +449,324 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   Widget _buildActionCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                InteractiveFillingLoader.show(
-                  context,
-                  targetPage: const MyRewardsPage(),
-                );
-              },
-              child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.border,
-                    width: 1,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    InteractiveFillingLoader.show(
+                      context,
+                      targetPage: const MyRewardsPage(),
+                    );
+                  },
+                  child: Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.border,
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: 12,
+                          left: 0,
+                          right: 0,
+                          child: Text(
+                            'My Rewards',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.brandText,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 40,
+                          bottom: 2,
+                          left: 4,
+                          right: 4,
+                          child: Transform.scale(
+                            scale: 1.35,
+                            child: Image.asset(
+                              'assets/images/Surprise reward gift box with star popping out.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: 12,
-                      left: 0,
-                      right: 0,
-                      child: Text(
-                        'My Rewards',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.brandText,
-                        ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    InteractiveFillingLoader.show(
+                      context,
+                      targetPage: const ReferralPage(),
+                    );
+                  },
+                  child: Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.border,
+                        width: 1,
                       ),
-                    ),
-                    Positioned(
-                      top: 40,
-                      bottom: 2,
-                      left: 4,
-                      right: 4,
-                      child: Transform.scale(
-                        scale: 1.35,
-                        child: Image.asset(
-                          'assets/images/Surprise reward gift box with star popping out.png',
-                          fit: BoxFit.contain,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: 12,
+                          left: 0,
+                          right: 0,
+                          child: Text(
+                            'Refer a Friend',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.brandText,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 40,
+                          bottom: 2,
+                          left: 4,
+                          right: 4,
+                          child: Transform.scale(
+                            scale: 1.35,
+                            child: Image.asset(
+                              'assets/images/Community friends laughing together waving hands and giving thumbs.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          child: GestureDetector(
+            onTap: () => InteractiveFillingLoader.show(
+              context,
+              targetPage: const GiftCardsPage(),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.border,
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 68,
+                    height: 54,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Transform.rotate(
+                          angle: -0.10,
+                          child: Container(
+                            width: 56,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: AppColors.softGold,
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(
+                                color: AppColors.gold.withValues(alpha: 0.45),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Transform.rotate(
+                          angle: 0.05,
+                          child: Container(
+                            width: 60,
+                            height: 40,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.primary,
+                                  AppColors.primary.withValues(alpha: 0.85),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      AppColors.primary.withValues(alpha: 0.22),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Icon(
+                                      Icons.card_giftcard_rounded,
+                                      size: 13,
+                                      color: Colors.white,
+                                    ),
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: AppColors.gold
+                                            .withValues(alpha: 0.85),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  'C2 GIFT',
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                    color: Colors.white.withValues(alpha: 0.92),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Gift Cards',
+                              style: TextStyle(
+                                fontFamily: 'Recoleta',
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.brandText,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'NEW',
+                                style: TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.6,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Send C2 Tokens or RM credit to someone special.',
+                          style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 13.5,
+                            height: 1.25,
+                            color: AppColors.brandText.withValues(alpha: 0.68),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                InteractiveFillingLoader.show(
-                  context,
-                  targetPage: const ReferralPage(),
-                );
-              },
-              child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.border,
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: 12,
-                      left: 0,
-                      right: 0,
-                      child: Text(
-                        'Refer a Friend',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Recoleta',
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.brandText,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 40,
-                      bottom: 2,
-                      left: 4,
-                      right: 4,
-                      child: Transform.scale(
-                        scale: 1.35,
-                        child: Image.asset(
-                          'assets/images/Community friends laughing together waving hands and giving thumbs.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1099,7 +1291,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const Divider(height: 1),
                 _buildExpansionTile(
                   'Can I cancel my order?',
-                  'You can edit your cart before checkout. Once an order is submitted to the store queue, customer self-cancellation is not available in the app. Contact support if you need help with an order.',
+                  'You can edit your cart before checkout. After a paid order is submitted, you may request cancellation while it is still waiting to be prepared. The barista must approve the request before any token return or refund is processed.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(

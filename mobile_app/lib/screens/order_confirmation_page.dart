@@ -45,6 +45,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   bool _isSubmitting = false;
   RewardVoucher? _selectedVoucher;
+  GiftCard? _selectedGiftCard;
   String? _checkoutError;
   String? _voucherGuidance;
   String? _checkoutIdempotencyKey;
@@ -216,7 +217,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           'Special Instructions',
                           style: TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 21,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: orangeColor,
                           ),
@@ -227,7 +228,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 14.5,
+                            fontSize: 13,
                             color: Colors.black54,
                           ),
                         ),
@@ -454,7 +455,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               'Your Order',
                               style: TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 22,
+                                fontSize: 17,
                                 fontWeight: FontWeight.bold,
                                 color: orangeColor,
                               ),
@@ -473,7 +474,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                 '$totalItemCount ${totalItemCount == 1 ? 'item' : 'items'}',
                                 style: TextStyle(
                                   fontFamily: 'Afacad',
-                                  fontSize: 13.5,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
                                   color: orangeColor,
                                 ),
@@ -487,8 +488,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           borderRadius: BorderRadius.circular(20),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                              horizontal: 10,
+                              vertical: 5,
                             ),
                             decoration: BoxDecoration(
                               color: orangeColor.withValues(alpha: 0.08),
@@ -502,7 +503,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               children: [
                                 Icon(
                                   Icons.add_rounded,
-                                  size: 18,
+                                  size: 16,
                                   color: orangeColor,
                                 ),
                                 const SizedBox(width: 4),
@@ -510,7 +511,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   'Add More',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 14.5,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: orangeColor,
                                   ),
@@ -531,7 +532,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       'Rewards & Discounts',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: orangeColor,
                       ),
@@ -540,6 +541,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     IgnorePointer(
                       ignoring: _isSubmitting,
                       child: _buildVoucherCard(snapshot),
+                    ),
+                    const SizedBox(height: 10),
+                    IgnorePointer(
+                      ignoring: _isSubmitting,
+                      child: _buildGiftCardCard(),
                     ),
                     if (_voucherGuidance != null) ...[
                       const SizedBox(height: 10),
@@ -550,7 +556,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       'Payment Method',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 20,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: orangeColor,
                       ),
@@ -654,7 +660,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   snapshot.storeName,
                   style: TextStyle(
                     fontFamily: 'Recoleta',
-                    fontSize: 19,
+                    fontSize: 16.5,
                     fontWeight: FontWeight.bold,
                     color: orangeColor,
                   ),
@@ -664,7 +670,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   'Prepared fresh once your order is placed',
                   style: TextStyle(
                     fontFamily: 'Afacad',
-                    fontSize: 13.5,
+                    fontSize: 12.5,
                     color: Colors.black54,
                   ),
                 ),
@@ -729,7 +735,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     label,
                     style: const TextStyle(
                       fontFamily: 'Recoleta',
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -779,6 +785,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     setState(() {
       _paymentMode = selection.mode;
       _directPaymentMethod = selection.method;
+      if (_selectedGiftCard != null &&
+          _selectedGiftCard!.currency !=
+              (selection.mode == 'token' ? 'token' : 'rm')) {
+        _selectedGiftCard = null;
+      }
     });
   }
 
@@ -807,7 +818,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               'Your cart is empty',
               style: TextStyle(
                 fontFamily: 'Recoleta',
-                fontSize: 26,
+                fontSize: 21,
                 fontWeight: FontWeight.bold,
                 color: orangeColor,
               ),
@@ -818,7 +829,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Afacad',
-                fontSize: 16,
+                fontSize: 14,
                 color: Colors.black54,
                 height: 1.35,
               ),
@@ -831,7 +842,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                 'Browse Menu',
                 style: TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 17,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -941,7 +952,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               item.name,
                               style: const TextStyle(
                                 fontFamily: 'Recoleta',
-                                fontSize: 19,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                                 height: 1.15,
@@ -951,8 +962,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 3,
+                              horizontal: 8,
+                              vertical: 2.5,
                             ),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceLight,
@@ -962,7 +973,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               '${_formatTokenCount(item.unitTotalTokens)} / ea',
                               style: TextStyle(
                                 fontFamily: 'Afacad',
-                                fontSize: 13.5,
+                                fontSize: 12,
                                 color: orangeColor,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -976,9 +987,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           item.displayDetails!.trim(),
                           style: const TextStyle(
                             fontFamily: 'Afacad',
-                            fontSize: 14.5,
+                            fontSize: 12.5,
                             color: Colors.black54,
-                            height: 1.3,
+                            height: 1.25,
                           ),
                         ),
                       ],
@@ -1021,7 +1032,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
-                                    fontSize: 13.5,
+                                    fontSize: 12,
                                     fontWeight: hasRemarks
                                         ? FontWeight.w700
                                         : FontWeight.w600,
@@ -1084,7 +1095,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           style: TextStyle(
                             fontFamily: 'Afacad',
                             color: orangeColor,
-                            fontSize: 16.5,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1109,7 +1120,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       'Line Total',
                       style: TextStyle(
                         fontFamily: 'Afacad',
-                        fontSize: 12.5,
+                        fontSize: 11.5,
                         color: Colors.black45,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1118,7 +1129,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       _formatTokenCount(item.lineTotalTokens),
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 18,
+                        fontSize: 15.5,
                         fontWeight: FontWeight.bold,
                         color: orangeColor,
                       ),
@@ -1256,7 +1267,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
@@ -1293,7 +1304,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         : 'Select an available reward or tier perk',
                     style: TextStyle(
                       fontFamily: 'Afacad',
-                      fontSize: 14.5,
+                      fontSize: 13,
                       color: voucher != null ? orangeColor : Colors.black54,
                       fontWeight:
                           voucher != null ? FontWeight.w700 : FontWeight.normal,
@@ -1352,6 +1363,92 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
+  Widget _buildGiftCardCard() {
+    final card = _selectedGiftCard;
+    return InkWell(
+      onTap: () async {
+        final token = await SecureSessionService.instance.getValidAccessToken();
+        if (token == null || token.isEmpty || !mounted) return;
+        try {
+          final cards = await CustomerDataService.instance
+              .getGiftCards(accessToken: token);
+          final compatible = cards
+              .where((item) =>
+                  item.isUsable &&
+                  item.currency == (_paymentMode == 'token' ? 'token' : 'rm'))
+              .toList();
+          if (!mounted) return;
+          final selected = await showModalBottomSheet<GiftCard?>(
+            context: context,
+            builder: (context) => SafeArea(
+                child: ListView(
+              shrinkWrap: true,
+              children: [
+                const ListTile(title: Text('Apply Gift Card')),
+                ListTile(
+                    leading: const Icon(Icons.close),
+                    title: const Text('Do not use a gift card'),
+                    onTap: () => Navigator.pop(context)),
+                ...compatible.map((item) => ListTile(
+                      leading: const Icon(Icons.card_giftcard),
+                      title: Text(item.amountLabel),
+                      subtitle: Text(item.code),
+                      onTap: () => Navigator.pop(context, item),
+                    )),
+                if (compatible.isEmpty)
+                  const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(
+                          'No matching active gift cards. Claim a card from Rewards first.')),
+              ],
+            )),
+          );
+          if (mounted) setState(() => _selectedGiftCard = selected);
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Unable to load gift cards.')));
+          }
+        }
+      },
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+            color: card == null
+                ? Colors.white
+                : AppColors.gold.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+                color: card == null ? AppColors.border : AppColors.gold)),
+        child: Row(children: [
+          const Icon(Icons.card_giftcard_outlined),
+          const SizedBox(width: 13),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(card?.amountLabel ?? 'Apply Gift Card',
+                    style: const TextStyle(
+                        fontFamily: 'Recoleta', fontWeight: FontWeight.bold)),
+                Text(
+                    card == null
+                        ? 'Use an RM or C2 Token gift card'
+                        : '${card.code} · Tap to change',
+                    style: const TextStyle(fontSize: 13, color: Colors.black54))
+              ])),
+          if (card != null)
+            IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Remove gift card',
+                onPressed: () => setState(() => _selectedGiftCard = null))
+          else
+            const Icon(Icons.chevron_right),
+        ]),
+      ),
+    );
+  }
+
   double _calculateDiscountRm(CartSnapshot snapshot) {
     final voucher = _selectedVoucher;
     if (voucher == null) return 0;
@@ -1373,13 +1470,42 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   double _finalDirectCharge(CartSnapshot snapshot) {
-    return max(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
+    final afterVoucher =
+        max<double>(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
+    return max<double>(0, afterVoucher - _calculateGiftCardRm(snapshot));
+  }
+
+  double _calculateGiftCardRm(CartSnapshot snapshot) {
+    final card = _selectedGiftCard;
+    if (card == null || card.currency != 'rm' || _paymentMode != 'direct') {
+      return 0;
+    }
+    final afterVoucher =
+        max<double>(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
+    final remaining = double.tryParse(card.remainingAmount) ?? 0;
+    return min<double>(afterVoucher, max<double>(0, remaining));
+  }
+
+  int _calculateGiftCardTokens(CartSnapshot snapshot) {
+    final card = _selectedGiftCard;
+    if (card == null || card.currency != 'token' || _paymentMode != 'token') {
+      return 0;
+    }
+    final afterVoucher =
+        max<int>(0, snapshot.subtotalTokens - _calculateDiscountTokens(snapshot));
+    final remaining = (double.tryParse(card.remainingAmount) ?? 0).floor();
+    return min<int>(afterVoucher, max<int>(0, remaining));
   }
 
   Widget _buildSummaryCard(CartSnapshot snapshot) {
     final discountTokens = _calculateDiscountTokens(snapshot);
-    final finalTokens = max(0, snapshot.subtotalTokens - discountTokens);
+    final giftCardTokens = _calculateGiftCardTokens(snapshot);
+    final finalTokens = max(
+      0,
+      snapshot.subtotalTokens - discountTokens - giftCardTokens,
+    );
     final directDiscount = _calculateDiscountRm(snapshot);
+    final giftCardRm = _calculateGiftCardRm(snapshot);
     final directTotal = _finalDirectCharge(snapshot);
     final totalQuantity =
         snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
@@ -1398,7 +1524,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             'Order Summary',
             style: TextStyle(
               fontFamily: 'Recoleta',
-              fontSize: 19,
+              fontSize: 16.5,
               fontWeight: FontWeight.bold,
               color: orangeColor,
             ),
@@ -1418,6 +1544,17 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               _paymentMode == 'direct'
                   ? '-RM${directDiscount.toStringAsFixed(2)}'
                   : '-${_formatTokenCount(discountTokens)}',
+              isDiscount: true,
+            ),
+          ],
+          if ((_paymentMode == 'direct' && giftCardRm > 0) ||
+              (_paymentMode == 'token' && giftCardTokens > 0)) ...[
+            const SizedBox(height: 10),
+            _buildSummaryRow(
+              'Gift Card (${_selectedGiftCard?.code ?? ''})',
+              _paymentMode == 'direct'
+                  ? '-RM${giftCardRm.toStringAsFixed(2)}'
+                  : '-${_formatTokenCount(giftCardTokens)}',
               isDiscount: true,
             ),
           ],
@@ -1447,7 +1584,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                         'Total to pay',
                         style: TextStyle(
                           fontFamily: 'Recoleta',
-                          fontSize: 20,
+                          fontSize: 16.5,
                           fontWeight: FontWeight.bold,
                           color: orangeColor,
                         ),
@@ -1464,7 +1601,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                               : _formatTokenCount(finalTokens),
                           style: TextStyle(
                             fontFamily: 'Recoleta',
-                            fontSize: 25,
+                            fontSize: 21,
                             fontWeight: FontWeight.bold,
                             color: orangeColor,
                           ),
@@ -1519,7 +1656,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           label,
           style: const TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),
@@ -1528,7 +1665,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           value,
           style: TextStyle(
             fontFamily: 'Afacad',
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: FontWeight.bold,
             color: isDiscount ? const Color(0xFF2E7D32) : orangeColor,
           ),
@@ -1611,14 +1748,17 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         width: double.infinity,
         height: 54,
         child: ElevatedButton.icon(
-          onPressed: _isSubmitting || _directPaymentMethods.isEmpty
+          onPressed: _isSubmitting ||
+                  (directTotal > 0 && _directPaymentMethods.isEmpty)
               ? null
               : () => _submitCheckout(snapshot),
           icon: const Icon(Icons.lock_outline_rounded, size: 20),
           label: Text(
             _isSubmitting
                 ? 'PROCESSING PAYMENT...'
-                : 'PAY RM${directTotal.toStringAsFixed(2)}',
+                : directTotal == 0
+                    ? 'COMPLETE WITH GIFT CARD'
+                    : 'PAY RM${directTotal.toStringAsFixed(2)}',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 18,
@@ -1637,8 +1777,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       );
     }
     final discountTokens = _calculateDiscountTokens(snapshot);
-    final effectiveTokenCharge =
-        max(0, snapshot.subtotalTokens - discountTokens);
+    final giftCardTokens = _calculateGiftCardTokens(snapshot);
+    final effectiveTokenCharge = max(
+      0,
+      snapshot.subtotalTokens - discountTokens - giftCardTokens,
+    );
     final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
     final canPlaceOrder = hasEnoughBalance;
 
@@ -1729,6 +1872,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       await showPendingPaymentServiceNotice(context);
       if (!mounted) return;
 
+      final activeGiftCardCode = _selectedGiftCard != null &&
+              _selectedGiftCard!.currency ==
+                  (_paymentMode == 'token' ? 'token' : 'rm')
+          ? _selectedGiftCard!.code
+          : null;
+
       final checkoutResult = _paymentMode == 'direct'
           ? await CheckoutApiService.instance.createDirectOrder(
               accessToken: accessToken,
@@ -1737,6 +1886,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               idempotencyKey: _checkoutIdempotencyKey ??=
                   _newCheckoutIdempotencyKey(),
               appliedVoucherId: _selectedVoucher?.id,
+              giftCardCode: activeGiftCardCode,
             )
           : await CheckoutApiService.instance.createTokenOrder(
               accessToken: accessToken,
@@ -1744,10 +1894,13 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               idempotencyKey: _checkoutIdempotencyKey ??=
                   _newCheckoutIdempotencyKey(),
               appliedVoucherId: _selectedVoucher?.id,
+              giftCardCode: activeGiftCardCode,
             );
 
       final checkoutUrl = checkoutResult.payment?['checkout_url'] as String?;
-      if (_paymentMode == 'direct' &&
+      final requiresDirectGateway =
+          _paymentMode == 'direct' && checkoutResult.order.status != 'paid';
+      if (requiresDirectGateway &&
           (checkoutUrl == null || !isTrustedPaymentCheckoutUrl(checkoutUrl))) {
         throw ApiException(
           'The payment provider returned an invalid checkout link. Your order has not been paid.',

@@ -131,9 +131,19 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
       excludedItems.push(row.menu_item_id);
       exclusionsByOption.set(row.option_group_option_id, excludedItems);
     }
+    const [recipeRows] = await mysqlPool.query<Array<RowDataPacket>>(
+      `SELECT option_group_option_id, COUNT(*) AS component_count
+       FROM inventory_option_recipes WHERE tenant_id = :tenantId
+       GROUP BY option_group_option_id`,
+      { tenantId: request.adminAuth.tenantId }
+    );
+    const recipeCountByOption = new Map<number, number>(
+      recipeRows.map((row) => [Number(row.option_group_option_id), Number(row.component_count)])
+    );
     for (const group of groups.values()) {
       for (const option of group.options) {
         option.excluded_menu_item_ids = exclusionsByOption.get(option.id) || [];
+        option.inventory_recipe_count = recipeCountByOption.get(option.id) || 0;
       }
     }
     const [visibilityRows] = await mysqlPool.query<Array<RowDataPacket>>(
@@ -433,10 +443,11 @@ export async function registerAdminOptionLibraryRoutes(app: FastifyInstance): Pr
       const [itemRows] = await connection.query<Array<RowDataPacket>>(
         `SELECT i.id
          FROM menu_items i
-         JOIN menu_categories c ON c.id = i.category_id
-         JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
-         JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
+         JOIN menu_item_tenants tenant_item
+           ON tenant_item.menu_item_id = i.id
+          AND tenant_item.tenant_id = :tenantId
          WHERE i.id = :itemId
+           AND i.is_active = 1
          LIMIT 1`,
         { itemId, tenantId: request.adminAuth.tenantId }
       );
@@ -535,14 +546,15 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
         const [items] = await connection.query<Array<RowDataPacket>>(
           `SELECT i.id
            FROM menu_items i
-           JOIN menu_categories c ON c.id = i.category_id
-           JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
-           JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
+           JOIN menu_item_tenants tenant_item
+             ON tenant_item.menu_item_id = i.id
+            AND tenant_item.tenant_id = :tenantId
            WHERE i.id = :menuItemId
+             AND i.is_active = 1
            LIMIT 1`,
           { menuItemId, tenantId }
         );
-        if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'The selected menu item is unavailable for this tenant.');
+        if (!items[0]) throw new ApiError(400, 'invalid_option_item', 'The selected menu item is not active in this tenant catalogue.');
         await connection.execute('INSERT INTO menu_option_group_items (option_group_id,menu_item_id) VALUES (:id,:menuItemId)', { id, menuItemId });
       }
     }
@@ -567,14 +579,15 @@ async function saveGroup(tenantId: number, payload: z.infer<typeof groupSchema>,
         const [items] = await connection.query<Array<RowDataPacket>>(
           `SELECT i.id
            FROM menu_items i
-           JOIN menu_categories c ON c.id = i.category_id
-           JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
-           JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
+           JOIN menu_item_tenants tenant_item
+             ON tenant_item.menu_item_id = i.id
+            AND tenant_item.tenant_id = :tenantId
            WHERE i.id = :menuItemId
+             AND i.is_active = 1
            LIMIT 1`,
           { menuItemId, tenantId }
         );
-        if (!items[0]) throw new ApiError(400, 'invalid_option_exclusion', 'The selected menu item is unavailable for this tenant.');
+        if (!items[0]) throw new ApiError(400, 'invalid_option_exclusion', 'The selected menu item is not active in this tenant catalogue.');
         await connection.execute(
           'INSERT INTO menu_item_option_exclusions (menu_item_id, option_group_option_id) VALUES (:menuItemId, :optionId)',
           { menuItemId, optionId }
@@ -616,10 +629,11 @@ async function assertTenantMenuItem(itemId: number, tenantId: number): Promise<v
   const [rows] = await mysqlPool.query<Array<RowDataPacket>>(
     `SELECT i.id
      FROM menu_items i
-     JOIN menu_categories c ON c.id = i.category_id
-     JOIN menu_item_store_availability availability ON availability.menu_item_id = i.id
-     JOIN stores s ON s.id = availability.store_id AND s.tenant_id = :tenantId
+     JOIN menu_item_tenants tenant_item
+       ON tenant_item.menu_item_id = i.id
+      AND tenant_item.tenant_id = :tenantId
      WHERE i.id = :itemId
+       AND i.is_active = 1
      LIMIT 1`,
     { itemId, tenantId }
   );

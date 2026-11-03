@@ -147,7 +147,7 @@ test('tier rewards require an explicit claim before checkout use', async () => {
   assert.match(rewards, /status = 'claimed', user_voucher_id = :userVoucherId/);
   assert.match(rewards, /issueCaseRef: `tier_claim:\$\{entitlement\.id\}`/);
   assert.match(rewards, /current_tier\.tier_code = utre\.tier_code/);
-  assert.match(rewards, /LIMIT 1/);
+  assert.match(rewards, /JSON_CONTAINS\(\s*COALESCE\(JSON_EXTRACT\(lt\.reward_config_json, '\$\.voucherTemplateIds'\)/);
 
   const loyalty = await source('src/services/loyalty.ts');
   assert.match(loyalty, /'claimable'/);
@@ -203,6 +203,8 @@ test('top-up history is informational while qualifying vouchers are issued by se
 test('customer direct checkout uses RM pricing and trusted CHIP settlement', async () => {
   const checkout = await source('src/http/routes/checkout.ts');
   const topups = await source('src/http/routes/topups.ts');
+  const customerData = await source('src/http/routes/customer-data.ts');
+  const chipClient = await source('src/payments/chip-client.ts');
   const settlement = await source('src/services/chip-counter-settlement.ts');
   assert.match(checkout, /payment_mode: z\.enum\(\['token', 'direct'\]\)/);
   assert.match(checkout, /payment_method: z\.enum/);
@@ -213,6 +215,31 @@ test('customer direct checkout uses RM pricing and trusted CHIP settlement', asy
   assert.match(topups, /settleChipMobilePurchase/);
   assert.match(settlement, /orderChannel: 'counter' \| 'mobile'/);
   assert.match(settlement, /o\.order_channel = :orderChannel/);
+  assert.match(chipClient, /purchases\/\$\{encodeURIComponent\(id\)\}\/cancel\//);
+  assert.match(customerData, /await cancelChipPurchase\(current\.provider_bill_id\)/);
+  assert.match(customerData, /customer_retry_cancel_race/);
+  assert.match(customerData, /lockedRows\[0\]\.payment_id !== current\.payment_id/);
+  assert.match(customerData, /pending_payment' && order\.payment_mode === 'direct'/);
+  assert.match(customerData, /customer_cancel_paid_race/);
+  assert.match(customerData, /releaseInventoryForOrder\(connection, order\.id\)/);
+  assert.match(customerData, /payment_cancelled: true/);
+  assert.match(settlement, /if \(orderChannel === 'counter'\)/);
+});
+
+test('order cancellation is barista-reviewed and never fakes direct-payment refunds', async () => {
+  const migration = await source('src/db/migrations/124_create_order_cancellation_requests.sql');
+  const customerData = await source('src/http/routes/customer-data.ts');
+  const adminOrders = await source('src/http/routes/admin-orders.ts');
+  assert.match(migration, /UNIQUE KEY uq_order_cancellation_request/);
+  assert.match(migration, /ENUM\('pending', 'approved', 'rejected', 'refund_pending', 'completed', 'withdrawn'\)/);
+  assert.match(customerData, /orders\/:orderId\/cancellation-request/);
+  assert.match(customerData, /cancellation_request_required/);
+  assert.match(customerData, /payment_mode === 'direct' && order\.payment_status !== 'paid'/);
+  assert.match(adminOrders, /orders\/:orderId\/cancellation-request/);
+  assert.match(adminOrders, /status = 'refund_pending'/);
+  assert.match(adminOrders, /payment-provider refund still required/);
+  assert.match(adminOrders, /releaseInventoryForOrder\(connection, order\.id\)/);
+  assert.match(adminOrders, /cancellation_request_pending/);
 });
 
 test('poster surface ordering is role guarded, tenant scoped, and uses fixed columns', async () => {
@@ -227,17 +254,25 @@ test('poster surface ordering is role guarded, tenant scoped, and uses fixed col
   assert.match(marketing, /FROM voucher_templates[\s\S]{0,200}tenant_id = :tenantId/);
 });
 
-test('option groups can target all menu item kinds without weakening tenant checks', async () => {
+test('option groups use tenant catalogue ownership without depending on outlet availability', async () => {
   const optionLibrary = await source('src/http/routes/admin-option-library.ts');
+  const adminMenu = await source('src/http/routes/admin-menu.ts');
   const catalog = await source('src/http/routes/catalog.ts');
   const checkout = await source('src/http/routes/checkout.ts');
-  const migration = await source('src/db/migrations/115_expand_option_groups_to_all_menu_items.sql');
+  const optionMigration = await source('src/db/migrations/115_expand_option_groups_to_all_menu_items.sql');
+  const tenantCatalogMigration = await source('src/db/migrations/126_scope_menu_catalog_to_tenants.sql');
   assert.match(optionLibrary, /all_drinks', 'all_items', 'selected_items/);
   assert.match(optionLibrary, /g\.applies_to IN \('all_drinks', 'all_items'\)/);
   assert.match(catalog, /row\.applies_to === "all_items"/);
   assert.match(checkout, /g\.applies_to IN \('all_drinks', 'all_items'\)/);
-  assert.match(migration, /ENUM\('all_drinks', 'all_items', 'selected_items'\)/);
-  assert.match(optionLibrary, /stores s ON s\.id = availability\.store_id AND s\.tenant_id = :tenantId/);
+  assert.match(optionMigration, /ENUM\('all_drinks', 'all_items', 'selected_items'\)/);
+  assert.match(tenantCatalogMigration, /CREATE TABLE IF NOT EXISTS menu_item_tenants/);
+  assert.match(tenantCatalogMigration, /menu_item_store_availability/);
+  assert.match(optionLibrary, /JOIN menu_item_tenants tenant_item[\s\S]{0,160}tenant_item\.tenant_id = :tenantId/);
+  assert.match(optionLibrary, /i\.is_active = 1/);
+  assert.doesNotMatch(optionLibrary, /stores s ON s\.id = availability\.store_id AND s\.tenant_id = :tenantId/);
+  assert.match(adminMenu, /INSERT INTO menu_item_tenants \(tenant_id, menu_item_id\)/);
+  assert.match(adminMenu, /tenant_item\.tenant_id = :tenantId/);
 });
 
 test('voucher expiry maintenance closes stale active rows without deleting history', async () => {
@@ -306,7 +341,8 @@ test('reward visibility hardening retires legacy duplicates and malformed schedu
   assert.match(migration, /Replaced by day-scoped recurring voucher policy/);
 
   const loyaltyTiers = await source('src/services/loyalty-tiers.ts');
-  assert.match(loyaltyTiers, /filter\(\(value\) => Number\.isInteger\(value\) && value > 0\)\)\]\.slice\(0, 1\)/);
+  // Tiers may bundle several achievement rewards (birthday stays single).
+  assert.match(loyaltyTiers, /filter\(\(value\) => Number\.isInteger\(value\) && value > 0\)\)\]\.slice\(0, 20\)/);
 });
 
 test('voucher allocation is serialized and manual limits use the resolved customer', async () => {
@@ -320,15 +356,26 @@ test('voucher allocation is serialized and manual limits use the resolved custom
   assert.match(adminVouchers, /userId: customer\.id/);
   assert.match(adminVouchers, /voucher_quantity_exhausted/);
   assert.match(adminVouchers, /voucher_limit_per_user_reached/);
-  assert.match(adminVouchers, /voucherType === 'tier_reward' \? 1/);
+  // limit_per_user on a tier reward is the number of claims per unlock.
+  assert.match(adminVouchers, /values\.limitPerUser = payload\.limitPerUser \?\? 1/);
 
-  const tierLimitMigration = await source('src/db/migrations/101_enforce_single_use_tier_rewards.sql');
-  assert.match(tierLimitMigration, /WHERE voucher_type = 'tier_reward'/);
-  assert.match(tierLimitMigration, /limit_per_user = 1/);
+  const multiRewardMigration = await source('src/db/migrations/127_allow_multiple_tier_rewards.sql');
+  assert.match(multiRewardMigration, /DROP INDEX uq_tier_reward_one_claimable_per_tier/);
 
   const referrals = await source('src/services/referrals.ts');
   assert.match(referrals, /SELECT name, total_quantity, limit_per_user/);
   assert.match(referrals, /FOR UPDATE/);
+});
+
+test('tier rewards support generic free-item scope while preserving one entitlement per claim', async () => {
+  const adminVouchers = await source('src/http/routes/admin-vouchers.ts');
+  assert.match(adminVouchers, /'Free'/);
+  assert.match(adminVouchers, /payload\.benefitType === 'Free'/);
+  assert.match(adminVouchers, /limit_per_user = :limitPerUser/);
+  assert.match(adminVouchers, /const code = await nextVoucherCode/);
+
+  const auth = await source('src/http/routes/auth.ts');
+  assert.match(auth, /benefitType === 'Free'/);
 });
 
 test('voucher administration is tenant scoped and retry safe', async () => {

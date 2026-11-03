@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import StockAvailabilityAlert from './StockAvailabilityAlert';
 import { createPortal } from 'react-dom';
 import {
   Search,
@@ -1132,6 +1133,8 @@ const Menu = () => {
           </div>
         </div>
 
+        <StockAvailabilityAlert />
+
         {errorMessage && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {errorMessage}
@@ -1262,7 +1265,7 @@ const Menu = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden flex gap-6 min-h-0">
+      <div className="flex-1 overflow-hidden flex gap-4 xl:gap-6 min-h-0">
         <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden min-w-0">
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-sm text-left">
@@ -1357,7 +1360,7 @@ const Menu = () => {
         </div>
 
         {selectedItem && (
-          <div className="w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+          <div className="w-80 lg:w-[350px] xl:w-[400px] 2xl:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
             <div className="p-5 flex flex-col h-full">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex gap-4">
