@@ -186,3 +186,13 @@ migrate_working_dir/
 .md/
 admin_web/dist.zip
 C2Coffee_API_CHIP_*.zip
+
+# ==============================================================================
+# Local analysis, deployment artifacts & operational logs
+# ============================================================================
+graphify-out/
+/output/
+/deployment_packages/
+C2Coffee-api-*.zip
+Administrator Windows PowerShell.txt
+**/scratch.ts

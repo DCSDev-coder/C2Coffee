@@ -985,7 +985,7 @@ const TierManagement = () => {
 
       <div className="rounded-2xl border border-[#D7E4E0] bg-[#F4F8F7] px-4 py-3 text-xs text-gray-700">
         <span className="font-bold text-[#1F3A34]">How rewards work: </span>
-        A tier can hold several achievement rewards, each with its own number of claims. Birthday-month rewards are available only during that member&apos;s birthday month.
+        Members upgrade as soon as they qualify. Their achieved tier is then protected for 12 months and reviewed only on its annual review date. A tier can hold several achievement rewards, while birthday rewards remain available only during that member&apos;s birthday month.
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 shrink-0">

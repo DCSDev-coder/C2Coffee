@@ -38,7 +38,9 @@ class OrderCard extends StatelessWidget {
   final List<OrderItem> items;
   final VoidCallback? onActionPressed;
   final VoidCallback? onTap;
+  final VoidCallback? onPrintPressed;
   final bool isActionLoading;
+  final bool isPrintLoading;
   final String? cancellationRequestStatus;
 
   const OrderCard({
@@ -50,7 +52,9 @@ class OrderCard extends StatelessWidget {
     required this.items,
     this.onActionPressed,
     this.onTap,
+    this.onPrintPressed,
     this.isActionLoading = false,
+    this.isPrintLoading = false,
     this.cancellationRequestStatus,
   });
 
@@ -107,7 +111,11 @@ class OrderCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(20.0),
                           ),
                           child: Text(
-                            isPreparing ? 'Preparing' : 'New',
+                            isReadyForPickup
+                                ? 'Ready for pickup'
+                                : isPreparing
+                                ? 'Preparing'
+                                : 'New',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -201,6 +209,39 @@ class OrderCard extends StatelessWidget {
 
               // Order Items
               ...items.map((item) => _buildOrderItem(item, darkGreen)),
+
+              const SizedBox(height: 8.0),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: isPrintLoading ? null : onPrintPressed,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: darkGreen,
+                    side: const BorderSide(color: darkGreen, width: 1.4),
+                    padding: const EdgeInsets.symmetric(vertical: 13.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                  ),
+                  icon: isPrintLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.3,
+                            color: darkGreen,
+                          ),
+                        )
+                      : const Icon(Icons.print_outlined),
+                  label: Text(
+                    isHistory ? 'Reprint receipt' : 'Print receipt',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
 
               // Action Button (Only if not history or ready)
               if (!isHistory && !isReadyForPickup) ...[

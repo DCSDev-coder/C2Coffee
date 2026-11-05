@@ -70,7 +70,7 @@ async function requireVoucherIntegrity(): Promise<void> {
   const [rows] = await mysqlPool.query<Array<RowDataPacket & {
     invalid_templates: number;
     duplicate_campaigns: number;
-    duplicate_claimable_tiers: number;
+    excess_claimable_tier_rewards: number;
     stale_active_vouchers: number;
   }>>(
     `SELECT
@@ -106,13 +106,27 @@ async function requireVoucherIntegrity(): Promise<void> {
        (
          SELECT COUNT(*)
          FROM (
-           SELECT user_id, tier_code
-           FROM user_tier_reward_entitlements
-           WHERE status = 'claimable'
-           GROUP BY user_id, tier_code
-           HAVING COUNT(*) > 1
-         ) duplicate_tier_rows
-       ) AS duplicate_claimable_tiers,
+           SELECT
+             utre.user_id,
+             utre.tenant_id,
+             utre.voucher_template_id,
+             utre.tier_code
+           FROM user_tier_reward_entitlements utre
+           JOIN voucher_templates vt
+             ON vt.id = utre.voucher_template_id
+           WHERE utre.status = 'claimable'
+           GROUP BY
+             utre.user_id,
+             utre.tenant_id,
+             utre.voucher_template_id,
+             utre.tier_code,
+             vt.voucher_type,
+             vt.limit_per_user
+           HAVING MAX(vt.tenant_id) <> MAX(utre.tenant_id)
+              OR vt.voucher_type <> 'tier_reward'
+              OR COUNT(*) > LEAST(20, GREATEST(1, COALESCE(vt.limit_per_user, 1)))
+         ) excess_tier_reward_rows
+       ) AS excess_claimable_tier_rewards,
        (
          SELECT COUNT(*)
          FROM user_vouchers
@@ -123,13 +137,13 @@ async function requireVoucherIntegrity(): Promise<void> {
   const result = rows[0];
   const invalidTemplates = Number(result?.invalid_templates ?? 0);
   const duplicateCampaigns = Number(result?.duplicate_campaigns ?? 0);
-  const duplicateTiers = Number(result?.duplicate_claimable_tiers ?? 0);
+  const excessTierRewards = Number(result?.excess_claimable_tier_rewards ?? 0);
   const staleActive = Number(result?.stale_active_vouchers ?? 0);
-  if (invalidTemplates || duplicateCampaigns || duplicateTiers || staleActive) {
+  if (invalidTemplates || duplicateCampaigns || excessTierRewards || staleActive) {
     throw new Error(
       `Voucher integrity failure: ${invalidTemplates} invalid template(s), ` +
       `${duplicateCampaigns} duplicate campaign allocation(s), ` +
-      `${duplicateTiers} duplicate claimable tier reward(s), ` +
+      `${excessTierRewards} excess claimable tier reward allocation(s), ` +
       `${staleActive} expired voucher(s) still active.`
     );
   }
@@ -191,7 +205,15 @@ async function requireLatestSchema(): Promise<void> {
     '126_scope_menu_catalog_to_tenants.sql',
     '127_allow_multiple_tier_rewards.sql',
     '128_create_gift_cards.sql',
-    '129_harden_gift_card_purchases.sql'
+    '129_harden_gift_card_purchases.sql',
+    '130_create_outlet_emergency_closures.sql',
+    '131_gift_card_wallet_redemption.sql',
+    '132_normalize_loyalty_order_cups.sql',
+    '133_enforce_one_loyalty_cup_per_order.sql',
+    '134_create_annual_loyalty_tier_status.sql',
+    '135_backfill_annual_loyalty_tier_status.sql',
+    '136_create_employee_monthly_token_allowances.sql',
+    '137_cap_employee_allowance_and_add_monthly_audit.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,

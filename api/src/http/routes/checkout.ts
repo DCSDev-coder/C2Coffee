@@ -35,6 +35,7 @@ import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { autoReopenEmergencyClosures } from '../../services/outlet-emergency.js';
 import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
+import { consumeEmployeeAllowance, currentEmployeeAllowancePeriod } from '../../services/employee-token-allowance.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -570,6 +571,7 @@ export async function registerCheckoutRoutes(
       let subtotalRm = 0;
       let modifierTotalRm = 0;
       let tokenAmountCharged = 0;
+      let drinkTokenAmount = 0;
 
       const normalizedItems = [] as Array<{
         payload: z.infer<typeof createOrderSchema>['items'][number];
@@ -623,7 +625,11 @@ export async function registerCheckoutRoutes(
         if (isTokenCheckout) {
           // A configured deduction may make one item free, but it must never
           // create negative spend or discount another item in the same order.
-          tokenAmountCharged += Math.max(0, tokenPrice + modifierTokens) * item.quantity;
+          const lineTokens = Math.max(0, tokenPrice + modifierTokens) * item.quantity;
+          tokenAmountCharged += lineTokens;
+          if (String(menuItem.category_product_kind_code).toLowerCase() === 'drink') {
+            drinkTokenAmount += lineTokens;
+          }
         }
 
         normalizedItems.push({
@@ -876,6 +882,7 @@ export async function registerCheckoutRoutes(
 
       if (isTokenCheckout) {
         tokenAmountCharged = Math.max(0, tokenAmountCharged - discountTokens);
+        drinkTokenAmount = Math.min(drinkTokenAmount, tokenAmountCharged);
       }
 
       discountRm = normalizeMoney(discountRm);
@@ -915,13 +922,6 @@ export async function registerCheckoutRoutes(
           finalTotalRm = normalizeMoney(finalTotalRm - giftCardAmountRm);
         }
       }
-      if (isTokenCheckout && bootstrap.token_balance < tokenAmountCharged) {
-        throw new ApiError(
-          400,
-          'insufficient_token_balance',
-          'Your wallet balance plus this gift card is not enough to complete this checkout.'
-        );
-      }
       const directPaymentRequired = !isTokenCheckout && finalTotalRm > 0;
       const orderPaid = isTokenCheckout || !directPaymentRequired;
 
@@ -946,6 +946,7 @@ export async function registerCheckoutRoutes(
             discount_total_rm,
             final_total_rm,
             token_amount_charged,
+            employee_allowance_tokens_used,
             voucher_id,
             gift_card_id,
             gift_card_amount_rm,
@@ -967,6 +968,7 @@ export async function registerCheckoutRoutes(
             :discountTotalRm,
             :finalTotalRm,
             :tokenAmountCharged,
+            0,
             :voucherId,
             :giftCardId,
             :giftCardAmountRm,
@@ -1239,15 +1241,37 @@ export async function registerCheckoutRoutes(
       let accountBalanceCap = bootstrap.token_cap;
 
       if (isTokenCheckout) {
-        const [accountRows] = await connection.query<Array<TokenAccountRow>>(
+        const [membershipRows] = await connection.query<Array<RowDataPacket & { tenant_id: number; is_employee: number }>>(
+          `SELECT s.tenant_id, COALESCE(ctm.is_employee, 0) AS is_employee
+             FROM stores s
+             LEFT JOIN customer_tenant_memberships ctm
+               ON ctm.tenant_id = s.tenant_id AND ctm.user_id = :userId
+            WHERE s.id = :storeId LIMIT 1`,
+          { userId: request.auth.userId, storeId: payload.store_id }
+        );
+        const membership = membershipRows[0];
+        const allowanceUsed = membership && Number(membership.is_employee) === 1
+          ? await consumeEmployeeAllowance(connection, request.auth.userId, Number(membership.tenant_id), orderId, Math.min(tokenAmountCharged, drinkTokenAmount))
+          : 0;
+        const paidTokenAmount = tokenAmountCharged - allowanceUsed;
+
+        const allowancePeriod = currentEmployeeAllowancePeriod();
+        const [accountRows] = await connection.query<Array<TokenAccountRow & { employee_allowance_remaining: number }>>(
           `
-            SELECT balance_available, balance_reserved, balance_cap
-            FROM token_accounts
-            WHERE user_id = :userId
+            SELECT ta.balance_available, ta.balance_reserved, ta.balance_cap,
+                   COALESCE((
+                     SELECT eta.remaining_amount
+                       FROM employee_token_allowances eta
+                      WHERE eta.user_id = ta.user_id AND eta.tenant_id = :tenantId
+                        AND eta.period_start = :periodStart
+                      LIMIT 1
+                   ), 0) AS employee_allowance_remaining
+            FROM token_accounts ta
+            WHERE ta.user_id = :userId
             LIMIT 1
             FOR UPDATE
           `,
-          { userId: request.auth.userId }
+          { userId: request.auth.userId, tenantId: Number(membership?.tenant_id || 0), periodStart: allowancePeriod.start }
         );
 
         const account = accountRows[0];
@@ -1255,12 +1279,12 @@ export async function registerCheckoutRoutes(
           throw new ApiError(400, 'token_account_missing', 'Wallet account was not found.');
         }
 
-        const newAvailable = account.balance_available - tokenAmountCharged;
-        if (newAvailable < 0) {
+        const newAvailable = account.balance_available - paidTokenAmount;
+        if (newAvailable < Number(account.employee_allowance_remaining ?? 0)) {
           throw new ApiError(
             400,
             'insufficient_token_balance',
-            'Your wallet balance is not enough to complete this checkout.'
+            'Your personal C2 Credit is not enough for the food or merchandise in this order.'
           );
         }
 
@@ -1302,9 +1326,10 @@ export async function registerCheckoutRoutes(
           }
         );
 
-        await connection.execute(
-          `
-            INSERT INTO token_ledger (
+        if (paidTokenAmount > 0) {
+          await connection.execute(
+            `
+              INSERT INTO token_ledger (
               user_id,
               token_lot_id,
               direction,
@@ -1324,14 +1349,20 @@ export async function registerCheckoutRoutes(
               :balanceAfter,
               :remarks
             )
-          `,
-          {
-            userId: request.auth.userId,
-            orderId,
-            amount: tokenAmountCharged,
-            balanceAfter: newAvailable,
-            remarks: `Token checkout for order ${orderRef}`
-          }
+            `,
+            {
+              userId: request.auth.userId,
+              orderId,
+              amount: paidTokenAmount,
+              balanceAfter: newAvailable,
+              remarks: `Token checkout for order ${orderRef}`
+            }
+          );
+        }
+
+        await connection.execute(
+          `UPDATE orders SET employee_allowance_tokens_used = :allowanceUsed WHERE id = :orderId`,
+          { allowanceUsed, orderId }
         );
 
         accountBalanceAvailable = newAvailable;

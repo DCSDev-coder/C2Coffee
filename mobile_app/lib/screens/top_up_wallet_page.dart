@@ -64,6 +64,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
   TransactionFilter _selectedFilter = TransactionFilter.all;
   int _transactionDisplayLimit = _initialTransactionLimit;
   bool _showScrollToTop = false;
+  EmployeeSubsidy? _subsidy;
 
   List<WalletTransaction> get _filteredTransactions {
     final list = List<WalletTransaction>.from(_transactions);
@@ -89,6 +90,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.wait([
         _loadWalletData(),
+        _loadSubsidy(),
         _loadPaymentMethods(),
         _loadPackages(),
         _restorePendingTopUp(),
@@ -113,6 +115,15 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       if (!mounted) return;
       await showPendingPaymentServiceNotice(context);
     });
+  }
+
+  Future<void> _loadSubsidy() async {
+    try {
+      final token = await SecureSessionService.instance.getValidAccessToken();
+      if (token == null || token.isEmpty) return;
+      final value = await CustomerDataService.instance.getSubsidy(accessToken: token);
+      if (mounted) setState(() => _subsidy = value);
+    } catch (_) {}
   }
 
   Future<void> _restorePendingTopUp() async {
@@ -936,6 +947,20 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildBalanceCard(),
+              if (_subsidy?.eligible == true) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [Icon(Icons.local_cafe_outlined, color: AppColors.deepTeal), const SizedBox(width: 8), const Expanded(child: Text('Monthly Subsidy', style: TextStyle(fontFamily: 'Afacad', fontSize: 17, fontWeight: FontWeight.w700))), Text('${_subsidy!.remaining} left', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.w700))]),
+                    const SizedBox(height: 8),
+                    ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _subsidy!.granted == 0 ? 0 : _subsidy!.remaining / _subsidy!.granted, minHeight: 7, backgroundColor: AppColors.border, color: AppColors.deepTeal)),
+                    const SizedBox(height: 6),
+                    Text(_subsidy!.enabled ? 'Used first for drinks • enabled' : 'Subsidy is turned off', style: const TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

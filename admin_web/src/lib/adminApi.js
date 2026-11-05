@@ -511,6 +511,23 @@ export async function loadAdminMarketingBanners(params = {}) {
   return adminRequest(`/v1/admin/marketing/banners${query ? `?${query}` : ""}`);
 }
 
+export async function loadAdminMarketingDrinkUsages(params = {}) {
+  const searchParams = new URLSearchParams();
+  if (params.from) searchParams.set("from", params.from);
+  if (params.to) searchParams.set("to", params.to);
+  if (params.storeId) searchParams.set("store_id", String(params.storeId));
+  if (params.purposeCode) searchParams.set("purpose_code", params.purposeCode);
+  const query = searchParams.toString();
+  return adminRequest(`/v1/admin/marketing-drink-usages${query ? `?${query}` : ""}`);
+}
+
+export async function reverseAdminMarketingDrinkUsage(usageId, reason) {
+  return adminRequest(`/v1/admin/marketing-drink-usages/${encodeURIComponent(usageId)}/reverse`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export async function createAdminMarketingBanner(payload) {
   return adminRequest("/v1/admin/marketing/banners", {
     method: "POST",
@@ -580,6 +597,11 @@ export async function loadAdminLoyaltyOverview(limit = 50) {
   return adminRequest(
     `/v1/admin/loyalty/overview?limit=${encodeURIComponent(limit)}`,
   );
+}
+
+export async function loadEmployeeAllowanceReport(month, limit = 250) {
+  const query = new URLSearchParams({ month, limit: String(limit) });
+  return adminRequest(`/v1/admin/loyalty/employee-allowances?${query}`);
 }
 
 export async function adjustAdminCustomerTokens(customerId, payload) {

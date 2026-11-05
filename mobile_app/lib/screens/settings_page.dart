@@ -11,6 +11,7 @@ import '../services/api_config.dart';
 import '../services/secure_session_service.dart';
 import '../services/session_lifecycle_service.dart';
 import '../services/notification_service.dart';
+import '../services/customer_data_service.dart';
 import '../services/user_service.dart';
 import 'splash_screen.dart';
 import 'privacy_policy_page.dart';
@@ -45,6 +46,8 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _remoteAvatarPath;
   bool _marketingNotifications = true;
   bool _marketingPreferenceLoading = true;
+  EmployeeSubsidy? _subsidy;
+  bool _subsidyLoading = true;
   Map<String, String?> userProfile = {
     'username': '',
     'email': '',
@@ -66,6 +69,34 @@ class _SettingsPageState extends State<SettingsPage> {
     _session.addListener(_handleSessionChanged);
     _loadUserData();
     _loadMarketingNotificationPreference();
+    _loadSubsidy();
+  }
+
+  Future<void> _loadSubsidy() async {
+    try {
+      final token = await SecureSessionService.instance.getValidAccessToken();
+      if (token == null || token.isEmpty) return;
+      final value = await CustomerDataService.instance.getSubsidy(accessToken: token);
+      if (mounted) setState(() => _subsidy = value);
+    } catch (_) {
+      // Older deployments may not have the optional subsidy endpoint yet.
+    } finally {
+      if (mounted) setState(() => _subsidyLoading = false);
+    }
+  }
+
+  Future<void> _setSubsidy(bool enabled) async {
+    final previous = _subsidy;
+    if (previous == null) return;
+    setState(() => _subsidy = EmployeeSubsidy(eligible: true, enabled: enabled, remaining: previous.remaining, granted: previous.granted, used: previous.used, periodEnd: previous.periodEnd));
+    try {
+      final token = await SecureSessionService.instance.getValidAccessToken();
+      if (token == null || token.isEmpty) throw ApiException('Sign in required.');
+      final value = await CustomerDataService.instance.updateSubsidy(accessToken: token, enabled: enabled);
+      if (mounted) setState(() => _subsidy = value);
+    } catch (_) {
+      if (mounted) { setState(() => _subsidy = previous); _showSnackBar('Unable to update subsidy preference right now.'); }
+    }
   }
 
   void _handleSessionChanged() {
@@ -1886,6 +1917,18 @@ class _SettingsPageState extends State<SettingsPage> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Column(
                         children: [
+                          if (!_subsidyLoading && (_subsidy?.eligible ?? false)) ...[
+                            ListTile(
+                              title: const Text('Subsidy', style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black87)),
+                              subtitle: Text('${_subsidy!.remaining} / ${_subsidy!.granted} C2 Tokens remaining • drinks only', style: const TextStyle(fontFamily: 'Afacad', fontSize: 15)),
+                              trailing: Switch(value: _subsidy!.enabled, onChanged: _setSubsidy, activeThumbColor: AppColors.deepTeal),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              child: ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _subsidy!.granted == 0 ? 0 : _subsidy!.remaining / _subsidy!.granted, minHeight: 8, backgroundColor: AppColors.border, color: AppColors.deepTeal)),
+                            ),
+                            const Divider(height: 1, indent: 16, endIndent: 16),
+                          ],
                           SwitchListTile(
                             title: const Text('Marketing updates',
                                 style: TextStyle(

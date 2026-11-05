@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle,
@@ -18,23 +18,38 @@ import Pagination from "./Pagination";
 import PaymentServiceNotices from "./PaymentServiceNotices";
 import InfoTooltip from "./InfoTooltip";
 import { showAdminError, showAdminSuccess } from "../lib/adminToast";
-import { requestAdminConfirm } from "../lib/adminDialog";
+import { requestAdminConfirm, requestAdminPrompt } from "../lib/adminDialog";
 import {
   createAdminMarketingBanner,
   deleteAdminMarketingBanner,
   getAdminApiBaseUrl,
   formatRetryCountdown,
   loadAdminMarketingBanners,
+  loadAdminMarketingDrinkUsages,
   loadAdminMenu,
   loadAdminVouchers,
   notifyAdminMarketingBanner,
   sendAdminCustomerMessage,
   updateAdminMarketingBanner,
   reorderAdminMarketingBannerSurface,
+  reverseAdminMarketingDrinkUsage,
   uploadAdminMarketingPoster,
 } from "../lib/adminApi";
 
 const ITEMS_PER_PAGE = 8;
+
+function localYearMonth(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthDateRange(yearMonth) {
+  const [year, month] = String(yearMonth).split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    from: `${yearMonth}-01`,
+    to: `${yearMonth}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
 
 const DEFAULT_FORM = {
   title: "",
@@ -225,6 +240,9 @@ const Marketing = () => {
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState("");
   const [formData, setFormData] = useState(makeEmptyForm());
+  const [marketingDrinkRows, setMarketingDrinkRows] = useState([]);
+  const [marketingDrinkLoading, setMarketingDrinkLoading] = useState(true);
+  const [marketingDrinkMonth, setMarketingDrinkMonth] = useState(localYearMonth);
 
   useEffect(() => {
     if (!selectedImageFile) {
@@ -268,6 +286,42 @@ const Marketing = () => {
     void loadPageData();
   }, []);
 
+  const loadMarketingDrinkAudit = useCallback(async () => {
+    try {
+      setMarketingDrinkLoading(true);
+      const response = await loadAdminMarketingDrinkUsages(monthDateRange(marketingDrinkMonth));
+      setMarketingDrinkRows(Array.isArray(response?.usages) ? response.usages : []);
+    } catch (err) {
+      showAdminError(err instanceof Error ? err.message : "Unable to load complimentary drink usage.");
+    } finally {
+      setMarketingDrinkLoading(false);
+    }
+  }, [marketingDrinkMonth]);
+
+  useEffect(() => {
+    void loadMarketingDrinkAudit();
+  }, [loadMarketingDrinkAudit]);
+
+  const reverseMarketingDrinkUsage = async (row) => {
+    const reason = await requestAdminPrompt({
+      title: "Reverse complimentary usage",
+      message: "Explain why this complimentary drink record must be reversed. The reason is retained in the audit trail.",
+      inputLabel: "Reason",
+      multiline: true,
+      confirmLabel: "Continue",
+      tone: "danger",
+    });
+    if (!reason?.trim()) return;
+    if (!await requestAdminConfirm({ title: "Reverse complimentary usage?", message: "This restores the recorded recipe stock and keeps an immutable reversal trail.", confirmLabel: "Reverse" })) return;
+    try {
+      await reverseAdminMarketingDrinkUsage(row.id, reason.trim());
+      showAdminSuccess("Complimentary usage reversed and stock restored.");
+      await loadMarketingDrinkAudit();
+    } catch (err) {
+      showAdminError(err instanceof Error ? err.message : "Unable to reverse this record.");
+    }
+  };
+
   const filteredBanners = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     return banners.filter((banner) => {
@@ -303,6 +357,17 @@ const Marketing = () => {
       return matchesSearch && matchesType && matchesPlacement && matchesStatus;
     });
   }, [banners, searchTerm, selectedType, selectedPlacement, selectedStatus]);
+
+  const marketingUsageAudit = useMemo(() => {
+    const grouped = new Map();
+    for (const row of marketingDrinkRows) {
+      const id = Number(row.id);
+      const current = grouped.get(id) || { ...row, items: [], inventory_cost_rm: Number(row.inventory_cost_rm || 0) };
+      current.items.push(`${Number(row.quantity)}× ${row.menu_item_name_snapshot}`);
+      grouped.set(id, current);
+    }
+    return [...grouped.values()];
+  }, [marketingDrinkRows]);
 
   const [sortKey, setSortKey] = useState("title");
   const [sortDirection, setSortDirection] = useState("asc");
@@ -873,6 +938,53 @@ const Marketing = () => {
             </button>
           </div>
         </div>
+
+        <section className="rounded-2xl border border-gray-200/80 bg-white p-4 sm:p-5 shadow-xs">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Complimentary Drink Audit</h2>
+              <p className="mt-0.5 text-xs text-gray-500">Current-month marketing usage recorded by baristas. These are not sales, vouchers, employee credits, or loyalty cups.</p>
+            </div>
+            <div className="flex items-center gap-2 self-start">
+              <label className="sr-only" htmlFor="marketing-drink-month">Audit month</label>
+              <input
+                id="marketing-drink-month"
+                type="month"
+                value={marketingDrinkMonth}
+                max={localYearMonth()}
+                onChange={(event) => setMarketingDrinkMonth(event.target.value || localYearMonth())}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700"
+              />
+              <button type="button" onClick={() => void loadMarketingDrinkAudit()} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">
+                <RefreshCw size={14} /> Refresh audit
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-xs">
+              <thead className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+                <tr><th className="px-3 py-2">Reference</th><th className="px-3 py-2">Outlet / Barista</th><th className="px-3 py-2">Purpose</th><th className="px-3 py-2">Items</th><th className="px-3 py-2">Recipe cost</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Action</th></tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {marketingDrinkLoading ? (
+                  <tr><td colSpan="7" className="px-3 py-5 text-center text-gray-500">Loading complimentary usage…</td></tr>
+                ) : marketingUsageAudit.length === 0 ? (
+                  <tr><td colSpan="7" className="px-3 py-5 text-center text-gray-500">No complimentary drinks recorded for this month.</td></tr>
+                ) : marketingUsageAudit.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-3 font-mono font-semibold text-gray-800">{row.usage_ref}</td>
+                    <td className="px-3 py-3 text-gray-700">{row.store_name}<br/><span className="text-gray-500">{row.barista_name}</span></td>
+                    <td className="px-3 py-3 text-gray-700">{String(row.purpose_code).replaceAll("_", " ")}<br/><span className="text-gray-500">{row.campaign_name || row.reason_note}</span></td>
+                    <td className="px-3 py-3 text-gray-700">{row.items.join(", ")}</td>
+                    <td className="px-3 py-3 tabular-nums text-gray-700">RM {Number(row.inventory_cost_rm || 0).toFixed(2)}</td>
+                    <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${row.status === "posted" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>{row.status}</span></td>
+                    <td className="px-3 py-3">{row.status === "posted" && <button type="button" onClick={() => void reverseMarketingDrinkUsage(row)} className="rounded-lg border border-red-200 px-2.5 py-1.5 font-bold text-red-700 hover:bg-red-50">Reverse</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         <PaymentServiceNotices />
 

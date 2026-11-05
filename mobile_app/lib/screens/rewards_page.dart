@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../services/app_session_service.dart';
 import '../services/catalog_api_service.dart';
 import '../widgets/custom_bottom_nav.dart';
@@ -778,9 +779,7 @@ class _RewardsPageState extends State<RewardsPage> {
           : 'tier achievement reward: ${reward.name}'.toLowerCase();
       final additionalDescription =
           description.toLowerCase() == generatedDescription ? '' : description;
-      final timingLabel =
-          reward.timing == 'birthday_month' ? 'Birthday month' : 'Tier reward';
-      return '$timingLabel: ${reward.name} - ${reward.benefitLabel}'
+      return '${reward.name}'
           '${additionalDescription.isEmpty ? '' : '. $additionalDescription'}';
     }).toList();
   }
@@ -791,14 +790,14 @@ class _RewardsPageState extends State<RewardsPage> {
     required int currentIndex,
   }) {
     final cups = _session.cupsLast180d;
-    final nextTier = _nextTier();
-    final targetCups = tier.minCups == 0
-        ? 1
-        : selectedIndex == currentIndex && nextTier != null
-            ? nextTier.minCups
-            : tier.minCups;
-    final collectedCups =
-        selectedIndex < currentIndex ? targetCups : cups.clamp(0, targetCups);
+    final isLocked = selectedIndex > currentIndex;
+    final targetCups = tier.minCups <= 0 ? 1 : tier.minCups;
+    final isPastTier = selectedIndex < currentIndex;
+    final progressLabel = isPastTier
+        ? 'Achieved'
+        : isLocked
+            ? '0 / $targetCups cups collected'
+            : '$cups cups collected';
 
     return Container(
       width: double.infinity,
@@ -809,7 +808,7 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
       child: Center(
         child: Text(
-          '$collectedCups / $targetCups cups collected',
+          progressLabel,
           style: TextStyle(
             fontFamily: 'Afacad',
             fontSize: 17,
@@ -1055,6 +1054,29 @@ class _RewardsPageState extends State<RewardsPage> {
             selectedIndex: selectedIndex,
             currentIndex: currentIndex,
           ),
+          if (isCurrent && _session.tierReviewDueAt != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 17,
+                  color: AppColors.sageTeal,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'Your tier is protected until ${DateFormat('d MMMM yyyy').format(_session.tierReviewDueAt!)}.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.supportingText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (details.isNotEmpty) ...[
             const SizedBox(height: 18),
             Text(
@@ -1286,7 +1308,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const Divider(height: 1),
                 _buildExpansionTile(
                   'How do I earn reward tokens & cups?',
-                  'You earn 1 cup for every qualifying handcrafted beverage collected. Collect enough cups to level up your tier (Kawan → Dilamun → Ketagih → Legend) and unlock exclusive benefits and vouchers!',
+                  'You earn no more than 1 cup for a qualifying drink order after collection. An order with multiple drinks still earns 1 cup, and Company Subsidy-funded purchases do not earn cups. Your current tier, annual protection, and rewards follow the rules shown in the App.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(
@@ -1301,7 +1323,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const Divider(height: 1),
                 _buildExpansionTile(
                   'Are C2 Tokens refundable or transferable?',
-                  'Per Section 5 of our Terms & Conditions, C2 Token is a closed-loop prepaid balance intended strictly for store purchases. Tokens cannot be exchanged for cash or transferred between accounts, and top-ups are non-refundable except for verified technical billing errors.',
+                  'C2 Tokens are closed-loop C2 Coffee credit for store purchases. They cannot be exchanged for cash or transferred between accounts. Approved order cancellations may return tokens according to the order status and refund rules. Top-ups are generally non-refundable except for verified duplicate charges, technical billing errors, or rights that cannot be excluded by law.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(

@@ -5,6 +5,7 @@ import { authenticateAdminRequest } from '../../admin/guard.js';
 import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { processOrderLoyalty, reverseOrderLoyalty } from '../../services/loyalty.js';
+import { restoreEmployeeAllowanceForRefund } from '../../services/employee-token-allowance.js';
 import { awardReferralForCollectedOrder, reverseReferralForRefundedOrder } from '../../services/referrals.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
@@ -74,7 +75,8 @@ const createRefundSchema = z.object({
 
 const adminListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(10000).optional().default(50),
-  store_id: z.coerce.number().int().positive().optional()
+  store_id: z.coerce.number().int().positive().optional(),
+  view: z.enum(['all', 'barista_workspace']).optional().default('all')
 });
 
 const financeQuerySchema = z.object({
@@ -185,7 +187,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
   app.get('/v1/admin/orders', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireOrderAccess(request);
-    const { limit, store_id: storeId } = adminListQuerySchema.parse(request.query);
+    const { limit, store_id: storeId, view } = adminListQuerySchema.parse(request.query);
 
     const connection = await mysqlPool.getConnection();
     try {
@@ -232,6 +234,14 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
           AND (
+            :view = 'all'
+            OR (
+              o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+              AND DATE(DATE_ADD(o.created_at, INTERVAL 8 HOUR)) =
+                  DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))
+            )
+          )
+          AND (
             :isBaristaOnly = 0
             OR EXISTS (
               SELECT 1
@@ -246,6 +256,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         storeId: storeId ?? null,
         adminUserId: request.adminAuth.adminUserId,
         isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0,
+        view,
         limit
       });
 
@@ -884,7 +895,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
 
       if (decision === 'approved' && refund.payment_mode === 'token') {
-        const tokenAmount = Number(refund.refund_token_amount ?? 0);
+        const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(refund.order_id));
+        const tokenAmount = Math.max(0, Number(refund.refund_token_amount ?? 0) - allowanceRefund.allowanceUsed + allowanceRefund.restored);
         if (tokenAmount <= 0) {
           throw new ApiError(409, 'refund_amount_invalid', 'This refund does not have a token amount to return.');
         }
@@ -1160,7 +1172,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         return reply.send({ status: 'refund_pending', payment_refund_required: true });
       }
 
-      const tokenAmount = Number(order.token_amount_charged);
+      const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(order.id));
+      const tokenAmount = Math.max(0, Number(order.token_amount_charged) - allowanceRefund.allowanceUsed + allowanceRefund.restored);
       // Token checkouts are settled from the token ledger and normally have no
       // provider payment row. The direct-payment branch above handles the
       // provider-paid requirement separately.

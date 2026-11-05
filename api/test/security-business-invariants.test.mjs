@@ -150,10 +150,11 @@ test('tier rewards require an explicit claim before checkout use', async () => {
   assert.match(rewards, /JSON_CONTAINS\(\s*COALESCE\(JSON_EXTRACT\(lt\.reward_config_json, '\$\.voucherTemplateIds'\)/);
 
   const loyalty = await source('src/services/loyalty.ts');
+  const loyaltyMaintenance = await source('src/services/loyalty-tier-maintenance.ts');
   assert.match(loyalty, /'claimable'/);
   assert.match(loyalty, /ready to claim in My Rewards/);
   assert.match(loyalty, /resulting\/current tier/);
-  assert.match(loyalty, /Superseded by the customer current tier/);
+  assert.match(loyaltyMaintenance, /Superseded by the customer current tier/);
   assert.doesNotMatch(
     loyalty,
     /INSERT IGNORE INTO user_vouchers[\s\S]{0,800}tier_unlock:/,
@@ -412,8 +413,15 @@ test('voucher configuration rejects unsafe values and unsafe free-item defaults'
 
   const readiness = await source('src/scripts/production-readiness.ts');
   assert.match(readiness, /Voucher allocation integrity/);
-  assert.match(readiness, /duplicate_claimable_tiers/);
+  assert.match(readiness, /excess_claimable_tier_rewards/);
+  assert.match(readiness, /COUNT\(\*\) > LEAST\(20, GREATEST\(1, COALESCE\(vt\.limit_per_user, 1\)\)\)/);
   assert.match(readiness, /stale_active_vouchers/);
+});
+
+test('admin customer phone conflicts return a safe client error', async () => {
+  const customers = await source('src/http/routes/admin-customers.ts');
+  assert.match(customers, /uq_users_active_phone_e164/);
+  assert.match(customers, /new ApiError\(409, 'customer_phone_exists', 'That phone number is already registered\.'\)/);
 });
 
 test('verified legacy refund reconciliation is guarded and does not debit the wallet twice', async () => {

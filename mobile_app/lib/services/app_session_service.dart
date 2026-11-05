@@ -26,6 +26,7 @@ class AppSessionService extends ChangeNotifier {
   bool _hasCompletedTopup = false;
   String _tier = 'kawan';
   int _cupsLast180d = 0;
+  DateTime? _tierReviewDueAt;
   bool _isBootstrapLoading = false;
   bool _hasAccountData = false;
   bool _isMenuLoading = false;
@@ -37,7 +38,12 @@ class AppSessionService extends ChangeNotifier {
   List<HomeFeaturedSection> _homeFeaturedSections = const [];
   List<HomeBanner> _homeBanners = const [];
   List<LoyaltyTier> _loyaltyTiers = const [];
-  MaintenanceSnapshot _maintenance = const MaintenanceSnapshot(enabled: false, blocked: false, title: '', message: '', expectedEndAt: null);
+  MaintenanceSnapshot _maintenance = const MaintenanceSnapshot(
+      enabled: false,
+      blocked: false,
+      title: '',
+      message: '',
+      expectedEndAt: null);
 
   CurrentUserProfile? get user => _user;
   int get tokenBalance => _tokenBalance;
@@ -46,6 +52,7 @@ class AppSessionService extends ChangeNotifier {
   bool get hasCompletedTopup => _hasCompletedTopup;
   String get tier => _tier;
   int get cupsLast180d => _cupsLast180d;
+  DateTime? get tierReviewDueAt => _tierReviewDueAt;
   bool get isBootstrapLoading => _isBootstrapLoading;
 
   /// Account balances, tier and cup progress are only displayable after a
@@ -225,6 +232,7 @@ class AppSessionService extends ChangeNotifier {
       _hasCompletedTopup = bootstrap.hasCompletedTopup;
       _tier = bootstrap.tier;
       _cupsLast180d = bootstrap.cupsLast180d;
+      _tierReviewDueAt = bootstrap.tierReviewDueAt;
       _stores = stores;
       _homeBanners = bootstrap.homeBanners;
       _loyaltyTiers = bootstrap.loyaltyTiers;
@@ -315,6 +323,7 @@ class AppSessionService extends ChangeNotifier {
     _hasCompletedTopup = false;
     _tier = 'kawan';
     _cupsLast180d = 0;
+    _tierReviewDueAt = null;
     _isBootstrapLoading = false;
     _isMenuLoading = false;
     _bootstrapError = null;

@@ -641,6 +641,7 @@ class BootstrapSnapshot {
   final bool hasCompletedTopup;
   final String tier;
   final int cupsLast180d;
+  final DateTime? tierReviewDueAt;
   final List<HomeBanner> homeBanners;
   final List<LoyaltyTier> loyaltyTiers;
   final String primaryColor;
@@ -658,6 +659,7 @@ class BootstrapSnapshot {
     required this.hasCompletedTopup,
     required this.tier,
     required this.cupsLast180d,
+    required this.tierReviewDueAt,
     required this.homeBanners,
     required this.loyaltyTiers,
     required this.primaryColor,
@@ -787,7 +789,13 @@ class CatalogApiService {
       tokenCap: (token['balance_cap'] as num?)?.toInt() ?? 0,
       hasCompletedTopup: token['has_completed_topup'] as bool? ?? false,
       tier: loyalty['tier'] as String? ?? 'kawan',
-      cupsLast180d: (loyalty['cups_last_180d'] as num?)?.toInt() ?? 0,
+      cupsLast180d:
+          (loyalty['qualifying_orders_last_12_months'] as num?)?.toInt() ??
+              (loyalty['cups_last_180d'] as num?)?.toInt() ??
+              0,
+      tierReviewDueAt:
+          DateTime.tryParse(loyalty['tier_review_due_at'] as String? ?? '')
+              ?.toLocal(),
       homeBanners: homeBanners,
       loyaltyTiers: loyaltyTiers,
       primaryColor: appearance['primary_color'] as String? ?? '#2E5E58',

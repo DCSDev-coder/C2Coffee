@@ -173,8 +173,10 @@ class ApiService {
   static Future<OrdersFetchResult> fetchOrders() async {
     try {
       final response = await _authenticatedRequest(
-        (headers) =>
-            http.get(Uri.parse('$baseUrl/admin/orders'), headers: headers),
+        (headers) => http.get(
+          Uri.parse('$baseUrl/admin/orders?view=barista_workspace&limit=500'),
+          headers: headers,
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -282,6 +284,50 @@ class ApiService {
     }
   }
 
+  static Future<ApiRequestResult> queueReceiptReprint(String orderId) async {
+    try {
+      final context = await fetchOperationsContext();
+      final availablePrinters = context.printers
+          .where(
+            (printer) =>
+                printer.deliveryMode == 'android_direct' &&
+                printer.status == 'connected',
+          )
+          .toList();
+      if (availablePrinters.isEmpty) {
+        return const ApiRequestResult.failure(
+          'The receipt printer is not connected to this C2 Store device.',
+        );
+      }
+      final printer = availablePrinters.firstWhere(
+        (candidate) => candidate.isDefault,
+        orElse: () => availablePrinters.first,
+      );
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/print-jobs'),
+          headers: headers,
+          body: json.encode({
+            'order_ref': orderId,
+            'printer_target_id': printer.id,
+            'request_type': 'reprint',
+          }),
+        ),
+      );
+      if (response.statusCode == 202) {
+        return ApiRequestResult.success(
+          json.decode(response.body) as Map<String, dynamic>,
+        );
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (error) {
+      debugPrint('Receipt reprint error: $error');
+      return const ApiRequestResult.failure(
+        'Unable to queue the receipt. Check the printer connection and try again.',
+      );
+    }
+  }
+
   static String _responseMessage(http.Response response) {
     try {
       final body = json.decode(response.body) as Map<String, dynamic>;
@@ -320,6 +366,12 @@ class ApiService {
             return 'The selected barista or PIN is not valid.';
           case 'side_work_not_due':
             return 'This task is not due yet or is no longer available.';
+          case 'marketing_recipe_required':
+            return 'This drink needs an inventory recipe before it can be recorded.';
+          case 'marketing_stock_unavailable':
+            return 'There is not enough available stock for this complimentary drink.';
+          case 'marketing_drink_unavailable':
+            return 'One or more selected drinks are no longer available.';
           case 'printer_not_ready':
             return 'The receipt printer is not ready. Please contact an operations administrator.';
           case 'direct_printer_not_assigned':
@@ -630,6 +682,98 @@ class ApiService {
     }
   }
 
+  static Future<List<MarketingDrink>> fetchMarketingDrinks() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/marketing-drinks/catalog'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    final rows =
+        (json.decode(response.body) as Map<String, dynamic>)['drinks']
+            as List? ??
+        const [];
+    return rows
+        .map((row) => MarketingDrink.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<List<MarketingDrinkUsage>>
+  fetchTodayMarketingDrinkUsages() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/marketing-drinks'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    final rows =
+        (json.decode(response.body) as Map<String, dynamic>)['usages']
+            as List? ??
+        const [];
+    return rows
+        .map((row) => MarketingDrinkUsage.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<ApiRequestResult> recordMarketingDrinkUsage({
+    required int baristaId,
+    required String pin,
+    required String purposeCode,
+    required String reasonNote,
+    required Map<int, int> quantities,
+    String? campaignName,
+  }) async {
+    try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/marketing-drinks'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+          body: json.encode({
+            'barista_id': baristaId,
+            'pin': pin,
+            'purpose_code': purposeCode,
+            'campaign_name': campaignName?.trim().isEmpty == true
+                ? null
+                : campaignName?.trim(),
+            'reason_note': reasonNote.trim(),
+            'idempotency_key':
+                'counter-marketing-$baristaId-${DateTime.now().microsecondsSinceEpoch}',
+            'items': quantities.entries
+                .where((entry) => entry.value > 0)
+                .map(
+                  (entry) => {
+                    'menu_item_id': entry.key,
+                    'quantity': entry.value,
+                  },
+                )
+                .toList(),
+          }),
+        ),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiRequestResult.success(
+          json.decode(response.body) as Map<String, dynamic>,
+        );
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (error) {
+      debugPrint('Marketing drink usage error: $error');
+      return const ApiRequestResult.failure(
+        'Unable to record this complimentary drink. Check the connection and try again.',
+      );
+    }
+  }
+
   static Future<void> _clearSession() async {
     _accessToken = null;
     _refreshToken = null;
@@ -661,6 +805,74 @@ class BaristaAttendance {
         baristaName: json['barista_name']?.toString() ?? 'Barista',
         clockedInAt: DateTime.parse(json['clocked_in_at'].toString()).toLocal(),
       );
+}
+
+class MarketingDrink {
+  const MarketingDrink({required this.id, required this.name, this.imageUrl});
+  final int id;
+  final String name;
+  final String? imageUrl;
+
+  factory MarketingDrink.fromJson(Map<String, dynamic> json) => MarketingDrink(
+    id: (json['id'] as num).toInt(),
+    name: json['name']?.toString() ?? 'Drink',
+    imageUrl: json['image_url']?.toString(),
+  );
+}
+
+class MarketingDrinkUsageItem {
+  const MarketingDrinkUsageItem({required this.name, required this.quantity});
+  final String name;
+  final int quantity;
+  factory MarketingDrinkUsageItem.fromJson(Map<String, dynamic> json) =>
+      MarketingDrinkUsageItem(
+        name: json['name']?.toString() ?? 'Drink',
+        quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+      );
+}
+
+class MarketingDrinkUsage {
+  const MarketingDrinkUsage({
+    required this.usageRef,
+    required this.purposeCode,
+    required this.reasonNote,
+    required this.baristaName,
+    required this.postedAt,
+    required this.items,
+    this.campaignName,
+    this.status = 'posted',
+  });
+  final String usageRef;
+  final String purposeCode;
+  final String reasonNote;
+  final String baristaName;
+  final DateTime postedAt;
+  final List<MarketingDrinkUsageItem> items;
+  final String? campaignName;
+  final String status;
+
+  factory MarketingDrinkUsage.fromJson(Map<String, dynamic> json) =>
+      MarketingDrinkUsage(
+        usageRef: json['usage_ref']?.toString() ?? '',
+        purposeCode: json['purpose_code']?.toString() ?? 'other',
+        reasonNote: json['reason_note']?.toString() ?? '',
+        baristaName: json['barista_name']?.toString() ?? 'Barista',
+        postedAt:
+            DateTime.tryParse(json['posted_at']?.toString() ?? '')?.toLocal() ??
+            DateTime.now(),
+        items: (json['items'] as List? ?? const [])
+            .map(
+              (item) => MarketingDrinkUsageItem.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+        campaignName: json['campaign_name']?.toString(),
+        status: json['status']?.toString() ?? 'posted',
+      );
+
+  factory MarketingDrinkUsage.fromCreated(Map<String, dynamic> json) =>
+      MarketingDrinkUsage.fromJson(json);
 }
 
 class ShiftStaff {

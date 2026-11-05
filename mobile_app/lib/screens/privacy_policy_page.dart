@@ -15,7 +15,7 @@ class PrivacyPolicyPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildLastUpdated('September 22, 2026'),
+          _buildLastUpdated('November 5, 2026'),
           const SizedBox(height: 16),
           _buildSection(
             number: '1',
@@ -30,7 +30,8 @@ class PrivacyPolicyPage extends StatelessWidget {
                 'We collect the data needed to provide ordering, closed-loop token balances, rewards, account support, and security:\n\n'
                 '• Identity & Profile Data: Display name, mobile telephone number, email address, and an optional date of birth where you provide it for a birthday reward.\n\n'
                 '• Contact & Authentication Data: Email address, Malaysian mobile telephone number, and email One-Time Password (OTP) verification records. A new email address is applied only after its verification code is confirmed.\n\n'
-                '• Transaction Data: Store pickup orders, token top-up and debit ledger entries, payment references, voucher redemptions, referral associations, and transaction timestamps.\n\n'
+                '• Transaction Data: Store pickup orders, C2 Token top-up and debit ledger entries, payment references, voucher and gift-card activity, referral associations, loyalty-cup records, and transaction timestamps.\n\n'
+                '• Employee Programme Data: Where an outlet or company designates your account as an employee account, we process that status, your monthly Company Subsidy allowance, enable/disable preference, usage, carry-forward, expiry, refund restoration, and audit records. This information is only returned to eligible employee accounts and authorised administrators.\n\n'
                 '• Payment Card Notice: We do NOT collect, process, or store credit/debit card numbers (PAN), CVV codes, or banking credentials in the App.\n\n'
                 '• Device & Security Data: Device and session records used for account authentication, push-notification tokens if you enable notifications, and security logs such as IP address and user-agent information where recorded by our services.',
           ),
@@ -40,8 +41,9 @@ class PrivacyPolicyPage extends StatelessWidget {
             body:
                 'Your personal data is collected and processed for the following operational purposes:\n\n'
                 '• Preparing and fulfilling your store self-pickup orders according to beverage customizations.\n\n'
-                '• Managing your closed-loop C2 Token prepaid balance and calculating tiered member pricing (Kawan, Dilamun, Ketagih, Legend).\n\n'
-                '• Administering loyalty cups progression, welcome rewards, and promotional campaign vouchers.\n\n'
+                '• Managing your closed-loop C2 Token prepaid balance, gift-card conversion into C2 Tokens, and calculating tiered member pricing.\n\n'
+                '• Administering loyalty cups progression, rewards, vouchers, and promotional campaigns.\n\n'
+                '• Administering the employee-only Company Subsidy for eligible drinks, including monthly allowance issuance, balance display, checkout allocation, expiry, refund restoration where permitted, and audit reporting.\n\n'
                 '• Authenticating your login sessions via email OTP.\n\n'
                 '• Sending real-time order readiness alerts and critical operational notifications.\n\n'
                 '• Detecting, preventing, and investigating fraud, unauthorized access, or referral abuse.',
@@ -51,7 +53,7 @@ class PrivacyPolicyPage extends StatelessWidget {
             title: 'Disclosure to Third-Party Service Providers',
             body:
                 'We do not sell, rent, or lease your personal information to third parties. We may disclose personal data to trusted technical partners strictly on a need-to-know basis:\n\n'
-                '• Payment Gateway: an authorized provider that processes an online C2 Token top-up when you choose that option.\n\n'
+                '• Payment Gateway: an authorized provider that processes an online C2 Token top-up or eligible RM gift-card purchase when you choose that option.\n\n'
                 '• Email Delivery Service: authorized SMTP or transactional email infrastructure used to send account verification codes and service messages.\n\n'
                 '• Cloud Infrastructure & Hosting: service providers that host or operate the systems needed to deliver the App.\n\n'
                 '• Legal & Regulatory Authorities: When required by applicable Malaysian law, court order, or governmental authority.',
@@ -69,7 +71,8 @@ class PrivacyPolicyPage extends StatelessWidget {
                 'We use technical and organisational controls designed to protect personal data. No internet service can guarantee absolute security.\n\n'
                 '• Encrypted Data Transmission: All data transferred between the App and our backend servers is encrypted using modern TLS/HTTPS protocols.\n\n'
                 '• Access Controls: Access to operational systems is restricted to authorised personnel for their work.\n\n'
-                '• Security Records: We keep security and audit records to investigate suspected unauthorised access, fraud, or service misuse.',
+                '• Security Records: We keep security and audit records to investigate suspected unauthorised access, fraud, or service misuse.\n\n'
+                '• Controlled Disclosure: We do not publish internal architecture details, database schemas, private endpoints, credentials, encryption keys, or other security-sensitive configuration in this policy. Operational security details are shared only with authorised personnel and service providers who need them to perform their role.',
           ),
           _buildSection(
             number: '7',

@@ -68,6 +68,15 @@ test('production readiness allows multiple claims for tier reward templates', as
   );
   assert.match(readiness, /vt\.limit_per_user < 1/);
   assert.match(readiness, /vt\.limit_per_user > vt\.total_quantity/);
+  assert.match(readiness, /GROUP BY[\s\S]*utre\.voucher_template_id[\s\S]*vt\.limit_per_user/);
+  assert.match(
+    readiness,
+    /COUNT\(\*\) > LEAST\(20, GREATEST\(1, COALESCE\(vt\.limit_per_user, 1\)\)\)/
+  );
+  assert.doesNotMatch(
+    readiness,
+    /SELECT user_id, tier_code[\s\S]{0,160}HAVING COUNT\(\*\) > 1/
+  );
 });
 
 test('menu restore clears the archive timestamp without undefined bind values', async () => {

@@ -371,7 +371,13 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Installed version: ${check.installedVersionName}'),
+            Text(
+              'Installed version: ${check.installedVersionName} (${check.installedVersionCode})',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Available version: ${check.release.versionName} (${check.release.versionCode})',
+            ),
             if (check.release.releaseNotes != null) ...[
               const SizedBox(height: 16),
               const Text(
@@ -1047,9 +1053,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     );
 
     return modifiers
-        .where(
-          (m) => m['group_name']?.toString().toLowerCase() != 'order type',
-        )
+        .where((m) => m['group_name']?.toString().toLowerCase() != 'order type')
         .map((m) {
           final name = m['option_name']?.toString().trim() ?? '';
           final priceDelta = (m['price_delta_rm'] as num?)?.toDouble() ?? 0.0;
@@ -1172,8 +1176,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
-                                color:
-                                    AppColors.primary.withValues(alpha: 0.38),
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.38,
+                                ),
                                 blurRadius: 18,
                                 offset: const Offset(0, 6),
                               ),
@@ -2457,8 +2462,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         paymentMethod: method,
         fulfillmentType:
             (_orderType == 'Self-Pickup' || _orderType == 'Dine In')
-                ? 'dine_in'
-                : 'take_away',
+            ? 'dine_in'
+            : 'take_away',
         items: items,
         voucherId: selectedVoucher == null
             ? null
@@ -2821,8 +2826,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                       final qty = cartItem['quantity'] as int;
                       final price = _getCartItemPrice(cartItem);
 
-                      final displayMods =
-                          _getCartItemDisplayModifiers(cartItem);
+                      final displayMods = _getCartItemDisplayModifiers(
+                        cartItem,
+                      );
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -3160,8 +3166,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.center,
                 child: Container(
-                  width: constraints.maxWidth > 900 ? 880 : constraints.maxWidth * 0.94,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  width: constraints.maxWidth > 900
+                      ? 880
+                      : constraints.maxWidth * 0.94,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -3367,11 +3378,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                     ),
                   ],
                 ),
-                child: Icon(
-                  icon,
-                  size: 44,
-                  color: iconColor,
-                ),
+                child: Icon(icon, size: 44, color: iconColor),
               ),
               const SizedBox(height: 18),
               Text(
@@ -3503,15 +3510,15 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   'Enjoy in cafe • Collect at counter',
                   style: TextStyle(fontFamily: 'Afacad', fontSize: 13),
                 ),
-                trailing: (_orderType == 'Self-Pickup' ||
-                        _orderType == 'Dine In')
+                trailing:
+                    (_orderType == 'Self-Pickup' || _orderType == 'Dine In')
                     ? const Icon(Icons.check_circle, color: AppColors.primary)
                     : null,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
-                    color: (_orderType == 'Self-Pickup' ||
-                            _orderType == 'Dine In')
+                    color:
+                        (_orderType == 'Self-Pickup' || _orderType == 'Dine In')
                         ? AppColors.primary
                         : Colors.grey.shade200,
                     width: 1.5,
@@ -3681,8 +3688,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: AppColors.primary
-                                      .withValues(alpha: 0.22),
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.22,
+                                  ),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -3739,7 +3747,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                         controller: _searchController,
                         textAlignVertical: TextAlignVertical.center,
                         decoration: InputDecoration(
-                          hintText: 'Search for your favorite drinks or food...',
+                          hintText:
+                              'Search for your favorite drinks or food...',
                           hintStyle: TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 15.5,
@@ -3835,10 +3844,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.primary
-                                            .withValues(alpha: 0.08),
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Text(
                                         '${categoryItems.length}',
@@ -3853,8 +3862,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                     const SizedBox(width: 14),
                                     Expanded(
                                       child: Divider(
-                                        color: AppColors.primary
-                                            .withValues(alpha: 0.12),
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.12,
+                                        ),
                                         thickness: 1,
                                       ),
                                     ),
@@ -3937,40 +3947,44 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                               children: [
                                                 Expanded(
                                                   child: Container(
-                                                    decoration:
-                                                        const BoxDecoration(
+                                                    decoration: const BoxDecoration(
                                                       color: Color(0xFFF7FAF9),
                                                       borderRadius:
                                                           BorderRadius.vertical(
-                                                        top: Radius.circular(
-                                                          17,
-                                                        ),
-                                                      ),
+                                                            top:
+                                                                Radius.circular(
+                                                                  17,
+                                                                ),
+                                                          ),
                                                     ),
                                                     child: Stack(
                                                       children: [
                                                         Center(
                                                           child: Padding(
                                                             padding:
-                                                                const EdgeInsets
-                                                                    .all(12),
-                                                            child: item.imageUrl !=
+                                                                const EdgeInsets.all(
+                                                                  12,
+                                                                ),
+                                                            child:
+                                                                item.imageUrl !=
                                                                     null
                                                                 ? Image.network(
                                                                     item.imageUrl!,
                                                                     fit: BoxFit
                                                                         .contain,
-                                                                    errorBuilder: (
-                                                                      context,
-                                                                      error,
-                                                                      stackTrace,
-                                                                    ) => const Icon(
-                                                                      Icons
-                                                                          .coffee,
-                                                                      size: 48,
-                                                                      color: AppColors
-                                                                          .secondary,
-                                                                    ),
+                                                                    errorBuilder:
+                                                                        (
+                                                                          context,
+                                                                          error,
+                                                                          stackTrace,
+                                                                        ) => const Icon(
+                                                                          Icons
+                                                                              .coffee,
+                                                                          size:
+                                                                              48,
+                                                                          color:
+                                                                              AppColors.secondary,
+                                                                        ),
                                                                   )
                                                                 : const Icon(
                                                                     Icons
@@ -3988,13 +4002,12 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                             left: 8,
                                                             child: Container(
                                                               padding:
-                                                                  const EdgeInsets
-                                                                      .symmetric(
-                                                                horizontal: 7,
-                                                                vertical: 3,
-                                                              ),
-                                                              decoration:
-                                                                  BoxDecoration(
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        7,
+                                                                    vertical: 3,
+                                                                  ),
+                                                              decoration: BoxDecoration(
                                                                 color: Colors
                                                                     .white
                                                                     .withValues(
@@ -4002,12 +4015,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                                           0.92,
                                                                     ),
                                                                 borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                          8,
-                                                                        ),
-                                                                border:
-                                                                    Border.all(
+                                                                    BorderRadius.circular(
+                                                                      8,
+                                                                    ),
+                                                                border: Border.all(
                                                                   color: AppColors
                                                                       .primary
                                                                       .withValues(
@@ -4018,8 +4029,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                               ),
                                                               child: const Text(
                                                                 'CRAFT',
-                                                                style:
-                                                                    TextStyle(
+                                                                style: TextStyle(
                                                                   fontFamily:
                                                                       'Afacad',
                                                                   fontSize:
@@ -4042,11 +4052,11 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                 Padding(
                                                   padding:
                                                       const EdgeInsets.fromLTRB(
-                                                    12,
-                                                    10,
-                                                    12,
-                                                    12,
-                                                  ),
+                                                        12,
+                                                        10,
+                                                        12,
+                                                        12,
+                                                      ),
                                                   child: Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment
@@ -4076,7 +4086,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                         item.isHandcraftedDrink
                                                             ? 'Customisable'
                                                             : (item.categoryName ??
-                                                                'Beverage'),
+                                                                  'Beverage'),
                                                         maxLines: 1,
                                                         overflow: TextOverflow
                                                             .ellipsis,
@@ -4084,7 +4094,8 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                           fontFamily: 'Afacad',
                                                           fontSize: 12.5,
                                                           color: Colors
-                                                              .grey.shade600,
+                                                              .grey
+                                                              .shade600,
                                                         ),
                                                       ),
                                                       const SizedBox(height: 8),
@@ -4101,8 +4112,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                               children: [
                                                                 const TextSpan(
                                                                   text: 'RM ',
-                                                                  style:
-                                                                      TextStyle(
+                                                                  style: TextStyle(
                                                                     fontFamily:
                                                                         'Afacad',
                                                                     fontSize:
@@ -4119,8 +4129,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                                       .toStringAsFixed(
                                                                         2,
                                                                       ),
-                                                                  style:
-                                                                      const TextStyle(
+                                                                  style: const TextStyle(
                                                                     fontFamily:
                                                                         'Afacad',
                                                                     fontSize:
@@ -4138,15 +4147,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                           Container(
                                                             width: 32,
                                                             height: 32,
-                                                            decoration:
-                                                                BoxDecoration(
+                                                            decoration: BoxDecoration(
                                                               color: AppColors
                                                                   .primary,
                                                               borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                        10,
-                                                                      ),
+                                                                  BorderRadius.circular(
+                                                                    10,
+                                                                  ),
                                                               boxShadow: [
                                                                 BoxShadow(
                                                                   color: AppColors
@@ -4158,9 +4165,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                                                                   blurRadius: 6,
                                                                   offset:
                                                                       const Offset(
-                                                                    0,
-                                                                    2,
-                                                                  ),
+                                                                        0,
+                                                                        2,
+                                                                      ),
                                                                 ),
                                                               ],
                                                             ),

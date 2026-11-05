@@ -3,11 +3,14 @@ import 'package:counter_app/widgets/top_notice.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'current_order_page.dart';
+import 'order_history_page.dart';
+import 'marketing_drink_page.dart';
 
 import 'settings_page.dart';
 import 'side_work_page.dart';
 import 'timetable_page.dart';
 import '../services/api_service.dart';
+import '../order_queue_partition.dart';
 import '../services/push_notification_service.dart';
 import '../services/barista_sound_service.dart';
 import '../widgets/blinking_online_indicator.dart';
@@ -166,17 +169,9 @@ class _MainLayoutState extends State<MainLayout> {
         globalOrderSyncError.value = result.errorMessage;
         return;
       }
-      final fetchedOrders = result.orders;
-      globalCurrentOrders.value = fetchedOrders
-          .where(
-            (o) =>
-                o.status != OrderStatus.completed &&
-                o.status != OrderStatus.readyForPickup,
-          )
-          .toList();
-      globalHistoryOrders.value = fetchedOrders
-          .where((o) => o.status == OrderStatus.completed)
-          .toList();
+      final partition = partitionTodayOrders(result.orders);
+      globalCurrentOrders.value = partition.active;
+      globalHistoryOrders.value = partition.history;
       globalOrderSyncError.value = null;
       globalLastOrderSync.value = DateTime.now();
     } catch (e) {
@@ -233,7 +228,9 @@ class _MainLayoutState extends State<MainLayout> {
                 });
               },
               children: [
-                CurrentOrderPage(onSettingsTap: () => _onTabSelected(3)),
+                CurrentOrderPage(onSettingsTap: () => _onTabSelected(5)),
+                OrderHistoryPage(onSettingsTap: () => _onTabSelected(5)),
+                const MarketingDrinkPage(),
                 const TimetablePage(),
                 const SideWorkPage(),
                 SettingsPage(onSignedOut: widget.onSignedOut),
@@ -345,6 +342,8 @@ class _HeaderNavBar extends StatelessWidget {
 
   static const _navItems = [
     (Icons.shopping_basket_outlined, Icons.shopping_basket_rounded, 'Orders'),
+    (Icons.history_outlined, Icons.history_rounded, 'History'),
+    (Icons.campaign_outlined, Icons.campaign_rounded, 'Marketing'),
     (Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Timetable'),
     (Icons.checklist_outlined, Icons.task_alt_rounded, 'Tasks'),
     (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
@@ -413,8 +412,9 @@ class _HeaderNavBar extends StatelessWidget {
                               ? const Color(0xFF203E32)
                               : Colors.white.withValues(alpha: 0.85),
                           fontSize: 14.5,
-                          fontWeight:
-                              isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           letterSpacing: 0.2,
                         ),
                       ),

@@ -15,6 +15,7 @@ import { deliverPushToUser } from '../../services/push-delivery.js';
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
+import { consumeMarketingDrinkInventory, reverseMarketingDrinkInventory } from '../../services/marketing-drink-usage.js';
 
 const guideTypeSchema = z.enum(['attire', 'rules', 'drink']);
 const imageUploadSchema = z.object({
@@ -55,6 +56,30 @@ const sideWorkBatchSchema = z.object({
 
 const sideWorkCompletionSchema = attendanceActionSchema.extend({
   task_id: z.coerce.number().int().positive()
+});
+
+const marketingDrinkPurposeSchema = z.enum(['sampling', 'campaign', 'content_production', 'influencer', 'goodwill', 'other']);
+const marketingDrinkUsageSchema = attendanceActionSchema.extend({
+  idempotency_key: z.string().trim().min(16).max(100),
+  purpose_code: marketingDrinkPurposeSchema,
+  campaign_name: z.string().trim().max(160).nullable().optional(),
+  reason_note: z.string().trim().min(3).max(500),
+  items: z.array(z.object({
+    menu_item_id: z.coerce.number().int().positive(),
+    quantity: z.coerce.number().int().min(1).max(20)
+  })).min(1).max(20)
+}).superRefine((value, context) => {
+  const ids = value.items.map((item) => item.menu_item_id);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Each drink may only appear once.', path: ['items'] });
+  }
+});
+
+const marketingReportQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  store_id: z.coerce.number().int().positive().optional(),
+  purpose_code: marketingDrinkPurposeSchema.optional()
 });
 
 function malaysiaDate(value = new Date()): string {
@@ -944,5 +969,225 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     const [result] = await mysqlPool.execute<ResultSetHeader>('DELETE FROM barista_sop_guides WHERE id = :guideId AND tenant_id = :tenantId', { guideId, tenantId: request.adminAuth.tenantId });
     if (!result.affectedRows) throw new ApiError(404, 'guide_not_found', 'The guide was not found.');
     return reply.code(204).send();
+  });
+
+  app.get('/v1/barista/marketing-drinks/catalog', { preHandler: authenticateAdminRequest }, async (request) => {
+    assertStaffAccess(request);
+    const storeId = await resolveAttendanceStoreId(request);
+    const [rows] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT item.id, item.name, item.image_url, item.base_price_rm
+         FROM menu_items item
+         JOIN menu_categories category ON category.id = item.category_id
+         JOIN menu_item_tenants tenant_item
+           ON tenant_item.menu_item_id = item.id AND tenant_item.tenant_id = :tenantId
+         LEFT JOIN menu_item_store_availability availability
+           ON availability.menu_item_id = item.id AND availability.store_id = :storeId
+        WHERE item.is_active = 1 AND category.is_active = 1
+          AND category.product_kind_code = 'drink'
+          AND COALESCE(availability.is_available, 1) = 1
+        ORDER BY category.sort_order, item.sort_order, item.name`,
+      { tenantId: request.adminAuth.tenantId, storeId }
+    );
+    return { drinks: rows.map((row) => ({ id: Number(row.id), name: row.name, image_url: row.image_url, base_price_rm: Number(row.base_price_rm) })) };
+  });
+
+  app.get('/v1/barista/marketing-drinks', { preHandler: authenticateAdminRequest }, async (request) => {
+    assertStaffAccess(request);
+    const storeId = await resolveAttendanceStoreId(request);
+    const [rows] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT usage.id, usage.usage_ref, usage.purpose_code, usage.campaign_name,
+              usage.reason_note, usage.status, usage.posted_at, barista.name AS barista_name,
+              item.menu_item_id, item.menu_item_name_snapshot, item.quantity
+         FROM marketing_drink_usages usage
+         JOIN baristas barista ON barista.id = usage.barista_id
+         JOIN marketing_drink_usage_items item ON item.usage_id = usage.id
+        WHERE usage.tenant_id = :tenantId AND usage.store_id = :storeId
+          AND DATE(CONVERT_TZ(usage.posted_at, '+00:00', '+08:00')) = :today
+        ORDER BY usage.posted_at DESC, usage.id DESC, item.id`,
+      { tenantId: request.adminAuth.tenantId, storeId, today: malaysiaDate() }
+    );
+    const usages = new Map<number, Record<string, unknown>>();
+    for (const row of rows) {
+      const id = Number(row.id);
+      const usage = usages.get(id) ?? {
+        id, usage_ref: row.usage_ref, purpose_code: row.purpose_code,
+        campaign_name: row.campaign_name, reason_note: row.reason_note,
+        status: row.status, posted_at: new Date(row.posted_at).toISOString(),
+        barista_name: row.barista_name, items: []
+      };
+      (usage.items as Array<Record<string, unknown>>).push({
+        menu_item_id: Number(row.menu_item_id), name: row.menu_item_name_snapshot, quantity: Number(row.quantity)
+      });
+      usages.set(id, usage);
+    }
+    return { usages: [...usages.values()] };
+  });
+
+  app.post('/v1/barista/marketing-drinks', {
+    preHandler: authenticateAdminRequest,
+    config: { rateLimit: { max: 20, timeWindow: '15 minutes' } }
+  }, async (request, reply) => {
+    assertStaffAccess(request);
+    const payload = marketingDrinkUsageSchema.parse(request.body);
+    const storeId = await resolveAttendanceStoreId(request);
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [existing] = await connection.query<RowDataPacket[]>(
+        `SELECT id, usage_ref FROM marketing_drink_usages
+          WHERE tenant_id = :tenantId AND idempotency_key = :idempotencyKey LIMIT 1 FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId, idempotencyKey: payload.idempotency_key }
+      );
+      if (existing[0]) {
+        await connection.commit();
+        return reply.send({ id: Number(existing[0].id), usage_ref: existing[0].usage_ref, unchanged: true });
+      }
+      const [baristas] = await connection.query<RowDataPacket[]>(
+        `SELECT b.id, b.name, b.pin_hash
+           FROM baristas b
+           JOIN barista_attendance attendance ON attendance.barista_id = b.id
+          WHERE b.id = :baristaId AND b.tenant_code = :tenantCode AND b.is_active = 1
+            AND attendance.tenant_id = :tenantId AND attendance.store_id = :storeId
+            AND attendance.clocked_out_at IS NULL
+          LIMIT 1 FOR UPDATE`,
+        { baristaId: payload.barista_id, tenantCode: request.adminAuth.tenantCode, tenantId: request.adminAuth.tenantId, storeId }
+      );
+      const barista = baristas[0];
+      if (!barista?.pin_hash || !(await verifyPassword(payload.pin, barista.pin_hash))) {
+        throw new ApiError(401, 'invalid_barista_pin', 'The selected barista or PIN is not valid.');
+      }
+      const itemIds = payload.items.map((item) => item.menu_item_id);
+      const itemPlaceholders = itemIds.map(() => '?').join(',');
+      const [menuItems] = await connection.query<RowDataPacket[]>(
+        `SELECT item.id, item.name, item.base_price_rm
+           FROM menu_items item
+           JOIN menu_categories category ON category.id = item.category_id
+           JOIN menu_item_tenants tenant_item ON tenant_item.menu_item_id = item.id AND tenant_item.tenant_id = ?
+           LEFT JOIN menu_item_store_availability availability ON availability.menu_item_id = item.id AND availability.store_id = ?
+          WHERE item.id IN (${itemPlaceholders}) AND item.is_active = 1 AND category.is_active = 1
+            AND category.product_kind_code = 'drink' AND COALESCE(availability.is_available, 1) = 1
+          FOR UPDATE`,
+        [request.adminAuth.tenantId, storeId, ...itemIds]
+      );
+      if (menuItems.length !== itemIds.length) throw new ApiError(409, 'marketing_drink_unavailable', 'One or more selected drinks are no longer available at this outlet.');
+      const usageRef = `MKT-${malaysiaDate().replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
+      const [result] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO marketing_drink_usages
+           (usage_ref, tenant_id, store_id, barista_id, recorded_by_admin_user_id,
+            idempotency_key, purpose_code, campaign_name, reason_note, posted_at)
+         VALUES (:usageRef, :tenantId, :storeId, :baristaId, :adminUserId,
+                 :idempotencyKey, :purposeCode, :campaignName, :reasonNote, UTC_TIMESTAMP())`,
+        { usageRef, tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id,
+          adminUserId: request.adminAuth.adminUserId, idempotencyKey: payload.idempotency_key,
+          purposeCode: payload.purpose_code, campaignName: payload.campaign_name || null, reasonNote: payload.reason_note }
+      );
+      const usageId = Number(result.insertId);
+      const menuById = new Map(menuItems.map((row) => [Number(row.id), row]));
+      for (const item of payload.items) {
+        const menu = menuById.get(item.menu_item_id)!;
+        await connection.execute(
+          `INSERT INTO marketing_drink_usage_items
+             (usage_id, menu_item_id, menu_item_name_snapshot, quantity, unit_price_rm_snapshot)
+           VALUES (:usageId, :menuItemId, :name, :quantity, :price)`,
+          { usageId, menuItemId: item.menu_item_id, name: menu.name, quantity: item.quantity, price: menu.base_price_rm }
+        );
+      }
+      await consumeMarketingDrinkInventory(connection, {
+        tenantId: request.adminAuth.tenantId, storeId, usageId,
+        selections: payload.items.map((item) => ({ menuItemId: item.menu_item_id, quantity: item.quantity })),
+        adminUserId: request.adminAuth.adminUserId
+      });
+      await connection.execute(
+        `INSERT INTO admin_audit_logs
+           (admin_user_id, effective_roles_json, action_code, target_type, target_id, after_json, ip_address, user_agent, created_at)
+         VALUES (:adminUserId, :roles, 'marketing_drink_recorded', 'marketing_drink_usage', :usageId,
+                 :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        { adminUserId: request.adminAuth.adminUserId, roles: JSON.stringify(request.adminAuth.roles), usageId,
+          afterJson: JSON.stringify({ usage_ref: usageRef, store_id: storeId, barista_id: payload.barista_id, purpose_code: payload.purpose_code, items: payload.items }),
+          ipAddress: request.ip, userAgent: request.headers['user-agent'] ?? null }
+      );
+      await connection.commit();
+      return reply.code(201).send({
+        id: usageId, usage_ref: usageRef, purpose_code: payload.purpose_code,
+        campaign_name: payload.campaign_name || null, reason_note: payload.reason_note,
+        barista_name: barista.name, posted_at: new Date().toISOString(),
+        items: payload.items.map((item) => ({ name: menuById.get(item.menu_item_id)!.name, quantity: item.quantity }))
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.get('/v1/admin/marketing-drink-usages', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin', 'marketing_admin']);
+    const query = marketingReportQuerySchema.parse(request.query);
+    const from = query.from ?? `${malaysiaDate().slice(0, 8)}01`;
+    const to = query.to ?? malaysiaDate();
+    if (from > to || new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime() > 366 * 86400000) {
+      throw new ApiError(400, 'invalid_report_range', 'Choose a report range of up to 366 days.');
+    }
+    const [rows] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT usage.id, usage.usage_ref, usage.store_id, store.name AS store_name,
+              usage.purpose_code, usage.campaign_name, usage.reason_note, usage.status,
+              usage.posted_at, usage.reversed_at, barista.name AS barista_name,
+              item.menu_item_name_snapshot, item.quantity,
+              COALESCE(inventory.total_cost_rm, 0) AS inventory_cost_rm
+         FROM marketing_drink_usages usage
+         JOIN stores store ON store.id = usage.store_id
+         JOIN baristas barista ON barista.id = usage.barista_id
+         JOIN marketing_drink_usage_items item ON item.usage_id = usage.id
+         LEFT JOIN (
+           SELECT usage_id, SUM(total_cost_rm) AS total_cost_rm
+             FROM marketing_drink_inventory_lines GROUP BY usage_id
+         ) inventory ON inventory.usage_id = usage.id
+        WHERE usage.tenant_id = :tenantId
+          AND DATE(CONVERT_TZ(usage.posted_at, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate
+          AND (:storeId IS NULL OR usage.store_id = :storeId)
+          AND (:purposeCode IS NULL OR usage.purpose_code = :purposeCode)
+        ORDER BY usage.posted_at DESC, usage.id DESC, item.id`,
+      { tenantId: request.adminAuth.tenantId, fromDate: from, toDate: to, storeId: query.store_id ?? null, purposeCode: query.purpose_code ?? null }
+    );
+    return { usages: rows };
+  });
+
+  app.post('/v1/admin/marketing-drink-usages/:usageId/reverse', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
+    const usageId = z.coerce.number().int().positive().parse((request.params as { usageId: string }).usageId);
+    const reason = z.object({ reason: z.string().trim().min(3).max(500) }).parse(request.body).reason;
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [usages] = await connection.query<RowDataPacket[]>(
+        `SELECT id, status FROM marketing_drink_usages WHERE id = :usageId AND tenant_id = :tenantId LIMIT 1 FOR UPDATE`,
+        { usageId, tenantId: request.adminAuth.tenantId }
+      );
+      if (!usages[0]) throw new ApiError(404, 'marketing_usage_not_found', 'The complimentary usage record was not found.');
+      if (usages[0].status !== 'posted') throw new ApiError(409, 'marketing_usage_not_reversible', 'This usage has already been reversed.');
+      await reverseMarketingDrinkInventory(connection, { tenantId: request.adminAuth.tenantId, usageId, adminUserId: request.adminAuth.adminUserId });
+      await connection.execute(
+        `UPDATE marketing_drink_usages SET status = 'reversed', reversed_at = UTC_TIMESTAMP(),
+                reversed_by_admin_user_id = :adminUserId, reversal_reason = :reason
+          WHERE id = :usageId`,
+        { usageId, adminUserId: request.adminAuth.adminUserId, reason }
+      );
+      await connection.execute(
+        `INSERT INTO admin_audit_logs
+           (admin_user_id, effective_roles_json, action_code, target_type, target_id, after_json, ip_address, user_agent, created_at)
+         VALUES (:adminUserId, :roles, 'marketing_drink_reversed', 'marketing_drink_usage', :usageId,
+                 :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        { adminUserId: request.adminAuth.adminUserId, roles: JSON.stringify(request.adminAuth.roles), usageId,
+          afterJson: JSON.stringify({ reason }), ipAddress: request.ip, userAgent: request.headers['user-agent'] ?? null }
+      );
+      await connection.commit();
+      return reply.send({ reversed: true });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 }

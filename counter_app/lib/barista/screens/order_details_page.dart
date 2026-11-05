@@ -483,8 +483,16 @@ class _PreparationWorkspaceState extends State<_PreparationWorkspace> {
     widget.order.status = status == 'preparing'
         ? OrderStatus.preparing
         : OrderStatus.readyForPickup;
-    globalCurrentOrders.value = List.from(globalCurrentOrders.value);
-    if (status == 'ready_for_pickup') Navigator.of(context).pop();
+    if (status == 'ready_for_pickup') {
+      globalCurrentOrders.value = List.from(globalCurrentOrders.value)
+        ..removeWhere((order) => order.orderId == widget.order.orderId);
+      globalHistoryOrders.value = List.from(globalHistoryOrders.value)
+        ..removeWhere((order) => order.orderId == widget.order.orderId)
+        ..add(widget.order);
+      Navigator.of(context).pop();
+    } else {
+      globalCurrentOrders.value = List.from(globalCurrentOrders.value);
+    }
   }
 
   @override

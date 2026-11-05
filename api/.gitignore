@@ -6,3 +6,4 @@ dist/
 !.env*.example
 !*.example
 npm-debug.log*
+scratch.ts

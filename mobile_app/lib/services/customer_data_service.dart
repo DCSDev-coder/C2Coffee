@@ -44,6 +44,30 @@ class WalletTransaction {
   }
 }
 
+class EmployeeSubsidy {
+  final bool eligible;
+  final bool enabled;
+  final int remaining;
+  final int granted;
+  final int used;
+  final String? periodEnd;
+  const EmployeeSubsidy(
+      {required this.eligible,
+      required this.enabled,
+      required this.remaining,
+      required this.granted,
+      required this.used,
+      this.periodEnd});
+  factory EmployeeSubsidy.fromApi(Map<String, dynamic> json) => EmployeeSubsidy(
+        eligible: json['eligible'] == true,
+        enabled: json['enabled'] != false,
+        remaining: (json['remaining'] as num?)?.toInt() ?? 0,
+        granted: (json['granted'] as num?)?.toInt() ?? 0,
+        used: (json['used'] as num?)?.toInt() ?? 0,
+        periodEnd: json['period_end'] as String?,
+      );
+}
+
 class OnlineTopUpSession {
   final String topupRef;
   final String checkoutUrl;
@@ -1251,6 +1275,13 @@ class CustomerDataService {
 
   final http.Client _client = http.Client();
 
+  Future<EmployeeSubsidy> getSubsidy({required String accessToken}) async =>
+      EmployeeSubsidy.fromApi(await _get('/subsidy', accessToken: accessToken));
+  Future<EmployeeSubsidy> updateSubsidy(
+          {required String accessToken, required bool enabled}) async =>
+      EmployeeSubsidy.fromApi(await _put('/subsidy',
+          accessToken: accessToken, body: {'enabled': enabled}));
+
   Future<List<WalletTransaction>> getWalletTransactions({
     required String accessToken,
     int limit = 20,
@@ -1296,7 +1327,8 @@ class CustomerDataService {
       body: {
         'currency': currency,
         'amount': amount,
-        if (recipientPhone != null && recipientPhone.trim().isNotEmpty) 'recipient_phone': recipientPhone.trim(),
+        if (recipientPhone != null && recipientPhone.trim().isNotEmpty)
+          'recipient_phone': recipientPhone.trim(),
         'recipient_message': recipientMessage,
         if (paymentMethod != null) 'payment_method': paymentMethod,
       },
@@ -1619,6 +1651,47 @@ class CustomerDataService {
     }
 
     throw ApiException('Request failed with status ${response.statusCode}.');
+  }
+
+  Future<Map<String, dynamic>> _put(
+    String path, {
+    required String accessToken,
+    required Map<String, dynamic> body,
+  }) async {
+    Future<http.Response> send(String token) => _client
+        .put(
+          Uri.parse('${ApiConfig.baseUrl}$path'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    http.Response response = await send(accessToken);
+    if (response.statusCode == 401) {
+      final refreshed =
+          await SecureSessionService.instance.refreshTokenSilently();
+      if (refreshed != null && refreshed.isNotEmpty) {
+        response = await send(refreshed);
+      }
+    }
+    final text = utf8.decode(response.bodyBytes);
+    final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return Map<String, dynamic>.from(decoded as Map);
+    }
+    final data = decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
+    final error = data['error'];
+    throw ApiException(
+      error is Map
+          ? (error['message'] as String? ?? 'Request failed.')
+          : 'Request failed with status ${response.statusCode}.',
+      code: error is Map ? error['code'] as String? : null,
+    );
   }
 
   Future<Map<String, dynamic>> _get(

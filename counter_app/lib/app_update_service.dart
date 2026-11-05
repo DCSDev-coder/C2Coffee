@@ -155,6 +155,33 @@ class AppUpdateService {
   }
 
   Future<int> downloadAndInstall(AppRelease release) async {
+    // Re-read the installed build immediately before enqueueing the APK. The
+    // app may have been updated, downgraded, or resumed from a stale dialog
+    // since the original manifest check completed.
+    final installed = await _channel.invokeMapMethod<String, dynamic>(
+      'getInstalledVersion',
+    );
+    final installedName = installed?['versionName']?.toString() ?? 'Unknown';
+    final installedCode = switch (installed?['versionCode']) {
+      int value => value,
+      num value => value.toInt(),
+      String value => int.tryParse(value),
+      _ => null,
+    };
+    if (installedCode == null) {
+      throw PlatformException(
+        code: 'version_unavailable',
+        message: 'The installed app version could not be read.',
+      );
+    }
+    if (release.versionCode <= installedCode) {
+      throw PlatformException(
+        code: 'update_not_needed',
+        message:
+            'No newer update is available. Installed version $installedName ($installedCode) is already at or ahead of ${release.versionName} (${release.versionCode}).',
+      );
+    }
+
     final result = await _channel.invokeMethod<num>('downloadAndInstall', {
       'url': release.apkUrl.toString(),
       'sha256': release.sha256,

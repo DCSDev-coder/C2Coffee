@@ -5,6 +5,8 @@ import { runPickupReminderSweep } from './services/pickup-reminders.js';
 import { expireStaleUserVouchers } from './services/voucher-expiry-maintenance.js';
 import { runVoucherScheduleReminderSweep } from './services/voucher-expiry-reminders.js';
 import { runReferralRewardRetrySweep } from './services/referrals.js';
+import { runLoyaltyTierMaintenanceSweep } from './services/loyalty-tier-maintenance.js';
+import { runAutoCollectSweep } from './services/auto-collect-orders.js';
 
 const app = await buildApp();
 
@@ -24,6 +26,18 @@ async function runScheduledPickupReminders(): Promise<void> {
 // process is running. The first run also catches orders made ready before a
 // server restart.
 void runScheduledPickupReminders();
+async function runScheduledAutoCollect(): Promise<void> {
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runAutoCollectSweep();
+    if (result.claimed > 0 || result.failed > 0) {
+      app.log.info(result, 'completed automatic order collection sweep');
+    }
+  } catch (error) {
+    app.log.error(error, 'automatic order collection sweep failed');
+  }
+}
+void runScheduledAutoCollect();
 async function runScheduledVoucherMaintenance(): Promise<void> {
   try {
     await assertSingleCafeDeployment();
@@ -46,10 +60,30 @@ const pickupReminderTimer = setInterval(() => {
   void runScheduledPickupReminders();
 }, 60_000);
 pickupReminderTimer.unref();
+const autoCollectTimer = setInterval(() => {
+  void runScheduledAutoCollect();
+}, 60_000);
+autoCollectTimer.unref();
 const voucherExpiryReminderTimer = setInterval(() => {
   void runScheduledVoucherMaintenance();
 }, 24 * 60 * 60 * 1000);
 voucherExpiryReminderTimer.unref();
+async function runScheduledLoyaltyTierMaintenance(): Promise<void> {
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runLoyaltyTierMaintenanceSweep();
+    if (result.changed > 0) {
+      app.log.info(result, 'completed loyalty tier maintenance sweep');
+    }
+  } catch (error) {
+    app.log.error(error, 'loyalty tier maintenance sweep failed');
+  }
+}
+void runScheduledLoyaltyTierMaintenance();
+const loyaltyTierMaintenanceTimer = setInterval(() => {
+  void runScheduledLoyaltyTierMaintenance();
+}, 24 * 60 * 60 * 1000);
+loyaltyTierMaintenanceTimer.unref();
 const voucherScheduleReminderTimer = setInterval(() => {
   void runScheduledVoucherScheduleReminders();
 }, 60_000);

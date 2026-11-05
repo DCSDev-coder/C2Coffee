@@ -40,7 +40,8 @@ class DirectPrinterConfig {
 
   bool get isConfigured => host.isNotEmpty;
   bool get isSunmi => host == sunmiHost;
-  String get displayName => isSunmi ? 'Sunmi Inner Printer (Built-in)' : '$host:$port';
+  String get displayName =>
+      isSunmi ? 'Sunmi Inner Printer (Built-in)' : '$host:$port';
 }
 
 class DirectPrintJob {
@@ -77,6 +78,27 @@ class DirectPrintItem {
   final List<String> details;
 }
 
+class MarketingDrinkPrintSlip {
+  const MarketingDrinkPrintSlip({
+    required this.config,
+    required this.usageRef,
+    required this.baristaName,
+    required this.purpose,
+    required this.reason,
+    required this.createdAt,
+    required this.items,
+    this.campaignName,
+  });
+  final DirectPrinterConfig config;
+  final String usageRef;
+  final String baristaName;
+  final String purpose;
+  final String reason;
+  final String? campaignName;
+  final DateTime createdAt;
+  final List<DirectPrintItem> items;
+}
+
 /// Stores this tablet's printer and sends kitchen dockets over the outlet Wi-Fi.
 class DirectPrinterService {
   DirectPrinterService._();
@@ -90,8 +112,9 @@ class DirectPrinterService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   final ApiClient _apiClient = ApiClient();
   final AuthService _authService = AuthService();
-  static const MethodChannel _sunmiChannel =
-      MethodChannel('com.c2coffee.counter/sunmi_printer');
+  static const MethodChannel _sunmiChannel = MethodChannel(
+    'com.c2coffee.counter/sunmi_printer',
+  );
 
   Future<bool> isSunmiAvailable() async {
     if (kIsWeb || !Platform.isAndroid) return false;
@@ -219,6 +242,15 @@ class DirectPrinterService {
     await _send(job.config, await _kitchenDocket(job));
   }
 
+  Future<void> printMarketingDrink(MarketingDrinkPrintSlip slip) async {
+    if (kIsWeb || !Platform.isAndroid) {
+      throw StateError(
+        'Direct receipt printing is available on an Android tablet.',
+      );
+    }
+    await _send(slip.config, await _marketingDocket(slip));
+  }
+
   Future<void> printTestReceipt(DirectPrinterConfig config) async {
     if (kIsWeb || !Platform.isAndroid) {
       throw StateError(
@@ -236,10 +268,9 @@ class DirectPrinterService {
   Future<void> _send(DirectPrinterConfig config, List<int> bytes) async {
     if (config.isSunmi) {
       try {
-        final success = await _sunmiChannel.invokeMethod<bool>(
-          'printRawData',
-          {'data': Uint8List.fromList(bytes)},
-        );
+        final success = await _sunmiChannel.invokeMethod<bool>('printRawData', {
+          'data': Uint8List.fromList(bytes),
+        });
         if (success != true) {
           throw StateError('Sunmi inner printer did not accept print data.');
         }
@@ -302,6 +333,37 @@ class DirectPrinterService {
     buffer.add(const [0x1B, 0x61, 0x01]);
     write('Prepare with care\n\n\n');
     buffer.add(const [0x1D, 0x56, 0x00]); // Full cut.
+    return buffer.toBytes();
+  }
+
+  Future<List<int>> _marketingDocket(MarketingDrinkPrintSlip slip) async {
+    final buffer = BytesBuilder();
+    void write(String text) => buffer.add(latin1.encode(text));
+    buffer.add(const [0x1B, 0x40]);
+    buffer.add(const [0x1B, 0x61, 0x01]);
+    buffer.add(await _logoRaster());
+    write('\n\n');
+    buffer.add(const [0x1B, 0x45, 0x01]);
+    write('COMPLIMENTARY / MARKETING\nNOT FOR SALE\n');
+    buffer.add(const [0x1B, 0x45, 0x00]);
+    write('${slip.usageRef}\n${_formatPrintedTime(slip.createdAt)}\n');
+    buffer.add(const [0x1B, 0x61, 0x00]);
+    _writeWrapped(buffer, 'Barista: ${slip.baristaName}');
+    _writeWrapped(buffer, 'Purpose: ${slip.purpose}');
+    if (slip.campaignName?.trim().isNotEmpty == true) {
+      _writeWrapped(buffer, 'Campaign: ${slip.campaignName!.trim()}');
+    }
+    _writeWrapped(buffer, 'Reason: ${slip.reason}');
+    write('--------------------------------\n');
+    for (final item in slip.items) {
+      buffer.add(const [0x1B, 0x45, 0x01]);
+      write('${item.quantity}x ${item.name}\n');
+      buffer.add(const [0x1B, 0x45, 0x00]);
+    }
+    write('--------------------------------\n');
+    buffer.add(const [0x1B, 0x61, 0x01]);
+    write('Inventory recorded\n\n\n');
+    buffer.add(const [0x1D, 0x56, 0x00]);
     return buffer.toBytes();
   }
 

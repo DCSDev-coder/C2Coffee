@@ -9,6 +9,8 @@ import { normalizePhoneE164 } from '../../lib/phone.js';
 import { signAccessToken } from '../../auth/tokens.js';
 import { authenticateRequest } from '../../auth/guard.js';
 import { loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
+import { refreshUserLoyaltyTier } from '../../services/loyalty-tier-maintenance.js';
+import { issueCurrentEmployeeAllowancesForUser } from '../../services/employee-token-allowance.js';
 import { sendOtpEmail } from '../../services/otp-email.js';
 import { ensureSignupIdentityAvailable } from '../services/signup-identity.js';
 
@@ -1079,8 +1081,16 @@ export async function getBootstrapForUser(
   has_completed_topup: boolean;
   tier: string;
   cups_last_180d: number;
+  tier_review_due_at: string;
   tiers: BootstrapTierConfig[];
 }> {
+  if (connection === mysqlPool) {
+    await issueCurrentEmployeeAllowancesForUser(userId);
+  }
+  // Upgrade immediately, but only apply an inactivity downgrade when the
+  // customer's protected annual review date has arrived.
+  const tierRefresh = await refreshUserLoyaltyTier(userId, connection);
+
   const [tokenRows] = await connection.query<
     Array<
       RowDataPacket & {
@@ -1212,6 +1222,7 @@ export async function getBootstrapForUser(
     has_completed_topup: Number(topupRows[0]?.has_completed_topup ?? 0) === 1,
     tier: tierRows[0]?.tier_code ?? 'kawan',
     cups_last_180d: tierRows[0]?.qualifying_cups_last_180d ?? 0,
+    tier_review_due_at: tierRefresh.reviewDueAt.toISOString(),
     tiers
   };
 }

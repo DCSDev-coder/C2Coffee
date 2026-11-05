@@ -578,6 +578,8 @@ export async function registerCatalogRoutes(
         loyalty: {
           tier: summary.tier,
           cups_last_180d: summary.cups_last_180d,
+          qualifying_orders_last_12_months: summary.cups_last_180d,
+          tier_review_due_at: summary.tier_review_due_at,
           next_tier: null,
           tiers: summary.tiers,
         },
@@ -597,6 +599,8 @@ export async function registerCatalogRoutes(
       return {
         tier: summary.tier,
         cups_last_180d: summary.cups_last_180d,
+        qualifying_orders_last_12_months: summary.cups_last_180d,
+        tier_review_due_at: summary.tier_review_due_at,
         tiers: summary.tiers,
       };
     },

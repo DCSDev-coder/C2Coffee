@@ -176,6 +176,12 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canUseSideWork =
     (request.method === 'GET' && path === '/v1/barista/side-work') ||
     (request.method === 'POST' && path === '/v1/barista/side-work/complete');
+  const canUseMarketingDrinks =
+    (request.method === 'GET' && (
+      path === '/v1/barista/marketing-drinks' ||
+      path === '/v1/barista/marketing-drinks/catalog'
+    )) ||
+    (request.method === 'POST' && path === '/v1/barista/marketing-drinks');
   const canQueuePrintJob =
     request.method === 'POST' && path === '/v1/barista/print-jobs';
   const canUseAssignedDirectPrinter =
@@ -203,6 +209,7 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canUseStaffAttendance &&
     !canReadStaffGuides &&
     !canUseSideWork &&
+    !canUseMarketingDrinks &&
     !canQueuePrintJob &&
     !canUseAssignedDirectPrinter &&
     !canManageOwnPushToken &&

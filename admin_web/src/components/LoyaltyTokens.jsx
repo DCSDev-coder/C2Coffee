@@ -13,7 +13,7 @@ import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
 import { exportToCSV } from '../utils/exportToCSV';
-import { adjustAdminCustomerTokens, loadAdminLoyaltyOverview } from '../lib/adminApi';
+import { adjustAdminCustomerTokens, loadAdminLoyaltyOverview, loadEmployeeAllowanceReport } from '../lib/adminApi';
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
@@ -151,12 +151,28 @@ const LoyaltyTokens = () => {
   const [, setMenuOpenId] = useState(null);
   const [activeView, setActiveView] = useState("list");
   const [selectedDate, setSelectedDate] = useState(null);
+  const [employeeReportMonth, setEmployeeReportMonth] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit' }));
+  const [employeeReport, setEmployeeReport] = useState(null);
+  const [employeeReportLoading, setEmployeeReportLoading] = useState(false);
+  const [employeeReportError, setEmployeeReportError] = useState('');
 
   useEffect(() => {
     const handleClickOutside = () => setMenuOpenId(null);
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (activeView !== 'employee_allowances') return undefined;
+    let active = true;
+    setEmployeeReportLoading(true);
+    setEmployeeReportError('');
+    loadEmployeeAllowanceReport(employeeReportMonth)
+      .then((response) => { if (active) setEmployeeReport(response); })
+      .catch((error) => { if (active) setEmployeeReportError(error?.message || 'Unable to load the employee token report.'); })
+      .finally(() => { if (active) setEmployeeReportLoading(false); });
+    return () => { active = false; };
+  }, [activeView, employeeReportMonth]);
 
   useEffect(() => {
     let isMounted = true;
@@ -315,6 +331,54 @@ const LoyaltyTokens = () => {
     return <TokenTransaction customer={{ ...selectedCustomer, username: selectedCustomer.name, transactions: selectedCustomer.tokenHistory || [] }} onBack={() => setActiveView('list')} />;
   }
 
+  if (activeView === 'employee_allowances') {
+    const allowances = Array.isArray(employeeReport?.allowances) ? employeeReport.allowances : [];
+    const purchases = Array.isArray(employeeReport?.purchases) ? employeeReport.purchases : [];
+    const summary = employeeReport?.summary || {};
+    const exportEmployeeReport = () => exportToCSV([
+      ['Month','Order','Employee','Outlet','Items','Company used','Company refunded','Personal used','Status'],
+      ...purchases.map((row) => [employeeReportMonth, row.orderRef, `"${row.employee}"`, `"${row.outlet}"`, `"${String(row.items).replaceAll('"','""')}"`, row.allowanceTokens, row.refundedAllowanceTokens, row.personalTokens, row.status])
+    ], `employee-token-audit-${employeeReportMonth}.csv`);
+    return (
+      <div className="h-full overflow-y-auto px-8 pb-8 pt-2 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Employee Token Audit</h1>
+            <p className="text-sm text-gray-500 mt-1">Monthly company-funded C2 Credit and employee purchase audit.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="month" value={employeeReportMonth} onChange={(event) => setEmployeeReportMonth(event.target.value)} className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold" />
+            <button onClick={exportEmployeeReport} disabled={!purchases.length} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"><Download size={15} className="inline mr-1" />Export</button>
+            <button onClick={() => setActiveView('list')} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50">Back to Token Ledger</button>
+          </div>
+        </div>
+        {employeeReportError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{employeeReportError}</div>}
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          <KPICard title="Issued / eligible" value={employeeReportLoading ? '—' : `${Number(summary.employeesIssued || 0).toLocaleString('en-US')} / ${Number(summary.employeesEligible || 0).toLocaleString('en-US')}`} icon={Users} />
+          <KPICard title="Carried" value={Number(summary.carriedForward || 0).toLocaleString('en-US')} icon={Coins} iconBg="bg-[#6F9F96]" />
+          <KPICard title="Top-up" value={Number(summary.companyTopUp || 0).toLocaleString('en-US')} icon={Coins} iconBg="bg-[#6F9F96]" />
+          <KPICard title="Used" value={Number(summary.grossUsed || 0).toLocaleString('en-US')} icon={ShoppingBag} iconBg="bg-[#D4AF7A]" />
+          <KPICard title="Refunded" value={Number(summary.refunded || 0).toLocaleString('en-US')} icon={ArrowDown} iconBg="bg-[#8B6F47]" />
+          <KPICard title="Ending" value={Number(summary.endingBalance || 0).toLocaleString('en-US')} icon={Coins} />
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100"><h2 className="font-bold text-gray-900">Monthly allowance records</h2></div>
+          <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50"><tr>{['Employee','Period','Carried','Top-up','Refunded','Remaining','Status'].map((label) => <th key={label} className="px-5 py-3 text-left text-xs font-bold uppercase text-gray-500">{label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">
+            {allowances.map((row) => <tr key={`${row.userId}-${row.periodStart}`}><td className="px-5 py-3"><p className="font-semibold">{row.employee}</p><p className="text-xs text-gray-500">{row.email || row.phone}</p></td><td className="px-5 py-3">{row.issued ? `${String(row.periodStart).slice(0,10)} – ${String(row.periodEnd).slice(0,10)}` : 'Not issued this month'}</td><td className="px-5 py-3">{row.carriedForward}</td><td className="px-5 py-3 font-semibold">{row.granted}</td><td className="px-5 py-3">{row.refunded}</td><td className="px-5 py-3 font-semibold">{row.remaining}</td><td className="px-5 py-3 capitalize">{String(row.status).replaceAll('_',' ')}</td></tr>)}
+            {!allowances.length && <tr><td colSpan="7" className="px-5 py-8 text-center text-gray-500">No employee allowance records for this month.</td></tr>}
+          </tbody></table></div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100"><h2 className="font-bold text-gray-900">Employee purchase history</h2></div>
+          <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50"><tr>{['Order','Employee','Outlet & items','Company','Refunded','Personal','Status','Tier cup'].map((label) => <th key={label} className="px-5 py-3 text-left text-xs font-bold uppercase text-gray-500">{label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">
+            {purchases.map((row) => <tr key={row.id}><td className="px-5 py-3"><p className="font-semibold">{row.orderRef}</p><p className="text-xs text-gray-500">{new Date(row.createdAt).toLocaleString('en-MY')}</p></td><td className="px-5 py-3">{row.employee}</td><td className="px-5 py-3"><p className="font-medium">{row.outlet}</p><p className="text-xs text-gray-500 max-w-md">{row.items}</p></td><td className="px-5 py-3 font-semibold">{row.allowanceTokens}</td><td className="px-5 py-3">{row.refundedAllowanceTokens}</td><td className="px-5 py-3">{row.personalTokens}</td><td className="px-5 py-3 capitalize">{String(row.status).replaceAll('_',' ')}</td><td className="px-5 py-3 font-semibold text-gray-600">No</td></tr>)}
+            {!purchases.length && <tr><td colSpan="8" className="px-5 py-8 text-center text-gray-500">No allowance-funded employee purchases for this month.</td></tr>}
+          </tbody></table></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col px-8 pb-8 pt-2 space-y-6 overflow-hidden">
       <div className="shrink-0 space-y-6">
@@ -397,6 +461,12 @@ const LoyaltyTokens = () => {
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap transition-transform duration-200 peer-focus:-rotate-180"
             >
               Analytics
+            </button>
+            <button
+              onClick={() => setActiveView('employee_allowances')}
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
+            >
+              Employee Token Audit
             </button>
           </div>
         </div>

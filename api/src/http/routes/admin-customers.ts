@@ -99,6 +99,13 @@ function formatDisplayDate(value: string | Date | null): string {
   }).format(date);
 }
 
+function isActivePhoneConflict(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && (error as { code?: string }).code === 'ER_DUP_ENTRY'
+    && String((error as { sqlMessage?: string }).sqlMessage ?? '').includes('uq_users_active_phone_e164');
+}
+
 function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof loadLoyaltyTiers>>) {
   const totalSpent = Number(row.total_spent_rm ?? 0);
   const totalSpentTokens = Number(row.total_spent_tokens ?? 0);
@@ -387,6 +394,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       return { customer: mapCustomerRow(createdRows[0] as CustomerListRow, tiers) };
     } catch (error) {
       await connection.rollback();
+      if (isActivePhoneConflict(error)) {
+        throw new ApiError(409, 'customer_phone_exists', 'That phone number is already registered.');
+      }
       throw error;
     } finally {
       connection.release();
@@ -513,6 +523,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       };
     } catch (error) {
       await connection.rollback();
+      if (isActivePhoneConflict(error)) {
+        throw new ApiError(409, 'customer_phone_exists', 'That phone number is already registered.');
+      }
       throw error;
     } finally {
       connection.release();
@@ -678,6 +691,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       return { customer: mapCustomerRow(rows[0] as CustomerListRow, tiers) };
     } catch (error) {
       await connection.rollback();
+      if (isActivePhoneConflict(error)) {
+        throw new ApiError(409, 'customer_phone_exists', 'That phone number is already registered.');
+      }
       throw error;
     } finally {
       connection.release();

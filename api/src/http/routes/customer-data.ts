@@ -31,6 +31,7 @@ import {
 import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
+import { getEmployeeSubsidyStatus, restoreEmployeeAllowanceForRefund, setEmployeeSubsidyEnabled } from '../../services/employee-token-allowance.js';
 import {
   evaluateVoucherTopUpEligibility,
   getVoucherTopUpMinimum
@@ -1432,6 +1433,28 @@ export async function registerCustomerDataRoutes(
     return { marketing_enabled: payload.marketing_enabled };
   });
 
+  app.get('/v1/subsidy', { preHandler: authenticateRequest }, async (request) => {
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & { tenant_id: number }>>(
+      `SELECT tenant_id FROM customer_tenant_memberships
+       WHERE user_id = :userId AND is_employee = 1 ORDER BY tenant_id LIMIT 1`,
+      { userId: request.auth.userId }
+    );
+    if (!rows[0]) return { eligible: false, enabled: false, remaining: 0, granted: 0, used: 0 };
+    return getEmployeeSubsidyStatus(request.auth.userId, Number(rows[0].tenant_id));
+  });
+
+  app.put('/v1/subsidy', { preHandler: authenticateRequest }, async (request) => {
+    const body = z.object({ enabled: z.boolean() }).parse(request.body ?? {});
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & { tenant_id: number }>>(
+      `SELECT tenant_id FROM customer_tenant_memberships
+       WHERE user_id = :userId AND is_employee = 1 ORDER BY tenant_id LIMIT 1`,
+      { userId: request.auth.userId }
+    );
+    if (!rows[0]) throw new ApiError(403, 'subsidy_unavailable', 'Subsidy is not available for this account.');
+    await setEmployeeSubsidyEnabled(request.auth.userId, Number(rows[0].tenant_id), body.enabled);
+    return getEmployeeSubsidyStatus(request.auth.userId, Number(rows[0].tenant_id));
+  });
+
   app.get('/v1/wallet/transactions', { preHandler: authenticateRequest }, async (request) => {
     const { limit } = listQuerySchema.parse(request.query);
 
@@ -2256,7 +2279,8 @@ export async function registerCustomerDataRoutes(
         throw new ApiError(409, 'token_account_not_found', 'Your token account was not found. Please contact support.');
       }
 
-      const tokenAmount = Number(order.token_amount_charged);
+      const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(order.id));
+      const tokenAmount = Math.max(0, Number(order.token_amount_charged) - allowanceRefund.allowanceUsed + allowanceRefund.restored);
       const balanceAfter = Number(account.balance_available) + tokenAmount;
       await connection.execute(
         `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,

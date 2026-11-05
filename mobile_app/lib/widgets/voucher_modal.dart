@@ -454,14 +454,6 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                     color: AppColors.deepTeal,
                   ),
                 ),
-                Text(
-                  reward.template.benefitLabel,
-                  style: const TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
-                ),
               ],
             ),
           ),

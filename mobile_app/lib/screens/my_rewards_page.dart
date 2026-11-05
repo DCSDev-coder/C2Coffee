@@ -838,16 +838,6 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                         height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      reward.template.benefitLabel,
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
                   ],
                 ),
               ),

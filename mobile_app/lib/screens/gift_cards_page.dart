@@ -1218,11 +1218,12 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
       title: 'Store',
       onBack: () => Navigator.of(context).pop(),
       scrollable: false,
+      bodyPadding: EdgeInsets.zero,
       child: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           children: [
             // Top Balance Section
             Center(

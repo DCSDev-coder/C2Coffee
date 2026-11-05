@@ -10,6 +10,7 @@ import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/payment_security.dart';
 import '../services/secure_session_service.dart';
+import '../services/subsidy_checkout_policy.dart';
 import '../services/voucher_intent_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
@@ -52,6 +53,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   String _paymentMode = 'token';
   String _directPaymentMethod = 'fpx';
   Set<String> _directPaymentMethods = <String>{};
+  EmployeeSubsidy? _subsidy;
+  bool _isSubsidyLoading = true;
+  String? _subsidyError;
 
   Color get orangeColor => AppColors.deepTeal;
 
@@ -64,7 +68,38 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _applyRememberedVoucher();
       _loadDirectPaymentMethods();
+      _loadSubsidy();
     });
+  }
+
+  Future<void> _loadSubsidy() async {
+    if (mounted) {
+      setState(() {
+        _isSubsidyLoading = true;
+        _subsidyError = null;
+      });
+    }
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw StateError('No active session');
+      }
+      final subsidy = await CustomerDataService.instance.getSubsidy(
+        accessToken: accessToken,
+      );
+      if (!mounted) return;
+      setState(() {
+        _subsidy = subsidy;
+        _isSubsidyLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isSubsidyLoading = false;
+        _subsidyError = 'Unable to verify your subsidy balance. Tap to retry.';
+      });
+    }
   }
 
   Future<void> _loadDirectPaymentMethods() async {
@@ -172,7 +207,33 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
     if (mounted) {
       setState(() {});
+      await _loadSubsidy();
     }
+  }
+
+  int _drinkTokenCharge(CartSnapshot snapshot) {
+    return snapshot.items.where((item) {
+      final kind = item.productKindCode?.trim().toLowerCase();
+      if (kind != null && kind.isNotEmpty) return kind == 'drink';
+      final category = item.categoryCode?.trim().toLowerCase();
+      return category == 'coffee' || category == 'non_coffee';
+    }).fold<int>(0, (sum, item) => sum + item.lineTotalTokens);
+  }
+
+  SubsidyCheckoutBreakdown _subsidyBreakdown(CartSnapshot snapshot) {
+    final totalCharge = max(
+      0,
+      snapshot.subtotalTokens - _calculateDiscountTokens(snapshot),
+    );
+    final subsidy = _subsidy;
+    return SubsidyCheckoutBreakdown.calculate(
+      combinedBalance: _session.tokenBalance,
+      totalCharge: totalCharge,
+      drinkCharge: _drinkTokenCharge(snapshot),
+      subsidyEligible: subsidy?.eligible == true,
+      subsidyEnabled: subsidy?.enabled == true,
+      subsidyRemaining: subsidy?.remaining ?? 0,
+    );
   }
 
   Future<void> _showEditRemarksDialog(CartItem item) async {
@@ -557,6 +618,13 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                     ),
                     const SizedBox(height: 10),
                     _buildPaymentMethodSummary(snapshot),
+                    if (_paymentMode == 'token' &&
+                        (_isSubsidyLoading ||
+                            _subsidyError != null ||
+                            _subsidy?.eligible == true)) ...[
+                      const SizedBox(height: 10),
+                      _buildSubsidyStatus(snapshot),
+                    ],
                     const SizedBox(height: 20),
                     _buildSummaryCard(snapshot),
                     if (_checkoutError != null) ...[
@@ -694,9 +762,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             'card' => Icons.credit_card_outlined,
             _ => Icons.account_balance_outlined,
           };
-    final discountTokens = _calculateDiscountTokens(snapshot);
-    final tokenCharge = max(0, snapshot.subtotalTokens - discountTokens);
-    final hasEnoughTokens = _session.tokenBalance >= tokenCharge;
+    final breakdown = _subsidyBreakdown(snapshot);
+    final hasEnoughTokens = breakdown.canPay;
 
     return InkWell(
       onTap: _isSubmitting ? null : () => _openPaymentMethodPicker(snapshot),
@@ -737,8 +804,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   Text(
                     isToken
                         ? hasEnoughTokens
-                            ? '${_formatTokenCount(_session.tokenBalance)} tokens available'
-                            : 'Short by ${_formatTokenCount(tokenCharge - _session.tokenBalance)} tokens'
+                            ? '${_formatTokenCount(breakdown.availableForOrder)} available for this order'
+                            : 'Short by ${_formatTokenCount(breakdown.personalRequired - breakdown.personalBalance)}'
                         : 'Pay directly in RM at checkout',
                     style: TextStyle(
                       fontFamily: 'Afacad',
@@ -758,13 +825,118 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
+  Widget _buildSubsidyStatus(CartSnapshot snapshot) {
+    if (_isSubsidyLoading) {
+      return const LinearProgressIndicator(minHeight: 3);
+    }
+    if (_subsidyError != null) {
+      return InkWell(
+        onTap: _loadSubsidy,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.red.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.red.shade200),
+          ),
+          child: Text(
+            _subsidyError!,
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              color: Colors.red.shade800,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final subsidy = _subsidy;
+    if (subsidy == null || !subsidy.eligible) return const SizedBox.shrink();
+    final breakdown = _subsidyBreakdown(snapshot);
+    final progress = subsidy.granted <= 0
+        ? 0.0
+        : (subsidy.remaining / subsidy.granted).clamp(0.0, 1.0);
+    final enabled = subsidy.enabled;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: enabled
+            ? orangeColor.withValues(alpha: 0.07)
+            : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: enabled
+              ? orangeColor.withValues(alpha: 0.35)
+              : Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.savings_outlined, color: orangeColor, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Monthly Subsidy',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                enabled ? 'ON' : 'OFF',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontWeight: FontWeight.w800,
+                  color: enabled ? Colors.green.shade700 : Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 7,
+              backgroundColor: Colors.grey.shade300,
+              color: enabled ? orangeColor : Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            enabled
+                ? '${_formatTokenCount(subsidy.remaining)} remaining • ${_formatTokenCount(breakdown.subsidyApplied)} applied to eligible drinks in this order'
+                : '${_formatTokenCount(subsidy.remaining)} protected • this order will use only your personal C2 Credit',
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 13,
+              color: Colors.black54,
+              height: 1.25,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openPaymentMethodPicker(CartSnapshot snapshot) async {
     final discountTokens = _calculateDiscountTokens(snapshot);
+    final breakdown = _subsidyBreakdown(snapshot);
     final selection = await Navigator.of(context).push<_PaymentSelection>(
       MaterialPageRoute(
         builder: (_) => _PaymentMethodPickerPage(
           tokenCharge: max(0, snapshot.subtotalTokens - discountTokens),
-          tokenBalance: _session.tokenBalance,
+          tokenBalance: breakdown.availableForOrder,
           directPaymentMethods: _directPaymentMethods,
           initialMode: _paymentMode,
           initialMethod: _directPaymentMethod,
@@ -1386,6 +1558,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final directTotal = _finalDirectCharge(snapshot);
     final totalQuantity =
         snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
+    final subsidyBreakdown = _subsidyBreakdown(snapshot);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1492,7 +1665,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       child: Text(
                         _paymentMode == 'direct'
                             ? 'Paid securely through CHIP'
-                            : 'Charged from your C2 Credit',
+                            : subsidyBreakdown.subsidyApplied > 0
+                                ? '${_formatTokenCount(subsidyBreakdown.subsidyApplied)} from Monthly Subsidy • ${_formatTokenCount(subsidyBreakdown.personalRequired)} from C2 Credit'
+                                : _subsidy?.eligible == true &&
+                                        _subsidy?.enabled == false
+                                    ? 'Monthly Subsidy is off • charged from personal C2 Credit'
+                                    : 'Charged from your C2 Credit',
                         style: const TextStyle(
                           fontFamily: 'Afacad',
                           fontSize: 13.5,
@@ -1647,8 +1825,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       0,
       snapshot.subtotalTokens - discountTokens,
     );
-    final hasEnoughBalance = _session.tokenBalance >= effectiveTokenCharge;
-    final canPlaceOrder = hasEnoughBalance;
+    final breakdown = _subsidyBreakdown(snapshot);
+    final canPlaceOrder =
+        !_isSubsidyLoading && _subsidyError == null && breakdown.canPay;
 
     return SizedBox(
       width: double.infinity,
@@ -1680,7 +1859,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   ? 'PROCESSING ORDER...'
                   : canPlaceOrder
                       ? 'PAY WITH TOKENS'
-                      : 'NOT ENOUGH TOKENS',
+                      : _isSubsidyLoading
+                          ? 'CHECKING SUBSIDY...'
+                          : _subsidyError != null
+                              ? 'RETRY SUBSIDY CHECK'
+                              : 'NOT ENOUGH TOKENS',
               style: const TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 18,

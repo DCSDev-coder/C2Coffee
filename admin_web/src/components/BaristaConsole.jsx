@@ -485,7 +485,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
       if (silent) setIsRefreshing(true);
       else setIsLoading(true);
 
-      const response = await adminRequest('/v1/admin/orders');
+      const response = await adminRequest('/v1/admin/orders?view=barista_workspace&limit=500');
       const nextOrders = Array.isArray(response?.orders) ? response.orders : [];
       setOrders(nextOrders);
       setSelectedOrder((current) => current ? nextOrders.find((order) => order.id === current.id) || null : null);

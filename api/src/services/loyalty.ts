@@ -1,20 +1,27 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { mysqlPool } from '../db/mysql.js';
 import { createUserNotification } from '../http/notifications.js';
-import { formatTierName, getActiveLoyaltyTiers, getTierProgress, loadLoyaltyTiers } from './loyalty-tiers.js';
+import { formatTierName, getActiveLoyaltyTiers, loadLoyaltyTiers } from './loyalty-tiers.js';
+import { refreshUserLoyaltyTier } from './loyalty-tier-maintenance.js';
 
 export async function processOrderLoyalty(
   orderId: number,
   userId: number,
   connection: PoolConnection | typeof mysqlPool = mysqlPool
 ): Promise<void> {
+  const [fundingRows] = await connection.query<Array<RowDataPacket & { employee_allowance_tokens_used: number }>>(
+    `SELECT employee_allowance_tokens_used FROM orders WHERE id = :orderId LIMIT 1`,
+    { orderId }
+  );
+  if (Number(fundingRows[0]?.employee_allowance_tokens_used ?? 0) > 0) return;
+
   const tiers = await loadLoyaltyTiers(connection);
   const activeTiers = getActiveLoyaltyTiers(tiers);
 
-  // 1. Sum qualifying cups for this order
-  const [cupRows] = await connection.query<Array<RowDataPacket & { cups: number }>>(
+  // One completed order earns one cup only when it contains a qualifying drink.
+  const [cupRows] = await connection.query<Array<RowDataPacket & { menu_item_id: number | null }>>(
     `
-      SELECT COALESCE(SUM(quantity), 0) AS cups
+      SELECT MIN(menu_item_id) AS menu_item_id
       FROM order_items
       WHERE order_id = :orderId
         AND is_qualifying_cup = 1
@@ -22,127 +29,46 @@ export async function processOrderLoyalty(
     { orderId }
   );
   
-  const cupsAwarded = Number(cupRows[0]?.cups ?? 0);
-
-  // 2. If there are qualifying cups, insert a cup event. We'll use the first qualifying menu item id for the record.
-  if (cupsAwarded > 0) {
-    const [itemRows] = await connection.query<Array<RowDataPacket & { menu_item_id: number }>>(
+  const menuItemId = Number(cupRows[0]?.menu_item_id ?? 0);
+  if (menuItemId > 0) {
+    await connection.execute<ResultSetHeader>(
       `
-        SELECT menu_item_id
-        FROM order_items
-        WHERE order_id = :orderId
-          AND is_qualifying_cup = 1
-        LIMIT 1
-      `,
-      { orderId }
-    );
-    const menuItemId = itemRows[0]?.menu_item_id;
-
-    if (menuItemId) {
-      await connection.execute(
-        `
-          INSERT INTO loyalty_cup_events (
-            user_id,
-            order_id,
-            menu_item_id,
-            cups_awarded,
-            effective_at
-          )
-          VALUES (
-            :userId,
-            :orderId,
-            :menuItemId,
-            :cupsAwarded,
-            UTC_TIMESTAMP()
-          )
-        `,
-        {
-          userId,
-          orderId,
-          menuItemId,
-          cupsAwarded
-        }
-      );
-    }
-  }
-
-  // 3. Recalculate cups from the last 180 days
-  const [totalRows] = await connection.query<Array<RowDataPacket & { total_cups: number }>>(
-    `
-      SELECT COALESCE(SUM(cups_awarded), 0) AS total_cups
-      FROM loyalty_cup_events
-      WHERE user_id = :userId
-        AND effective_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY)
-        AND reversed_at IS NULL
-    `,
-    { userId }
-  );
-
-  const cupsLast180d = Number(totalRows[0]?.total_cups ?? 0);
-
-  // 4. Determine new tier
-  const tierProgress = getTierProgress(cupsLast180d, tiers);
-  const newTier = tierProgress.tierCode;
-
-  // 5. Fetch current snapshot
-  const [snapshotRows] = await connection.query<
-    Array<RowDataPacket & { tier_code: string; qualifying_cups_last_180d: number }>
-  >(
-    `
-      SELECT tier_code, qualifying_cups_last_180d
-      FROM loyalty_tier_snapshots
-      WHERE user_id = :userId
-      ORDER BY effective_at DESC, id DESC
-      LIMIT 1
-    `,
-    { userId }
-  );
-
-  const currentSnapshot = snapshotRows[0];
-  const currentTier = currentSnapshot?.tier_code ?? activeTiers[0]?.code ?? 'kawan';
-  const currentCups = currentSnapshot?.qualifying_cups_last_180d ?? 0;
-
-  // 6. If tier changed or cups changed (and we actually had cups awarded), insert new snapshot
-  if (currentTier !== newTier || currentCups !== cupsLast180d) {
-    let reason = 'recalculation';
-    if (currentTier !== newTier) {
-      reason = 'tier_upgrade'; // Or downgrade
-    } else if (cupsAwarded > 0) {
-      reason = 'order_purchase';
-    }
-
-    await connection.execute(
-      `
-        INSERT INTO loyalty_tier_snapshots (
+        INSERT IGNORE INTO loyalty_cup_events (
           user_id,
-          tier_code,
-          qualifying_cups_last_180d,
-          effective_at,
-          reason_code
+          order_id,
+          menu_item_id,
+          cups_awarded,
+          effective_at
         )
         VALUES (
           :userId,
-          :newTier,
-          :cupsLast180d,
-          UTC_TIMESTAMP(),
-          :reason
+          :orderId,
+          :menuItemId,
+          1,
+          UTC_TIMESTAMP()
         )
       `,
       {
         userId,
-        newTier,
-        cupsLast180d,
-        reason
+        orderId,
+        menuItemId
       }
     );
+  }
 
-    const currentTierConfig = activeTiers.find((tier) => tier.code === currentTier);
+  // The legacy API field name remains for mobile compatibility. Its value is
+  // now the number of qualifying drink orders in the preceding 12 months.
+  // Upgrades happen immediately, while inactivity downgrades wait for review.
+  const tierRefresh = await refreshUserLoyaltyTier(userId, connection);
+  const cupsLast180d = tierRefresh.qualifyingOrders;
+  const currentCups = tierRefresh.previousQualifyingOrders;
+  const currentTier = tierRefresh.previousTier;
+  const newTier = tierRefresh.tier;
+
+  if (tierRefresh.changed) {
     const newTierConfig = activeTiers.find((tier) => tier.code === newTier);
-    const isTierUpgrade = currentTier !== newTier
-      && newTierConfig !== undefined
-      && (!currentTierConfig || newTierConfig.minCups > currentTierConfig.minCups);
 
-    if (isTierUpgrade) {
+    if (tierRefresh.upgraded) {
       const fromLabel = formatTierName(tiers, currentTier);
       const toLabel = formatTierName(tiers, newTier);
 
@@ -158,40 +84,6 @@ export async function processOrderLoyalty(
         }
       });
 
-    }
-
-    if (currentTier !== newTier) {
-      await connection.execute(
-        `
-          UPDATE user_tier_reward_entitlements
-          SET status = 'revoked',
-              revoked_reason = 'Superseded by the customer current tier',
-              revoked_at = UTC_TIMESTAMP()
-          WHERE user_id = :userId
-            AND status = 'claimable'
-            AND tier_code <> :newTier
-        `,
-        { userId, newTier }
-      );
-
-      await connection.execute(
-        `
-          UPDATE user_vouchers
-          SET status = 'revoked',
-              revoked_reason = 'Superseded by the customer current tier',
-              revoked_at = UTC_TIMESTAMP()
-          WHERE user_id = :userId
-            AND status = 'active'
-            AND redeemed_at IS NULL
-            AND revoked_at IS NULL
-            AND (
-              issue_case_ref LIKE 'tier_claim:%'
-              OR issue_case_ref LIKE 'tier_unlock:%'
-            )
-            AND (tier_at_issue IS NULL OR tier_at_issue <> :newTier)
-        `,
-        { userId, newTier }
-      );
     }
 
     // A tier benefit belongs only to the member's resulting/current tier. If
@@ -412,24 +304,8 @@ export async function reverseOrderLoyalty(
     { orderId, userId }
   );
 
-  const tiers = await loadLoyaltyTiers(connection);
-  const [totals] = await connection.query<Array<RowDataPacket & { total_cups: number }>>(
-    `SELECT COALESCE(SUM(cups_awarded), 0) AS total_cups
-     FROM loyalty_cup_events
-     WHERE user_id = :userId
-       AND effective_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 180 DAY)
-       AND reversed_at IS NULL`,
-    { userId }
-  );
-  const cupsLast180d = Number(totals[0]?.total_cups ?? 0);
-  const tier = getTierProgress(cupsLast180d, tiers).tierCode;
-  await connection.execute(
-    `INSERT INTO loyalty_tier_snapshots (
-       user_id, tier_code, qualifying_cups_last_180d, effective_at, reason_code
-     ) VALUES (
-       :userId, :tier, :cupsLast180d, UTC_TIMESTAMP(), 'refund_reversal'
-     )`,
-    { userId, tier, cupsLast180d }
-  );
+  // Refunds are an integrity correction rather than ordinary inactivity, so
+  // they may remove a tier immediately if the reversed order caused it.
+  await refreshUserLoyaltyTier(userId, connection, { forceDowngrade: true });
   return { cupsReversed, rewardNeedsReview };
 }

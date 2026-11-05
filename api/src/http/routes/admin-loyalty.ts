@@ -20,6 +20,11 @@ const overviewQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50)
 });
 
+const employeeAllowanceReportQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  limit: z.coerce.number().int().min(1).max(500).optional().default(250)
+});
+
 type SummaryRow = RowDataPacket & {
   total_members: number | string | null;
   tokens_in_circulation: number | string | null;
@@ -498,6 +503,44 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         { tenantId: request.adminAuth.tenantId }
       );
 
+      const [employeePurchaseRows] = await connection.query<RowDataPacket[]>(
+        `SELECT
+           o.id, o.order_ref, o.status, o.created_at,
+           o.token_amount_charged,
+           o.employee_allowance_tokens_used,
+           GREATEST(o.token_amount_charged - o.employee_allowance_tokens_used, 0) AS personal_tokens_used,
+           up.display_name, up.email, u.phone_e164,
+           s.name AS outlet_name,
+           GROUP_CONCAT(CONCAT(oi.quantity, 'x ', oi.item_name_snapshot) ORDER BY oi.id SEPARATOR ', ') AS items
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id AND s.tenant_id = :tenantId
+         JOIN users u ON u.id = o.user_id
+         JOIN customer_tenant_memberships ctm
+           ON ctm.user_id = u.id AND ctm.tenant_id = s.tenant_id AND ctm.is_employee = 1
+         LEFT JOIN user_profiles up ON up.user_id = u.id
+         LEFT JOIN order_items oi ON oi.order_id = o.id
+         WHERE o.employee_allowance_tokens_used > 0
+         GROUP BY o.id, o.order_ref, o.status, o.created_at, o.token_amount_charged,
+                  o.employee_allowance_tokens_used, up.display_name, up.email, u.phone_e164, s.name
+         ORDER BY o.created_at DESC, o.id DESC
+         LIMIT :limit`,
+        { tenantId: request.adminAuth.tenantId, limit }
+      );
+
+      const [employeeAllowanceRows] = await connection.query<RowDataPacket[]>(
+        `SELECT
+           eta.user_id, eta.period_start, eta.period_end, eta.granted_amount,
+           eta.remaining_amount, eta.status,
+           up.display_name, up.email, u.phone_e164
+         FROM employee_token_allowances eta
+         JOIN users u ON u.id = eta.user_id
+         LEFT JOIN user_profiles up ON up.user_id = u.id
+         WHERE eta.tenant_id = :tenantId
+         ORDER BY eta.period_start DESC, COALESCE(up.display_name, up.email, u.phone_e164) ASC
+         LIMIT :limit`,
+        { tenantId: request.adminAuth.tenantId, limit }
+      );
+
       const summaryRow = summaryRows[0] ?? {
         total_members: 0,
         tokens_in_circulation: 0,
@@ -647,7 +690,128 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         recentActivity,
         transactions,
         members,
+        employeeAllowances: employeeAllowanceRows.map((row) => ({
+          userId: Number(row.user_id),
+          employee: row.display_name || row.email || row.phone_e164,
+          email: row.email || '',
+          phone: row.phone_e164,
+          periodStart: row.period_start,
+          periodEnd: row.period_end,
+          granted: Number(row.granted_amount ?? 0),
+          remaining: Number(row.remaining_amount ?? 0),
+          status: row.status
+        })),
+        employeePurchases: employeePurchaseRows.map((row) => ({
+          id: Number(row.id),
+          orderRef: row.order_ref,
+          employee: row.display_name || row.email || row.phone_e164,
+          email: row.email || '',
+          outlet: row.outlet_name,
+          items: row.items || '',
+          totalTokens: Number(row.token_amount_charged ?? 0),
+          allowanceTokens: Number(row.employee_allowance_tokens_used ?? 0),
+          personalTokens: Number(row.personal_tokens_used ?? 0),
+          status: row.status,
+          tierCupEarned: false,
+          createdAt: row.created_at
+        })),
         lastUpdatedAt: new Date().toISOString()
+      };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.get('/v1/admin/loyalty/employee-allowances', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin']);
+    const { month, limit } = employeeAllowanceReportQuerySchema.parse(request.query);
+    const periodStart = `${month}-01`;
+    const [year, monthNumber] = month.split('-').map(Number);
+    const toSqlUtc = (value: Date) => value.toISOString().slice(0, 19).replace('T', ' ');
+    const periodStartUtc = toSqlUtc(new Date(Date.UTC(year, monthNumber - 1, 1) - 8 * 60 * 60 * 1000));
+    const periodEndExclusiveUtc = toSqlUtc(new Date(Date.UTC(year, monthNumber, 1) - 8 * 60 * 60 * 1000));
+    const connection = await mysqlPool.getConnection();
+    try {
+      const [allowanceRows] = await connection.query<RowDataPacket[]>(
+        `SELECT employee_set.user_id, eta.period_start, eta.period_end,
+                eta.carried_forward_amount, eta.granted_amount,
+                eta.refunded_amount, eta.remaining_amount, eta.status,
+                up.display_name, up.email, u.phone_e164
+           FROM (
+             SELECT ctm.user_id
+               FROM customer_tenant_memberships ctm
+              WHERE ctm.tenant_id = :tenantId AND ctm.is_employee = 1
+             UNION
+             SELECT history.user_id
+               FROM employee_token_allowances history
+              WHERE history.tenant_id = :tenantId AND history.period_start = :periodStart
+           ) employee_set
+           JOIN users u ON u.id = employee_set.user_id
+           LEFT JOIN employee_token_allowances eta
+             ON eta.tenant_id = :tenantId AND eta.user_id = employee_set.user_id
+            AND eta.period_start = :periodStart
+           LEFT JOIN user_profiles up ON up.user_id = u.id
+          ORDER BY COALESCE(up.display_name, up.email, u.phone_e164) ASC
+          LIMIT :limit`,
+        { tenantId: request.adminAuth.tenantId, periodStart, limit }
+      );
+      const [purchaseRows] = await connection.query<RowDataPacket[]>(
+        `SELECT o.id, o.order_ref, o.status, o.created_at, o.token_amount_charged,
+                o.employee_allowance_tokens_used, o.employee_allowance_tokens_refunded,
+                GREATEST(o.token_amount_charged - o.employee_allowance_tokens_used, 0) AS personal_tokens_used,
+                up.display_name, up.email, u.phone_e164, s.name AS outlet_name,
+                GROUP_CONCAT(CONCAT(oi.quantity, 'x ', oi.item_name_snapshot) ORDER BY oi.id SEPARATOR ', ') AS items,
+                MAX(CASE WHEN oi.is_qualifying_cup = 1 THEN 1 ELSE 0 END) AS contains_drink
+           FROM orders o
+           JOIN stores s ON s.id = o.store_id AND s.tenant_id = :tenantId
+           JOIN users u ON u.id = o.user_id
+           LEFT JOIN user_profiles up ON up.user_id = u.id
+           LEFT JOIN order_items oi ON oi.order_id = o.id
+          WHERE o.employee_allowance_tokens_used > 0
+            AND o.created_at >= :periodStartUtc AND o.created_at < :periodEndExclusiveUtc
+          GROUP BY o.id, o.order_ref, o.status, o.created_at, o.token_amount_charged,
+                   o.employee_allowance_tokens_used, o.employee_allowance_tokens_refunded,
+                   up.display_name, up.email, u.phone_e164, s.name
+          ORDER BY o.created_at DESC, o.id DESC
+          LIMIT :limit`,
+        { tenantId: request.adminAuth.tenantId, periodStartUtc, periodEndExclusiveUtc, limit }
+      );
+      const allowances = allowanceRows.map((row) => ({
+        userId: Number(row.user_id),
+        employee: row.display_name || row.email || row.phone_e164,
+        email: row.email || '', phone: row.phone_e164,
+        issued: Boolean(row.period_start),
+        periodStart: row.period_start || periodStart, periodEnd: row.period_end,
+        carriedForward: Number(row.carried_forward_amount ?? 0),
+        granted: Number(row.granted_amount ?? 0),
+        refunded: Number(row.refunded_amount ?? 0),
+        remaining: Number(row.remaining_amount ?? 0), status: row.status || 'not_issued'
+      }));
+      const purchases = purchaseRows.map((row) => ({
+        id: Number(row.id), orderRef: row.order_ref,
+        employee: row.display_name || row.email || row.phone_e164,
+        email: row.email || '', outlet: row.outlet_name, items: row.items || '',
+        totalTokens: Number(row.token_amount_charged ?? 0),
+        allowanceTokens: Number(row.employee_allowance_tokens_used ?? 0),
+        refundedAllowanceTokens: Number(row.employee_allowance_tokens_refunded ?? 0),
+        personalTokens: Number(row.personal_tokens_used ?? 0),
+        containsDrink: Number(row.contains_drink) === 1,
+        status: row.status, tierCupEarned: false, createdAt: row.created_at
+      }));
+      return {
+        month,
+        summary: {
+          employeesEligible: allowances.length,
+          employeesIssued: allowances.filter((row) => row.issued).length,
+          carriedForward: allowances.reduce((sum, row) => sum + row.carriedForward, 0),
+          companyTopUp: allowances.reduce((sum, row) => sum + row.granted, 0),
+          grossUsed: purchases.reduce((sum, row) => sum + row.allowanceTokens, 0),
+          refunded: allowances.reduce((sum, row) => sum + row.refunded, 0),
+          endingBalance: allowances.reduce((sum, row) => sum + row.remaining, 0),
+          employeeOrders: purchases.length
+        },
+        allowances,
+        purchases
       };
     } finally {
       connection.release();

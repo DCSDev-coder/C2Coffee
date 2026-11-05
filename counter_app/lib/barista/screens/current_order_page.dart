@@ -4,6 +4,7 @@ import '../main.dart';
 import '../widgets/order_card.dart';
 import 'order_details_page.dart';
 import '../services/api_service.dart';
+import '../order_queue_partition.dart';
 
 class CurrentOrderPage extends StatefulWidget {
   final VoidCallback? onSettingsTap;
@@ -18,6 +19,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
   final Color darkGreen = const Color(0xFF304A3A);
   final Color beigeColor = const Color(0xFFD3B17D);
   final Set<String> _updatingOrderIds = <String>{};
+  final Set<String> _printingOrderIds = <String>{};
 
   Future<void> _refreshOrders() async {
     final result = await ApiService.fetchOrders();
@@ -26,17 +28,9 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
       return;
     }
 
-    final orders = result.orders;
-    globalCurrentOrders.value = orders
-        .where(
-          (order) =>
-              order.status != OrderStatus.completed &&
-              order.status != OrderStatus.readyForPickup,
-        )
-        .toList();
-    globalHistoryOrders.value = orders
-        .where((order) => order.status == OrderStatus.completed)
-        .toList();
+    final partition = partitionTodayOrders(result.orders);
+    globalCurrentOrders.value = partition.active;
+    globalHistoryOrders.value = partition.history;
     globalOrderSyncError.value = null;
     globalLastOrderSync.value = DateTime.now();
   }
@@ -61,6 +55,19 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
     globalCurrentOrders.value = List<CurrentOrder>.from(
       globalCurrentOrders.value,
     );
+  }
+
+  Future<void> _printReceipt(CurrentOrder order) async {
+    if (_printingOrderIds.contains(order.orderId)) return;
+    setState(() => _printingOrderIds.add(order.orderId));
+    final result = await ApiService.queueReceiptReprint(order.orderId);
+    if (!mounted) return;
+    setState(() => _printingOrderIds.remove(order.orderId));
+    if (!result.isSuccess) {
+      TopNotice.error(context, result.errorMessage!);
+      return;
+    }
+    TopNotice.info(context, 'Receipt queued for printing.');
   }
 
   void _openOrderDetails(CurrentOrder order) {
@@ -253,6 +260,10 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                     isActionLoading: _updatingOrderIds.contains(
                                       order.orderId,
                                     ),
+                                    isPrintLoading: _printingOrderIds.contains(
+                                      order.orderId,
+                                    ),
+                                    onPrintPressed: () => _printReceipt(order),
                                     onActionPressed: () {
                                       if (order.status ==
                                               OrderStatus.newOrder &&
