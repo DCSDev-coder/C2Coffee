@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [mobile_app, barista_app, counter_app]
+        project: [mobile_app, counter_app]
     defaults:
       run:
         working-directory: ${{ matrix.project }}

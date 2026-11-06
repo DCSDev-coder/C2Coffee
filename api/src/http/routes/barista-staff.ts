@@ -15,6 +15,7 @@ import { deliverPushToUser } from '../../services/push-delivery.js';
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
+import { calculatePersonalTokenRefund, restoreEmployeeAllowanceForRefund } from '../../services/employee-token-allowance.js';
 import { consumeMarketingDrinkInventory, reverseMarketingDrinkInventory } from '../../services/marketing-drink-usage.js';
 
 const guideTypeSchema = z.enum(['attire', 'rules', 'drink']);
@@ -744,8 +745,8 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
           continue;
         }
 
-        const tokenAmount = Number(order.token_amount_charged);
-        if (tokenAmount <= 0) throw new ApiError(409, 'refund_not_supported', `Order ${order.order_ref} cannot be safely refunded.`);
+        const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(order.id));
+        const tokenAmount = calculatePersonalTokenRefund(Number(order.token_amount_charged), allowanceRefund.allowanceUsed);
         const [existingRefunds] = await connection.query<RowDataPacket[]>(
           `SELECT id FROM refunds WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed') LIMIT 1 FOR UPDATE`,
           { orderId: order.id }
@@ -757,14 +758,18 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
           );
           if (!accounts[0]) throw new ApiError(409, 'token_account_not_found', 'The customer token account was not found.');
           const balanceAfter = Number(accounts[0].balance_available) + tokenAmount;
-          await connection.execute(`UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { balanceAfter, userId: order.user_id });
+          if (tokenAmount > 0) {
+            await connection.execute(`UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { balanceAfter, userId: order.user_id });
+          }
           const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
           const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, { orderId: Number(order.id), userId: Number(order.user_id), issueCaseRef: `refund:${refundRef}`, reason: `Replacement voucher for emergency-cancelled order ${order.order_ref}` });
-          await connection.execute(
-            `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
-             VALUES (:userId, NULL, 'credit', 'refund_return', :orderId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
-            { userId: order.user_id, orderId: order.id, amount: tokenAmount, balanceAfter, remarks: `Emergency cancellation for order ${order.order_ref}` }
-          );
+          if (tokenAmount > 0) {
+            await connection.execute(
+              `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+               VALUES (:userId, NULL, 'credit', 'refund_return', :orderId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
+              { userId: order.user_id, orderId: order.id, amount: tokenAmount, balanceAfter, remarks: `Emergency cancellation for order ${order.order_ref}` }
+            );
+          }
           await connection.execute(
             `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_by_admin_id, created_at, completed_at)
              VALUES (:orderId, :paymentId, 'token', :refundRef, :amountRm, :tokenAmount, 'completed', :reason, :adminUserId, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
@@ -995,15 +1000,15 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     assertStaffAccess(request);
     const storeId = await resolveAttendanceStoreId(request);
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
-      `SELECT usage.id, usage.usage_ref, usage.purpose_code, usage.campaign_name,
-              usage.reason_note, usage.status, usage.posted_at, barista.name AS barista_name,
+      `SELECT mdu.id, mdu.usage_ref, mdu.purpose_code, mdu.campaign_name,
+              mdu.reason_note, mdu.status, mdu.posted_at, barista.name AS barista_name,
               item.menu_item_id, item.menu_item_name_snapshot, item.quantity
-         FROM marketing_drink_usages usage
-         JOIN baristas barista ON barista.id = usage.barista_id
-         JOIN marketing_drink_usage_items item ON item.usage_id = usage.id
-        WHERE usage.tenant_id = :tenantId AND usage.store_id = :storeId
-          AND DATE(CONVERT_TZ(usage.posted_at, '+00:00', '+08:00')) = :today
-        ORDER BY usage.posted_at DESC, usage.id DESC, item.id`,
+         FROM marketing_drink_usages mdu
+         JOIN baristas barista ON barista.id = mdu.barista_id
+         JOIN marketing_drink_usage_items item ON item.usage_id = mdu.id
+        WHERE mdu.tenant_id = :tenantId AND mdu.store_id = :storeId
+          AND DATE(CONVERT_TZ(mdu.posted_at, '+00:00', '+08:00')) = :today
+        ORDER BY mdu.posted_at DESC, mdu.id DESC, item.id`,
       { tenantId: request.adminAuth.tenantId, storeId, today: malaysiaDate() }
     );
     const usages = new Map<number, Record<string, unknown>>();
@@ -1130,24 +1135,24 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       throw new ApiError(400, 'invalid_report_range', 'Choose a report range of up to 366 days.');
     }
     const [rows] = await mysqlPool.query<RowDataPacket[]>(
-      `SELECT usage.id, usage.usage_ref, usage.store_id, store.name AS store_name,
-              usage.purpose_code, usage.campaign_name, usage.reason_note, usage.status,
-              usage.posted_at, usage.reversed_at, barista.name AS barista_name,
+      `SELECT mdu.id, mdu.usage_ref, mdu.store_id, store.name AS store_name,
+              mdu.purpose_code, mdu.campaign_name, mdu.reason_note, mdu.status,
+              mdu.posted_at, mdu.reversed_at, barista.name AS barista_name,
               item.menu_item_name_snapshot, item.quantity,
               COALESCE(inventory.total_cost_rm, 0) AS inventory_cost_rm
-         FROM marketing_drink_usages usage
-         JOIN stores store ON store.id = usage.store_id
-         JOIN baristas barista ON barista.id = usage.barista_id
-         JOIN marketing_drink_usage_items item ON item.usage_id = usage.id
+         FROM marketing_drink_usages mdu
+         JOIN stores store ON store.id = mdu.store_id
+         JOIN baristas barista ON barista.id = mdu.barista_id
+         JOIN marketing_drink_usage_items item ON item.usage_id = mdu.id
          LEFT JOIN (
            SELECT usage_id, SUM(total_cost_rm) AS total_cost_rm
              FROM marketing_drink_inventory_lines GROUP BY usage_id
-         ) inventory ON inventory.usage_id = usage.id
-        WHERE usage.tenant_id = :tenantId
-          AND DATE(CONVERT_TZ(usage.posted_at, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate
-          AND (:storeId IS NULL OR usage.store_id = :storeId)
-          AND (:purposeCode IS NULL OR usage.purpose_code = :purposeCode)
-        ORDER BY usage.posted_at DESC, usage.id DESC, item.id`,
+         ) inventory ON inventory.usage_id = mdu.id
+        WHERE mdu.tenant_id = :tenantId
+          AND DATE(CONVERT_TZ(mdu.posted_at, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate
+          AND (:storeId IS NULL OR mdu.store_id = :storeId)
+          AND (:purposeCode IS NULL OR mdu.purpose_code = :purposeCode)
+        ORDER BY mdu.posted_at DESC, mdu.id DESC, item.id`,
       { tenantId: request.adminAuth.tenantId, fromDate: from, toDate: to, storeId: query.store_id ?? null, purposeCode: query.purpose_code ?? null }
     );
     return { usages: rows };

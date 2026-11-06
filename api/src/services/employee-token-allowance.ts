@@ -3,6 +3,11 @@ import { mysqlPool } from '../db/mysql.js';
 
 export const MONTHLY_EMPLOYEE_ALLOWANCE = 200;
 
+/** Returns only the customer-funded portion of a token order. */
+export function calculatePersonalTokenRefund(tokenAmountCharged: number, allowanceUsed: number): number {
+  return Math.max(0, Math.floor(Number(tokenAmountCharged) || 0) - Math.floor(Number(allowanceUsed) || 0));
+}
+
 export async function getEmployeeSubsidyStatus(userId: number, tenantId: number) {
   const connection = await mysqlPool.getConnection();
   try {

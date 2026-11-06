@@ -182,6 +182,13 @@ test('top-up history is informational while qualifying vouchers are issued by se
 
   const checkoutPaymentRules = checkout.match(/voucher_payment_mode_not_supported/);
   assert.ok(checkoutPaymentRules, 'voucher payment mode must be enforced at checkout');
+  assert.match(checkout, /const checkoutPaymentMode = isTokenCheckout \? 'token' : 'direct'/);
+  assert.match(checkout, /paymentModes\.includes\(checkoutPaymentMode\)/);
+  assert.doesNotMatch(
+    checkout,
+    /!paymentModes\.includes\('both'\) && !paymentModes\.includes\('token'\)/,
+    'direct checkout must validate direct voucher eligibility rather than token eligibility'
+  );
 
   const settlement = await source('src/services/chip-topup-settlement.ts');
   assert.match(settlement, /issueTopUpRewardVouchers/);
@@ -231,6 +238,7 @@ test('order cancellation is barista-reviewed and never fakes direct-payment refu
   const migration = await source('src/db/migrations/124_create_order_cancellation_requests.sql');
   const customerData = await source('src/http/routes/customer-data.ts');
   const adminOrders = await source('src/http/routes/admin-orders.ts');
+  const adminGuard = await source('src/admin/guard.ts');
   assert.match(migration, /UNIQUE KEY uq_order_cancellation_request/);
   assert.match(migration, /ENUM\('pending', 'approved', 'rejected', 'refund_pending', 'completed', 'withdrawn'\)/);
   assert.match(customerData, /orders\/:orderId\/cancellation-request/);
@@ -241,6 +249,8 @@ test('order cancellation is barista-reviewed and never fakes direct-payment refu
   assert.match(adminOrders, /payment-provider refund still required/);
   assert.match(adminOrders, /releaseInventoryForOrder\(connection, order\.id\)/);
   assert.match(adminOrders, /cancellation_request_pending/);
+  assert.match(adminGuard, /canReviewCancellationRequest/);
+  assert.match(adminGuard, /cancellation-request/);
 });
 
 test('poster surface ordering is role guarded, tenant scoped, and uses fixed columns', async () => {

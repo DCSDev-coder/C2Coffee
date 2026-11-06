@@ -1298,7 +1298,7 @@ class _RewardsPageState extends State<RewardsPage> {
               children: [
                 _buildExpansionTile(
                   'How do I place an order?',
-                  'Browse the menu, select your preferred drink, customize it to your liking, and tap Add to Cart. Proceed to checkout and confirm your order using C2 Tokens.',
+                  'Browse the menu, select your preferred drink, customize it to your liking, and tap Add to Cart. At checkout, choose C2 Credit or an available direct RM payment method.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(

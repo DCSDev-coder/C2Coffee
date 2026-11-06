@@ -164,6 +164,11 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canUpdateOrderStatus =
     request.method === 'PATCH' &&
     /^\/v1\/admin\/orders\/[^/]+\/status$/.test(path);
+  // Cancellation review is a barista workflow. The route handler still
+  // enforces store assignment and active shift access before any refund work.
+  const canReviewCancellationRequest =
+    request.method === 'PATCH' &&
+    /^\/v1\/admin\/orders\/[^/]+\/cancellation-request$/.test(path);
   const canReadOperationalContext =
     request.method === 'GET' && path === '/v1/barista/operations/context';
   const canReadWorkstationAccess =
@@ -203,6 +208,7 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadOrders &&
     !canReadBaristaRoster &&
     !canUpdateOrderStatus &&
+    !canReviewCancellationRequest &&
     !canReadOperationalContext &&
     !canReadWorkstationAccess &&
     !canReadWeeklySchedule &&

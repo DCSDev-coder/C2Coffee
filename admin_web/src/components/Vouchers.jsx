@@ -2058,7 +2058,7 @@ const Vouchers = ({ onNavigate }) => {
                       ))}
                     </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      Choose whether this voucher can be used with C2 Tokens, future RM direct payment, or both.
+                      Choose whether this voucher can be used with C2 Credit, direct RM payment, or both.
                     </p>
                   </div>
 

@@ -278,8 +278,11 @@ class AppSessionService extends ChangeNotifier {
   Future<void> selectStore(
     StoreSummary store, {
     bool selectedManually = true,
+    bool forceRefresh = false,
   }) async {
-    if (_selectedStore?.id == store.id && _menuCategories.isNotEmpty) {
+    if (!forceRefresh &&
+        _selectedStore?.id == store.id &&
+        _menuCategories.isNotEmpty) {
       if (selectedManually) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool(_selectedStoreManuallyKey, true);

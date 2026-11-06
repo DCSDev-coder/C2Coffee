@@ -30,10 +30,11 @@ class TutorialPage extends StatelessWidget {
     _GuideSection(
       number: '03',
       icon: Icons.account_balance_wallet_outlined,
-      title: 'Pay with C2 Tokens',
+      title: 'Choose how to pay',
       description:
-          'Orders use your prepaid C2 Token balance. One token equals RM 1. Add credit from C2 Credit, choose a package and complete payment with an available method.',
-      tip: 'Tokens appear only after the payment provider confirms the top-up.',
+          'At checkout, choose C2 Credit or an available direct RM payment method. To add C2 Credit, open Top Up, choose an amount, and complete payment using an available method.',
+      tip:
+          'Direct payments and top-ups are confirmed only after the payment provider reports success.',
     ),
     _GuideSection(
       number: '04',

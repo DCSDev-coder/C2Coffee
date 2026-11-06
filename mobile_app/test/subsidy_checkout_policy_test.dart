@@ -8,6 +8,7 @@ void main() {
         combinedBalance: 206,
         totalCharge: 16,
         drinkCharge: 16,
+        priorDeductions: 0,
         subsidyEligible: true,
         subsidyEnabled: true,
         subsidyRemaining: 200,
@@ -24,6 +25,7 @@ void main() {
         combinedBalance: 206,
         totalCharge: 16,
         drinkCharge: 16,
+        priorDeductions: 0,
         subsidyEligible: true,
         subsidyEnabled: false,
         subsidyRemaining: 200,
@@ -41,6 +43,7 @@ void main() {
         combinedBalance: 206,
         totalCharge: 20,
         drinkCharge: 10,
+        priorDeductions: 0,
         subsidyEligible: true,
         subsidyEnabled: true,
         subsidyRemaining: 200,
@@ -56,6 +59,7 @@ void main() {
         combinedBalance: 206,
         totalCharge: 16,
         drinkCharge: 16,
+        priorDeductions: 0,
         subsidyEligible: false,
         subsidyEnabled: false,
         subsidyRemaining: 0,
@@ -64,6 +68,40 @@ void main() {
       expect(result.personalBalance, 206);
       expect(result.availableForOrder, 206);
       expect(result.canPay, isTrue);
+    });
+
+    test('does not redirect subsidy to food after a drink discount', () {
+      final result = SubsidyCheckoutBreakdown.calculate(
+        combinedBalance: 200,
+        totalCharge: 10,
+        drinkCharge: 10,
+        priorDeductions: 10,
+        subsidyEligible: true,
+        subsidyEnabled: true,
+        subsidyRemaining: 200,
+      );
+
+      expect(result.subsidyApplied, 0);
+      expect(result.personalRequired, 10);
+      expect(result.canPay, isFalse);
+    });
+
+    test('blocks subsidy when a voucher or gift card requires personal credit',
+        () {
+      final result = SubsidyCheckoutBreakdown.calculate(
+        combinedBalance: 210,
+        totalCharge: 20,
+        drinkCharge: 20,
+        priorDeductions: 0,
+        subsidyEligible: true,
+        subsidyEnabled: true,
+        subsidyRemaining: 200,
+        subsidyBlocked: true,
+      );
+
+      expect(result.subsidyApplied, 0);
+      expect(result.personalRequired, 20);
+      expect(result.canPay, isFalse);
     });
   });
 }

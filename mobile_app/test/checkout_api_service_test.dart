@@ -59,6 +59,74 @@ void main() {
     expect(result.tokenBalance, 88);
   });
 
+  test('checkout sends a direct RM order with its selected payment method',
+      () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'order': {
+            'id': 11,
+            'order_ref': 'C2-DIRECT',
+            'daily_order_number': 2,
+            'status': 'pending_payment',
+            'payment_mode': 'direct',
+            'final_total_rm': '12.00',
+            'token_amount_charged': 0,
+          },
+          'token_balance': 100,
+          'token_reserved': 0,
+          'token_cap': 500,
+          'payment': {
+            'provider': 'chip',
+            'status': 'pending',
+            'payment_method': 'fpx',
+            'checkout_url': 'https://gate.chip-in.asia/purchase/test',
+            'amount_rm': '12.00',
+          },
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final service = CheckoutApiService(
+      client: client,
+      baseUrl: 'https://test.example.com/v1',
+    );
+    final cart = CartSnapshot(
+      storeId: 7,
+      storeName: 'Test Outlet',
+      items: const [],
+    );
+
+    final result = await service.createDirectOrder(
+      accessToken: 'access-token',
+      cart: cart,
+      idempotencyKey: 'checkout-direct-123',
+      paymentMethod: 'fpx',
+      appliedVoucherId: 5,
+    );
+
+    final body = jsonDecode(captured.body) as Map<String, dynamic>;
+    expect(captured.url.toString(), 'https://test.example.com/v1/orders');
+    expect(captured.headers['authorization'], 'Bearer access-token');
+    expect(captured.headers['idempotency-key'], 'checkout-direct-123');
+    expect(body['payment_mode'], 'direct');
+    expect(body['payment_method'], 'fpx');
+    expect(body['store_id'], 7);
+    expect(body['applied_voucher_id'], 5);
+    expect(result.order.paymentMode, 'direct');
+    expect(result.order.status, 'pending_payment');
+    expect(result.tokenBalance, 100);
+    expect(result.payment?['provider'], 'chip');
+    expect(result.payment?['payment_method'], 'fpx');
+    expect(
+      result.payment?['checkout_url'],
+      'https://gate.chip-in.asia/purchase/test',
+    );
+  });
+
   test('checkout preserves top-up-required error code for customer messaging',
       () async {
     final client = MockClient((request) async {

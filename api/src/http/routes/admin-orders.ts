@@ -5,7 +5,7 @@ import { authenticateAdminRequest } from '../../admin/guard.js';
 import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { processOrderLoyalty, reverseOrderLoyalty } from '../../services/loyalty.js';
-import { restoreEmployeeAllowanceForRefund } from '../../services/employee-token-allowance.js';
+import { calculatePersonalTokenRefund, restoreEmployeeAllowanceForRefund } from '../../services/employee-token-allowance.js';
 import { awardReferralForCollectedOrder, reverseReferralForRefundedOrder } from '../../services/referrals.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
@@ -896,10 +896,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       if (decision === 'approved' && refund.payment_mode === 'token') {
         const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(refund.order_id));
-        const tokenAmount = Math.max(0, Number(refund.refund_token_amount ?? 0) - allowanceRefund.allowanceUsed + allowanceRefund.restored);
-        if (tokenAmount <= 0) {
-          throw new ApiError(409, 'refund_amount_invalid', 'This refund does not have a token amount to return.');
-        }
+        const tokenAmount = calculatePersonalTokenRefund(Number(refund.refund_token_amount ?? 0), allowanceRefund.allowanceUsed);
         const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
           `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
           { userId: refund.user_id }
@@ -909,29 +906,31 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           throw new ApiError(409, 'token_account_not_found', 'The customer token account was not found.');
         }
         const balanceAfter = Number(account.balance_available) + tokenAmount;
-        await connection.execute(
-          `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
-          { balanceAfter, userId: refund.user_id }
-        );
-        await connection.execute(
-          `
-            INSERT INTO token_ledger (
-              user_id, token_lot_id, direction, source_type, source_id, amount,
-              balance_after, remarks, created_by_admin_id, created_at
-            ) VALUES (
-              :userId, NULL, 'credit', 'refund_return', :refundId, :amount,
-              :balanceAfter, :remarks, :adminUserId, UTC_TIMESTAMP()
-            )
-          `,
-          {
-            userId: refund.user_id,
-            refundId: refund.id,
-            amount: tokenAmount,
-            balanceAfter,
-            remarks: `Approved refund for ${refundRef}`,
-            adminUserId: request.adminAuth.adminUserId
-          }
-        );
+        if (tokenAmount > 0) {
+          await connection.execute(
+            `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
+            { balanceAfter, userId: refund.user_id }
+          );
+          await connection.execute(
+            `
+              INSERT INTO token_ledger (
+                user_id, token_lot_id, direction, source_type, source_id, amount,
+                balance_after, remarks, created_by_admin_id, created_at
+              ) VALUES (
+                :userId, NULL, 'credit', 'refund_return', :refundId, :amount,
+                :balanceAfter, :remarks, :adminUserId, UTC_TIMESTAMP()
+              )
+            `,
+            {
+              userId: refund.user_id,
+              refundId: refund.id,
+              amount: tokenAmount,
+              balanceAfter,
+              remarks: `Approved refund for ${refundRef}`,
+              adminUserId: request.adminAuth.adminUserId
+            }
+          );
+        }
         await connection.execute(
           `UPDATE orders SET status = 'refunded', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
           { orderId: refund.order_id }
@@ -1173,13 +1172,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
 
       const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(order.id));
-      const tokenAmount = Math.max(0, Number(order.token_amount_charged) - allowanceRefund.allowanceUsed + allowanceRefund.restored);
+      const tokenAmount = calculatePersonalTokenRefund(Number(order.token_amount_charged), allowanceRefund.allowanceUsed);
       // Token checkouts are settled from the token ledger and normally have no
       // provider payment row. The direct-payment branch above handles the
       // provider-paid requirement separately.
-      if (tokenAmount <= 0) {
-        throw new ApiError(409, 'refund_not_supported', 'This token order cannot be returned safely because its paid token amount is unavailable.');
-      }
       const [existingRefunds] = await connection.execute<Array<RowDataPacket & { id: number }>>(
         `SELECT id FROM refunds
          WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed')
@@ -1195,10 +1191,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       );
       if (!accounts[0]) throw new ApiError(409, 'token_account_not_found', 'The customer token account was not found.');
       const balanceAfter = Number(accounts[0].balance_available) + tokenAmount;
-      await connection.execute(
-        `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
-        { balanceAfter, userId: order.user_id }
-      );
+      if (tokenAmount > 0) {
+        await connection.execute(
+          `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
+          { balanceAfter, userId: order.user_id }
+        );
+      }
       const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
       const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, {
         orderId: order.id,
@@ -1206,11 +1204,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         issueCaseRef: `refund:${refundRef}`,
         reason: `Replacement voucher for cancelled order ${order.order_ref}`
       });
-      await connection.execute(
-        `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
-         VALUES (:userId, NULL, 'credit', 'refund_return', :orderId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
-        { userId: order.user_id, orderId: order.id, amount: tokenAmount, balanceAfter, remarks: `Approved cancellation for order ${order.order_ref}` }
-      );
+      if (tokenAmount > 0) {
+        await connection.execute(
+          `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+           VALUES (:userId, NULL, 'credit', 'refund_return', :orderId, :amount, :balanceAfter, :remarks, UTC_TIMESTAMP())`,
+          { userId: order.user_id, orderId: order.id, amount: tokenAmount, balanceAfter, remarks: `Approved cancellation for order ${order.order_ref}` }
+        );
+      }
       await connection.execute(
         `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_by_admin_id, created_at, completed_at)
          VALUES (:orderId, :paymentId, 'token', :refundRef, :amountRm, :tokenAmount, 'completed', :reason, :adminUserId, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,

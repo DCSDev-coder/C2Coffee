@@ -41,10 +41,10 @@ class TermsOfUsePage extends StatelessWidget {
           ),
           _buildSection(
             number: '4',
-            title: 'Token Checkout & Payment Gateway Security',
+            title: 'Checkout & Payment Gateway Security',
             body:
-                '4.1 Menu item checkout in the App is completed using C2 Tokens, including any eligible Company Subsidy amount. Direct cash, FPX, debit card, credit card, or third-party online payment checkout for menu items is not supported inside the App at this time.\n\n'
-                '4.2 Where online token top-up or an RM gift-card purchase is offered, it is processed by an authorised payment gateway. The available payment methods and permitted amount are shown in the App before a payment session is created.\n\n'
+                '4.1 Menu item checkout in the App may be completed using C2 Credit, including any eligible Company Subsidy amount, or by direct RM payment through an available payment method shown at checkout. Direct cash payment is not accepted inside the App.\n\n'
+                '4.2 Direct RM checkout, online C2 Credit top-up, and RM gift-card purchases are processed by an authorised payment gateway when offered. Available methods may include FPX Online Banking, DuitNow QR, debit or credit card, and supported online payment services, subject to the options enabled for C2 Coffee and available from the provider at that time.\n\n'
                 '4.3 C2 Coffee does not capture, process, log, or store credit/debit card numbers (PAN), CVV security codes, or banking credentials in the App.',
           ),
           _buildSection(

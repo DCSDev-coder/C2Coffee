@@ -12,6 +12,7 @@ import { createUserNotification } from '../notifications.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
 import { assertChipConfigured, cancelChipPurchase, createChipPurchase, getActiveChipMethods, getChipPurchase, isTrustedChipCheckoutUrl, type ChipPaymentMethod } from '../../payments/chip-client.js';
 import { settleChipGiftCardPurchase } from '../../services/chip-gift-card-settlement.js';
+import { currentEmployeeAllowancePeriod, ensureEmployeeAllowance } from '../../services/employee-token-allowance.js';
 import { creditGiftCardToWallet } from '../../services/gift-cards.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
 
@@ -162,11 +163,31 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
       const recipientUserId = recipientRows[0]?.id ?? null;
       if (payload.recipient_phone && !recipientUserId) throw new ApiError(404, 'gift_card_recipient_not_found', 'That phone number is not registered for this café. Leave the phone field blank to create a shareable gift-card code.');
       if (isToken) {
+        // Employee allowance is held inside the token account balance, but it
+        // is reserved for eligible drinks and must never fund a gift card.
+        const period = currentEmployeeAllowancePeriod();
+        const [membershipRows] = await connection.execute<Array<RowDataPacket & { is_employee: number }>>(
+          `SELECT is_employee FROM customer_tenant_memberships
+             WHERE tenant_id = :tenantId AND user_id = :userId LIMIT 1 FOR UPDATE`,
+          { tenantId, userId: request.auth.userId }
+        );
+        if (Number(membershipRows[0]?.is_employee ?? 0) === 1) {
+          await ensureEmployeeAllowance(connection, request.auth.userId, tenantId);
+        }
         const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
           `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`, { userId: request.auth.userId }
         );
         const account = accounts[0];
-        if (!account || Number(account.balance_available) < amount) throw new ApiError(400, 'insufficient_token_balance', 'Your wallet does not have enough C2 Tokens for this gift card.');
+        const [allowanceRows] = await connection.execute<Array<RowDataPacket & { remaining_amount: number }>>(
+          `SELECT remaining_amount
+             FROM employee_token_allowances
+            WHERE tenant_id = :tenantId AND user_id = :userId AND period_start = :periodStart
+            LIMIT 1 FOR UPDATE`,
+          { tenantId, userId: request.auth.userId, periodStart: period.start }
+        );
+        const allowanceRemaining = Number(allowanceRows[0]?.remaining_amount ?? 0);
+        const personalBalance = Number(account?.balance_available ?? 0) - allowanceRemaining;
+        if (!account || personalBalance < amount) throw new ApiError(400, 'insufficient_personal_token_balance', 'Your personal C2 Credit is not enough for this gift card. Monthly Subsidy tokens cannot be used for gift cards.');
         const balanceAfter = Number(account.balance_available) - amount;
         await connection.execute(`UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`, { balanceAfter, userId: request.auth.userId });
         const [insert] = await connection.execute<ResultSetHeader>(

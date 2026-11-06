@@ -10,3 +10,10 @@ test('manual voucher issuance is retry safe and prevents repeat submissions', as
   assert.match(vouchers, /if \(issueInProgress\) return/);
   assert.match(vouchers, /disabled=\{issueInProgress\}/);
 });
+
+test('voucher payment-mode help reflects live C2 Credit and direct RM checkout', async () => {
+  const vouchers = await readFile(new URL('../src/components/Vouchers.jsx', import.meta.url), 'utf8');
+
+  assert.match(vouchers, /C2 Credit, direct RM payment, or both/);
+  assert.doesNotMatch(vouchers, /future RM direct payment/);
+});

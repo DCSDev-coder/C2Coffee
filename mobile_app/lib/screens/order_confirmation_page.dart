@@ -87,6 +87,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       }
       final subsidy = await CustomerDataService.instance.getSubsidy(
         accessToken: accessToken,
+        storeId: _snapshot?.storeId,
       );
       if (!mounted) return;
       setState(() {
@@ -221,18 +222,21 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   SubsidyCheckoutBreakdown _subsidyBreakdown(CartSnapshot snapshot) {
+    final discountTokens = _calculateDiscountTokens(snapshot);
     final totalCharge = max(
       0,
-      snapshot.subtotalTokens - _calculateDiscountTokens(snapshot),
+      snapshot.subtotalTokens - discountTokens,
     );
     final subsidy = _subsidy;
     return SubsidyCheckoutBreakdown.calculate(
       combinedBalance: _session.tokenBalance,
       totalCharge: totalCharge,
       drinkCharge: _drinkTokenCharge(snapshot),
+      priorDeductions: discountTokens,
       subsidyEligible: subsidy?.eligible == true,
       subsidyEnabled: subsidy?.enabled == true,
       subsidyRemaining: subsidy?.remaining ?? 0,
+      subsidyBlocked: _selectedVoucher != null,
     );
   }
 
@@ -860,6 +864,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
         ? 0.0
         : (subsidy.remaining / subsidy.granted).clamp(0.0, 1.0);
     final enabled = subsidy.enabled;
+    final blockedByRestrictedCredit = _selectedVoucher != null;
 
     return Container(
       width: double.infinity,
@@ -914,9 +919,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           ),
           const SizedBox(height: 7),
           Text(
-            enabled
-                ? '${_formatTokenCount(subsidy.remaining)} remaining • ${_formatTokenCount(breakdown.subsidyApplied)} applied to eligible drinks in this order'
-                : '${_formatTokenCount(subsidy.remaining)} protected • this order will use only your personal C2 Credit',
+            blockedByRestrictedCredit
+                ? '${_formatTokenCount(subsidy.remaining)} protected • vouchers require personal C2 Credit or direct payment'
+                : enabled
+                    ? '${_formatTokenCount(subsidy.remaining)} remaining • ${_formatTokenCount(breakdown.subsidyApplied)} applied to eligible drinks in this order'
+                    : '${_formatTokenCount(subsidy.remaining)} protected • this order will use only your personal C2 Credit',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 13,
@@ -1348,10 +1355,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       return min(subtotalTokens,
           max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
     } else if (t.discountMode == 'free_drink') {
-      final highestTokenItem = snapshot.items.isEmpty
-          ? 0
-          : snapshot.items.map((e) => e.tokenPrice).reduce(max);
-      return min(subtotalTokens, highestTokenItem);
+      return min(subtotalTokens, t.freeItemTokenDiscount(snapshot));
     }
     return 0;
   }

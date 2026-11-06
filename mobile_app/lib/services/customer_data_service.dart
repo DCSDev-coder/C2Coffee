@@ -502,6 +502,32 @@ class RewardVoucherTemplate {
     return qualifyingMatchCount > 0;
   }
 
+  int freeItemTokenDiscount(CartSnapshot snapshot) {
+    final promotionKind =
+        (promotionRule['kind'] as String? ?? 'standard').trim();
+    final qualifyingScope = _parseScopeMap(promotionRule['qualifying_scope']);
+    final configuredRewardScope = _parseScopeMap(promotionRule['reward_scope']);
+    final rewardScope =
+        promotionKind == 'bundle' && configuredRewardScope.isNotEmpty
+            ? configuredRewardScope
+            : qualifyingScope.isNotEmpty
+                ? qualifyingScope
+                : eligibleScope;
+    final unitPrices = <int>[];
+
+    for (final item in snapshot.items) {
+      if (!_itemMatchesScope(item, rewardScope)) continue;
+      for (var index = 0; index < item.quantity; index += 1) {
+        unitPrices.add(item.unitTotalTokens);
+      }
+    }
+
+    unitPrices.sort((left, right) => right.compareTo(left));
+    return unitPrices
+        .take(rewardQuantity)
+        .fold<int>(0, (sum, price) => sum + price);
+  }
+
   String get availabilityLabel {
     final schedule = eligibleScope['schedule'] is Map<String, dynamic>
         ? eligibleScope['schedule'] as Map<String, dynamic>
@@ -649,6 +675,19 @@ class RewardVoucherTemplate {
     CartSnapshot snapshot,
     Map<String, dynamic> scope,
   ) {
+    var count = 0;
+    for (final item in snapshot.items) {
+      if (_itemMatchesScope(item, scope)) {
+        count += item.quantity;
+      }
+    }
+    return count;
+  }
+
+  static bool _itemMatchesScope(
+    CartItem item,
+    Map<String, dynamic> scope,
+  ) {
     final itemCodes = _scopeValues(scope, ['item_codes', 'items'])
         .map(_normalizeScopeValue)
         .where((value) => value.isNotEmpty)
@@ -673,33 +712,24 @@ class RewardVoucherTemplate {
         productKindCodes.isNotEmpty;
 
     if (!hasExplicitScope) {
-      return snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
+      return true;
     }
 
-    var count = 0;
-    for (final item in snapshot.items) {
-      final productKind = _normalizeScopeValue(item.productKindCode ?? '');
-      final categoryCode = _normalizeScopeValue(item.categoryCode ?? '');
-      final subcategoryCode = _normalizeScopeValue(item.subcategoryCode ?? '');
-      final itemCode = _normalizeScopeValue(item.menuItemCode);
-      final itemName = _normalizeScopeValue(item.name);
+    final productKind = _normalizeScopeValue(item.productKindCode ?? '');
+    final categoryCode = _normalizeScopeValue(item.categoryCode ?? '');
+    final subcategoryCode = _normalizeScopeValue(item.subcategoryCode ?? '');
+    final itemCode = _normalizeScopeValue(item.menuItemCode);
+    final itemName = _normalizeScopeValue(item.name);
 
-      // Keep the cart preview consistent with checkout. A specific item is
-      // narrower than a menu type, and historic scopes may use item names.
-      final matches = itemCodes.isNotEmpty
-          ? itemCodes.contains(itemCode) || itemCodes.contains(itemName)
-          : subcategoryCodes.isNotEmpty
-              ? subcategoryCodes.contains(subcategoryCode)
-              : categoryCodes.isNotEmpty
-                  ? categoryCodes.contains(categoryCode)
-                  : productKindCodes.contains(productKind);
-
-      if (matches) {
-        count += item.quantity;
-      }
-    }
-
-    return count;
+    // Keep the cart preview consistent with checkout. A specific item is
+    // narrower than a menu type, and historic scopes may use item names.
+    return itemCodes.isNotEmpty
+        ? itemCodes.contains(itemCode) || itemCodes.contains(itemName)
+        : subcategoryCodes.isNotEmpty
+            ? subcategoryCodes.contains(subcategoryCode)
+            : categoryCodes.isNotEmpty
+                ? categoryCodes.contains(categoryCode)
+                : productKindCodes.contains(productKind);
   }
 
   static List<String> _scopeValues(
@@ -1275,12 +1305,23 @@ class CustomerDataService {
 
   final http.Client _client = http.Client();
 
-  Future<EmployeeSubsidy> getSubsidy({required String accessToken}) async =>
-      EmployeeSubsidy.fromApi(await _get('/subsidy', accessToken: accessToken));
+  Future<EmployeeSubsidy> getSubsidy({
+    required String accessToken,
+    int? storeId,
+  }) async =>
+      EmployeeSubsidy.fromApi(await _get(
+        storeId == null ? '/subsidy' : '/subsidy?store_id=$storeId',
+        accessToken: accessToken,
+      ));
   Future<EmployeeSubsidy> updateSubsidy(
-          {required String accessToken, required bool enabled}) async =>
-      EmployeeSubsidy.fromApi(await _put('/subsidy',
-          accessToken: accessToken, body: {'enabled': enabled}));
+          {required String accessToken,
+          required bool enabled,
+          int? storeId}) async =>
+      EmployeeSubsidy.fromApi(
+          await _put('/subsidy', accessToken: accessToken, body: {
+        'enabled': enabled,
+        if (storeId != null) 'store_id': storeId,
+      }));
 
   Future<List<WalletTransaction>> getWalletTransactions({
     required String accessToken,

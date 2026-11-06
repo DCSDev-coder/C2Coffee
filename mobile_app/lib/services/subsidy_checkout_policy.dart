@@ -18,15 +18,20 @@ class SubsidyCheckoutBreakdown {
     required int combinedBalance,
     required int totalCharge,
     required int drinkCharge,
+    required int priorDeductions,
     required bool subsidyEligible,
     required bool subsidyEnabled,
     required int subsidyRemaining,
+    bool subsidyBlocked = false,
   }) {
     final safeTotal = max(0, totalCharge);
     final safeRemaining = subsidyEligible ? max(0, subsidyRemaining) : 0;
     final personalBalance = max(0, combinedBalance - safeRemaining);
-    final eligibleCharge = min(safeTotal, max(0, drinkCharge));
-    final subsidyApplied = subsidyEligible && subsidyEnabled
+    final eligibleCharge = min(
+      safeTotal,
+      max(0, drinkCharge - max(0, priorDeductions)),
+    ).toInt();
+    final subsidyApplied = subsidyEligible && subsidyEnabled && !subsidyBlocked
         ? min(safeRemaining, eligibleCharge)
         : 0;
 

@@ -31,7 +31,7 @@ import {
 import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
-import { getEmployeeSubsidyStatus, restoreEmployeeAllowanceForRefund, setEmployeeSubsidyEnabled } from '../../services/employee-token-allowance.js';
+import { calculatePersonalTokenRefund, getEmployeeSubsidyStatus, restoreEmployeeAllowanceForRefund, setEmployeeSubsidyEnabled } from '../../services/employee-token-allowance.js';
 import {
   evaluateVoucherTopUpEligibility,
   getVoucherTopUpMinimum
@@ -39,6 +39,15 @@ import {
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20)
+});
+
+const subsidyStoreQuerySchema = z.object({
+  store_id: z.coerce.number().int().positive().optional()
+});
+
+const subsidyPreferenceSchema = z.object({
+  enabled: z.boolean(),
+  store_id: z.coerce.number().int().positive().optional()
 });
 
 const rewardVoucherListQuerySchema = z.object({
@@ -1132,6 +1141,35 @@ async function syncAutoVisibleVoucherTemplates(
   }
 }
 
+async function resolveEmployeeSubsidyTenant(
+  userId: number,
+  storeId?: number
+): Promise<number | null> {
+  if (storeId !== undefined) {
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & { tenant_id: number }>>(
+      `SELECT ctm.tenant_id
+         FROM customer_tenant_memberships ctm
+         JOIN stores s ON s.tenant_id = ctm.tenant_id
+        WHERE ctm.user_id = :userId
+          AND ctm.is_employee = 1
+          AND s.id = :storeId
+        LIMIT 1`,
+      { userId, storeId }
+    );
+    return rows[0] ? Number(rows[0].tenant_id) : null;
+  }
+
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & { tenant_id: number }>>(
+    `SELECT tenant_id
+       FROM customer_tenant_memberships
+      WHERE user_id = :userId AND is_employee = 1
+      ORDER BY tenant_id
+      LIMIT 2`,
+    { userId }
+  );
+  return rows.length === 1 ? Number(rows[0].tenant_id) : null;
+}
+
 export async function registerCustomerDataRoutes(
   app: FastifyInstance
 ): Promise<void> {
@@ -1434,25 +1472,28 @@ export async function registerCustomerDataRoutes(
   });
 
   app.get('/v1/subsidy', { preHandler: authenticateRequest }, async (request) => {
-    const [rows] = await mysqlPool.query<Array<RowDataPacket & { tenant_id: number }>>(
-      `SELECT tenant_id FROM customer_tenant_memberships
-       WHERE user_id = :userId AND is_employee = 1 ORDER BY tenant_id LIMIT 1`,
-      { userId: request.auth.userId }
+    const query = subsidyStoreQuerySchema.parse(request.query);
+    const tenantId = await resolveEmployeeSubsidyTenant(
+      request.auth.userId,
+      query.store_id
     );
-    if (!rows[0]) return { eligible: false, enabled: false, remaining: 0, granted: 0, used: 0 };
-    return getEmployeeSubsidyStatus(request.auth.userId, Number(rows[0].tenant_id));
+    if (tenantId === null) {
+      return { eligible: false, enabled: false, remaining: 0, granted: 0, used: 0 };
+    }
+    return getEmployeeSubsidyStatus(request.auth.userId, tenantId);
   });
 
   app.put('/v1/subsidy', { preHandler: authenticateRequest }, async (request) => {
-    const body = z.object({ enabled: z.boolean() }).parse(request.body ?? {});
-    const [rows] = await mysqlPool.query<Array<RowDataPacket & { tenant_id: number }>>(
-      `SELECT tenant_id FROM customer_tenant_memberships
-       WHERE user_id = :userId AND is_employee = 1 ORDER BY tenant_id LIMIT 1`,
-      { userId: request.auth.userId }
+    const body = subsidyPreferenceSchema.parse(request.body ?? {});
+    const tenantId = await resolveEmployeeSubsidyTenant(
+      request.auth.userId,
+      body.store_id
     );
-    if (!rows[0]) throw new ApiError(403, 'subsidy_unavailable', 'Subsidy is not available for this account.');
-    await setEmployeeSubsidyEnabled(request.auth.userId, Number(rows[0].tenant_id), body.enabled);
-    return getEmployeeSubsidyStatus(request.auth.userId, Number(rows[0].tenant_id));
+    if (tenantId === null) {
+      throw new ApiError(403, 'subsidy_unavailable', 'Subsidy is not available for this account.');
+    }
+    await setEmployeeSubsidyEnabled(request.auth.userId, tenantId, body.enabled);
+    return getEmployeeSubsidyStatus(request.auth.userId, tenantId);
   });
 
   app.get('/v1/wallet/transactions', { preHandler: authenticateRequest }, async (request) => {
@@ -2252,7 +2293,7 @@ export async function registerCustomerDataRoutes(
           'This order can no longer be cancelled because preparation may have started. Please contact support if you need help.'
         );
       }
-      if (order.payment_mode !== 'token' || order.token_amount_charged <= 0) {
+      if (order.payment_mode !== 'token') {
         throw new ApiError(409, 'order_cannot_be_cancelled', 'This order cannot be cancelled in the app. Please contact support.');
       }
 
@@ -2280,30 +2321,32 @@ export async function registerCustomerDataRoutes(
       }
 
       const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(order.id));
-      const tokenAmount = Math.max(0, Number(order.token_amount_charged) - allowanceRefund.allowanceUsed + allowanceRefund.restored);
+      const tokenAmount = calculatePersonalTokenRefund(Number(order.token_amount_charged), allowanceRefund.allowanceUsed);
       const balanceAfter = Number(account.balance_available) + tokenAmount;
-      await connection.execute(
-        `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
-        { balanceAfter, userId: request.auth.userId }
-      );
-      await connection.execute(
-        `
-          INSERT INTO token_ledger (
-            user_id, token_lot_id, direction, source_type, source_id, amount,
-            balance_after, remarks, created_at
-          ) VALUES (
-            :userId, NULL, 'credit', 'refund_return', :orderId, :amount,
-            :balanceAfter, :remarks, UTC_TIMESTAMP()
-          )
-        `,
-        {
-          userId: request.auth.userId,
-          orderId: order.id,
-          amount: tokenAmount,
-          balanceAfter,
-          remarks: `Customer cancellation for order ${order.order_ref}`
-        }
-      );
+      if (tokenAmount > 0) {
+        await connection.execute(
+          `UPDATE token_accounts SET balance_available = :balanceAfter, updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
+          { balanceAfter, userId: request.auth.userId }
+        );
+        await connection.execute(
+          `
+            INSERT INTO token_ledger (
+              user_id, token_lot_id, direction, source_type, source_id, amount,
+              balance_after, remarks, created_at
+            ) VALUES (
+              :userId, NULL, 'credit', 'refund_return', :orderId, :amount,
+              :balanceAfter, :remarks, UTC_TIMESTAMP()
+            )
+          `,
+          {
+            userId: request.auth.userId,
+            orderId: order.id,
+            amount: tokenAmount,
+            balanceAfter,
+            remarks: `Customer cancellation for order ${order.order_ref}`
+          }
+        );
+      }
       const [payments] = await connection.execute<Array<RowDataPacket & { id: number }>>(
         `SELECT id FROM payments WHERE order_id = :orderId ORDER BY id DESC LIMIT 1`,
         { orderId: order.id }

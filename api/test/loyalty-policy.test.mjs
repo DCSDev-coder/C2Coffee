@@ -62,6 +62,7 @@ test('employee allowance is monthly, auditable, refund-aware, and never earns a 
   const schema = await source('src/db/migrations/136_create_employee_monthly_token_allowances.sql');
   const capSchema = await source('src/db/migrations/137_cap_employee_allowance_and_add_monthly_audit.sql');
   const admin = await source('src/http/routes/admin-loyalty.ts');
+  const adminCustomers = await source('src/http/routes/admin-customers.ts');
 
   assert.match(allowance, /MONTHLY_EMPLOYEE_ALLOWANCE = 200/);
   assert.match(allowance, /topUpAmount = MONTHLY_EMPLOYEE_ALLOWANCE - carriedForward/);
@@ -80,4 +81,21 @@ test('employee allowance is monthly, auditable, refund-aware, and never earns a 
   assert.match(admin, /employeePurchases/);
   assert.match(admin, /loyalty\/employee-allowances/);
   assert.match(admin, /tierCupEarned: false/);
+  assert.match(adminCustomers, /ensureEmployeeAllowance/);
+  assert.match(adminCustomers, /if \(payload\.isEmployee\)/);
+  assert.match(adminCustomers, /if \(customer\.isEmployee\)/);
+});
+
+test('checkout uses configured drink kinds and resolves subsidy for the selected outlet', async () => {
+  const checkout = await source('src/http/routes/checkout.ts');
+  const customerData = await source('src/http/routes/customer-data.ts');
+
+  assert.match(
+    checkout,
+    /COALESCE\(NULLIF\(LOWER\(c\.product_kind_code\), ''\), CASE[\s\S]*END\) AS category_product_kind_code/,
+  );
+  assert.match(customerData, /subsidyStoreQuerySchema\.parse\(request\.query\)/);
+  assert.match(customerData, /resolveEmployeeSubsidyTenant\([\s\S]*query\.store_id/);
+  assert.match(customerData, /ORDER BY tenant_id[\s\S]*LIMIT 2/);
+  assert.match(customerData, /rows\.length === 1/);
 });

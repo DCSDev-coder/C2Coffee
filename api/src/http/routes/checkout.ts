@@ -36,6 +36,7 @@ import { autoReopenEmergencyClosures } from '../../services/outlet-emergency.js'
 import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
 import { consumeEmployeeAllowance, currentEmployeeAllowancePeriod } from '../../services/employee-token-allowance.js';
+import { allocateSubsidyEligibleDrinkTokens } from '../../services/subsidy-checkout-policy.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -567,6 +568,7 @@ export async function registerCheckoutRoutes(
       const itemsById = new Map(menuItems.map((item) => [item.id, item]));
       const pickupSlot = new Date(Date.now() + store.pickup_lead_minutes * 60 * 1000);
       const isTokenCheckout = payload.payment_mode === 'token';
+      const usesRestrictedCredit = payload.applied_voucher_id != null || Boolean(payload.gift_card_code?.trim());
 
       let subtotalRm = 0;
       let modifierTotalRm = 0;
@@ -744,11 +746,12 @@ export async function registerCheckoutRoutes(
           : [rawPaymentModes == null
             ? (appliedVoucher.discount_mode === 'fixed_token' ? 'token' : 'both')
             : String(rawPaymentModes).trim().toLowerCase()];
-        if (!paymentModes.includes('both') && !paymentModes.includes('token')) {
+        const checkoutPaymentMode = isTokenCheckout ? 'token' : 'direct';
+        if (!paymentModes.includes('both') && !paymentModes.includes(checkoutPaymentMode)) {
           throw new ApiError(
             400,
             'voucher_payment_mode_not_supported',
-            'Selected voucher is not valid for token checkout.'
+            `Selected voucher is not valid for ${checkoutPaymentMode === 'token' ? 'C2 Credit' : 'direct RM'} checkout.`
           );
         }
         const promotionRule = parsePromotionRule(voucherScope);
@@ -882,7 +885,13 @@ export async function registerCheckoutRoutes(
 
       if (isTokenCheckout) {
         tokenAmountCharged = Math.max(0, tokenAmountCharged - discountTokens);
-        drinkTokenAmount = Math.min(drinkTokenAmount, tokenAmountCharged);
+        drinkTokenAmount = usesRestrictedCredit
+          ? 0
+          : allocateSubsidyEligibleDrinkTokens({
+              totalTokens: tokenAmountCharged,
+              drinkTokens: drinkTokenAmount,
+              priorDeductions: discountTokens
+            });
       }
 
       discountRm = normalizeMoney(discountRm);
@@ -916,6 +925,7 @@ export async function registerCheckoutRoutes(
           if (!isTokenCheckout) throw new ApiError(400, 'gift_card_currency_mismatch', 'A token gift card can only be used with token checkout.');
           giftCardTokenAmount = Math.min(tokenAmountCharged, Math.floor(appliedGiftCard.remainingAmount));
           tokenAmountCharged -= giftCardTokenAmount;
+          drinkTokenAmount = 0;
         } else {
           if (isTokenCheckout) throw new ApiError(400, 'gift_card_currency_mismatch', 'An RM gift card can only be used with RM checkout.');
           giftCardAmountRm = Math.min(finalTotalRm, appliedGiftCard.remainingAmount);
@@ -1284,7 +1294,9 @@ export async function registerCheckoutRoutes(
           throw new ApiError(
             400,
             'insufficient_token_balance',
-            'Your personal C2 Credit is not enough for the food or merchandise in this order.'
+            usesRestrictedCredit
+              ? 'Vouchers and gift cards require personal C2 Credit or direct payment; Monthly Subsidy cannot be used.'
+              : 'Your personal C2 Credit is not enough for the food or merchandise in this order.'
           );
         }
 
@@ -1862,13 +1874,13 @@ export async function loadCheckoutMenuItems(
         i.is_qualifying_cup,
         c.code AS category_code,
         c.name AS category_name,
-        CASE
+        COALESCE(NULLIF(LOWER(c.product_kind_code), ''), CASE
           WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
           WHEN LOWER(c.code) = 'food' THEN 'food'
           WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
           WHEN LOWER(c.code) = 'candles' THEN 'candle'
           ELSE 'other'
-        END AS category_product_kind_code,
+        END) AS category_product_kind_code,
         sc.code AS subcategory_code,
         sc.name AS subcategory_name
       FROM menu_items i

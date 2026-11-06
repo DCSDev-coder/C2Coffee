@@ -34,6 +34,12 @@ test('barista marketing drink workflow requires drink products, attendance, PIN,
   assert.match(guard, /path === '\/v1\/barista\/marketing-drinks\/catalog'/);
 });
 
+test('marketing drink list queries avoid the reserved usage alias', async () => {
+  const routes = await source('src/http/routes/barista-staff.ts');
+  assert.match(routes, /FROM marketing_drink_usages mdu/);
+  assert.doesNotMatch(routes, /FROM marketing_drink_usages usage\b/);
+});
+
 test('complimentary drink inventory uses recipes, protects reserved stock, and reverses explicitly', async () => {
   const inventory = await source('src/services/marketing-drink-usage.ts');
 

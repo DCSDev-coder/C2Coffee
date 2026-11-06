@@ -7,6 +7,7 @@ import { ApiError } from '../errors.js';
 import { normalizePhoneE164 } from '../../lib/phone.js';
 import { verifyPassword } from '../../lib/password.js';
 import { formatTierName, getTierByCode, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
+import { ensureEmployeeAllowance } from '../../services/employee-token-allowance.js';
 
 const listQuerySchema = z.object({
   // Customer imports support up to 500 rows. Keep the list aligned so older
@@ -335,6 +336,10 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
         { userId }
       );
 
+      if (payload.isEmployee) {
+        await ensureEmployeeAllowance(connection, userId, request.adminAuth.tenantId);
+      }
+
       await connection.execute(
         `
           INSERT INTO loyalty_tier_snapshots (
@@ -463,6 +468,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               isEmployee: customer.isEmployee ? 1 : 0
             }
           );
+          if (customer.isEmployee) {
+            await ensureEmployeeAllowance(connection, existingUser.id, request.adminAuth.tenantId);
+          }
           linkedExisting += 1;
           continue;
         }
@@ -498,6 +506,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
           `,
           { userId }
         );
+        if (customer.isEmployee) {
+          await ensureEmployeeAllowance(connection, userId, request.adminAuth.tenantId);
+        }
         await connection.execute(
           `
             INSERT INTO loyalty_tier_snapshots (
@@ -576,6 +587,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
           `,
           { tenantId: request.adminAuth.tenantId, userId, isEmployee: payload.isEmployee ? 1 : 0 }
         );
+        if (payload.isEmployee) {
+          await ensureEmployeeAllowance(connection, userId, request.adminAuth.tenantId);
+        }
       }
 
       const profileUpdates: string[] = [];
