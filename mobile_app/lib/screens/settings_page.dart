@@ -88,7 +88,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _setSubsidy(bool enabled) async {
     final previous = _subsidy;
     if (previous == null) return;
-    setState(() => _subsidy = EmployeeSubsidy(eligible: true, enabled: enabled, remaining: previous.remaining, granted: previous.granted, used: previous.used, periodEnd: previous.periodEnd));
+    setState(() => _subsidy = EmployeeSubsidy(eligible: true, enabled: enabled, role: previous.role, allowanceMode: previous.allowanceMode, remaining: previous.remaining, granted: previous.granted, used: previous.used, periodEnd: previous.periodEnd));
     try {
       final token = await SecureSessionService.instance.getValidAccessToken();
       if (token == null || token.isEmpty) throw ApiException('Sign in required.');
@@ -1920,12 +1920,12 @@ class _SettingsPageState extends State<SettingsPage> {
                           if (!_subsidyLoading && (_subsidy?.eligible ?? false)) ...[
                             ListTile(
                               title: const Text('Subsidy', style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black87)),
-                              subtitle: Text('${_subsidy!.remaining} / ${_subsidy!.granted} C2 Tokens remaining • drinks only', style: const TextStyle(fontFamily: 'Afacad', fontSize: 15)),
+                              subtitle: Text(_subsidy!.allowanceMode == 'unlimited' ? '∞ available • drinks only' : '${_subsidy!.remaining ?? 0} / ${_subsidy!.granted ?? 0} C2 Tokens remaining • drinks only', style: const TextStyle(fontFamily: 'Afacad', fontSize: 15)),
                               trailing: Switch(value: _subsidy!.enabled, onChanged: _setSubsidy, activeThumbColor: AppColors.deepTeal),
                             ),
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                              child: ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _subsidy!.granted == 0 ? 0 : _subsidy!.remaining / _subsidy!.granted, minHeight: 8, backgroundColor: AppColors.border, color: AppColors.deepTeal)),
+                              child: ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _subsidy!.allowanceMode == 'unlimited' ? null : ((_subsidy!.remaining ?? 0) / (_subsidy!.granted ?? 1)), minHeight: 8, backgroundColor: AppColors.border, color: AppColors.deepTeal)),
                             ),
                             const Divider(height: 1, indent: 16, endIndent: 16),
                           ],

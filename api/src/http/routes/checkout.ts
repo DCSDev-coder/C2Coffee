@@ -20,7 +20,6 @@ import { getBootstrapForUser } from './auth.js';
 import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { deliverPushToStaff } from '../../services/push-delivery.js';
-import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 import { cancelChipPurchase, createChipPurchase, getChipPurchase, type ChipPaymentMethod } from '../../payments/chip-client.js';
 import {
   isStoreAcceptingMobileOrdersNow,
@@ -1251,8 +1250,9 @@ export async function registerCheckoutRoutes(
       let accountBalanceCap = bootstrap.token_cap;
 
       if (isTokenCheckout) {
-        const [membershipRows] = await connection.query<Array<RowDataPacket & { tenant_id: number; is_employee: number }>>(
-          `SELECT s.tenant_id, COALESCE(ctm.is_employee, 0) AS is_employee
+        const [membershipRows] = await connection.query<Array<RowDataPacket & { tenant_id: number; is_employee: number; subsidy_role: string }>>(
+          `SELECT s.tenant_id, COALESCE(ctm.is_employee, 0) AS is_employee,
+                  COALESCE(ctm.subsidy_role, 'none') AS subsidy_role
              FROM stores s
              LEFT JOIN customer_tenant_memberships ctm
                ON ctm.tenant_id = s.tenant_id AND ctm.user_id = :userId
@@ -1260,7 +1260,7 @@ export async function registerCheckoutRoutes(
           { userId: request.auth.userId, storeId: payload.store_id }
         );
         const membership = membershipRows[0];
-        const allowanceUsed = membership && Number(membership.is_employee) === 1
+        const allowanceUsed = membership && membership.subsidy_role !== 'none'
           ? await consumeEmployeeAllowance(connection, request.auth.userId, Number(membership.tenant_id), orderId, Math.min(tokenAmountCharged, drinkTokenAmount))
           : 0;
         const paidTokenAmount = tokenAmountCharged - allowanceUsed;
@@ -1373,8 +1373,11 @@ export async function registerCheckoutRoutes(
         }
 
         await connection.execute(
-          `UPDATE orders SET employee_allowance_tokens_used = :allowanceUsed WHERE id = :orderId`,
-          { allowanceUsed, orderId }
+          `UPDATE orders
+              SET employee_allowance_tokens_used = :allowanceUsed,
+                  employee_allowance_was_unlimited = :allowanceWasUnlimited
+            WHERE id = :orderId`,
+          { allowanceUsed, allowanceWasUnlimited: membership?.subsidy_role === 'boss' && allowanceUsed > 0 ? 1 : 0, orderId }
         );
 
         accountBalanceAvailable = newAvailable;
@@ -1421,17 +1424,6 @@ export async function registerCheckoutRoutes(
           pickup_slot_at: _formatMySqlDateTime(pickupSlot)
         }
       });
-
-      const [customerRows] = await connection.query<Array<RowDataPacket & { email: string | null }>>(
-        `SELECT email FROM user_profiles WHERE user_id = :userId LIMIT 1`,
-        { userId: request.auth.userId }
-      );
-      const receiptEmailQueued = orderPaid
-        ? await queueOrderReceiptEmail(connection, {
-            orderId,
-            recipientEmail: customerRows[0]?.email ?? null
-          })
-        : false;
 
       await connection.commit();
       committed = true;
@@ -1528,16 +1520,6 @@ export async function registerCheckoutRoutes(
           request.log.warn({ err: error }, 'Staff push delivery failed after checkout.');
         });
 
-      if (receiptEmailQueued) {
-        void deliverQueuedOrderReceiptEmail(orderId).then((outcome) => {
-          if (outcome === 'failed') {
-            request.log.warn({ orderId }, 'Order receipt email delivery failed after checkout.');
-          }
-        }).catch(() => {
-          request.log.warn({ orderId }, 'Order receipt email delivery could not be started after checkout.');
-        });
-      }
-
       const [orderRows] = await mysqlPool.query<Array<OrderResponseRow>>(
         `
           SELECT
@@ -1568,7 +1550,7 @@ export async function registerCheckoutRoutes(
         token_balance: accountBalanceAvailable,
         token_reserved: accountBalanceReserved,
         token_cap: accountBalanceCap,
-        receipt_email: receiptEmailQueued ? 'queued' : 'unavailable',
+        receipt_email: orderPaid ? 'pending_until_ready' : 'unavailable',
         payment: directPaymentResponse
       };
 

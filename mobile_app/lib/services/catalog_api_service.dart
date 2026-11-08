@@ -455,6 +455,26 @@ class HomeBanner {
     return !now.isBefore(startsAt!.toUtc()) && !now.isAfter(endsAt!.toUtc());
   }
 
+  String? get partnerMenuCategoryCode {
+    if (bannerType != 'partner' || destinationType != 'menu') return null;
+    final value = targetValue?.trim() ?? '';
+    return value.isEmpty ? null : value;
+  }
+
+  MenuCategoryGroup? resolvePartnerMenuCategory(
+      Iterable<MenuCategoryGroup> categories) {
+    final targetCode = partnerMenuCategoryCode?.toLowerCase();
+    if (targetCode == null) return null;
+
+    for (final category in categories) {
+      if (category.code.trim().toLowerCase() == targetCode &&
+          category.items.any((item) => item.isVisibleInMenu)) {
+        return category;
+      }
+    }
+    return null;
+  }
+
   String get routeLabel {
     switch (bannerType) {
       case 'social':

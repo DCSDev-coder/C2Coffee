@@ -682,7 +682,9 @@ function normalizeRequestBody(
   const secondaryDestinationType = isEvent ? "menu" : null;
 
   const targetValue =
-    isVoucher || isNewItem ? String(body.targetValue ?? "").trim() : null;
+    isVoucher || isNewItem || isPartner
+      ? String(body.targetValue ?? "").trim()
+      : null;
   const startsAt =
     isEvent || isPartner || isSocial
       ? toUtcDateTimeString(body.startsAt ?? null)
@@ -806,6 +808,36 @@ async function assertVoucherTargetExists(
       400,
       "invalid_voucher_target",
       "Select a voucher that belongs to the active tenant.",
+    );
+  }
+}
+
+async function assertPartnerMenuCategoryExists(
+  tenantId: number,
+  categoryCode: string,
+): Promise<void> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & { id: number }>>(
+    `SELECT c.id
+       FROM menu_categories c
+      WHERE c.code = :categoryCode
+        AND c.is_active = 1
+        AND EXISTS (
+          SELECT 1
+            FROM menu_items i
+            JOIN menu_item_tenants tenant_item
+              ON tenant_item.menu_item_id = i.id
+           WHERE i.category_id = c.id
+             AND i.is_active = 1
+             AND tenant_item.tenant_id = :tenantId
+        )
+      LIMIT 1`,
+    { tenantId, categoryCode },
+  );
+  if (!rows[0]) {
+    throw new ApiError(
+      400,
+      "invalid_partner_menu_category",
+      "Select an active menu category assigned to the active tenant.",
     );
   }
 }
@@ -1563,6 +1595,12 @@ export async function registerAdminMarketingRoutes(
           normalized.targetValue,
         );
       }
+      if (payload.bannerType === "partner" && normalized.targetValue) {
+        await assertPartnerMenuCategoryExists(
+          request.adminAuth.tenantId,
+          normalized.targetValue,
+        );
+      }
 
       if (
         (payload.bannerType === "event" ||
@@ -1986,6 +2024,15 @@ export async function registerAdminMarketingRoutes(
           submittedTargetValue,
         );
       }
+      if (
+        effectiveBannerType === "partner" &&
+        submittedTargetValue
+      ) {
+        await assertPartnerMenuCategoryExists(
+          request.adminAuth.tenantId,
+          submittedTargetValue,
+        );
+      }
 
       const updateFields: string[] = [];
       const params: Record<string, unknown> = {
@@ -2093,7 +2140,8 @@ export async function registerAdminMarketingRoutes(
         params.targetValue =
           payload.bannerType === undefined &&
           (effectiveBannerType === "voucher" ||
-            effectiveBannerType === "new_item")
+            effectiveBannerType === "new_item" ||
+            effectiveBannerType === "partner")
             ? submittedTargetValue
             : normalized.targetValue;
       }

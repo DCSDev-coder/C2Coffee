@@ -604,6 +604,17 @@ export async function loadEmployeeAllowanceReport(month, limit = 250) {
   return adminRequest(`/v1/admin/loyalty/employee-allowances?${query}`);
 }
 
+export async function loadSubsidyPolicies() {
+  return adminRequest('/v1/admin/loyalty/subsidy-policies');
+}
+
+export async function saveSubsidyPolicies(payload) {
+  return adminRequest('/v1/admin/loyalty/subsidy-policies', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function adjustAdminCustomerTokens(customerId, payload) {
   return adminRequest(`/v1/admin/loyalty/customers/${customerId}/adjustment`, {
     method: "POST",

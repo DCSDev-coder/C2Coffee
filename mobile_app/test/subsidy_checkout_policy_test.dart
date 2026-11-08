@@ -103,5 +103,40 @@ void main() {
       expect(result.personalRequired, 20);
       expect(result.canPay, isFalse);
     });
+
+    test('allows unlimited boss subsidy for eligible drinks without wallet credit', () {
+      final result = SubsidyCheckoutBreakdown.calculate(
+        combinedBalance: 0,
+        totalCharge: 20,
+        drinkCharge: 20,
+        priorDeductions: 0,
+        subsidyEligible: true,
+        subsidyEnabled: true,
+        subsidyRemaining: null,
+        subsidyUnlimited: true,
+      );
+
+      expect(result.personalBalance, 0);
+      expect(result.subsidyApplied, 20);
+      expect(result.personalRequired, 0);
+      expect(result.canPay, isTrue);
+    });
+
+    test('unlimited boss subsidy remains blocked for restricted credit', () {
+      final result = SubsidyCheckoutBreakdown.calculate(
+        combinedBalance: 0,
+        totalCharge: 20,
+        drinkCharge: 20,
+        priorDeductions: 0,
+        subsidyEligible: true,
+        subsidyEnabled: true,
+        subsidyRemaining: null,
+        subsidyUnlimited: true,
+        subsidyBlocked: true,
+      );
+
+      expect(result.subsidyApplied, 0);
+      expect(result.canPay, isFalse);
+    });
   });
 }

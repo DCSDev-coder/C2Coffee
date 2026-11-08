@@ -7,6 +7,7 @@ export type AppMaintenanceState = {
   enabled: boolean;
   allow_employee_bypass: boolean;
   is_employee: boolean;
+  subsidy_role: 'none' | 'employee' | 'intern' | 'boss';
   blocked: boolean;
   title: string;
   message: string;
@@ -20,6 +21,7 @@ type MaintenanceRow = RowDataPacket & {
   message: string;
   expected_end_at: Date | string | null;
   is_employee: number;
+  subsidy_role: 'none' | 'employee' | 'intern' | 'boss' | null;
 };
 
 function formatDate(value: Date | string | null): string | null {
@@ -34,7 +36,8 @@ export async function loadMaintenanceForUser(userId: number): Promise<AppMainten
             COALESCE(mm.title, 'C2 Coffee is under maintenance') AS title,
             COALESCE(mm.message, 'We are making improvements. Please check back soon.') AS message,
             mm.expected_end_at,
-            COALESCE(ctm.is_employee, 0) AS is_employee
+            COALESCE(ctm.is_employee, 0) AS is_employee,
+            COALESCE(ctm.subsidy_role, 'none') AS subsidy_role
        FROM admin_tenants t
        LEFT JOIN app_maintenance_mode mm ON mm.tenant_id = t.id
        LEFT JOIN customer_tenant_memberships ctm
@@ -47,11 +50,14 @@ export async function loadMaintenanceForUser(userId: number): Promise<AppMainten
   const enabled = Number(row?.enabled ?? 0) === 1;
   const allowEmployeeBypass = Number(row?.allow_employee_bypass ?? 1) === 1;
   const isEmployee = Number(row?.is_employee ?? 0) === 1;
+  const subsidyRole = row?.subsidy_role ?? 'none';
+  const hasCompanyBypass = isEmployee || subsidyRole === 'employee' || subsidyRole === 'intern' || subsidyRole === 'boss';
   return {
     enabled,
     allow_employee_bypass: allowEmployeeBypass,
-    is_employee: isEmployee,
-    blocked: enabled && !(allowEmployeeBypass && isEmployee),
+    is_employee: hasCompanyBypass,
+    subsidy_role: subsidyRole,
+    blocked: enabled && !(allowEmployeeBypass && hasCompanyBypass),
     title: row?.title ?? 'C2 Coffee is under maintenance',
     message: row?.message ?? 'We are making improvements. Please check back soon.',
     expected_end_at: formatDate(row?.expected_end_at ?? null)

@@ -118,6 +118,9 @@ const formatTokens = (value) => {
   return `${amount.toLocaleString('en-US')} tokens`;
 };
 
+const subsidyRoleForCustomer = (customer) => customer?.subsidyRole || (customer?.isEmployee ? 'employee' : 'none');
+const subsidyRoleLabel = (role) => ({ employee: 'Employee', intern: 'Intern', boss: 'Boss', none: 'No subsidy' }[role] || 'No subsidy');
+
 const getStatusColor = (status) => {
   switch (status) {
     case 'Active': return 'bg-green-100 text-green-600';
@@ -228,6 +231,7 @@ const parseCustomerImportCsv = (content) => {
   const lastNameIndex = headers.findIndex((header) => ['lastname', 'familyname', 'surname'].includes(header));
   const emailIndex = headers.findIndex((header) => header === 'email');
   const employeeIndex = headers.findIndex((header) => ['employee', 'isemployee'].includes(header));
+  const subsidyRoleIndex = headers.findIndex((header) => ['subsidyrole', 'subsidy', 'role'].includes(header));
 
   if (phoneIndex === -1) {
     throw new Error('The CSV needs a phone column. Use the downloadable template for the required format.');
@@ -253,6 +257,10 @@ const parseCustomerImportCsv = (content) => {
         : String(cells[nameIndex] || '').trim();
       const email = emailIndex === -1 ? '' : String(cells[emailIndex] || '').trim();
       const employeeValue = employeeIndex === -1 ? '' : String(cells[employeeIndex] || '').trim().toLowerCase();
+      const requestedRole = subsidyRoleIndex === -1 ? '' : String(cells[subsidyRoleIndex] || '').trim().toLowerCase();
+      const subsidyRole = ['employee', 'intern', 'boss', 'none'].includes(requestedRole)
+        ? requestedRole
+        : ['yes', 'true', '1', 'employee'].includes(employeeValue) ? 'employee' : 'none';
 
       if (email && !/^\S+@\S+\.\S+$/.test(email)) {
         throw new Error(`Row ${rowNumber} has an invalid email address.`);
@@ -263,7 +271,8 @@ const parseCustomerImportCsv = (content) => {
         phone,
         displayName: displayName || undefined,
         email,
-        isEmployee: ['yes', 'true', '1', 'employee'].includes(employeeValue)
+        isEmployee: subsidyRole !== 'none',
+        subsidyRole
       });
     } catch (error) {
       issues.push(error?.message || `Row ${rowNumber} could not be imported.`);
@@ -434,8 +443,8 @@ const Customers = ({ currentUser }) => {
 
   const downloadImportTemplate = () => {
     exportToCSV([
-      ['name', 'phone', 'email', 'employee'],
-      ['Example Customer', '+60123456789', 'customer@example.com', 'no']
+      ['name', 'phone', 'email', 'subsidy_role'],
+      ['Example Customer', '+60123456789', 'customer@example.com', 'none']
     ], 'c2-customer-import-template.csv');
   };
 
@@ -506,7 +515,8 @@ const Customers = ({ currentUser }) => {
       phone: String(form.get('phone') || '').trim(),
       displayName: String(form.get('username') || '').trim(),
       email: String(form.get('email') || '').trim(),
-      isEmployee: form.get('isEmployee') === 'on'
+      subsidyRole: String(form.get('subsidyRole') || 'none'),
+      isEmployee: form.get('subsidyRole') !== 'none'
     };
 
     setCustomerConfirmation({ type: 'create', payload, label: payload.displayName || 'this customer' });
@@ -520,7 +530,8 @@ const Customers = ({ currentUser }) => {
       phone: String(form.get('phone') || '').trim(),
       displayName: String(form.get('username') || '').trim(),
       email: String(form.get('email') || '').trim(),
-      isEmployee: form.get('isEmployee') === 'on'
+      subsidyRole: String(form.get('subsidyRole') || 'none'),
+      isEmployee: form.get('subsidyRole') !== 'none'
     };
 
     setCustomerConfirmation({ type: 'edit', payload, customer: editingCustomer, label: editingCustomer.username });
@@ -754,9 +765,9 @@ const Customers = ({ currentUser }) => {
                       <div>
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-bold text-gray-900">{customer.username}</div>
-                          {customer.isEmployee && (
+                          {subsidyRoleForCustomer(customer) !== 'none' && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
-                              Employee
+                              {subsidyRoleLabel(subsidyRoleForCustomer(customer))}
                             </span>
                           )}
                         </div>
@@ -808,7 +819,7 @@ const Customers = ({ currentUser }) => {
                               className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer transition-colors"
                             >
                               <Pencil size={13} className="text-gray-500" />
-                              {customer.isEmployee ? 'Edit employee' : 'Set employee'}
+                              {subsidyRoleForCustomer(customer) !== 'none' ? 'Edit subsidy role' : 'Set subsidy role'}
                             </button>
                             <button
                               onClick={(e) => {
@@ -867,8 +878,8 @@ const Customers = ({ currentUser }) => {
                 <div className="flex items-center space-x-2">
                   <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.username}</h3>
                   <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(selectedCustomer.tier)}`}>{selectedCustomer.tier}</span>
-                  {selectedCustomer.isEmployee && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">Employee</span>
+                  {subsidyRoleForCustomer(selectedCustomer) !== 'none' && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{subsidyRoleLabel(subsidyRoleForCustomer(selectedCustomer))}</span>
                   )}
                 </div>
                 <p className="text-sm text-gray-500">{selectedCustomer.email}</p>
@@ -960,7 +971,7 @@ const Customers = ({ currentUser }) => {
               <>
                 <div className="mt-5 rounded-xl border border-[#B7CFCA] bg-[#F3F7F6] p-4 text-sm text-gray-700">
                   <p className="font-bold text-gray-900">Use the import template</p>
-                  <p className="mt-1">Required: <span className="font-medium">phone</span> in international format, for example <span className="font-medium">+60123456789</span>. Optional: name, email, employee.</p>
+                <p className="mt-1">Required: <span className="font-medium">phone</span> in international format, for example <span className="font-medium">+60123456789</span>. Optional: name, email, subsidy_role (none, employee, intern, boss).</p>
                   <button type="button" onClick={downloadImportTemplate} className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-[#1F3A34] hover:text-[#2E5E58]">
                     <Download size={15} /> Download CSV template
                   </button>
@@ -994,11 +1005,11 @@ const Customers = ({ currentUser }) => {
                 {importRows.length > 0 && (
                   <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
                     <div className="grid grid-cols-3 bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500">
-                      <span>Name</span><span>Phone</span><span>Employee</span>
+                      <span>Name</span><span>Phone</span><span>Subsidy role</span>
                     </div>
                     {importRows.slice(0, 5).map((customer) => (
                       <div key={customer.phone} className="grid grid-cols-3 border-t border-gray-100 px-4 py-2 text-sm text-gray-700">
-                        <span>{customer.displayName || 'C2 Member'}</span><span>{customer.phone}</span><span>{customer.isEmployee ? 'Yes' : 'No'}</span>
+                        <span>{customer.displayName || 'C2 Member'}</span><span>{customer.phone}</span><span>{subsidyRoleLabel(customer.subsidyRole || (customer.isEmployee ? 'employee' : 'none'))}</span>
                       </div>
                     ))}
                     {importRows.length > 5 && <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500">Plus {importRows.length - 5} more customers.</p>}
@@ -1096,17 +1107,19 @@ const Customers = ({ currentUser }) => {
                   placeholder="+60 11-00000000"
                 />
               </div>
-              <label className="flex items-start gap-3 rounded-lg border border-[#B7CFCA] bg-[#F3F7F6] p-3 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  name="isEmployee"
-                  defaultChecked={Boolean(editingCustomer?.isEmployee)}
-                  className="mt-0.5 rounded text-[#2E5E58] focus:ring-[#2E5E58]"
-                />
-                <span>
-                  <span className="block font-semibold text-gray-900">Employee account</span>
-                  <span className="block text-xs text-gray-500">Eligible for employee-only vouchers, including the automatic daily free drink.</span>
-                </span>
+              <label className="block rounded-lg border border-[#B7CFCA] bg-[#F3F7F6] p-3 text-sm text-gray-700">
+                <span className="block font-semibold text-gray-900">Company subsidy role</span>
+                <span className="block text-xs text-gray-500">Boss is unlimited for eligible drinks. Employee and Intern use the monthly policy configured in Token Ledger.</span>
+                <select
+                  name="subsidyRole"
+                  defaultValue={subsidyRoleForCustomer(editingCustomer)}
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-[#2E5E58] focus:border-[#2E5E58]"
+                >
+                  <option value="none">No subsidy</option>
+                  <option value="employee">Employee</option>
+                  <option value="intern">Intern</option>
+                  <option value="boss">Boss (unlimited)</option>
+                </select>
               </label>
 
               <div className="pt-4 flex justify-end space-x-3">

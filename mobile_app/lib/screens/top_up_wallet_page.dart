@@ -953,9 +953,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [Icon(Icons.local_cafe_outlined, color: AppColors.deepTeal), const SizedBox(width: 8), const Expanded(child: Text('Monthly Subsidy', style: TextStyle(fontFamily: 'Afacad', fontSize: 17, fontWeight: FontWeight.w700))), Text('${_subsidy!.remaining} left', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.w700))]),
+                    Row(children: [Icon(Icons.local_cafe_outlined, color: AppColors.deepTeal), const SizedBox(width: 8), const Expanded(child: Text('Monthly Subsidy', style: TextStyle(fontFamily: 'Afacad', fontSize: 17, fontWeight: FontWeight.w700))), Text(_subsidy!.allowanceMode == 'unlimited' ? '∞ available' : '${_subsidy!.remaining ?? 0} left', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.w700))]),
                     const SizedBox(height: 8),
-                    ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _subsidy!.granted == 0 ? 0 : _subsidy!.remaining / _subsidy!.granted, minHeight: 7, backgroundColor: AppColors.border, color: AppColors.deepTeal)),
+                    ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _subsidy!.allowanceMode == 'unlimited' ? null : ((_subsidy!.remaining ?? 0) / (_subsidy!.granted ?? 1)), minHeight: 7, backgroundColor: AppColors.border, color: AppColors.deepTeal)),
                     const SizedBox(height: 6),
                     Text(_subsidy!.enabled ? 'Used first for drinks • enabled' : 'Subsidy is turned off', style: const TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
                   ]),

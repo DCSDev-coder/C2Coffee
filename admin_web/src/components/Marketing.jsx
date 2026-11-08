@@ -81,6 +81,115 @@ const bannerTypeOptions = [
   { value: "social", label: "Social / entertainment poster" },
 ];
 
+const MARKETING_EMOJI_GROUPS = [
+  { label: "Food & drinks", emojis: [
+    "☕", "🍵", "🧋", "🥤", "🍹", "🍸", "🍺", "🍷", "🥛", "🍰", "🧁", "🍩", "🍪", "🥐", "🥯", "🍞", "🥪", "🍔", "🍕", "🍟", "🌮", "🍜", "🍱", "🍎", "🍓", "🍋", "🍫", "🍬", "🍭", "🍨",
+  ] },
+  { label: "Promotions", emojis: [
+    "🎁", "🎟️", "🏷️", "💸", "💰", "🛍️", "🛒", "📣", "📢", "📬", "📩", "📱", "💳", "🪙", "🎫", "🔖", "🎯", "⭐", "🌟", "💎", "👑", "🚀", "🏆", "🥇", "✅", "☑️", "📌", "📍", "🔔", "⏰",
+  ] },
+  { label: "Celebrations", emojis: [
+    "🎉", "🎊", "🥳", "🎈", "🎂", "🍾", "🥂", "🎆", "🎇", "✨", "💫", "🌈", "🪅", "🎁", "🎀", "🧸", "🤩", "🙌", "👏", "👏🏻", "👏🏽", "👏🏿", "💃", "🕺", "🫶", "❤️", "💕", "💖", "💝", "💐",
+  ] },
+  { label: "Reactions", emojis: [
+    "😊", "😄", "😁", "😆", "😂", "🤣", "🙂", "🙃", "😉", "😍", "🥰", "😘", "😎", "🤗", "🤔", "😮", "😱", "😋", "🤤", "😴", "👍", "👎", "👌", "🤝", "💪", "🙏", "🙋", "🙋‍♂️", "🙋‍♀️", "👋",
+  ] },
+  { label: "Objects", emojis: [
+    "📅", "🗓️", "🕒", "⌚", "📷", "📸", "🎵", "🎶", "🎧", "🎤", "🎬", "📖", "📝", "✏️", "💡", "🔑", "🔒", "📦", "🎒", "☂️", "☀️", "🌤️", "🌙", "🔥", "❄️", "🌱", "🌿", "🌸", "🌻", "🐻",
+  ] },
+  { label: "Symbols", emojis: [
+    "✅", "❌", "⚠️", "❗", "❓", "‼️", "⁉️", "💯", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫", "⚪", "⬆️", "⬇️", "➡️", "⬅️", "↗️", "🔗", "➕", "➖", "✔️", "©️", "™️", "#️⃣", "🔟", "♻️",
+  ] },
+];
+
+function EmojiPicker({ inputRef, value, onChange, label = "Add emoji" }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(0);
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!pickerRef.current?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const insertEmoji = (emoji) => {
+    const field = inputRef.current;
+    const currentValue = String(value ?? "");
+    const start = typeof field?.selectionStart === "number" ? field.selectionStart : currentValue.length;
+    const end = typeof field?.selectionEnd === "number" ? field.selectionEnd : start;
+    const nextValue = `${currentValue.slice(0, start)}${emoji}${currentValue.slice(end)}`;
+    onChange(nextValue);
+    setIsOpen(false);
+
+    requestAnimationFrame(() => {
+      field?.focus();
+      const cursor = start + emoji.length;
+      field?.setSelectionRange?.(cursor, cursor);
+    });
+  };
+
+  return (
+    <div ref={pickerRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        aria-label={label}
+        aria-expanded={isOpen}
+        title={label}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-base transition-colors hover:border-[#2E5E58] hover:bg-[#2E5E58]/5 focus:outline-none focus:ring-2 focus:ring-[#2E5E58]/25"
+      >
+        😊
+      </button>
+      {isOpen && (
+        <div role="dialog" aria-label={`${label} picker`} className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
+          <div className="mb-1 px-1 text-[10px] font-bold uppercase tracking-wide text-gray-500">Choose an emoji</div>
+          <div className="mb-2 flex gap-1 overflow-x-auto pb-1">
+            {MARKETING_EMOJI_GROUPS.map((group, index) => (
+              <button
+                key={group.label}
+                type="button"
+                onClick={() => setSelectedGroup(index)}
+                aria-pressed={selectedGroup === index}
+                className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${selectedGroup === index ? "bg-[#2E5E58] text-white" : "bg-gray-100 text-gray-600 hover:bg-[#2E5E58]/10"}`}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid max-h-48 grid-cols-10 gap-1 overflow-y-auto">
+            {MARKETING_EMOJI_GROUPS[selectedGroup].emojis.map((emoji, index) => (
+              <button
+                key={`${emoji}-${index}`}
+                type="button"
+                onClick={() => insertEmoji(emoji)}
+                aria-label={`Insert ${emoji}`}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-lg hover:bg-[#2E5E58]/10 focus:bg-[#2E5E58]/10 focus:outline-none"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function bannerTypeLabel(value) {
   return bannerTypeOptions.find((option) => option.value === value)?.label || value || "";
 }
@@ -164,6 +273,23 @@ function flattenMenuItems(menuResponse) {
   });
 }
 
+function selectablePartnerCategories(menuResponse) {
+  const categories = Array.isArray(menuResponse?.categories)
+    ? menuResponse.categories
+    : [];
+  return categories
+    .filter((category) => category.is_active !== false)
+    .map((category) => ({
+      code: String(category.code ?? "").trim(),
+      name: String(category.name ?? "").trim(),
+      itemCount: Array.isArray(category.items)
+        ? category.items.filter((item) => item.is_active !== false).length
+        : 0,
+    }))
+    .filter((category) => category.code && category.name)
+    .sort((first, second) => first.name.localeCompare(second.name));
+}
+
 function makeEmptyForm() {
   return { ...DEFAULT_FORM };
 }
@@ -205,10 +331,12 @@ function routeLabel(banner) {
     return "Menu · specific item";
   }
   if (banner.bannerType === "partner") {
-    return (
+    const actionLabel =
       partnerActionOptions.find((option) => option.value === banner.actionType)
-        ?.label || "Display only"
-    );
+        ?.label || "Display only";
+    return banner.targetValue
+      ? `Menu category · ${actionLabel}`
+      : actionLabel;
   }
   if (banner.bannerType === "social") {
     return "Open social / entertainment link";
@@ -218,8 +346,13 @@ function routeLabel(banner) {
 
 const Marketing = () => {
   const customerMessageRequestKey = useRef(null);
+  const customerMessageTitleRef = useRef(null);
+  const customerMessageBodyRef = useRef(null);
+  const posterTitleRef = useRef(null);
+  const posterSubtitleRef = useRef(null);
   const [banners, setBanners] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
+  const [menuCategories, setMenuCategories] = useState([]);
   const [voucherTemplates, setVoucherTemplates] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("");
@@ -270,6 +403,7 @@ const Marketing = () => {
         Array.isArray(bannerResponse?.banners) ? bannerResponse.banners : [],
       );
       setMenuItems(flattenMenuItems(menuResponse));
+      setMenuCategories(selectablePartnerCategories(menuResponse));
       setVoucherTemplates(
         Array.isArray(voucherResponse?.vouchers)
           ? voucherResponse.vouchers
@@ -653,10 +787,6 @@ const Marketing = () => {
       setError("Event posters need both start and end date.");
       return;
     }
-    if (formData.bannerType === "partner" && !formData.partnerName.trim()) {
-      setError("Enter the partner or business name.");
-      return;
-    }
     if (
       ["partner", "social"].includes(formData.bannerType) &&
       !formData.actionValue.trim()
@@ -706,11 +836,8 @@ const Marketing = () => {
         animationDurationMs,
         bannerType: resolvedBannerType,
         partnerName:
-          resolvedBannerType === "partner" ? formData.partnerName.trim() : null,
-        sponsoredLabel:
-          resolvedBannerType === "partner"
-            ? Boolean(formData.sponsoredLabel)
-            : false,
+          resolvedBannerType === "partner" ? formData.title.trim() : null,
+        sponsoredLabel: false,
         ctaLabel:
           ["partner", "social"].includes(resolvedBannerType) &&
           formData.actionType !== "none"
@@ -726,7 +853,10 @@ const Marketing = () => {
             ? formData.actionValue.trim()
             : null,
         destinationType: resolvedDestinationType,
-        targetValue: needsTarget ? bannerTarget : null,
+        targetValue:
+          needsTarget || (resolvedBannerType === "partner" && bannerTarget)
+            ? bannerTarget
+            : null,
         startsAt:
           needsSchedule || ["partner", "social"].includes(resolvedBannerType)
             ? toIsoOrNull(formData.startsAt)
@@ -1009,11 +1139,17 @@ const Marketing = () => {
           <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
             <label className="text-xs font-semibold text-gray-700">
               Title
-              <input required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. A little reminder from C2 Coffee" className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" />
+              <div className="mt-1 flex items-center gap-2">
+                <input ref={customerMessageTitleRef} required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. A little reminder from C2 Coffee" className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" />
+                <EmojiPicker inputRef={customerMessageTitleRef} value={customerMessage.title} onChange={(title) => setCustomerMessage((current) => ({ ...current, title }))} label="Add emoji to broadcast title" />
+              </div>
             </label>
             <label className="text-xs font-semibold text-gray-700">
               Message
-              <textarea required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="e.g. Don't forget to come by and enjoy your favourite drink today." className="mt-1 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" />
+              <div className="mt-1 flex items-start gap-2">
+                <textarea ref={customerMessageBodyRef} required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="e.g. Don't forget to come by and enjoy your favourite drink today." className="w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" />
+                <EmojiPicker inputRef={customerMessageBodyRef} value={customerMessage.body} onChange={(body) => setCustomerMessage((current) => ({ ...current, body }))} label="Add emoji to broadcast message" />
+              </div>
             </label>
           </div>
           {customerMessageRetrySeconds > 0 && <p className="mt-2 text-right text-xs font-semibold text-amber-700">Messages are temporarily rate-limited. Try again in <span className="font-mono tabular-nums">{formatRetryCountdown(customerMessageRetrySeconds)}</span>.</p>}
@@ -1451,37 +1587,45 @@ const Marketing = () => {
                       <label className="block text-xs font-medium text-gray-500 mb-1">
                         Poster Title
                       </label>
-                      <input
-                        type="text"
-                        value={formData.title}
-                        onChange={(event) =>
-                          setFormData((current) => ({
-                            ...current,
-                            title: event.target.value,
-                          }))
-                        }
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
-                        placeholder="e.g. Free Drink Voucher"
-                        required
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          ref={posterTitleRef}
+                          type="text"
+                          value={formData.title}
+                          onChange={(event) =>
+                            setFormData((current) => ({
+                              ...current,
+                              title: event.target.value,
+                            }))
+                          }
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
+                          placeholder="e.g. Free Drink Voucher"
+                          required
+                        />
+                        <EmojiPicker inputRef={posterTitleRef} value={formData.title} onChange={(title) => setFormData((current) => ({ ...current, title }))} label="Add emoji to poster title" />
+                      </div>
                     </div>
 
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">
                         Subtitle
                       </label>
-                      <textarea
-                        value={formData.subtitle}
-                        onChange={(event) =>
-                          setFormData((current) => ({
-                            ...current,
-                            subtitle: event.target.value,
-                          }))
-                        }
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] min-h-[92px]"
-                        placeholder="A short line for the poster"
-                        required
-                      />
+                      <div className="flex items-start gap-2">
+                        <textarea
+                          ref={posterSubtitleRef}
+                          value={formData.subtitle}
+                          onChange={(event) =>
+                            setFormData((current) => ({
+                              ...current,
+                              subtitle: event.target.value,
+                            }))
+                          }
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] min-h-[92px]"
+                          placeholder="A short line for the poster"
+                          required
+                        />
+                        <EmojiPicker inputRef={posterSubtitleRef} value={formData.subtitle} onChange={(subtitle) => setFormData((current) => ({ ...current, subtitle }))} label="Add emoji to poster subtitle" />
+                      </div>
                     </div>
 
                     <div>
@@ -1835,36 +1979,29 @@ const Marketing = () => {
                       <div className="space-y-4 rounded-xl border border-[#D7E4E0] bg-[#F5FAF8] p-4">
                         <div>
                           <label className="block text-xs font-medium text-gray-500 mb-1">
-                            Partner or Business Name
+                            Menu Category (optional)
                           </label>
-                          <input
-                            type="text"
-                            value={formData.partnerName}
+                          <select
+                            value={formData.targetValue}
                             onChange={(event) =>
                               setFormData((current) => ({
                                 ...current,
-                                partnerName: event.target.value,
+                                targetValue: event.target.value,
                               }))
                             }
                             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
-                            placeholder="e.g. Local Artisan Market"
-                            required
-                          />
+                          >
+                            <option value="">Open partner website directly</option>
+                            {menuCategories.map((category) => (
+                              <option key={category.code} value={category.code}>
+                                {category.name} ({category.itemCount} active item{category.itemCount === 1 ? "" : "s"})
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+                            When this category has active items, the banner opens it in Menu and shows a Visit Us button. If it is empty or unavailable, the current website or email action is used instead.
+                          </p>
                         </div>
-                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={formData.sponsoredLabel}
-                            onChange={(event) =>
-                              setFormData((current) => ({
-                                ...current,
-                                sponsoredLabel: event.target.checked,
-                              }))
-                            }
-                            className="h-4 w-4 rounded border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]"
-                          />
-                          Show Sponsored disclosure
-                        </label>
                         <div>
                           <label className="block text-xs font-medium text-gray-500 mb-1">
                             Customer Action
@@ -1892,7 +2029,7 @@ const Marketing = () => {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">
-                                Button Label
+                                Banner CTA Label
                               </label>
                               <input
                                 type="text"
@@ -1906,6 +2043,9 @@ const Marketing = () => {
                                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34] bg-white"
                                 placeholder="Learn more"
                               />
+                              <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+                                This labels the action on the poster itself. The Menu category action always shows Visit Us.
+                              </p>
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-500 mb-1">

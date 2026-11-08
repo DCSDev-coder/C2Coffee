@@ -7,7 +7,8 @@ import { ApiError } from '../errors.js';
 import { normalizePhoneE164 } from '../../lib/phone.js';
 import { verifyPassword } from '../../lib/password.js';
 import { formatTierName, getTierByCode, getTierProgress, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
-import { ensureEmployeeAllowance } from '../../services/employee-token-allowance.js';
+import { ensureEmployeeAllowance, revokeCurrentAllowanceForRoleChange } from '../../services/employee-token-allowance.js';
+import type { SubsidyRole } from '../../services/employee-token-allowance.js';
 
 const listQuerySchema = z.object({
   // Customer imports support up to 500 rows. Keep the list aligned so older
@@ -22,6 +23,7 @@ const createCustomerSchema = z.object({
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
   status: z.enum(['active', 'blocked', 'closed']).optional().default('active'),
   isEmployee: z.boolean().optional().default(false),
+  subsidyRole: z.enum(['none', 'employee', 'intern', 'boss']).optional(),
   confirmation_password: z.string().trim().min(8).max(200)
 });
 
@@ -31,6 +33,7 @@ const updateCustomerSchema = z.object({
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
   status: z.enum(['active', 'blocked', 'closed']).optional(),
   isEmployee: z.boolean().optional(),
+  subsidyRole: z.enum(['none', 'employee', 'intern', 'boss']).optional(),
   confirmation_password: z.string().trim().min(8).max(200)
 });
 
@@ -42,7 +45,8 @@ const importCustomerRowSchema = z.object({
   phone: z.string().trim().min(3).max(20),
   displayName: z.string().trim().min(1).max(255).optional(),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
-  isEmployee: z.boolean().optional().default(false)
+  isEmployee: z.boolean().optional().default(false),
+  subsidyRole: z.enum(['none', 'employee', 'intern', 'boss']).optional()
 });
 
 const importCustomersSchema = z.object({
@@ -68,6 +72,7 @@ const customerListQueryRowSchema = z.object({
   phone_e164: z.string(),
   user_status: z.string(),
   is_employee: z.number(),
+  subsidy_role: z.enum(['none', 'employee', 'intern', 'boss']).nullable().optional(),
   registration_status: z.enum(['imported', 'registered']),
   joined_at: z.union([z.string(), z.date()]),
   display_name: z.string().nullable(),
@@ -148,11 +153,16 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     avatar: row.avatar_value || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
     userStatus: row.user_status,
     isEmployee: Number(row.is_employee) === 1,
+    subsidyRole: row.subsidy_role || (Number(row.is_employee) === 1 ? 'employee' : 'none'),
     registrationStatus: row.registration_status,
     refundCount,
     deletionSource: row.deletion_source,
     deletedAt: row.deleted_at ? formatDisplayDate(row.deleted_at) : null
   };
+}
+
+function resolveSubsidyRole(payload: { subsidyRole?: SubsidyRole; isEmployee?: boolean }): SubsidyRole {
+  return payload.subsidyRole ?? (payload.isEmployee ? 'employee' : 'none');
 }
 
 async function assertCustomerMembership(connection: PoolConnection, tenantId: number, userId: number): Promise<void> {
@@ -202,6 +212,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.deletion_source,
             u.deleted_at,
             ctm.is_employee,
+            ctm.subsidy_role,
             ctm.registration_status,
             u.created_at AS joined_at,
             up.display_name,
@@ -286,12 +297,13 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       const displayName = payload.displayName || 'C2 Member';
       const email = payload.email ? payload.email : null;
 
+      const subsidyRole = resolveSubsidyRole(payload);
       await connection.execute(
         `
-          INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee)
-          VALUES (:tenantId, :userId, :isEmployee)
+          INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee, subsidy_role)
+          VALUES (:tenantId, :userId, :isEmployee, :subsidyRole)
         `,
-        { tenantId: request.adminAuth.tenantId, userId, isEmployee: payload.isEmployee ? 1 : 0 }
+        { tenantId: request.adminAuth.tenantId, userId, isEmployee: payload.isEmployee || subsidyRole !== 'none' ? 1 : 0, subsidyRole }
       );
 
       await connection.execute(
@@ -336,7 +348,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
         { userId }
       );
 
-      if (payload.isEmployee) {
+      if (subsidyRole === 'employee' || subsidyRole === 'intern') {
         await ensureEmployeeAllowance(connection, userId, request.adminAuth.tenantId);
       }
 
@@ -369,6 +381,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.phone_e164,
             u.status AS user_status,
             ctm.is_employee,
+            ctm.subsidy_role,
             u.created_at AS joined_at,
             up.display_name,
             up.email,
@@ -459,16 +472,17 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
 
           await connection.execute(
             `
-              INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee)
-              VALUES (:tenantId, :userId, :isEmployee)
+              INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee, subsidy_role)
+              VALUES (:tenantId, :userId, :isEmployee, :subsidyRole)
             `,
             {
               tenantId: request.adminAuth.tenantId,
               userId: existingUser.id,
-              isEmployee: customer.isEmployee ? 1 : 0
+              isEmployee: customer.isEmployee || resolveSubsidyRole(customer) !== 'none' ? 1 : 0,
+              subsidyRole: resolveSubsidyRole(customer)
             }
           );
-          if (customer.isEmployee) {
+          if (resolveSubsidyRole(customer) === 'employee' || resolveSubsidyRole(customer) === 'intern') {
             await ensureEmployeeAllowance(connection, existingUser.id, request.adminAuth.tenantId);
           }
           linkedExisting += 1;
@@ -483,10 +497,10 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
 
         await connection.execute(
           `
-            INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee, registration_status, registered_at)
-            VALUES (:tenantId, :userId, :isEmployee, 'imported', NULL)
+            INSERT INTO customer_tenant_memberships (tenant_id, user_id, is_employee, subsidy_role, registration_status, registered_at)
+            VALUES (:tenantId, :userId, :isEmployee, :subsidyRole, 'imported', NULL)
           `,
-          { tenantId: request.adminAuth.tenantId, userId, isEmployee: customer.isEmployee ? 1 : 0 }
+          { tenantId: request.adminAuth.tenantId, userId, isEmployee: customer.isEmployee || resolveSubsidyRole(customer) !== 'none' ? 1 : 0, subsidyRole: resolveSubsidyRole(customer) }
         );
         await connection.execute(
           `
@@ -506,7 +520,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
           `,
           { userId }
         );
-        if (customer.isEmployee) {
+        if (resolveSubsidyRole(customer) === 'employee' || resolveSubsidyRole(customer) === 'intern') {
           await ensureEmployeeAllowance(connection, userId, request.adminAuth.tenantId);
         }
         await connection.execute(
@@ -578,17 +592,65 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
         );
       }
 
-      if (payload.isEmployee !== undefined) {
+      if (payload.isEmployee !== undefined || payload.subsidyRole !== undefined) {
+        const subsidyRole = resolveSubsidyRole(payload);
+        const [membershipRows] = await connection.query<Array<RowDataPacket & {
+          is_employee: number;
+          subsidy_role: SubsidyRole;
+        }>>(
+          `SELECT is_employee, subsidy_role
+             FROM customer_tenant_memberships
+            WHERE tenant_id = :tenantId AND user_id = :userId
+            LIMIT 1 FOR UPDATE`,
+          { tenantId: request.adminAuth.tenantId, userId }
+        );
+        const previousRole = membershipRows[0]?.subsidy_role ?? 'none';
+        const revokedAmount = await revokeCurrentAllowanceForRoleChange(
+          connection,
+          userId,
+          request.adminAuth.tenantId,
+          subsidyRole,
+          request.adminAuth.adminUserId
+        );
         await connection.execute(
           `
             UPDATE customer_tenant_memberships
-            SET is_employee = :isEmployee
+            SET is_employee = :isEmployee, subsidy_role = :subsidyRole
             WHERE tenant_id = :tenantId AND user_id = :userId
           `,
-          { tenantId: request.adminAuth.tenantId, userId, isEmployee: payload.isEmployee ? 1 : 0 }
+          { tenantId: request.adminAuth.tenantId, userId, isEmployee: payload.isEmployee || subsidyRole !== 'none' ? 1 : 0, subsidyRole }
         );
-        if (payload.isEmployee) {
-          await ensureEmployeeAllowance(connection, userId, request.adminAuth.tenantId);
+        if (subsidyRole === 'employee' || subsidyRole === 'intern') {
+          await ensureEmployeeAllowance(
+            connection,
+            userId,
+            request.adminAuth.tenantId,
+            request.adminAuth.adminUserId
+          );
+        }
+        if (previousRole !== subsidyRole) {
+          await connection.execute(
+            `INSERT INTO admin_audit_logs (
+               admin_user_id, effective_roles_json, action_code, target_type, target_id,
+               before_json, after_json, reason_code, reason_note, ip_address, user_agent, created_at
+             ) VALUES (
+               :adminUserId, :roles, 'customer_subsidy_role_changed', 'customer', :userId,
+               JSON_OBJECT('subsidy_role', :previousRole),
+               JSON_OBJECT('subsidy_role', :subsidyRole, 'revoked_unused_tokens', :revokedAmount),
+               'admin_customer_subsidy_role_change', 'Customer subsidy role changed in Admin Web',
+               :ipAddress, :userAgent, UTC_TIMESTAMP()
+             )`,
+            {
+              adminUserId: request.adminAuth.adminUserId,
+              roles: JSON.stringify(request.adminAuth.roles ?? []),
+              userId,
+              previousRole,
+              subsidyRole,
+              revokedAmount,
+              ipAddress: request.ip,
+              userAgent: request.headers['user-agent'] ?? null
+            }
+          );
         }
       }
 
@@ -651,6 +713,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.phone_e164,
             u.status AS user_status,
             ctm.is_employee,
+            ctm.subsidy_role,
             u.created_at AS joined_at,
             up.display_name,
             up.email,

@@ -236,6 +236,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       subsidyEligible: subsidy?.eligible == true,
       subsidyEnabled: subsidy?.enabled == true,
       subsidyRemaining: subsidy?.remaining ?? 0,
+      subsidyUnlimited: subsidy?.allowanceMode == 'unlimited',
       subsidyBlocked: _selectedVoucher != null,
     );
   }
@@ -860,9 +861,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final subsidy = _subsidy;
     if (subsidy == null || !subsidy.eligible) return const SizedBox.shrink();
     final breakdown = _subsidyBreakdown(snapshot);
-    final progress = subsidy.granted <= 0
+    final isUnlimited = subsidy.allowanceMode == 'unlimited';
+    final progress = isUnlimited || (subsidy.granted ?? 0) <= 0
         ? 0.0
-        : (subsidy.remaining / subsidy.granted).clamp(0.0, 1.0);
+        : ((subsidy.remaining ?? 0) / (subsidy.granted ?? 1)).clamp(0.0, 1.0);
     final enabled = subsidy.enabled;
     final blockedByRestrictedCredit = _selectedVoucher != null;
 
@@ -911,7 +913,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: progress,
+              value: isUnlimited ? null : progress,
               minHeight: 7,
               backgroundColor: Colors.grey.shade300,
               color: enabled ? orangeColor : Colors.grey.shade500,
@@ -920,10 +922,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           const SizedBox(height: 7),
           Text(
             blockedByRestrictedCredit
-                ? '${_formatTokenCount(subsidy.remaining)} protected • vouchers require personal C2 Credit or direct payment'
+                ? '${isUnlimited ? '∞' : _formatTokenCount(subsidy.remaining ?? 0)} protected • vouchers require personal C2 Credit or direct payment'
                 : enabled
-                    ? '${_formatTokenCount(subsidy.remaining)} remaining • ${_formatTokenCount(breakdown.subsidyApplied)} applied to eligible drinks in this order'
-                    : '${_formatTokenCount(subsidy.remaining)} protected • this order will use only your personal C2 Credit',
+                    ? '${isUnlimited ? '∞ available' : '${_formatTokenCount(subsidy.remaining ?? 0)} remaining'} • ${_formatTokenCount(breakdown.subsidyApplied)} applied to eligible drinks in this order'
+                    : '${isUnlimited ? '∞' : _formatTokenCount(subsidy.remaining ?? 0)} protected • this order will use only your personal C2 Credit',
             style: const TextStyle(
               fontFamily: 'Afacad',
               fontSize: 13,

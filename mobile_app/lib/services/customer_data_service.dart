@@ -47,13 +47,17 @@ class WalletTransaction {
 class EmployeeSubsidy {
   final bool eligible;
   final bool enabled;
-  final int remaining;
-  final int granted;
+  final String role;
+  final String allowanceMode;
+  final int? remaining;
+  final int? granted;
   final int used;
   final String? periodEnd;
   const EmployeeSubsidy(
       {required this.eligible,
       required this.enabled,
+      required this.role,
+      required this.allowanceMode,
       required this.remaining,
       required this.granted,
       required this.used,
@@ -61,8 +65,10 @@ class EmployeeSubsidy {
   factory EmployeeSubsidy.fromApi(Map<String, dynamic> json) => EmployeeSubsidy(
         eligible: json['eligible'] == true,
         enabled: json['enabled'] != false,
-        remaining: (json['remaining'] as num?)?.toInt() ?? 0,
-        granted: (json['granted'] as num?)?.toInt() ?? 0,
+        role: json['role'] as String? ?? 'none',
+        allowanceMode: json['allowance_mode'] as String? ?? 'none',
+        remaining: (json['remaining'] as num?)?.toInt(),
+        granted: (json['granted'] as num?)?.toInt(),
         used: (json['used'] as num?)?.toInt() ?? 0,
         periodEnd: json['period_end'] as String?,
       );

@@ -15,6 +15,7 @@ import {
   getTierProgress,
   loadLoyaltyTiers
 } from '../../services/loyalty-tiers.js';
+import { currentEmployeeAllowancePeriod, nextEmployeeAllowancePeriod } from '../../services/employee-token-allowance.js';
 
 const overviewQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50)
@@ -23,6 +24,12 @@ const overviewQuerySchema = z.object({
 const employeeAllowanceReportQuerySchema = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
   limit: z.coerce.number().int().min(1).max(500).optional().default(250)
+});
+
+const subsidyPolicyUpdateSchema = z.object({
+  employee_amount: z.coerce.number().int().min(0).max(100000),
+  intern_amount: z.coerce.number().int().min(0).max(100000),
+  confirmation_password: z.string().trim().min(8).max(200)
 });
 
 type SummaryRow = RowDataPacket & {
@@ -231,6 +238,108 @@ async function validateTierRewardVoucher(
 }
 
 export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/v1/admin/loyalty/subsidy-policies', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const current = currentEmployeeAllowancePeriod();
+    const next = nextEmployeeAllowancePeriod();
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      subsidy_role: 'employee' | 'intern';
+      monthly_amount: number;
+      effective_period_start: string | Date;
+      created_at: Date;
+    }>>(
+      `SELECT subsidy_role, monthly_amount, effective_period_start, created_at
+         FROM tenant_subsidy_policies
+        WHERE tenant_id = :tenantId
+          AND effective_period_start <= :nextPeriodStart
+        ORDER BY subsidy_role, effective_period_start DESC, id DESC`,
+      { tenantId: request.adminAuth.tenantId, nextPeriodStart: next.start }
+    );
+    const policyDate = (value: string | Date) => value instanceof Date
+      ? value.toISOString().slice(0, 10)
+      : String(value).slice(0, 10);
+    const latestFor = (role: 'employee' | 'intern', periodStart: string) => rows.find(
+      (row) => row.subsidy_role === role && policyDate(row.effective_period_start) <= periodStart
+    );
+    const pendingFor = (role: 'employee' | 'intern') => rows.find(
+      (row) => row.subsidy_role === role && policyDate(row.effective_period_start) === next.start
+    );
+    return {
+      current_period: current,
+      next_period: next,
+      current: {
+        employee_amount: Number(latestFor('employee', current.start)?.monthly_amount ?? 200),
+        intern_amount: Number(latestFor('intern', current.start)?.monthly_amount ?? 100)
+      },
+      pending: {
+        employee_amount: pendingFor('employee') ? Number(pendingFor('employee')?.monthly_amount) : null,
+        intern_amount: pendingFor('intern') ? Number(pendingFor('intern')?.monthly_amount) : null
+      }
+    };
+  });
+
+  app.put('/v1/admin/loyalty/subsidy-policies', { preHandler: [authenticateAdminRequest] }, async (request) => {
+    requireAdminRole(request, 'super_admin');
+    const payload = subsidyPolicyUpdateSchema.parse(request.body ?? {});
+    const next = nextEmployeeAllowancePeriod();
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
+      const [beforeRows] = await connection.query<RowDataPacket[]>(
+        `SELECT subsidy_role, monthly_amount
+           FROM tenant_subsidy_policies
+          WHERE tenant_id = :tenantId AND effective_period_start = :periodStart
+          FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId, periodStart: next.start }
+      );
+      for (const [role, amount] of [['employee', payload.employee_amount], ['intern', payload.intern_amount] as const]) {
+        await connection.execute(
+          `INSERT INTO tenant_subsidy_policies
+             (tenant_id, subsidy_role, monthly_amount, effective_period_start, created_by_admin_user_id)
+           VALUES (:tenantId, :subsidyRole, :monthlyAmount, :periodStart, :adminUserId)
+           ON DUPLICATE KEY UPDATE monthly_amount = VALUES(monthly_amount), created_by_admin_user_id = VALUES(created_by_admin_user_id)`,
+          {
+            tenantId: request.adminAuth.tenantId,
+            subsidyRole: role,
+            monthlyAmount: amount,
+            periodStart: next.start,
+            adminUserId: request.adminAuth.adminUserId
+          }
+        );
+      }
+      await connection.execute(
+        `INSERT INTO admin_audit_logs (
+           admin_user_id, effective_roles_json, action_code, target_type, target_id,
+           before_json, after_json, reason_code, ip_address, user_agent, created_at
+         ) VALUES (
+           :adminUserId, :roles, 'subsidy_policy_scheduled', 'tenant_subsidy_policy', :tenantId,
+           :beforeJson, :afterJson, 'next_period_subsidy_values', :ipAddress, :userAgent, UTC_TIMESTAMP()
+         )`,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          tenantId: request.adminAuth.tenantId,
+          beforeJson: JSON.stringify(beforeRows),
+          afterJson: JSON.stringify({ effective_period_start: next.start, employee_amount: payload.employee_amount, intern_amount: payload.intern_amount }),
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] || null
+        }
+      );
+      await connection.commit();
+      return {
+        effective_period_start: next.start,
+        employee_amount: payload.employee_amount,
+        intern_amount: payload.intern_amount
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.post('/v1/admin/loyalty/tiers/uploads', {
     preHandler: [authenticateAdminRequest],
     bodyLimit: 12 * 1024 * 1024
@@ -303,6 +412,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
               JOIN customer_tenant_memberships ctm
                 ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
               WHERE u.deleted_at IS NULL
+                AND tl.source_type NOT IN ('employee_allowance_role_revoke', 'employee_allowance_role_restore')
             ), 0) AS tokens_issued,
             COALESCE((
               SELECT SUM(CASE WHEN tl.direction = 'debit' THEN tl.amount ELSE 0 END)
@@ -311,6 +421,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
               JOIN customer_tenant_memberships ctm
                 ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
               WHERE u.deleted_at IS NULL
+                AND tl.source_type NOT IN ('employee_allowance_role_revoke', 'employee_allowance_role_restore')
             ), 0) AS tokens_redeemed
         `,
         { tenantId: request.adminAuth.tenantId }
@@ -359,6 +470,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           WHERE u.deleted_at IS NULL
             AND tl.created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)
+            AND tl.source_type NOT IN ('employee_allowance_role_revoke', 'employee_allowance_role_restore')
           GROUP BY DATE(tl.created_at)
           ORDER BY day ASC
         `,
@@ -377,6 +489,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
           WHERE u.deleted_at IS NULL
             AND tl.direction = 'credit'
+            AND tl.source_type NOT IN ('employee_allowance_role_revoke', 'employee_allowance_role_restore')
           GROUP BY tl.source_type
           ORDER BY total_amount DESC, txn_count DESC
         `,
@@ -447,6 +560,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
               SUM(CASE WHEN direction = 'credit' THEN amount ELSE 0 END) AS lifetime_earned,
               SUM(CASE WHEN direction = 'debit' THEN amount ELSE 0 END) AS lifetime_redeemed
             FROM token_ledger
+            WHERE source_type NOT IN ('employee_allowance_role_revoke', 'employee_allowance_role_restore')
             GROUP BY user_id
           ) ledger_stats ON ledger_stats.user_id = u.id
           LEFT JOIN token_topups tt
@@ -495,6 +609,7 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
               SUM(CASE WHEN direction = 'credit' THEN amount ELSE 0 END) AS lifetime_earned,
               SUM(CASE WHEN direction = 'debit' THEN amount ELSE 0 END) AS lifetime_redeemed
             FROM token_ledger
+            WHERE source_type NOT IN ('employee_allowance_role_revoke', 'employee_allowance_role_restore')
             GROUP BY user_id
           ) ledger_stats ON ledger_stats.user_id = u.id
           WHERE u.deleted_at IS NULL
@@ -733,14 +848,14 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
     const connection = await mysqlPool.getConnection();
     try {
       const [allowanceRows] = await connection.query<RowDataPacket[]>(
-        `SELECT employee_set.user_id, eta.period_start, eta.period_end,
+        `SELECT employee_set.user_id, ctm.subsidy_role, eta.period_start, eta.period_end,
                 eta.carried_forward_amount, eta.granted_amount,
                 eta.refunded_amount, eta.remaining_amount, eta.status,
                 up.display_name, up.email, u.phone_e164
            FROM (
              SELECT ctm.user_id
                FROM customer_tenant_memberships ctm
-              WHERE ctm.tenant_id = :tenantId AND ctm.is_employee = 1
+              WHERE ctm.tenant_id = :tenantId AND ctm.subsidy_role <> 'none'
              UNION
              SELECT history.user_id
                FROM employee_token_allowances history
@@ -750,6 +865,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
            LEFT JOIN employee_token_allowances eta
              ON eta.tenant_id = :tenantId AND eta.user_id = employee_set.user_id
             AND eta.period_start = :periodStart
+           JOIN customer_tenant_memberships ctm
+             ON ctm.tenant_id = :tenantId AND ctm.user_id = employee_set.user_id
            LEFT JOIN user_profiles up ON up.user_id = u.id
           ORDER BY COALESCE(up.display_name, up.email, u.phone_e164) ASC
           LIMIT :limit`,
@@ -780,12 +897,13 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         userId: Number(row.user_id),
         employee: row.display_name || row.email || row.phone_e164,
         email: row.email || '', phone: row.phone_e164,
-        issued: Boolean(row.period_start),
+        role: row.subsidy_role || 'employee',
+        issued: Boolean(row.period_start) || row.subsidy_role === 'boss',
         periodStart: row.period_start || periodStart, periodEnd: row.period_end,
         carriedForward: Number(row.carried_forward_amount ?? 0),
-        granted: Number(row.granted_amount ?? 0),
+        granted: row.subsidy_role === 'boss' ? null : Number(row.granted_amount ?? 0),
         refunded: Number(row.refunded_amount ?? 0),
-        remaining: Number(row.remaining_amount ?? 0), status: row.status || 'not_issued'
+        remaining: row.subsidy_role === 'boss' ? null : Number(row.remaining_amount ?? 0), status: row.subsidy_role === 'boss' ? 'unlimited' : row.status || 'not_issued'
       }));
       const purchases = purchaseRows.map((row) => ({
         id: Number(row.id), orderRef: row.order_ref,
@@ -804,10 +922,10 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           employeesEligible: allowances.length,
           employeesIssued: allowances.filter((row) => row.issued).length,
           carriedForward: allowances.reduce((sum, row) => sum + row.carriedForward, 0),
-          companyTopUp: allowances.reduce((sum, row) => sum + row.granted, 0),
+          companyTopUp: allowances.reduce((sum, row) => sum + Number(row.granted ?? 0), 0),
           grossUsed: purchases.reduce((sum, row) => sum + row.allowanceTokens, 0),
           refunded: allowances.reduce((sum, row) => sum + row.refunded, 0),
-          endingBalance: allowances.reduce((sum, row) => sum + row.remaining, 0),
+          endingBalance: allowances.reduce((sum, row) => sum + Number(row.remaining ?? 0), 0),
           employeeOrders: purchases.length
         },
         allowances,

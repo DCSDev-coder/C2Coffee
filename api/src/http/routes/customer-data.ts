@@ -18,7 +18,6 @@ import {
   getKualaLumpurOccurrenceEndUtc
 } from '../../lib/kuala-lumpur-time.js';
 import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty-tiers.js';
-import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 import { issueFriendRewardAtClaim, type ReferralProgramSnapshot } from '../../services/referrals.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 import {
@@ -1151,7 +1150,7 @@ async function resolveEmployeeSubsidyTenant(
          FROM customer_tenant_memberships ctm
          JOIN stores s ON s.tenant_id = ctm.tenant_id
         WHERE ctm.user_id = :userId
-          AND ctm.is_employee = 1
+          AND ctm.subsidy_role <> 'none'
           AND s.id = :storeId
         LIMIT 1`,
       { userId, storeId }
@@ -1162,7 +1161,7 @@ async function resolveEmployeeSubsidyTenant(
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { tenant_id: number }>>(
     `SELECT tenant_id
        FROM customer_tenant_memberships
-      WHERE user_id = :userId AND is_employee = 1
+      WHERE user_id = :userId AND subsidy_role <> 'none'
       ORDER BY tenant_id
       LIMIT 2`,
     { userId }
@@ -1478,7 +1477,7 @@ export async function registerCustomerDataRoutes(
       query.store_id
     );
     if (tenantId === null) {
-      return { eligible: false, enabled: false, remaining: 0, granted: 0, used: 0 };
+      return { eligible: false, enabled: false, role: 'none', allowance_mode: 'none', remaining: 0, granted: 0, used: 0 };
     }
     return getEmployeeSubsidyStatus(request.auth.userId, tenantId);
   });
@@ -2311,6 +2310,8 @@ export async function registerCustomerDataRoutes(
         );
       }
 
+      const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(order.id));
+      const tokenAmount = calculatePersonalTokenRefund(Number(order.token_amount_charged), allowanceRefund.allowanceUsed);
       const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
         `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
         { userId: request.auth.userId }
@@ -2319,9 +2320,6 @@ export async function registerCustomerDataRoutes(
       if (!account) {
         throw new ApiError(409, 'token_account_not_found', 'Your token account was not found. Please contact support.');
       }
-
-      const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(order.id));
-      const tokenAmount = calculatePersonalTokenRefund(Number(order.token_amount_charged), allowanceRefund.allowanceUsed);
       const balanceAfter = Number(account.balance_available) + tokenAmount;
       if (tokenAmount > 0) {
         await connection.execute(
@@ -2405,49 +2403,6 @@ export async function registerCustomerDataRoutes(
         token_balance: balanceAfter,
         replacement_voucher_issued: replacementVoucherIssued
       };
-    } catch (error) {
-      if (!committed) await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-  });
-
-  app.post('/v1/orders/:orderId/receipt-email', { preHandler: authenticateRequest }, async (request) => {
-    const params = z.object({ orderId: z.coerce.number().int().positive() }).parse(request.params);
-    const connection = await getUtcConnection();
-    let committed = false;
-    try {
-      await connection.beginTransaction();
-      const [orders] = await connection.query<Array<RowDataPacket & { id: number; email: string | null }>>(
-        `SELECT o.id, up.email
-         FROM orders o
-         LEFT JOIN user_profiles up ON up.user_id = o.user_id
-         WHERE o.id = :orderId AND o.user_id = :userId
-         LIMIT 1
-         FOR UPDATE`,
-        { orderId: params.orderId, userId: request.auth.userId }
-      );
-      const order = orders[0];
-      if (!order) throw new ApiError(404, 'order_not_found', 'Order not found.');
-      if (!order.email?.trim()) {
-        throw new ApiError(409, 'receipt_email_unavailable', 'Add a verified email address in Settings before requesting a receipt.');
-      }
-
-      const queued = await queueOrderReceiptEmail(connection, {
-        orderId: order.id,
-        recipientEmail: order.email,
-        force: true
-      });
-      await connection.commit();
-      committed = true;
-
-      if (queued) {
-        void deliverQueuedOrderReceiptEmail(order.id).catch(() => {
-          request.log.warn({ orderId: order.id }, 'Order receipt resend could not be started.');
-        });
-      }
-      return { receipt_email: queued ? 'queued' : 'sending' };
     } catch (error) {
       if (!committed) await connection.rollback();
       throw error;

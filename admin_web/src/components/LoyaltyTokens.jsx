@@ -13,7 +13,7 @@ import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
 import { exportToCSV } from '../utils/exportToCSV';
-import { adjustAdminCustomerTokens, loadAdminLoyaltyOverview, loadEmployeeAllowanceReport } from '../lib/adminApi';
+import { adjustAdminCustomerTokens, loadAdminLoyaltyOverview, loadEmployeeAllowanceReport, loadSubsidyPolicies, saveSubsidyPolicies } from '../lib/adminApi';
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
@@ -155,6 +155,11 @@ const LoyaltyTokens = () => {
   const [employeeReport, setEmployeeReport] = useState(null);
   const [employeeReportLoading, setEmployeeReportLoading] = useState(false);
   const [employeeReportError, setEmployeeReportError] = useState('');
+  const [subsidyPolicies, setSubsidyPolicies] = useState(null);
+  const [subsidyPolicyForm, setSubsidyPolicyForm] = useState({ employee_amount: '', intern_amount: '', confirmation_password: '' });
+  const [subsidyPolicyError, setSubsidyPolicyError] = useState('');
+  const [subsidyPolicySaved, setSubsidyPolicySaved] = useState('');
+  const [subsidyPolicySaving, setSubsidyPolicySaving] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => setMenuOpenId(null);
@@ -173,6 +178,45 @@ const LoyaltyTokens = () => {
       .finally(() => { if (active) setEmployeeReportLoading(false); });
     return () => { active = false; };
   }, [activeView, employeeReportMonth]);
+
+  useEffect(() => {
+    if (activeView !== 'employee_allowances') return undefined;
+    let active = true;
+    loadSubsidyPolicies()
+      .then((response) => {
+        if (!active) return;
+        setSubsidyPolicies(response);
+        setSubsidyPolicyForm((previous) => ({
+          ...previous,
+          employee_amount: String(response?.pending?.employee_amount ?? response?.current?.employee_amount ?? ''),
+          intern_amount: String(response?.pending?.intern_amount ?? response?.current?.intern_amount ?? '')
+        }));
+      })
+      .catch((error) => { if (active) setSubsidyPolicyError(error?.message || 'Unable to load subsidy settings.'); });
+    return () => { active = false; };
+  }, [activeView]);
+
+  const submitSubsidyPolicy = async (event) => {
+    event.preventDefault();
+    setSubsidyPolicyError('');
+    setSubsidyPolicySaved('');
+    setSubsidyPolicySaving(true);
+    try {
+      const response = await saveSubsidyPolicies({
+        employee_amount: Number(subsidyPolicyForm.employee_amount),
+        intern_amount: Number(subsidyPolicyForm.intern_amount),
+        confirmation_password: subsidyPolicyForm.confirmation_password
+      });
+      setSubsidyPolicySaved(`Saved. These values take effect on ${response.effective_period_start}.`);
+      setSubsidyPolicyForm((previous) => ({ ...previous, confirmation_password: '' }));
+      const refreshed = await loadSubsidyPolicies();
+      setSubsidyPolicies(refreshed);
+    } catch (error) {
+      setSubsidyPolicyError(error?.message || 'Unable to save subsidy settings.');
+    } finally {
+      setSubsidyPolicySaving(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -352,6 +396,35 @@ const LoyaltyTokens = () => {
             <button onClick={() => setActiveView('list')} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50">Back to Token Ledger</button>
           </div>
         </div>
+        <form onSubmit={submitSubsidyPolicy} className="rounded-xl border border-[#B7CFCA] bg-[#F3F7F6] p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="font-bold text-gray-900">Company subsidy settings</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Changes are scheduled for {subsidyPolicies?.next_period?.start || 'the next month'} and never change an issued allowance.
+              </p>
+              {subsidyPolicies?.pending?.employee_amount !== null && subsidyPolicies?.pending?.employee_amount !== undefined && (
+                <p className="mt-1 text-xs font-semibold text-[#1F3A34]">Pending values are already scheduled for the next period.</p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="text-xs font-bold text-gray-600">Employee / month
+                <input type="number" min="0" max="100000" required value={subsidyPolicyForm.employee_amount} onChange={(event) => setSubsidyPolicyForm((previous) => ({ ...previous, employee_amount: event.target.value }))} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm" />
+              </label>
+              <label className="text-xs font-bold text-gray-600">Intern / month
+                <input type="number" min="0" max="100000" required value={subsidyPolicyForm.intern_amount} onChange={(event) => setSubsidyPolicyForm((previous) => ({ ...previous, intern_amount: event.target.value }))} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm" />
+              </label>
+              <label className="text-xs font-bold text-gray-600">Admin password
+                <input type="password" minLength="8" required value={subsidyPolicyForm.confirmation_password} onChange={(event) => setSubsidyPolicyForm((previous) => ({ ...previous, confirmation_password: event.target.value }))} className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm" />
+              </label>
+            </div>
+            <button type="submit" disabled={subsidyPolicySaving} className="rounded-lg bg-[#2E5E58] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#1F3A34] disabled:opacity-50">
+              {subsidyPolicySaving ? 'Scheduling...' : 'Schedule changes'}
+            </button>
+          </div>
+          {subsidyPolicyError && <p className="mt-3 text-sm font-semibold text-red-700">{subsidyPolicyError}</p>}
+          {subsidyPolicySaved && <p className="mt-3 text-sm font-semibold text-[#1F3A34]">{subsidyPolicySaved}</p>}
+        </form>
         {employeeReportError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{employeeReportError}</div>}
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
           <KPICard title="Issued / eligible" value={employeeReportLoading ? '—' : `${Number(summary.employeesIssued || 0).toLocaleString('en-US')} / ${Number(summary.employeesEligible || 0).toLocaleString('en-US')}`} icon={Users} />
@@ -364,7 +437,7 @@ const LoyaltyTokens = () => {
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100"><h2 className="font-bold text-gray-900">Monthly allowance records</h2></div>
           <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50"><tr>{['Employee','Period','Carried','Top-up','Refunded','Remaining','Status'].map((label) => <th key={label} className="px-5 py-3 text-left text-xs font-bold uppercase text-gray-500">{label}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">
-            {allowances.map((row) => <tr key={`${row.userId}-${row.periodStart}`}><td className="px-5 py-3"><p className="font-semibold">{row.employee}</p><p className="text-xs text-gray-500">{row.email || row.phone}</p></td><td className="px-5 py-3">{row.issued ? `${String(row.periodStart).slice(0,10)} – ${String(row.periodEnd).slice(0,10)}` : 'Not issued this month'}</td><td className="px-5 py-3">{row.carriedForward}</td><td className="px-5 py-3 font-semibold">{row.granted}</td><td className="px-5 py-3">{row.refunded}</td><td className="px-5 py-3 font-semibold">{row.remaining}</td><td className="px-5 py-3 capitalize">{String(row.status).replaceAll('_',' ')}</td></tr>)}
+            {allowances.map((row) => <tr key={`${row.userId}-${row.periodStart}`}><td className="px-5 py-3"><p className="font-semibold">{row.employee}</p><p className="text-xs text-gray-500">{row.email || row.phone}</p><p className="text-[11px] font-bold uppercase text-[#1F3A34]">{row.role || 'employee'}</p></td><td className="px-5 py-3">{row.role === 'boss' ? 'Unlimited' : row.issued ? `${String(row.periodStart).slice(0,10)} – ${String(row.periodEnd).slice(0,10)}` : 'Not issued this month'}</td><td className="px-5 py-3">{row.role === 'boss' ? '—' : row.carriedForward}</td><td className="px-5 py-3 font-semibold">{row.role === 'boss' ? '∞' : row.granted}</td><td className="px-5 py-3">{row.role === 'boss' ? '—' : row.refunded}</td><td className="px-5 py-3 font-semibold">{row.role === 'boss' ? '∞' : row.remaining}</td><td className="px-5 py-3 capitalize">{String(row.status).replaceAll('_',' ')}</td></tr>)}
             {!allowances.length && <tr><td colSpan="7" className="px-5 py-8 text-center text-gray-500">No employee allowance records for this month.</td></tr>}
           </tbody></table></div>
         </div>

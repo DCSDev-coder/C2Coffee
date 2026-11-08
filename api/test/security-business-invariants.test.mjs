@@ -54,6 +54,18 @@ test('CHIP is the only automatic top-up receipt sender and all terminal states n
   assert.match(settlement, /deliverTopUpStatusPush/);
 });
 
+test('order receipts are delivered only after barista readiness and cannot be customer-resend triggered', async () => {
+  const checkout = await source('src/http/routes/checkout.ts');
+  const adminOrders = await source('src/http/routes/admin-orders.ts');
+  const customerData = await source('src/http/routes/customer-data.ts');
+
+  assert.doesNotMatch(checkout, /queueOrderReceiptEmail|deliverQueuedOrderReceiptEmail/);
+  assert.match(checkout, /receipt_email: orderPaid \? 'pending_until_ready' : 'unavailable'/);
+  assert.match(adminOrders, /effectiveStatus === 'ready_for_pickup'[\s\S]{0,1400}queueOrderReceiptEmail/);
+  assert.match(adminOrders, /deliverQueuedOrderReceiptEmail\(Number\(internalId\)\)/);
+  assert.doesNotMatch(customerData, /app\.post\('\/v1\/orders\/:orderId\/receipt-email'/);
+});
+
 test('payment maintenance notices are tenant scoped, operational, dismissible, and time bounded', async () => {
   const migration = await source('src/db/migrations/103_create_payment_service_notices.sql');
   assert.match(migration, /payment_service_notices/);
@@ -263,6 +275,23 @@ test('poster surface ordering is role guarded, tenant scoped, and uses fixed col
   assert.match(marketing, /partnership: "partnership_sort_order"/);
   assert.match(marketing, /assertVoucherTargetExists/);
   assert.match(marketing, /FROM voucher_templates[\s\S]{0,200}tenant_id = :tenantId/);
+  assert.match(marketing, /assertPartnerMenuCategoryExists/);
+  const partnerCategoryValidator = marketing.match(
+    /async function assertPartnerMenuCategoryExists[\s\S]*?\n}/,
+  )?.[0] ?? '';
+  assert.match(
+    partnerCategoryValidator,
+    /FROM menu_categories[\s\S]{0,200}code = :categoryCode[\s\S]{0,120}is_active = 1/,
+  );
+  assert.match(
+    partnerCategoryValidator,
+    /JOIN menu_item_tenants tenant_item[\s\S]{0,200}tenant_item\.tenant_id = :tenantId/,
+  );
+  assert.doesNotMatch(
+    partnerCategoryValidator,
+    /FROM menu_categories[\s\S]{0,100}WHERE tenant_id/,
+  );
+  assert.match(marketing, /isVoucher \|\| isNewItem \|\| isPartner/);
 });
 
 test('option groups use tenant catalogue ownership without depending on outlet availability', async () => {

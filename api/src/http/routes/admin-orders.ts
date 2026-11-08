@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 import { consumeInventoryForOrder, releaseInventoryForOrder, reverseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
+import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 
 function formatDisplayDate(dateObj: Date): string {
   if (!dateObj) return '';
@@ -1293,10 +1294,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         `SELECT o.id, o.user_id, o.status, o.store_id,
                 COALESCE(o.is_guest, 0) AS is_guest,
                 COALESCE(o.order_channel, 'mobile') AS order_channel,
+                up.email AS customer_email,
                 ocr.status AS cancellation_request_status
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
+         LEFT JOIN user_profiles up ON up.user_id = o.user_id
          LEFT JOIN order_cancellation_requests ocr ON ocr.order_id = o.id
          WHERE o.order_ref = :orderId
            AND t.code = :tenantCode
@@ -1324,6 +1327,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       const internalId = rows[0].id;
       const fromStatus = rows[0].status;
+      let receiptEmailQueued = false;
 
       const workstationKey = request.headers['x-c2-workstation-key'];
       const isWorkstationRequest = typeof workstationKey === 'string' && /^C2-[A-Z0-9]{12}$/.test(workstationKey.trim().toUpperCase());
@@ -1442,6 +1446,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           title: 'Your order is ready',
           body: 'Your order is ready for collection. Please collect it at the counter when convenient.'
         });
+        receiptEmailQueued = await queueOrderReceiptEmail(connection, {
+          orderId: Number(internalId),
+          recipientEmail: rows[0].customer_email ?? null
+        });
       }
 
       // Super admins may record collection on behalf of a customer. Keep the
@@ -1470,6 +1478,16 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           // a provider outage cannot affect the order lifecycle.
           request.log.warn({ err: error, orderRef: orderId }, 'Push delivery failed after order update.');
         }
+      }
+
+      if (receiptEmailQueued) {
+        void deliverQueuedOrderReceiptEmail(Number(internalId)).then((outcome) => {
+          if (outcome === 'failed') {
+            request.log.warn({ orderRef: orderId }, 'Order receipt email delivery failed after order became ready.');
+          }
+        }).catch(() => {
+          request.log.warn({ orderRef: orderId }, 'Order receipt email delivery could not be started after order became ready.');
+        });
       }
 
       return reply.send({

@@ -144,7 +144,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
       const payload = { ...maintenance, expected_end_at: maintenance.expected_end_at || null };
       const { maintenance: saved } = await updateAdminMaintenance(payload);
       setMaintenance((current) => ({ ...current, ...saved }));
-      setMaintenanceMessage(maintenance.enabled ? "Maintenance mode is active. Employees can continue testing." : "Maintenance mode is off. Customers can order again and will be notified.");
+      setMaintenanceMessage(maintenance.enabled ? "Maintenance mode is active. Employee, Intern, and Boss accounts can continue testing." : "Maintenance mode is off. Customers can order again and will be notified.");
     } catch {
       setMaintenanceMessage("Maintenance settings could not be saved. Check the message and expected end time.");
     } finally {
@@ -325,10 +325,10 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                   <h2 className="text-lg font-bold text-gray-900">Customer app maintenance</h2>
                   <InfoTooltip
                     title="Maintenance Lockout"
-                    content="Temporarily suspends mobile customer ordering. Baristas and staff with employee bypass remain able to access internal tools."
+                    content="Temporarily suspends mobile customer ordering. Employee, Intern, and Boss company accounts remain able to access the customer app."
                   />
                 </div>
-                <p className="mt-1 text-sm text-gray-500">When enabled, customers see only the maintenance screen. Approved employee accounts can continue for internal testing.</p>
+                <p className="mt-1 text-sm text-gray-500">When enabled, ordinary customers see only the maintenance screen. Employee, Intern, and Boss accounts can continue for internal testing.</p>
                 <label className="mt-4 flex items-center gap-3 text-sm font-bold text-gray-800 cursor-pointer">
                   <input
                     type="checkbox"
@@ -338,7 +338,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                   />
                   <span>Enable maintenance mode</span>
                 </label>
-                <p className="mt-1.5 text-xs text-gray-500">Employee bypass is always enabled and is controlled by the employee flag on the customer membership.</p>
+                <p className="mt-1.5 text-xs text-gray-500">Company-role bypass is always enabled for Employee, Intern, and Boss customer memberships.</p>
                 
                 <label className="mt-4 block text-sm font-bold text-gray-700">
                   Screen title

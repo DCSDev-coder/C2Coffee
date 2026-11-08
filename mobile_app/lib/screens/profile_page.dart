@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../services/catalog_api_service.dart';
 import '../services/customer_data_service.dart';
+import '../services/partner_campaign_launcher.dart';
 import '../services/secure_session_service.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../services/app_session_service.dart';
@@ -954,7 +954,7 @@ class _ProfilePageState extends State<ProfilePage> {
             itemBuilder: (context, index) {
               final banner = banners[index];
               return GestureDetector(
-                onTap: () => unawaited(_openPartnerCampaign(banner)),
+                onTap: () => unawaited(_openPartnerOrMenu(banner)),
                 child: SizedBox(
                   width: MediaQuery.sizeOf(context).width.clamp(280, 420) - 48,
                   child: ClipRRect(
@@ -979,28 +979,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (banner.sponsoredLabel)
-                                const Text(
-                                  'SPONSORED',
-                                  style: TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white70,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              if ((banner.partnerName ?? '').trim().isNotEmpty)
-                                Text(
-                                  banner.partnerName!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 16,
-                                    color: Colors.white,
-                                  ),
-                                ),
                               Text(
                                 banner.title,
                                 maxLines: 1,
@@ -1056,45 +1034,25 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _openPartnerCampaign(HomeBanner banner) async {
     unawaited(_recordPartnerEngagement(banner, 'click'));
-    final value = banner.actionValue?.trim() ?? '';
-    if (banner.actionType == 'none' || value.isEmpty) return;
+    await PartnerCampaignLauncher.open(context, banner);
+  }
 
-    final uri = banner.actionType == 'email'
-        ? Uri(scheme: 'mailto', path: value, queryParameters: {
-            'subject': 'C2 Coffee Partnership: ${banner.title}',
-          })
-        : Uri.tryParse(value);
-    if (uri == null ||
-        (banner.actionType == 'external_url' && uri.scheme != 'https')) {
+  Future<void> _openPartnerOrMenu(HomeBanner banner) async {
+    final category = banner.resolvePartnerMenuCategory(_session.menuCategories);
+    if (category == null) {
+      await _openPartnerCampaign(banner);
       return;
     }
 
-    if (banner.actionType == 'external_url' && mounted) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(
-            banner.bannerType == 'social'
-                ? 'Open social or entertainment link?'
-                : 'Open partner website?',
-          ),
-          content:
-              Text('You are leaving the C2 Coffee app to visit ${uri.host}.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-    }
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    unawaited(_recordPartnerEngagement(banner, 'click'));
+    if (!mounted) return;
+    CustomBottomNav.switchTab(
+      context,
+      MenuPage(
+        initialCategoryCode: category.code,
+        partnerBanner: banner,
+      ),
+    );
   }
 
   Widget _buildNewsCard(HomeBanner banner, List<HomeBanner> allBanners) {

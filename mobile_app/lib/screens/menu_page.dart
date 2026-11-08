@@ -9,6 +9,7 @@ import '../services/app_session_service.dart';
 import '../services/catalog_presentation.dart';
 import '../services/cart_service.dart';
 import '../services/catalog_api_service.dart';
+import '../services/partner_campaign_launcher.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../services/customer_data_service.dart';
@@ -29,9 +30,14 @@ import 'simple_product_detail_page.dart';
 class MenuPage extends StatefulWidget {
   final int initialCategoryIndex;
   final String? initialCategoryCode;
+  final HomeBanner? partnerBanner;
 
-  const MenuPage(
-      {super.key, this.initialCategoryIndex = 0, this.initialCategoryCode});
+  const MenuPage({
+    super.key,
+    this.initialCategoryIndex = 0,
+    this.initialCategoryCode,
+    this.partnerBanner,
+  });
 
   @override
   State<MenuPage> createState() => _MenuPageState();
@@ -2011,23 +2017,77 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 
+  HomeBanner? _partnerBannerForSection(_MenuSection section) {
+    final explicitBanner = widget.partnerBanner;
+    final explicitTarget = explicitBanner?.partnerMenuCategoryCode;
+    if (explicitTarget?.toLowerCase() == section.key.toLowerCase()) {
+      return explicitBanner;
+    }
+
+    for (final banner in _session.homeBanners) {
+      final category =
+          banner.resolvePartnerMenuCategory(_session.menuCategories);
+      if (category?.code.toLowerCase() == section.key.toLowerCase()) {
+        return banner;
+      }
+    }
+    return null;
+  }
+
   Widget _buildSection(_MenuSection section, int index) {
     final crossAxisCount =
         MediaQuery.orientationOf(context) == Orientation.landscape ? 3 : 2;
+    final partnerBanner = _partnerBannerForSection(section);
+    final showsPartnerVisit = partnerBanner != null;
     return Column(
       key: _sectionKeys[index],
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 6, top: 4),
-          child: Text(
-            section.title,
-            style: TextStyle(
-              fontFamily: 'Recoleta',
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.deepTeal,
-            ),
+          padding: const EdgeInsets.only(bottom: 8, top: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  section.title,
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+              ),
+              if (showsPartnerVisit) const SizedBox(width: 10),
+              if (showsPartnerVisit)
+                OutlinedButton.icon(
+                  onPressed: () => unawaited(
+                    PartnerCampaignLauncher.open(context, partnerBanner),
+                  ),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 13.5),
+                  label: const Text('Visit Us'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.deepTeal,
+                    backgroundColor:
+                        AppColors.secondary.withValues(alpha: 0.12),
+                    side: BorderSide(
+                      color: AppColors.secondary.withValues(alpha: 0.35),
+                      width: 0.8,
+                    ),
+                    minimumSize: const Size(0, 32),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    textStyle: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         GridView.builder(

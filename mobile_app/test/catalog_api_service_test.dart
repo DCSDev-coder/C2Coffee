@@ -38,4 +38,63 @@ void main() {
     expect(banner.floatingSortOrder, 30);
     expect(banner.partnershipSortOrder, 20);
   });
+
+  test('partner banner resolves a targeted category with visible items', () {
+    final banner = HomeBanner.fromApi({
+      'id': 8,
+      'code': '5luxe-campaign',
+      'title': '5Luxe',
+      'subtitle': 'Partner products',
+      'image_source': '/5luxe.webp',
+      'banner_type': 'partner',
+      'destination_type': 'menu',
+      'target_value': '5luxe',
+    });
+    final category = MenuCategoryGroup.fromApi({
+      'id': 3,
+      'code': '5Luxe',
+      'name': '5Luxe Scents Co.',
+      'items': [
+        {
+          'id': 21,
+          'code': 'amber-jar',
+          'name': 'Amber Jar Candle',
+          'is_available': true,
+          'availability_status': 'available',
+        },
+      ],
+    });
+
+    expect(banner.partnerMenuCategoryCode, '5luxe');
+    expect(banner.resolvePartnerMenuCategory([category]), same(category));
+  });
+
+  test('partner banner falls back when its category has no visible items', () {
+    final banner = HomeBanner.fromApi({
+      'id': 9,
+      'code': 'empty-partner',
+      'title': 'Partner',
+      'subtitle': 'Visit partner',
+      'image_source': '/partner.webp',
+      'banner_type': 'partner',
+      'destination_type': 'menu',
+      'target_value': 'partner-products',
+    });
+    final category = MenuCategoryGroup.fromApi({
+      'id': 4,
+      'code': 'partner-products',
+      'name': 'Partner Products',
+      'items': [
+        {
+          'id': 22,
+          'code': 'coming-soon',
+          'name': 'Coming Soon',
+          'is_available': true,
+          'availability_status': 'coming_soon',
+        },
+      ],
+    });
+
+    expect(banner.resolvePartnerMenuCategory([category]), isNull);
+  });
 }
