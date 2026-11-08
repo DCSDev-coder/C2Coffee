@@ -13,6 +13,7 @@ import 'dart:io';
 import '../widgets/order_status_banner.dart';
 import 'my_rewards_page.dart';
 import 'gift_cards_page.dart';
+import 'app_review_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
 
@@ -580,6 +581,7 @@ class _RewardsPageState extends State<RewardsPage> {
             ],
           ),
         ),
+        _buildReviewCard(),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
           child: GestureDetector(
@@ -768,6 +770,81 @@ class _RewardsPageState extends State<RewardsPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildReviewCard() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: GestureDetector(
+        onTap: () => InteractiveFillingLoader.show(
+          context,
+          targetPage: const AppReviewPage(),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(
+                  Icons.rate_review_rounded,
+                  color: AppColors.gold,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Help Us Improve',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.brandText,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Share a review about your C2 app experience.',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 14,
+                        height: 1.25,
+                        color: AppColors.brandText.withValues(alpha: 0.68),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
