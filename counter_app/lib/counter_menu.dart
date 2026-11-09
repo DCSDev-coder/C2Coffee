@@ -92,6 +92,7 @@ class CounterMenuItem {
   final bool allowChoiceOfSweetness;
   final bool allowIceLevel;
   final bool allowTemperature;
+  final bool allowSparklingMixer;
   final List<CounterModifierGroup> modifierGroups;
   final Map<String, dynamic> source;
 
@@ -109,6 +110,7 @@ class CounterMenuItem {
     this.allowChoiceOfSweetness = false,
     this.allowIceLevel = false,
     this.allowTemperature = false,
+    this.allowSparklingMixer = false,
     this.modifierGroups = const [],
     required this.source,
   });
@@ -148,6 +150,7 @@ class CounterMenuItem {
           json['allow_choice_of_sweetness'] as bool? ?? false,
       allowIceLevel: json['allow_ice_level'] as bool? ?? false,
       allowTemperature: json['allow_temperature'] as bool? ?? false,
+      allowSparklingMixer: json['allow_sparkling_mixer'] as bool? ?? false,
       modifierGroups: (json['modifier_groups'] as List? ?? const [])
           .map(
             (group) => CounterModifierGroup.fromApi(
@@ -189,6 +192,22 @@ class CounterMenuItem {
     if (milks.isEmpty) return false;
     final normalized = milk.toLowerCase().replaceAll("'", "").replaceAll(" ", "");
     return milks.any((m) => m.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized);
+  }
+
+  List<String> get availableSparkling {
+    final list = source['available_sparkling'];
+    if (list is List) {
+      return list.map((e) => e.toString()).toList();
+    }
+    return const ['Ginger Ade', 'Tonic Water'];
+  }
+
+  bool isSparklingAvailable(String sparkling) {
+    if (!allowSparklingMixer) return false;
+    final sparklingList = availableSparkling;
+    if (sparklingList.isEmpty) return false;
+    final normalized = sparkling.toLowerCase().replaceAll("'", "").replaceAll(" ", "");
+    return sparklingList.any((s) => s.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized);
   }
 }
 

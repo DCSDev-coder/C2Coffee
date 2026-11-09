@@ -14,12 +14,16 @@ import 'barista/services/direct_printer_service.dart';
 /// This worker belongs to the application shell, so changing between Counter
 /// and Barista workspaces or signing a staff member out does not stop printing.
 class DevicePrinterWorker {
-  DevicePrinterWorker({required AuthService authService})
-    : _authService = authService;
+  DevicePrinterWorker({
+    required AuthService authService,
+    Future<void> Function()? pollOverride,
+  }) : _authService = authService,
+       _pollOverride = pollOverride;
 
   static const Duration _pollInterval = Duration(seconds: 5);
 
   final AuthService _authService;
+  final Future<void> Function()? _pollOverride;
   final ApiClient _apiClient = ApiClient();
   Timer? _timer;
   bool _polling = false;
@@ -37,12 +41,23 @@ class DevicePrinterWorker {
     _timer = null;
   }
 
+  /// Android can suspend Dart timers while the tablet sleeps. Recreate the
+  /// timer and trigger an immediate poll whenever the app returns foreground.
+  void resume() {
+    stop();
+    start();
+  }
+
   void dispose() {
     stop();
     lastError.dispose();
   }
 
   Future<void> _poll() async {
+    if (_pollOverride case final override?) {
+      await override();
+      return;
+    }
     if (_polling) return;
     _polling = true;
     try {
@@ -63,6 +78,11 @@ class DevicePrinterWorker {
           return;
         }
         if (response.statusCode != 200) {
+          if (response.statusCode == 401) {
+            lastError.value =
+                'Device pairing invalid or rotated. Please reactivate in Admin Web.';
+            return;
+          }
           lastError.value = _safeMessage(
             response.body,
             'Printer queue unavailable (${response.statusCode}).',

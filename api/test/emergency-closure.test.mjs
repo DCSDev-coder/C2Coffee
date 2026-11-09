@@ -18,6 +18,18 @@ const chipSettlement = await readFile(
   new URL('../src/services/chip-counter-settlement.ts', import.meta.url),
   'utf8',
 );
+const guard = await readFile(
+  new URL('../src/admin/guard.ts', import.meta.url),
+  'utf8',
+);
+
+test('barista guard allows attendance history, inventory, and emergency outlet actions', () => {
+  assert.match(guard, /status\|history\|current\|clock-in\|clock-out/);
+  assert.match(guard, /\/v1\/barista\/inventory/);
+  assert.match(guard, /\/v1\/barista\/inventory\/movements/);
+  assert.match(guard, /\/v1\/barista\/outlet\/emergency-close/);
+  assert.match(guard, /\/v1\/barista\/outlet\/emergency-reopen/);
+});
 
 test('emergency closure blocks prepared orders and safely handles earlier orders', () => {
   assert.match(routes, /'preparing', 'ready_for_pickup'/);

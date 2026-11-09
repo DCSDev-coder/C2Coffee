@@ -47,19 +47,36 @@ class SplashOrLoginScreen extends StatefulWidget {
 class _SplashOrLoginScreenState extends State<SplashOrLoginScreen> {
   final AuthService _authService = AuthService();
   bool _isChecking = true;
-  bool _isLoggedIn = false;
+  DeviceVerificationStatus _verificationStatus =
+      DeviceVerificationStatus.temporarilyUnavailable;
 
   @override
   void initState() {
     super.initState();
+    _authService.statusNotifier.addListener(_onStatusChanged);
     _checkDevice();
   }
 
-  Future<void> _checkDevice() async {
-    final isValid = await _authService.verifyDevice();
+  @override
+  void dispose() {
+    _authService.statusNotifier.removeListener(_onStatusChanged);
+    super.dispose();
+  }
+
+  void _onStatusChanged() {
     if (mounted) {
       setState(() {
-        _isLoggedIn = isValid;
+        _verificationStatus = _authService.statusNotifier.value;
+      });
+    }
+  }
+
+  Future<void> _checkDevice() async {
+    setState(() => _isChecking = true);
+    final status = await _authService.verifyDevice();
+    if (mounted) {
+      setState(() {
+        _verificationStatus = status;
         _isChecking = false;
       });
     }
@@ -71,19 +88,63 @@ class _SplashOrLoginScreenState extends State<SplashOrLoginScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (_isLoggedIn) {
+    if (_verificationStatus == DeviceVerificationStatus.activated) {
       return WorkspaceSelectionScreen(authService: _authService);
-    } else {
-      return ActivationScreen(
-        authService: _authService,
-        onActivated: () {
-          setState(() {
-            _isLoggedIn = true;
-          });
-        },
-      );
     }
+    if (_verificationStatus ==
+        DeviceVerificationStatus.temporarilyUnavailable) {
+      return DeviceConnectionRetryScreen(onRetry: _checkDevice);
+    }
+    return ActivationScreen(
+      authService: _authService,
+      onActivated: () {
+        setState(() {
+          _verificationStatus = DeviceVerificationStatus.activated;
+        });
+      },
+    );
   }
+}
+
+class DeviceConnectionRetryScreen extends StatelessWidget {
+  const DeviceConnectionRetryScreen({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.cloud_off_rounded, size: 64),
+              const SizedBox(height: 18),
+              Text(
+                'Device connection unavailable',
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'This device is still activated. Check the internet connection and retry—no new activation code is required.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry device connection'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class ActivationScreen extends StatefulWidget {
@@ -279,6 +340,7 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _printerWorker.resume();
       _checkForUpdate(showNoUpdate: false, automatic: true);
     }
   }
@@ -482,6 +544,14 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
               switch (action) {
                 case _WorkspaceMenuAction.update:
                   await _checkForUpdate();
+                case _WorkspaceMenuAction.reactivate:
+                  final allowed = await _confirmAdministratorWorkspaceExit(
+                    context,
+                    widget.authService,
+                  );
+                  if (allowed && mounted) {
+                    await widget.authService.logout();
+                  }
                 case _WorkspaceMenuAction.exit:
                   await SystemNavigator.pop();
               }
@@ -493,6 +563,14 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.system_update_alt_rounded),
                   title: Text('Update'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _WorkspaceMenuAction.reactivate,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.phonelink_setup_rounded),
+                  title: Text('Re-activate device'),
                 ),
               ),
               PopupMenuItem(
@@ -592,7 +670,7 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
   }
 }
 
-enum _WorkspaceMenuAction { update, exit }
+enum _WorkspaceMenuAction { update, reactivate, exit }
 
 class _WorkspaceCard extends StatelessWidget {
   const _WorkspaceCard({
@@ -720,6 +798,10 @@ class _AdministratorWorkspaceExitDialogState
     );
     if (!mounted) return;
     if (result.success) {
+      if (!result.deviceTokenValid) {
+        await widget.authService.logout();
+      }
+      if (!mounted) return;
       Navigator.of(context).pop(true);
       return;
     }

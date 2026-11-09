@@ -215,9 +215,22 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   int _drinkTokenCharge(CartSnapshot snapshot) {
     return snapshot.items.where((item) {
       final kind = item.productKindCode?.trim().toLowerCase();
-      if (kind != null && kind.isNotEmpty) return kind == 'drink';
+      if (kind != null && kind.isNotEmpty && kind != 'other') {
+        return kind == 'drink';
+      }
       final category = item.categoryCode?.trim().toLowerCase();
-      return category == 'coffee' || category == 'non_coffee';
+      return const {
+        'coffee',
+        'non_coffee',
+        'coffee_craft',
+        'mocktails',
+        'chocolate',
+        'matcha',
+        'flavoured_coffee',
+        'tea',
+        'drinks',
+        'beverages',
+      }.contains(category);
     }).fold<int>(0, (sum, item) => sum + item.lineTotalTokens);
   }
 
@@ -1358,6 +1371,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           max(0, (subtotalTokens * (discountRm / subtotalRm)).round()));
     } else if (t.discountMode == 'free_drink') {
       return min(subtotalTokens, t.freeItemTokenDiscount(snapshot));
+    } else if (t.discountMode == 'free_option') {
+      return min(subtotalTokens, t.freeOptionTokenDiscount(snapshot));
     }
     return 0;
   }
@@ -1546,6 +1561,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           ? 0.0
           : snapshot.items.map((item) => item.unitTotalRm).reduce(max);
       return min(snapshot.subtotalRm, highestItem);
+    }
+    if (t.discountMode == 'free_option') {
+      return min(snapshot.subtotalRm, t.freeOptionRmDiscount(snapshot));
     }
     return 0;
   }

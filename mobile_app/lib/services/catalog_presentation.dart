@@ -69,6 +69,9 @@ class CatalogPresentation {
       'allowSparklingMixer': item.allowSparklingMixer,
       'allowOrderType': item.allowOrderType,
       'allowRemarks': item.allowRemarks,
+      'available_beans': item.availableBeans,
+      'available_milks': item.availableMilks,
+      'available_sparkling': item.availableSparkling,
       'modifierGroups': item.modifierGroups
           .map((group) => {
                 'id': group.id,

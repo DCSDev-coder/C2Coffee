@@ -17,23 +17,23 @@ import { consumeInventoryForOrder, releaseInventoryForOrder, reverseInventoryFor
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 
-function formatDisplayDate(dateObj: Date): string {
+export function formatDisplayDate(dateObj: Date, timeZone = 'Asia/Kuala_Lumpur'): string {
   if (!dateObj) return '';
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-    timeZone: 'Asia/Kuala_Lumpur'
+    timeZone
   }).format(dateObj);
 }
 
-function formatDisplayTime(dateObj: Date): string {
+export function formatDisplayTime(dateObj: Date, timeZone = 'Asia/Kuala_Lumpur'): string {
   if (!dateObj) return '';
   return new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-    timeZone: 'Asia/Kuala_Lumpur'
+    timeZone
   }).format(dateObj);
 }
 
@@ -226,7 +226,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           o.ready_at,
           o.created_at,
           s.id as storeId,
-          s.name as storeName
+          s.name as storeName,
+          s.timezone as storeTimezone
         FROM orders o
         JOIN users u ON o.user_id = u.id
         JOIN user_profiles up ON u.id = up.user_id
@@ -376,8 +377,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           baristaUsername: '',
           createdAt: d.toISOString(),
           readyAt: o.ready_at ? new Date(o.ready_at).toISOString() : null,
-          time: formatDisplayTime(d),
-          date: formatDisplayDate(d)
+          time: formatDisplayTime(d, String(o.storeTimezone || 'Asia/Kuala_Lumpur')),
+          date: formatDisplayDate(d, String(o.storeTimezone || 'Asia/Kuala_Lumpur'))
           ,storeId: Number(o.storeId)
           ,storeName: o.storeName
         };

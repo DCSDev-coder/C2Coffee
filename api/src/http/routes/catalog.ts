@@ -16,6 +16,10 @@ import {
 import { assertCustomerAccess, loadMaintenanceForUser } from "../../services/app-maintenance.js";
 import { loadRecipeAvailabilityIssues, summariseAvailability } from "../../services/inventory.js";
 import { autoReopenEmergencyClosures } from "../../services/outlet-emergency.js";
+import {
+  normalizeCustomizationValue,
+  resolveCustomizationTypeForGroup,
+} from "./barista-menu-availability.js";
 
 const menuQuerySchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -145,6 +149,7 @@ type MenuItemResponse = {
   product_kind_name: string;
   available_beans?: string[];
   available_milks?: string[];
+  available_sparkling?: string[];
   token_prices: Record<string, number>;
   modifier_groups: Array<MenuModifierGroup>;
 };
@@ -183,7 +188,44 @@ type MenuCategoryResponse = {
 function resolveProductKind(
   productKindCode: string | null | undefined,
   categoryCode?: string,
+  isHandcraftedDrink?: boolean,
 ): { code: string; name: string } {
+  const normalizedCategory = String(categoryCode ?? "")
+    .trim()
+    .toLowerCase();
+  const inferredFromCategory = (() => {
+    switch (normalizedCategory) {
+      case "coffee":
+      case "non_coffee":
+      case "coffee_craft":
+      case "mocktails":
+      case "chocolate":
+      case "matcha":
+      case "flavoured_coffee":
+      case "tea":
+      case "drinks":
+      case "beverages":
+        return { code: "drink", name: "Drinks" };
+      case "food":
+      case "dessert":
+      case "desserts":
+      case "pastries":
+      case "pastry":
+      case "bakery":
+        return { code: "food", name: "Food" };
+      case "merchandise":
+        return { code: "merchandise", name: "Merchandise" };
+      case "candles":
+      case "5luxe_scents_co":
+      case "5luxe-scents-co":
+        return { code: "candle", name: "Candles" };
+      default:
+        return isHandcraftedDrink
+          ? { code: "drink", name: "Drinks" }
+          : null;
+    }
+  })();
+
   switch (
     String(productKindCode ?? "")
       .trim()
@@ -198,25 +240,9 @@ function resolveProductKind(
     case "candle":
       return { code: "candle", name: "Candles" };
     case "other":
-      return { code: "other", name: "Other" };
+      return inferredFromCategory ?? { code: "other", name: "Other" };
     default:
-      switch (
-        String(categoryCode ?? "")
-          .trim()
-          .toLowerCase()
-      ) {
-        case "coffee":
-        case "non_coffee":
-          return { code: "drink", name: "Drinks" };
-        case "food":
-          return { code: "food", name: "Food" };
-        case "merchandise":
-          return { code: "merchandise", name: "Merchandise" };
-        case "candles":
-          return { code: "candle", name: "Candles" };
-        default:
-          return { code: "other", name: "Other" };
-      }
+      return inferredFromCategory ?? { code: "other", name: "Other" };
   }
 }
 
@@ -619,7 +645,7 @@ export async function registerCatalogRoutes(
     },
   );
 
-  app.get("/v1/menu", { preHandler: authenticateRequest }, async (request) => {
+  app.get("/v1/menu", { preHandler: authenticateRequest }, async (request, reply) => {
     await assertCustomerAccess(request.auth.userId);
     const { store_id: storeId } = menuQuerySchema.parse(request.query);
 
@@ -628,6 +654,9 @@ export async function registerCatalogRoutes(
       throw new ApiError(404, "store_not_found", "Store was not found.");
     }
 
+    // Menu availability can be changed by the barista at any time. Do not
+    // let an intermediary cache keep a stale customization or item state.
+    reply.header("Cache-Control", "no-store");
     return loadCatalogMenu(storeId);
   });
 
@@ -679,6 +708,8 @@ export async function registerCatalogRoutes(
 export async function loadCatalogMenu(storeId: number) {
   let availableBeans = ['Dato Blend', 'Datin Blend'];
   let availableMilks = ['Fresh Milk', 'Oat Milk'];
+  let availableSparkling = ['Ginger Ade', 'Tonic Water'];
+  const customizationAvailabilityMap = new Map<string, boolean>();
   try {
     const [customizationRows] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT customization_type, customization_value, is_available
@@ -686,21 +717,28 @@ export async function loadCatalogMenu(storeId: number) {
         WHERE store_id = :storeId`,
       { storeId }
     );
-    const map = new Map<string, boolean>();
     for (const r of customizationRows) {
-      map.set(`${String(r.customization_type).toLowerCase()}:${String(r.customization_value).toLowerCase()}`, Number(r.is_available) === 1);
+      customizationAvailabilityMap.set(
+        `${String(r.customization_type).toLowerCase()}:${normalizeCustomizationValue(String(r.customization_value))}`,
+        Number(r.is_available) === 1
+      );
     }
     const filteredBeans: string[] = [];
-    if (map.get('bean:dato blend') ?? true) filteredBeans.push('Dato Blend');
-    if (map.get('bean:datin blend') ?? true) filteredBeans.push('Datin Blend');
+    if (customizationAvailabilityMap.get('bean:dato blend') ?? true) filteredBeans.push('Dato Blend');
+    if (customizationAvailabilityMap.get('bean:datin blend') ?? true) filteredBeans.push('Datin Blend');
     availableBeans = filteredBeans;
 
     const filteredMilks: string[] = [];
-    if (map.get('milk:fresh milk') ?? true) filteredMilks.push('Fresh Milk');
-    if (map.get('milk:oat milk') ?? true) filteredMilks.push('Oat Milk');
+    if (customizationAvailabilityMap.get('milk:fresh milk') ?? true) filteredMilks.push('Fresh Milk');
+    if (customizationAvailabilityMap.get('milk:oat milk') ?? true) filteredMilks.push('Oat Milk');
     availableMilks = filteredMilks;
+
+    const filteredSparkling: string[] = [];
+    if (customizationAvailabilityMap.get('sparkling:ginger ade') ?? true) filteredSparkling.push('Ginger Ade');
+    if (customizationAvailabilityMap.get('sparkling:tonic water') ?? true) filteredSparkling.push('Tonic Water');
+    availableSparkling = filteredSparkling;
   } catch {
-    // If table doesn't exist yet, fallback to both
+    // If table doesn't exist yet, fallback to defaults
   }
 
   const [rows] = await mysqlPool.query<Array<MenuRow>>(
@@ -831,6 +869,7 @@ export async function loadCatalogMenu(storeId: number) {
       const productKind = resolveProductKind(
         row.category_product_kind_code,
         row.category_code,
+        row.is_handcrafted_drink === 1,
       );
       category.items.push({
         id: row.item_id,
@@ -861,6 +900,7 @@ export async function loadCatalogMenu(storeId: number) {
         product_kind_name: productKind.name,
         available_beans: row.allow_choice_of_beans === 1 ? availableBeans : undefined,
         available_milks: row.allow_choice_of_milk === 1 ? availableMilks : undefined,
+        available_sparkling: row.allow_sparkling_mixer === 1 ? availableSparkling : undefined,
         token_prices: {},
         modifier_groups: [],
       });
@@ -936,6 +976,11 @@ export async function loadCatalogMenu(storeId: number) {
        ORDER BY g.sort_order, g.id, o.sort_order, o.id`,
     { storeId },
   );
+  // Once the tenant has enabled the centralized Options & Nutrition library,
+  // legacy item-level bean/milk/sparkling groups must not leak back into the
+  // customer catalog. Otherwise an option removed from Admin Web can still
+  // appear through the old item-level configuration.
+  const hasCentralizedOptionLibrary = libraryRows.length > 0;
   const [optionNutritionRows] = await mysqlPool.query<Array<RowDataPacket>>(
     `SELECT n.menu_item_id, n.option_group_option_id, n.calorie_delta_kcal
        FROM menu_item_option_nutrition_overrides n
@@ -1021,6 +1066,17 @@ export async function loadCatalogMenu(storeId: number) {
         };
         item.modifier_groups.push(group);
       }
+      const normalizedOptionValue = normalizeCustomizationValue(String(row.option_name));
+      const customizationType = resolveCustomizationTypeForGroup(String(row.group_name));
+      const isDisabled =
+        customizationAvailabilityMap.get(
+          `group:${Number(row.group_id)}:${normalizedOptionValue}`,
+        ) === false ||
+        (customizationType !== null &&
+          customizationAvailabilityMap.get(
+            `${customizationType}:${normalizedOptionValue}`,
+          ) === false);
+      if (isDisabled) continue;
       if (!group.options.some((option) => option.id === row.option_id)) {
         group.options.push({
           id: row.option_id,
@@ -1048,6 +1104,38 @@ export async function loadCatalogMenu(storeId: number) {
       item.modifier_groups = item.modifier_groups.filter(
         (group) => group.source === "library",
       );
+    } else if (hasCentralizedOptionLibrary) {
+      item.modifier_groups = item.modifier_groups.filter((group) =>
+        !resolveCustomizationTypeForGroup(group.name),
+      );
+    }
+    for (const group of item.modifier_groups) {
+      const customizationType = resolveCustomizationTypeForGroup(group.name);
+      if (!customizationType) continue;
+      group.options = group.options.filter(
+        (option) =>
+          (customizationAvailabilityMap.get(
+            `${customizationType}:${normalizeCustomizationValue(option.name)}`,
+          ) ?? true),
+      );
+      if (
+        group.options.length > 0 &&
+        !group.options.some((option) => option.is_default)
+      ) {
+        group.options[0].is_default = true;
+      }
+      if (group.is_required && group.options.length === 0) {
+        item.is_available = false;
+      }
+    }
+    if (item.allow_choice_of_beans && availableBeans.length === 0) {
+      item.is_available = false;
+    }
+    if (item.allow_choice_of_milk && availableMilks.length === 0) {
+      item.is_available = false;
+    }
+    if (item.allow_sparkling_mixer && availableSparkling.length === 0) {
+      item.is_available = false;
     }
     item.modifier_groups = item.modifier_groups.filter(
       (group) => group.options.length > 0,
@@ -1059,7 +1147,9 @@ export async function loadCatalogMenu(storeId: number) {
   );
   for (const category of categories.values()) {
     for (const item of category.items) {
-      item.availability_status = stockStatus.get(item.id) ?? "available";
+      item.availability_status = !item.is_available
+        ? "sold_out"
+        : (stockStatus.get(item.id) ?? "available");
     }
   }
 

@@ -124,6 +124,16 @@ test('counter checkout settles fully discounted vouchers without trusting a manu
   const settlement = await source('src/services/chip-counter-settlement.ts');
   assert.match(settlement, /status === 'paid' && amountMatches/);
   assert.match(settlement, /UPDATE orders SET status = 'paid'/);
+  const storeLock = settlement.indexOf(
+    'SELECT id FROM stores WHERE id = :storeId LIMIT 1 FOR UPDATE',
+  );
+  const paymentLock = settlement.indexOf(
+    "AND o.order_channel = :orderChannel\n       LIMIT 1 FOR UPDATE",
+  );
+  assert.ok(
+    storeLock >= 0 && paymentLock > storeLock,
+    'settlement must lock the store before the payment/order row',
+  );
 });
 
 test('counter receipts retain server-verified drink option snapshots', async () => {
@@ -562,4 +572,27 @@ test('inventory order usage is revisioned and supplier receipts retain batch tra
   assert.match(readiness, /120_complete_inventory_procurement\.sql/);
   assert.match(readiness, /121_link_inventory_movements_to_supplier\.sql/);
   assert.match(readiness, /122_trace_inventory_usage_and_receipt_batches\.sql/);
+});
+
+test('barista menu availability is role guarded, tenant scoped, and enforced across catalog and checkout', async () => {
+  const guard = await source('src/admin/guard.ts');
+  const baristaMenu = await source('src/http/routes/barista-menu-availability.ts');
+  const catalog = await source('src/http/routes/catalog.ts');
+  const checkout = await source('src/http/routes/checkout.ts');
+  const readiness = await source('src/scripts/production-readiness.ts');
+
+  assert.match(guard, /canUseBaristaMenuAvailability/);
+  assert.match(guard, /\/v1\/barista\/menu\/availability/);
+  assert.match(guard, /barista\\\/menu\\\/items/);
+  assert.match(guard, /\/v1\/barista\/menu\/customizations\/availability/);
+  assert.match(baristaMenu, /menu_item_tenants/);
+  assert.match(baristaMenu, /fk_store_customization_store/);
+  assert.match(catalog, /resolveCustomizationTypeForGroup/);
+  assert.match(catalog, /hasCentralizedOptionLibrary/);
+  assert.match(catalog, /!resolveCustomizationTypeForGroup\(group\.name\)/);
+  assert.match(catalog, /group\.is_required && group\.options\.length === 0/);
+  assert.match(catalog, /app\.get\("\/v1\/menu"[\s\S]{0,700}Cache-Control", "no-store"/);
+  assert.match(checkout, /store_customization_availability/);
+  assert.match(readiness, /142_create_store_customization_availability\.sql/);
+  assert.match(readiness, /143_add_free_option_voucher_mode\.sql/);
 });

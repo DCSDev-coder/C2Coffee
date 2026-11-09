@@ -808,7 +808,7 @@ class _EmergencySheetState extends State<_EmergencySheet> {
             const SizedBox(height: 8),
             Text(
               widget.reopening
-                  ? 'Reopening resumes ordering and clocks the selected scheduled barista in.'
+                  ? 'Reopening resumes ordering and clocks the selected barista in.'
                   : 'Preparing or ready-for-pickup orders will block closure. Earlier orders will be cancelled and refunded safely.',
             ),
             if (widget.expectedReopenAt != null) ...[

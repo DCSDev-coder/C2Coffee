@@ -3,12 +3,16 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 
 class CartModifier {
+  final int? optionGroupId;
+  final int? optionGroupOptionId;
   final String groupName;
   final String optionName;
   final double priceDeltaRm;
   final int tokenPriceDelta;
 
   const CartModifier({
+    this.optionGroupId,
+    this.optionGroupOptionId,
     required this.groupName,
     required this.optionName,
     this.priceDeltaRm = 0,
@@ -21,6 +25,8 @@ class CartModifier {
       'option_name': optionName,
       'price_delta_rm': priceDeltaRm.toStringAsFixed(2),
       'token_price_delta': tokenPriceDelta,
+      if (optionGroupOptionId != null) 'option_group_option_id': optionGroupOptionId,
+      if (optionGroupId != null) 'option_group_id': optionGroupId,
     };
   }
 }
@@ -107,6 +113,8 @@ class CartItem {
       final a = left[i];
       final b = right[i];
       if (a.groupName != b.groupName ||
+          a.optionGroupId != b.optionGroupId ||
+          a.optionGroupOptionId != b.optionGroupOptionId ||
           a.optionName != b.optionName ||
           a.priceDeltaRm != b.priceDeltaRm ||
           a.tokenPriceDelta != b.tokenPriceDelta) {

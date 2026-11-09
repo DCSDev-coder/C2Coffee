@@ -12,6 +12,7 @@ import { getActiveLoyaltyTiers, getTierByCode, loadLoyaltyTiers } from '../../se
 const voucherBenefitTypeSchema = z.enum([
   'Discount',
   'Free',
+  'Free Option',
   'Free Drink',
   'Free Food',
   'Percentage Off',
@@ -43,6 +44,8 @@ const voucherCreateUpdateSchema = z.object({
   rewardItems: z.array(z.string()).optional().default([]),
   qualifyingQuantity: z.number().int().min(1).max(20).optional().default(1),
   rewardQuantity: z.number().int().min(1).max(20).optional().default(1),
+  optionGroupId: z.coerce.number().int().positive().nullable().optional(),
+  optionIds: z.array(z.coerce.number().int().positive()).optional().default([]),
   expiry: z.string().trim().optional().nullable(),
   totalQty: z.coerce.number().int().min(1).max(1_000_000).nullable().optional(),
   limitPerUser: z.coerce.number().int().min(1).max(10_000).nullable().optional(),
@@ -81,6 +84,10 @@ const voucherCreateUpdateSchema = z.object({
       path: ['paymentMode'],
       message: 'Token discounts can only be used with token payment.'
     });
+  }
+
+  if (value.benefitType === 'Free Option' && !value.optionGroupId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['optionGroupId'], message: 'Choose an option group.' });
   }
 
   if (
@@ -208,6 +215,8 @@ type ScopeSelection = {
   subcategory_codes: string[];
   category_codes: string[];
   items: string[];
+  option_group_id?: number | null;
+  option_ids?: number[];
 };
 
 type PromotionRule = {
@@ -681,12 +690,16 @@ function buildPromotionRule(payload: VoucherPayload): PromotionRule {
     payload.rewardCategoryCodes.length > 0 ? payload.rewardCategoryCodes : payload.categoryCodes
   );
 
+  const optionScope = payload.benefitType === 'Free Option'
+    ? { option_group_id: payload.optionGroupId ?? null, option_ids: payload.optionIds }
+    : {};
+
   return {
     kind: payload.promotionKind,
     qualifying_quantity: Math.max(1, payload.qualifyingQuantity || 1),
     reward_quantity: Math.max(1, payload.rewardQuantity || 1),
-    qualifying_scope: qualifyingScope,
-    reward_scope: payload.promotionKind === 'bundle' ? rewardScope : qualifyingScope
+    qualifying_scope: { ...qualifyingScope, ...optionScope },
+    reward_scope: payload.promotionKind === 'bundle' ? { ...rewardScope, ...optionScope } : { ...qualifyingScope, ...optionScope }
   };
 }
 
@@ -1286,6 +1299,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
         productKinds: promotionRule.qualifying_scope.product_kind_codes,
         subcategoryCodes: promotionRule.qualifying_scope.subcategory_codes,
         categoryCodes: promotionRule.qualifying_scope.category_codes,
+        optionGroupId: Number(scope.option_group_id || 0) || null,
+        optionIds: Array.isArray(scope.option_ids) ? scope.option_ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0) : [],
         rewardItems: promotionRule.reward_scope.items,
         rewardProductKinds: promotionRule.reward_scope.product_kind_codes,
         rewardSubcategoryCodes: promotionRule.reward_scope.subcategory_codes,
@@ -1474,7 +1489,11 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     let discountValue = 0;
     let tokenValue: number | null = null;
 
-    if (payload.benefitType === 'Free' || payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
+    if (payload.benefitType === 'Free Option') {
+      discountMode = 'free_option';
+      discountValue = 1;
+      voucherType = 'campaign_token_equivalent';
+    } else if (payload.benefitType === 'Free' || payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
       discountMode = 'free_drink';
       discountValue = 1;
       voucherType = 'campaign_token_equivalent';
@@ -1527,6 +1546,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       subcategory_codes: subcategoryCodes,
       category_codes: categoryCodes,
       items: eligibleItems,
+      option_group_id: payload.optionGroupId ?? null,
+      option_ids: payload.optionIds,
       promotion_rule: promotionRule,
       topup_reward: payload.topupRewardMinTokens == null ? null : {
         min_tokens: payload.topupRewardMinTokens,
@@ -1585,7 +1606,11 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
     let discountValue = 0;
     let tokenValue: number | null = null;
 
-    if (payload.benefitType === 'Free' || payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
+    if (payload.benefitType === 'Free Option') {
+      discountMode = 'free_option';
+      discountValue = 1;
+      voucherType = 'campaign_token_equivalent';
+    } else if (payload.benefitType === 'Free' || payload.benefitType === 'Free Drink' || payload.benefitType === 'Free Food') {
       discountMode = 'free_drink';
       discountValue = 1;
       voucherType = 'campaign_token_equivalent';
@@ -1639,6 +1664,8 @@ export async function registerAdminVoucherRoutes(app: FastifyInstance): Promise<
       subcategory_codes: subcategoryCodes,
       category_codes: categoryCodes,
       items: eligibleItems,
+      option_group_id: payload.optionGroupId ?? null,
+      option_ids: payload.optionIds,
       promotion_rule: promotionRule,
       topup_reward: payload.topupRewardMinTokens == null ? null : {
         min_tokens: payload.topupRewardMinTokens,

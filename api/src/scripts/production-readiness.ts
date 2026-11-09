@@ -181,6 +181,26 @@ async function requirePaymentServiceNoticeIntegrity(): Promise<void> {
   }
 }
 
+async function physicalPrintingIsConfigured(): Promise<boolean> {
+  if (env.PRINT_CONNECTOR_SHARED_SECRET) return true;
+  try {
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & { configured: number }>>(
+      `SELECT COUNT(*) AS configured
+         FROM printer_targets
+        WHERE delivery_mode = 'android_direct'
+          AND is_default = 1
+          AND network_host IS NOT NULL
+          AND network_port IS NOT NULL
+          AND direct_print_device_key IS NOT NULL`
+    );
+    return Number(rows[0]?.configured ?? 0) > 0;
+  } catch {
+    // A readiness run must not silently skip the physical-printer check if
+    // the printer configuration cannot be inspected.
+    return true;
+  }
+}
+
 async function requireLatestSchema(): Promise<void> {
   const required = [
     '108_remove_fixed_expiry_from_tier_rewards.sql',
@@ -218,7 +238,8 @@ async function requireLatestSchema(): Promise<void> {
     '139_add_employee_subsidy_preference.sql',
     '140_create_subsidy_policy_history.sql',
     '141_add_subsidy_role_change_ledger_sources.sql',
-    '142_create_store_customization_availability.sql'
+    '142_create_store_customization_availability.sql',
+    '143_add_free_option_voucher_mode.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,
@@ -450,7 +471,7 @@ async function main(): Promise<void> {
   }
 
   console.log('MANUAL  Verify one OTP email, Admin Web login/refresh/logout, and a real device notification.');
-  if (env.PRINT_CONNECTOR_SHARED_SECRET) {
+  if (await physicalPrintingIsConfigured()) {
     console.log('MANUAL  A print connector is configured; verify one physical receipt using the connected printer hardware.');
   } else {
     console.log('INFO    Receipt printing is not configured in this deployment; no physical-printer test is required.');

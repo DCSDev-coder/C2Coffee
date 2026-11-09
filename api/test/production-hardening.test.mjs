@@ -50,6 +50,15 @@ test('timetable publication rejects stale editors and supports an empty roster',
   assert.doesNotMatch(operations, /Add at least one shift before publishing/);
 });
 
+test('final barista clock-out accounts for today active orders and distinct coverage', async () => {
+  const staff = await source('src/http/routes/barista-staff.ts');
+  assert.match(staff, /new Set\(access\.coverage_attendance\.map\(\(attendance\) => attendance\.barista_id\)\)/);
+  assert.match(staff, /currentBaristaIds\.size > 0 \? currentBaristaIds : recentBaristaIds/);
+  assert.match(staff, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing'\)/);
+  assert.match(staff, /FROM order_cancellation_requests ocr/);
+  assert.match(staff, /DATE\(DATE_ADD\(o\.created_at, INTERVAL 8 HOUR\)\)/);
+});
+
 test('production readiness requires every current release migration', async () => {
   const readiness = await source('src/scripts/production-readiness.ts');
   for (const migration of [

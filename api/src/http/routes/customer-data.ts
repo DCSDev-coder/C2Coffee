@@ -117,7 +117,7 @@ type VoucherRow = RowDataPacket & {
     | 'manual_recovery'
     | 'campaign_direct_pay'
     | 'campaign_token_equivalent';
-  discount_mode: 'fixed_rm' | 'percent_rm' | 'fixed_token' | 'free_drink';
+  discount_mode: 'fixed_rm' | 'percent_rm' | 'fixed_token' | 'free_drink' | 'free_option';
   discount_value: string;
   token_value: number | null;
   min_spend_rm: string | null;

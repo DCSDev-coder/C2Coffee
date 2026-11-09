@@ -24,7 +24,7 @@ class FloatingBottomNav extends StatelessWidget {
       (
         Icons.calendar_month_outlined,
         Icons.calendar_month_rounded,
-        'Timetable',
+        'Attendance',
       ),
       (Icons.checklist_outlined, Icons.checklist_rounded, 'Tasks'),
       (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),

@@ -169,6 +169,9 @@ class CatalogMenuItem {
   final String productKindName;
   final Map<String, int> tokenPrices;
   final List<CatalogModifierGroup> modifierGroups;
+  final List<String>? availableBeans;
+  final List<String>? availableMilks;
+  final List<String>? availableSparkling;
 
   const CatalogMenuItem({
     required this.id,
@@ -201,6 +204,9 @@ class CatalogMenuItem {
     required this.productKindName,
     required this.tokenPrices,
     required this.modifierGroups,
+    this.availableBeans,
+    this.availableMilks,
+    this.availableSparkling,
   });
 
   factory CatalogMenuItem.fromApi(Map<String, dynamic> json) {
@@ -212,6 +218,9 @@ class CatalogMenuItem {
               Map<String, dynamic>.from(group as Map),
             ))
         .toList();
+    final rawAvailableBeans = json['available_beans'] as List?;
+    final rawAvailableMilks = json['available_milks'] as List?;
+    final rawAvailableSparkling = json['available_sparkling'] as List?;
     return CatalogMenuItem(
       id: (json['id'] as num).toInt(),
       code: json['code'] as String? ?? '',
@@ -246,6 +255,10 @@ class CatalogMenuItem {
         (key, value) => MapEntry(key, (value as num).toInt()),
       ),
       modifierGroups: modifierGroups,
+      availableBeans: rawAvailableBeans?.map((e) => e.toString()).toList(),
+      availableMilks: rawAvailableMilks?.map((e) => e.toString()).toList(),
+      availableSparkling:
+          rawAvailableSparkling?.map((e) => e.toString()).toList(),
     );
   }
 }

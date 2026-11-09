@@ -36,6 +36,10 @@ import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-el
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
 import { consumeEmployeeAllowance, currentEmployeeAllowancePeriod } from '../../services/employee-token-allowance.js';
 import { allocateSubsidyEligibleDrinkTokens } from '../../services/subsidy-checkout-policy.js';
+import {
+  normalizeCustomizationValue,
+  resolveCustomizationTypeForGroup
+} from './barista-menu-availability.js';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -59,7 +63,8 @@ const createOrderSchema = z.object({
                 .transform((value) => Number(value)),
               token_price_delta: z.coerce.number().int().min(-999).max(999).default(0),
               calorie_delta_kcal: z.coerce.number().int().min(-5000).max(5000).default(0),
-              option_group_option_id: z.coerce.number().int().positive().nullish()
+              option_group_option_id: z.coerce.number().int().positive().nullish(),
+              option_group_id: z.coerce.number().int().positive().nullish()
             })
           )
           .max(20)
@@ -131,6 +136,7 @@ export type MenuItemRow = RowDataPacket & {
   base_calories_kcal: number;
   is_available: number;
   token_price: number | null;
+  is_handcrafted_drink: number;
   is_qualifying_cup: number;
   category_code: string;
   category_name: string;
@@ -193,7 +199,7 @@ export type AppliedVoucherRow = RowDataPacket & {
   template_code: string;
   template_name: string;
   voucher_type: string;
-  discount_mode: 'fixed_rm' | 'percent_rm' | 'fixed_token' | 'free_drink';
+  discount_mode: 'fixed_rm' | 'percent_rm' | 'fixed_token' | 'free_drink' | 'free_option';
   discount_value: string;
   token_value: number | null;
   min_spend_rm: string | null;
@@ -257,6 +263,8 @@ type VoucherScopeSelection = {
   subcategory_codes: string[];
   category_codes: string[];
   items: string[];
+  option_group_id?: number | null;
+  option_ids?: number[];
 };
 
 type VoucherPromotionRule = {
@@ -386,7 +394,9 @@ function _scopeSelectionFromScope(scope: Record<string, unknown>): VoucherScopeS
     product_kind_codes: _stringScopeList(scope, ['product_kind_codes', 'product_kinds']).map(_normalizeValue),
     subcategory_codes: _stringScopeList(scope, ['subcategory_codes']).map(_normalizeValue),
     category_codes: _stringScopeList(scope, ['category_codes', 'categories']).map(_normalizeValue),
-    items: items.length === 1 && items[0] === _normalizeValue('All Items') ? [] : items
+    items: items.length === 1 && items[0] === _normalizeValue('All Items') ? [] : items,
+    option_group_id: scope.option_group_id == null ? null : Number(scope.option_group_id),
+    option_ids: _stringScopeList(scope, ['option_ids']).map(Number).filter((id) => Number.isInteger(id) && id > 0)
   };
 }
 
@@ -396,7 +406,9 @@ function _scopeSelectionFromRaw(value: unknown): VoucherScopeSelection {
       product_kind_codes: [],
       subcategory_codes: [],
       category_codes: [],
-      items: []
+      items: [],
+      option_group_id: null,
+      option_ids: []
     };
   }
 
@@ -406,7 +418,9 @@ function _scopeSelectionFromRaw(value: unknown): VoucherScopeSelection {
     product_kind_codes: _stringScopeList(scope, ['product_kind_codes', 'product_kinds']).map(_normalizeValue),
     subcategory_codes: _stringScopeList(scope, ['subcategory_codes']).map(_normalizeValue),
     category_codes: _stringScopeList(scope, ['category_codes', 'categories']).map(_normalizeValue),
-    items: items.length === 1 && items[0] === _normalizeValue('All Items') ? [] : items
+    items: items.length === 1 && items[0] === _normalizeValue('All Items') ? [] : items,
+    option_group_id: scope.option_group_id == null ? null : Number(scope.option_group_id),
+    option_ids: _stringScopeList(scope, ['option_ids']).map(Number).filter((id) => Number.isInteger(id) && id > 0)
   };
 }
 
@@ -426,12 +440,14 @@ export function parsePromotionRule(scope: Record<string, unknown>): VoucherPromo
     qualifyingScope.product_kind_codes.length > 0 ||
     qualifyingScope.subcategory_codes.length > 0 ||
     qualifyingScope.category_codes.length > 0 ||
-    qualifyingScope.items.length > 0;
+    qualifyingScope.items.length > 0 ||
+    Boolean(qualifyingScope.option_group_id);
   const hasRewardScope =
     rewardScope.product_kind_codes.length > 0 ||
     rewardScope.subcategory_codes.length > 0 ||
     rewardScope.category_codes.length > 0 ||
-    rewardScope.items.length > 0;
+    rewardScope.items.length > 0 ||
+    Boolean(rewardScope.option_group_id);
 
   return {
     kind,
@@ -515,6 +531,38 @@ export function collectMatchedUnits(
     }
   }
 
+  return units;
+}
+
+export function collectMatchedOptionUnits(
+  scope: VoucherScopeSelection,
+  normalizedItems: Array<{
+    payload: z.infer<typeof createOrderSchema>['items'][number];
+    menuItem: MenuItemRow;
+    basePriceRm: number;
+    tokenPrice: number;
+    modifierRm: number;
+    modifierTokens: number;
+  }>
+) {
+  const optionGroupId = Number(scope.option_group_id || 0);
+  const optionIds = new Set((scope.option_ids || []).map((id) => Number(id)));
+  if (!optionGroupId) return [];
+
+  const units: Array<{ priceRm: number; priceTokens: number }> = [];
+  for (const item of normalizedItems) {
+    if (!_scopeMatchesMenuItem(scope, item.menuItem)) continue;
+    for (const modifier of item.payload.modifiers || []) {
+      const optionId = Number(modifier.option_group_option_id || 0);
+      const groupIdFromModifier = Number(modifier.option_group_id || 0);
+      if (!optionId || groupIdFromModifier !== optionGroupId || optionIds.size > 0 && !optionIds.has(optionId)) continue;
+      // The checkout canonicalisation has already verified these values.
+      units.push({
+        priceRm: Math.max(0, normalizeMoney(modifier.price_delta_rm)),
+        priceTokens: Math.max(0, Number(modifier.token_price_delta) || 0)
+      });
+    }
+  }
   return units;
 }
 
@@ -606,7 +654,13 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const verifiedModifiers = await verifyCheckoutModifiers(connection, store.tenant_id, menuItem.id, item.modifiers);
+        const verifiedModifiers = await verifyCheckoutModifiers(
+          connection,
+          store.tenant_id,
+          menuItem.id,
+          item.modifiers,
+          payload.store_id
+        );
         const normalizedPayload = { ...item, modifiers: verifiedModifiers };
         const modifierRm = verifiedModifiers.reduce(
           (sum, modifier) => sum + normalizeMoney(modifier.price_delta_rm),
@@ -628,7 +682,10 @@ export async function registerCheckoutRoutes(
           // create negative spend or discount another item in the same order.
           const lineTokens = Math.max(0, tokenPrice + modifierTokens) * item.quantity;
           tokenAmountCharged += lineTokens;
-          if (String(menuItem.category_product_kind_code).toLowerCase() === 'drink') {
+          const isDrinkItem =
+            String(menuItem.category_product_kind_code).toLowerCase() === 'drink' ||
+            Number(menuItem.is_handcrafted_drink) === 1;
+          if (isDrinkItem) {
             drinkTokenAmount += lineTokens;
           }
         }
@@ -808,8 +865,16 @@ export async function registerCheckoutRoutes(
 
         const qualifyingUnits = collectMatchedUnits(promotionRule.qualifying_scope, normalizedItems);
         const rewardUnits = collectMatchedUnits(promotionRule.reward_scope, normalizedItems);
+        const rewardOptionUnits = appliedVoucher.discount_mode === 'free_option'
+          ? collectMatchedOptionUnits(promotionRule.reward_scope, normalizedItems)
+          : [];
 
-        if (qualifyingUnits.length < promotionRule.qualifying_quantity || rewardUnits.length === 0) {
+        if (
+          qualifyingUnits.length < promotionRule.qualifying_quantity ||
+          (appliedVoucher.discount_mode === 'free_option'
+            ? rewardOptionUnits.length === 0
+            : rewardUnits.length === 0)
+        ) {
           throw new ApiError(
             400,
             'voucher_not_applicable_to_cart',
@@ -838,11 +903,15 @@ export async function registerCheckoutRoutes(
           .slice(0, promotionRule.reward_quantity);
 
         if (rewardableUnits.length < promotionRule.reward_quantity) {
+          if (appliedVoucher.discount_mode === 'free_option' && rewardOptionUnits.length >= promotionRule.reward_quantity) {
+            // Option rewards are validated and priced below; they do not require a whole free item.
+          } else {
           throw new ApiError(
             400,
             'voucher_not_applicable_to_cart',
             'Selected voucher does not match the current cart items.'
           );
+          }
         }
 
         if (appliedVoucher.discount_mode === 'fixed_rm') {
@@ -878,6 +947,16 @@ export async function registerCheckoutRoutes(
               (sum, unit) => sum + unit.basePriceRm + unit.modifierRm,
               0
             );
+          }
+        } else if (appliedVoucher.discount_mode === 'free_option') {
+          const rewardableOptions = rewardOptionUnits
+            .slice()
+            .sort((a, b) => b.priceRm - a.priceRm || b.priceTokens - a.priceTokens)
+            .slice(0, promotionRule.reward_quantity);
+          if (isTokenCheckout) {
+            discountTokens = rewardableOptions.reduce((sum, option) => sum + option.priceTokens, 0);
+          } else {
+            discountRm = rewardableOptions.reduce((sum, option) => sum + option.priceRm, 0);
           }
         }
       }
@@ -1250,9 +1329,10 @@ export async function registerCheckoutRoutes(
       let accountBalanceCap = bootstrap.token_cap;
 
       if (isTokenCheckout) {
-        const [membershipRows] = await connection.query<Array<RowDataPacket & { tenant_id: number; is_employee: number; subsidy_role: string }>>(
+        const [membershipRows] = await connection.query<Array<RowDataPacket & { tenant_id: number; is_employee: number; subsidy_role: string; subsidy_enabled: number }>>(
           `SELECT s.tenant_id, COALESCE(ctm.is_employee, 0) AS is_employee,
-                  COALESCE(ctm.subsidy_role, 'none') AS subsidy_role
+                  COALESCE(ctm.subsidy_role, 'none') AS subsidy_role,
+                  COALESCE(ctm.subsidy_enabled, 1) AS subsidy_enabled
              FROM stores s
              LEFT JOIN customer_tenant_memberships ctm
                ON ctm.tenant_id = s.tenant_id AND ctm.user_id = :userId
@@ -1260,7 +1340,12 @@ export async function registerCheckoutRoutes(
           { userId: request.auth.userId, storeId: payload.store_id }
         );
         const membership = membershipRows[0];
-        const allowanceUsed = membership && membership.subsidy_role !== 'none'
+        const effectiveSubsidyRole = membership
+          ? (membership.subsidy_role && membership.subsidy_role !== 'none'
+              ? membership.subsidy_role
+              : Number(membership.is_employee) === 1 ? 'employee' : 'none')
+          : 'none';
+        const allowanceUsed = membership && effectiveSubsidyRole !== 'none'
           ? await consumeEmployeeAllowance(connection, request.auth.userId, Number(membership.tenant_id), orderId, Math.min(tokenAmountCharged, drinkTokenAmount))
           : 0;
         const paidTokenAmount = tokenAmountCharged - allowanceUsed;
@@ -1274,6 +1359,7 @@ export async function registerCheckoutRoutes(
                        FROM employee_token_allowances eta
                       WHERE eta.user_id = ta.user_id AND eta.tenant_id = :tenantId
                         AND eta.period_start = :periodStart
+                        AND eta.status = 'active'
                       LIMIT 1
                    ), 0) AS employee_allowance_remaining
             FROM token_accounts ta
@@ -1290,13 +1376,19 @@ export async function registerCheckoutRoutes(
         }
 
         const newAvailable = account.balance_available - paidTokenAmount;
-        if (newAvailable < Number(account.employee_allowance_remaining ?? 0)) {
+        if (paidTokenAmount > 0 && newAvailable < Number(account.employee_allowance_remaining ?? 0)) {
+          const hasNonDrinkCharge = drinkTokenAmount < tokenAmountCharged;
+          const subsidyTurnedOff = effectiveSubsidyRole !== 'none' && Number(membership?.subsidy_enabled ?? 1) === 0;
           throw new ApiError(
             400,
             'insufficient_token_balance',
             usesRestrictedCredit
               ? 'Vouchers and gift cards require personal C2 Credit or direct payment; Monthly Subsidy cannot be used.'
-              : 'Your personal C2 Credit is not enough for the food or merchandise in this order.'
+              : hasNonDrinkCharge
+                ? 'Your personal C2 Credit is not enough for the food or merchandise in this order.'
+                : subsidyTurnedOff
+                  ? 'Monthly Subsidy is turned off, and your personal C2 Credit is not enough for this order.'
+                  : 'Your remaining Monthly Subsidy and personal C2 Credit are not enough for this order.'
           );
         }
 
@@ -1828,7 +1920,7 @@ async function _loadStore(
       WHERE id = :storeId
         AND status = 'active'
         AND is_customer_facing = 1
-      LIMIT 1
+      LIMIT 1 FOR UPDATE
     `,
     { storeId }
   );
@@ -1853,14 +1945,16 @@ export async function loadCheckoutMenuItems(
         CAST(COALESCE(recipe.calculated_base_calories_kcal, i.base_calories_kcal) AS UNSIGNED) AS base_calories_kcal,
         COALESCE(a.is_available, 1) AS is_available,
         tp.token_price,
+        i.is_handcrafted_drink,
         i.is_qualifying_cup,
         c.code AS category_code,
         c.name AS category_name,
         COALESCE(NULLIF(LOWER(c.product_kind_code), ''), CASE
-          WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
-          WHEN LOWER(c.code) = 'food' THEN 'food'
+          WHEN LOWER(c.code) IN ('coffee', 'non_coffee', 'coffee_craft', 'mocktails', 'chocolate', 'matcha', 'flavoured_coffee', 'tea', 'drinks', 'beverages') THEN 'drink'
+          WHEN LOWER(c.code) IN ('food', 'dessert', 'desserts', 'pastries', 'pastry', 'bakery') THEN 'food'
           WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
-          WHEN LOWER(c.code) = 'candles' THEN 'candle'
+          WHEN LOWER(c.code) IN ('candles', '5luxe_scents_co', '5luxe-scents-co') THEN 'candle'
+          WHEN i.is_handcrafted_drink = 1 THEN 'drink'
           ELSE 'other'
         END) AS category_product_kind_code,
         sc.code AS subcategory_code,
@@ -1902,7 +1996,8 @@ export async function verifyCheckoutModifiers(
   connection: PoolConnection,
   tenantId: number,
   menuItemId: number,
-  modifiers: z.infer<typeof createOrderSchema>['items'][number]['modifiers']
+  modifiers: z.infer<typeof createOrderSchema>['items'][number]['modifiers'],
+  storeId?: number
 ) {
   const [rows] = await connection.query<Array<LibraryOptionRow>>(
     `SELECT g.id AS group_id, g.name AS group_name, g.selection_type, g.min_select, g.max_select, g.is_required,
@@ -1954,9 +2049,9 @@ export async function verifyCheckoutModifiers(
     hiddenWhenByGroup.set(groupId, triggerIds);
   }
 
-  const groups = new Map<number, { name: string; selectionType: string; min: number; max: number; required: boolean; options: Map<string, LibraryOptionRow> }>();
+  const groups = new Map<number, { id: number; name: string; selectionType: string; min: number; max: number; required: boolean; options: Map<string, LibraryOptionRow> }>();
   for (const row of rows) {
-    const group = groups.get(row.group_id) ?? { name: row.group_name, selectionType: row.selection_type, min: row.min_select, max: row.max_select, required: row.is_required === 1, options: new Map() };
+    const group = groups.get(row.group_id) ?? { id: Number(row.group_id), name: row.group_name, selectionType: row.selection_type, min: row.min_select, max: row.max_select, required: row.is_required === 1, options: new Map() };
     group.options.set(row.option_name, row);
     groups.set(row.group_id, group);
   }
@@ -2000,7 +2095,7 @@ export async function verifyCheckoutModifiers(
       throw new ApiError(400, 'invalid_option_selection', `Please choose valid options for ${group.name}.`);
     }
     for (const option of selected) {
-      canonical.push({ group_name: group.name, option_name: option.option_name, price_delta_rm: Number(option.price_delta_rm), token_price_delta: option.token_price_delta, calorie_delta_kcal: option.calorie_delta_kcal, option_group_option_id: option.option_id });
+      canonical.push({ group_name: group.name, option_name: option.option_name, price_delta_rm: Number(option.price_delta_rm), token_price_delta: option.token_price_delta, calorie_delta_kcal: option.calorie_delta_kcal, option_group_option_id: option.option_id, option_group_id: group.id });
     }
   }
   const knownNames = new Set([...groups.values()].map((group) => group.name));
@@ -2091,6 +2186,41 @@ export async function verifyCheckoutModifiers(
 
   if (legacySelections.size > 0) {
     throw new ApiError(400, 'invalid_option_selection', 'One or more selected options are unavailable.');
+  }
+  if (storeId !== undefined) {
+    let customizationRows: RowDataPacket[] = [];
+    try {
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT customization_type, customization_value, is_available
+           FROM store_customization_availability
+          WHERE store_id = :storeId`,
+        { storeId }
+      );
+      customizationRows = rows;
+    } catch {
+      customizationRows = [];
+    }
+    if (customizationRows.length > 0) {
+      const customizationMap = new Map<string, boolean>();
+      for (const row of customizationRows) {
+        customizationMap.set(
+          `${String(row.customization_type).toLowerCase()}:${normalizeCustomizationValue(String(row.customization_value))}`,
+          Number(row.is_available) === 1
+        );
+      }
+      for (const modifier of canonical) {
+        const customizationType = resolveCustomizationTypeForGroup(modifier.group_name);
+        if (!customizationType) continue;
+        const key = `${customizationType}:${normalizeCustomizationValue(modifier.option_name)}`;
+        if (customizationMap.get(key) === false) {
+          throw new ApiError(
+            400,
+            'invalid_option_selection',
+            `The selected option for ${modifier.group_name} (${modifier.option_name}) is currently out of stock.`
+          );
+        }
+      }
+    }
   }
   return canonical;
 }

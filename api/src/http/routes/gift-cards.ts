@@ -166,12 +166,18 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
         // Employee allowance is held inside the token account balance, but it
         // is reserved for eligible drinks and must never fund a gift card.
         const period = currentEmployeeAllowancePeriod();
-        const [membershipRows] = await connection.execute<Array<RowDataPacket & { is_employee: number }>>(
-          `SELECT is_employee FROM customer_tenant_memberships
+        const [membershipRows] = await connection.execute<Array<RowDataPacket & { is_employee: number; subsidy_role: string }>>(
+          `SELECT is_employee, COALESCE(subsidy_role, 'none') AS subsidy_role FROM customer_tenant_memberships
              WHERE tenant_id = :tenantId AND user_id = :userId LIMIT 1 FOR UPDATE`,
           { tenantId, userId: request.auth.userId }
         );
-        if (Number(membershipRows[0]?.is_employee ?? 0) === 1) {
+        const membership = membershipRows[0];
+        const effectiveSubsidyRole = membership
+          ? (membership.subsidy_role && membership.subsidy_role !== 'none'
+              ? membership.subsidy_role
+              : Number(membership.is_employee) === 1 ? 'employee' : 'none')
+          : 'none';
+        if (effectiveSubsidyRole === 'employee' || effectiveSubsidyRole === 'intern') {
           await ensureEmployeeAllowance(connection, request.auth.userId, tenantId);
         }
         const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
@@ -181,7 +187,8 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
         const [allowanceRows] = await connection.execute<Array<RowDataPacket & { remaining_amount: number }>>(
           `SELECT remaining_amount
              FROM employee_token_allowances
-            WHERE tenant_id = :tenantId AND user_id = :userId AND period_start = :periodStart
+            WHERE tenant_id = :tenantId AND user_id = :userId
+              AND period_start = :periodStart AND status = 'active'
             LIMIT 1 FOR UPDATE`,
           { tenantId, userId: request.auth.userId, periodStart: period.start }
         );

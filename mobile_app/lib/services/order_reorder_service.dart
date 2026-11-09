@@ -229,6 +229,8 @@ class OrderReorderService {
       for (final group in groups)
         for (final option in selectedByGroup[group.id] ?? const [])
           CartModifier(
+            optionGroupId: group.id,
+            optionGroupOptionId: option.id,
             groupName: group.name,
             optionName: option.name,
             priceDeltaRm: double.tryParse(option.priceDeltaRm) ?? 0.0,

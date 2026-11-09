@@ -144,6 +144,9 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
     if (t.benefitLabel == 'Free Food') {
       return '$rewardQuantity Free Food ${rewardQuantity == 1 ? 'Item' : 'Items'}';
     }
+    if (t.discountMode == 'free_option') {
+      return '$rewardQuantity Free Option${rewardQuantity == 1 ? '' : 's'}';
+    }
     if (t.benefitLabel == 'Birthday Voucher') {
       return 'Birthday Treat';
     }
@@ -156,6 +159,8 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
         return '${t.tokenValue ?? t.discountValue} Tokens Off';
       case 'free_drink':
         return '$rewardQuantity Free ${rewardQuantity == 1 ? 'Drink' : 'Drinks'}';
+      case 'free_option':
+        return '$rewardQuantity Free Option${rewardQuantity == 1 ? '' : 's'}';
       default:
         return t.name;
     }

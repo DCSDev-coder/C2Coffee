@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, CalendarDays, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
 import {
   adminRequest,
   createAdminSideWorkBatch,
@@ -177,10 +177,8 @@ function displayDate(value) {
   return new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(`${value}T12:00:00`));
 }
 
-const attendanceLabel = (status) => ({ completed: 'Completed', late: 'Late arrival', clocked_in: 'Clocked in', clocked_in_late: 'Clocked in late', missing_clock_out: 'Missing clock-out', missed_clock_in: 'Missed clock-in', unscheduled: 'No shift planned' })[status] || status;
-
 export default function Operations() {
-  const [activeTab, setActiveTab] = useState('timetable');
+  const [activeTab, setActiveTab] = useState('attendance');
   const [baristas, setBaristas] = useState([]);
   const [schedule, setSchedule] = useState([]);
   const [scheduleRevision, setScheduleRevision] = useState(0);
@@ -236,11 +234,12 @@ export default function Operations() {
     setLoading(true);
     setError('');
     try {
-      const [operations, baristaResponse, sideWorkResponse, soundResponse] = await Promise.all([
+      const [operations, baristaResponse, sideWorkResponse, soundResponse, attendanceResponse] = await Promise.all([
         loadAdminOperationalSetup(),
         adminRequest('/v1/admin/baristas'),
         adminRequest(`/v1/admin/side-work?from=${isoDate()}&to=${isoDate(30)}`),
-        adminRequest('/v1/admin/barista-sound-settings')
+        adminRequest('/v1/admin/barista-sound-settings'),
+        loadAdminAttendance({ from: isoDate(-29), to: isoDate() })
       ]);
       setSchedule((operations.scheduled_shifts || []).map((shift) => ({
         ...shift,
@@ -249,6 +248,8 @@ export default function Operations() {
       setScheduleRevision(Number(operations.schedule_revision || 0));
       setBaristas((baristaResponse.baristas || []).filter((barista) => barista.is_active));
       setSideWork(Array.isArray(sideWorkResponse.tasks) ? sideWorkResponse.tasks : []);
+      setAttendance(attendanceResponse.attendance || []);
+      setAttendanceSummary(attendanceResponse.summary || { active_now: 0, late_arrivals: 0, missing_clock_out: 0, missed_clock_in: 0 });
       const outlets = Array.isArray(soundResponse.outlets) ? soundResponse.outlets : [];
       setSoundOutlets(outlets);
       const selected = outlets.find((outlet) => String(outlet.store_id) === String(selectedSoundStoreId)) || outlets[0];
@@ -504,11 +505,8 @@ export default function Operations() {
         </div>
 
         <div className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200">
-          <button type="button" onClick={() => selectTab('timetable')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'timetable' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-            <CalendarDays size={17} /> Timetable
-          </button>
           <button type="button" onClick={() => selectTab('attendance')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'attendance' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-            <Clock3 size={17} /> Attendance
+            <Clock3 size={17} /> Attendance history
           </button>
           <button type="button" onClick={() => selectTab('side-work')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold ${activeTab === 'side-work' ? 'border-[#2E5E58] text-[#2E5E58]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
             <ClipboardCheck size={17} /> Side work
@@ -639,9 +637,7 @@ export default function Operations() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               { label: 'Working now', value: attendanceSummary.active_now, color: 'bg-emerald-50 text-emerald-700', info: 'Baristas currently clocked in at the physical workstation.' },
-              { label: 'Late arrivals', value: attendanceSummary.late_arrivals, color: 'bg-amber-50 text-amber-700', info: 'Clock-ins recorded after the scheduled shift start time.' },
-              { label: 'Missing clock-out', value: attendanceSummary.missing_clock_out, color: 'bg-red-50 text-red-700', info: 'Shifts past scheduled end time with no recorded sign-out.' },
-              { label: 'Missed clock-in', value: attendanceSummary.missed_clock_in, color: 'bg-red-50 text-red-700', info: 'Scheduled shifts where the barista never clocked in.' }
+              { label: 'Missing clock-out', value: attendanceSummary.missing_clock_out, color: 'bg-red-50 text-red-700', info: 'Attendance records from a previous date with no recorded sign-out.' }
             ].map(({ label, value, color, info }) => (
               <div key={label} className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
                 <div className="flex items-center gap-1.5">
@@ -658,8 +654,8 @@ export default function Operations() {
                 <tr>
                   <SortableHeader label="Date" columnKey="date" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Date of shift or attendance event" />
                   <SortableHeader label="Barista" columnKey="barista_name" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Barista profile name" />
-                  <th className="px-5 py-4 font-bold text-xs uppercase tracking-wide text-slate-500">Planned</th>
-                  <th className="px-5 py-4 font-bold text-xs uppercase tracking-wide text-slate-500">Actual</th>
+                  <th className="px-5 py-4 font-bold text-xs uppercase tracking-wide text-slate-500">Clock in</th>
+                  <th className="px-5 py-4 font-bold text-xs uppercase tracking-wide text-slate-500">Clock out</th>
                   <SortableHeader label="Duration" columnKey="duration_minutes" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Total clocked duration on workstation" />
                   <SortableHeader label="Status" columnKey="status" currentKey={attendanceSortKey} direction={attendanceSortDirection} onSort={handleAttendanceSort} info="Punctuality and completion status" />
                 </tr>
@@ -676,8 +672,8 @@ export default function Operations() {
                     <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-5 py-4 font-medium text-slate-800">{record.date}</td>
                       <td className="px-5 py-4 font-semibold text-gray-900">{record.barista_name}</td>
-                      <td className="px-5 py-4 text-slate-600">{record.planned_start ? displayShiftTime(record.planned_start, record.planned_end, record.planned_ends_next_day) : 'No shift planned'}</td>
-                      <td className="px-5 py-4 text-slate-600">{record.clocked_in_at ? `${new Date(record.clocked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${record.clocked_out_at ? new Date(record.clocked_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Open'}` : '--'}</td>
+                      <td className="px-5 py-4 text-slate-600">{record.clocked_in_at ? new Date(record.clocked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}</td>
+                      <td className="px-5 py-4 text-slate-600">{record.clocked_out_at ? new Date(record.clocked_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Still clocked in'}</td>
                       <td className="px-5 py-4 font-medium text-slate-700">{record.duration_minutes == null ? '--' : `${Math.floor(record.duration_minutes / 60)}h ${record.duration_minutes % 60}m`}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
@@ -687,7 +683,7 @@ export default function Operations() {
                             ? 'bg-amber-50 text-amber-700'
                             : 'bg-red-50 text-red-700'
                         }`}>
-                          {attendanceLabel(record.status)}{record.late_minutes ? ` (${record.late_minutes}m)` : ''}
+                          {record.status === 'completed' ? 'Completed' : 'Still clocked in'}
                         </span>
                       </td>
                     </tr>

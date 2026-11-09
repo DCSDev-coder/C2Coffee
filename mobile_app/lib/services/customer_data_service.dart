@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
 
@@ -296,6 +297,8 @@ class RewardVoucherTemplate {
         return 'Percentage Off';
       case 'free_drink':
         return 'Free Drink';
+      case 'free_option':
+        return 'Free option / add-on';
       default:
         return 'Voucher';
     }
@@ -388,6 +391,7 @@ class RewardVoucherTemplate {
       case 'percent_rm':
       case 'fixed_token':
       case 'free_drink':
+      case 'free_option':
         return true;
       default:
         return false;
@@ -505,6 +509,10 @@ class RewardVoucherTemplate {
       return _countMatchedUnits(snapshot, rewardScope) >= rewardQty;
     }
 
+    if (discountMode == 'free_option') {
+      return _countMatchedOptionUnits(snapshot, rewardScope) >= rewardQty;
+    }
+
     return qualifyingMatchCount > 0;
   }
 
@@ -532,6 +540,41 @@ class RewardVoucherTemplate {
     return unitPrices
         .take(rewardQuantity)
         .fold<int>(0, (sum, price) => sum + price);
+  }
+
+  int freeOptionTokenDiscount(CartSnapshot snapshot) {
+    final promotionKind =
+        (promotionRule['kind'] as String? ?? 'standard').trim();
+    final configuredRewardScope = _parseScopeMap(promotionRule['reward_scope']);
+    final rewardScope =
+        promotionKind == 'bundle' && configuredRewardScope.isNotEmpty
+            ? configuredRewardScope
+            : _parseScopeMap(promotionRule['qualifying_scope']);
+    final prices = <int>[];
+    for (final item in snapshot.items) {
+      if (!_itemMatchesScope(item, rewardScope)) continue;
+      for (final modifier in item.modifiers) {
+        if (!_modifierMatchesOptionScope(modifier, rewardScope)) continue;
+        prices.add(math.max(0, modifier.tokenPriceDelta));
+      }
+    }
+    prices.sort((left, right) => right.compareTo(left));
+    return prices.take(rewardQuantity).fold<int>(0, (sum, price) => sum + price);
+  }
+
+  double freeOptionRmDiscount(CartSnapshot snapshot) {
+    final rewardScope = _parseScopeMap(promotionRule['reward_scope']);
+    final prices = <double>[];
+    for (final item in snapshot.items) {
+      if (!_itemMatchesScope(item, rewardScope)) continue;
+      for (final modifier in item.modifiers) {
+        if (_modifierMatchesOptionScope(modifier, rewardScope)) {
+          prices.add(math.max(0, modifier.priceDeltaRm));
+        }
+      }
+    }
+    prices.sort((left, right) => right.compareTo(left));
+    return prices.take(rewardQuantity).fold<double>(0, (sum, price) => sum + price);
   }
 
   String get availabilityLabel {
@@ -688,6 +731,32 @@ class RewardVoucherTemplate {
       }
     }
     return count;
+  }
+
+  static int _countMatchedOptionUnits(
+    CartSnapshot snapshot,
+    Map<String, dynamic> scope,
+  ) {
+    var count = 0;
+    for (final item in snapshot.items) {
+      if (!_itemMatchesScope(item, scope)) continue;
+      count += item.modifiers.where((modifier) =>
+          _modifierMatchesOptionScope(modifier, scope)).length * item.quantity;
+    }
+    return count;
+  }
+
+  static bool _modifierMatchesOptionScope(
+    CartModifier modifier,
+    Map<String, dynamic> scope,
+  ) {
+    final groupId = (scope['option_group_id'] as num?)?.toInt();
+    final optionIds = _stringListFromScope(scope, ['option_ids'])
+        .map(int.tryParse)
+        .whereType<int>()
+        .toSet();
+    if (groupId == null || modifier.optionGroupId != groupId || modifier.optionGroupOptionId == null) return false;
+    return optionIds.isEmpty || optionIds.contains(modifier.optionGroupOptionId);
   }
 
   static bool _itemMatchesScope(

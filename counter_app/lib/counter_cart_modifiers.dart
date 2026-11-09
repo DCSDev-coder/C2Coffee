@@ -114,6 +114,12 @@ List<Map<String, dynamic>> buildCounterCartModifiers({
     'temperature',
   );
   addFallback(
+    item.allowSparklingMixer,
+    'sparkling',
+    'Choice of Sparkling',
+    'sparklingMixer',
+  );
+  addFallback(
     item.allowChoiceOfMilk,
     'milk',
     'Choice of Milk',

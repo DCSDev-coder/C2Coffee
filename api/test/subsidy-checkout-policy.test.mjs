@@ -4,6 +4,7 @@ import test from 'node:test';
 import { allocateSubsidyEligibleDrinkTokens } from '../dist/services/subsidy-checkout-policy.js';
 import {
   calculatePersonalTokenRefund,
+  ensureEmployeeAllowance,
   restoreEmployeeAllowanceForRefund,
   restoreCurrentAllowanceForRoleChange,
 } from '../dist/services/employee-token-allowance.js';
@@ -119,4 +120,74 @@ test('a subsidy refund is recorded while the finite allowance is temporarily rev
   assert.match(executions[0].sql, /status = 'revoked'/);
   assert.match(executions[1].sql, /employee_allowance_tokens_refunded/);
   assert.equal(executions[1].params.restored, 10);
+});
+
+test('a subsidy refund on an active allowance restores both remaining_amount and token_accounts.balance_available', async () => {
+  const queryResults = [
+    [[{
+      user_id: 21,
+      order_ref: 'C2-20261109-001',
+      allowance_used: 15,
+      allowance_id: 17,
+      remaining_amount: 185,
+      granted_amount: 200,
+      carried_forward_amount: 0,
+      allowance_refunded: 0,
+      allowance_was_unlimited: 0,
+      period_end: new Date('2099-11-30T00:00:00.000Z'),
+      allowance_status: 'active',
+    }]],
+    [[{ balance_available: 185, balance_cap: 500 }]],
+  ];
+  const executions = [];
+  const connection = {
+    async query() {
+      return queryResults.shift();
+    },
+    async execute(sql, params) {
+      executions.push({ sql, params });
+      return [{ affectedRows: 1 }];
+    },
+  };
+
+  const result = await restoreEmployeeAllowanceForRefund(connection, 105);
+
+  assert.deepEqual(result, { allowanceUsed: 15, restored: 15 });
+  assert.equal(executions.length, 4);
+  assert.match(executions[0].sql, /remaining_amount = remaining_amount \+ :restored/);
+  assert.equal(executions[0].params.restored, 15);
+  assert.match(executions[1].sql, /employee_allowance_tokens_refunded = employee_allowance_tokens_refunded \+ :restored/);
+  assert.match(executions[2].sql, /UPDATE token_accounts/);
+  assert.equal(executions[2].params.balanceAfterRestore, 200);
+  assert.match(executions[3].sql, /INSERT INTO token_ledger/);
+  assert.equal(executions[3].params.amount, 15);
+  assert.equal(executions[3].params.balanceAfterRestore, 200);
+});
+
+test('ensureEmployeeAllowance reconciles desynchronized wallet balance when balance_available is below active remaining_amount', async () => {
+  const queryResults = [
+    [[{ subsidy_role: 'employee' }]],
+    [[{ monthly_amount: 200 }]],
+    [[]], // restoreCurrentAllowanceForRoleChange: no revoked allowance
+    [[{ id: 17, remaining_amount: 200, status: 'active' }]],
+    [[{ balance_available: 185, balance_cap: 500 }]],
+  ];
+  const executions = [];
+  const connection = {
+    async query() {
+      return queryResults.shift();
+    },
+    async execute(sql, params) {
+      executions.push({ sql, params });
+      return [{ affectedRows: 1 }];
+    },
+  };
+
+  await ensureEmployeeAllowance(connection, 21, 1);
+
+  assert.equal(executions.length, 2);
+  assert.match(executions[0].sql, /UPDATE token_accounts/);
+  assert.equal(executions[0].params.reconciledBalance, 200);
+  assert.match(executions[1].sql, /INSERT INTO token_ledger/);
+  assert.equal(executions[1].params.amount, 15);
 });

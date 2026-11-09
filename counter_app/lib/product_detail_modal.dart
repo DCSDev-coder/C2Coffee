@@ -23,6 +23,7 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   final int _espressoShots = 1;
   String _temperature = 'Cold';
   String _milk = 'Fresh Milk';
+  String _sparklingMixer = 'Ginger Ade';
   String _sweetness = 'Regular Sweet';
   String _iceLevel = 'Regular Ice';
 
@@ -80,6 +81,14 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         _milk = 'Fresh Milk';
       }
     }
+    if (widget.item.allowSparklingMixer) {
+      if (!widget.item.isSparklingAvailable('Ginger Ade') &&
+          widget.item.isSparklingAvailable('Tonic Water')) {
+        _sparklingMixer = 'Tonic Water';
+      } else {
+        _sparklingMixer = 'Ginger Ade';
+      }
+    }
     if (widget.item.modifierGroups.isNotEmpty) {
       for (final group in widget.item.modifierGroups) {
         final defaultOptions = group.options
@@ -127,6 +136,10 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         : null,
     'milk': widget.item.allowChoiceOfMilk && !_hasLibraryGroup('milk')
         ? _milk
+        : null,
+    'sparklingMixer':
+        widget.item.allowSparklingMixer && !_hasLibraryGroup('sparkling')
+        ? _sparklingMixer
         : null,
     'sweetness':
         widget.item.allowChoiceOfSweetness && !_hasLibraryGroup('sweet')
@@ -584,6 +597,34 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                 groupValue: _milk,
                 onChanged: (v) => setState(() => _milk = v),
                 color: const Color(0xFF995C00),
+                textColor: Colors.white,
+              ),
+          ],
+        ),
+      ],
+
+      if (widget.item.allowSparklingMixer && !_hasLibraryGroup('sparkling')) ...[
+        _buildSectionTitle('Choice of Sparkling'),
+        _buildResponsiveGrid(
+          children: [
+            if (widget.item.isSparklingAvailable('Ginger Ade'))
+              _buildOptionCard(
+                title: 'Ginger Ade',
+                subtitle: '+ 0.00',
+                value: 'Ginger Ade',
+                groupValue: _sparklingMixer,
+                onChanged: (v) => setState(() => _sparklingMixer = v),
+                color: const Color(0xFFC76B26),
+                textColor: Colors.white,
+              ),
+            if (widget.item.isSparklingAvailable('Tonic Water'))
+              _buildOptionCard(
+                title: 'Tonic Water',
+                subtitle: '+ 0.00',
+                value: 'Tonic Water',
+                groupValue: _sparklingMixer,
+                onChanged: (v) => setState(() => _sparklingMixer = v),
+                color: const Color(0xFF007AEC),
                 textColor: Colors.white,
               ),
           ],

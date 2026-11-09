@@ -187,13 +187,57 @@ export async function ensureEmployeeAllowance(
     createdByAdminId
   );
 
-  const [existingRows] = await connection.query<RowDataPacket[]>(
-    `SELECT id FROM employee_token_allowances
+  const [existingRows] = await connection.query<Array<RowDataPacket & {
+    id: number;
+    remaining_amount: number;
+    status: 'active' | 'fully_spent' | 'expired' | 'revoked';
+  }>>(
+    `SELECT id, remaining_amount, status FROM employee_token_allowances
       WHERE tenant_id = :tenantId AND user_id = :userId AND period_start = :periodStart
       LIMIT 1 FOR UPDATE`,
     { tenantId, userId, periodStart: period.start }
   );
-  if (existingRows[0]) return;
+  const existingAllowance = existingRows[0];
+  if (existingAllowance) {
+    const remainingAllowance = existingAllowance.status === 'active'
+      ? Math.max(0, Number(existingAllowance.remaining_amount ?? 0))
+      : 0;
+    if (remainingAllowance > 0) {
+      const [accountRows] = await connection.query<Array<RowDataPacket & { balance_available: number; balance_cap: number }>>(
+        `SELECT balance_available, balance_cap FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+        { userId }
+      );
+      const account = accountRows[0];
+      const currentBalance = Number(account?.balance_available ?? 0);
+      if (account && currentBalance < remainingAllowance) {
+        const deficit = remainingAllowance - currentBalance;
+        const reconciledBalance = remainingAllowance;
+        const balanceCap = Math.max(Number(account.balance_cap), reconciledBalance);
+        await connection.execute(
+          `UPDATE token_accounts
+              SET balance_available = :reconciledBalance,
+                  balance_cap = :balanceCap,
+                  updated_at = UTC_TIMESTAMP()
+            WHERE user_id = :userId`,
+          { reconciledBalance, balanceCap, userId }
+        );
+        await connection.execute(
+          `INSERT INTO token_ledger
+            (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+           VALUES (:userId, NULL, 'credit', 'refund_return', :allowanceId, :amount,
+                   :reconciledBalance, :remarks, UTC_TIMESTAMP())`,
+          {
+            userId,
+            allowanceId: existingAllowance.id,
+            amount: deficit,
+            reconciledBalance,
+            remarks: `Reconciled restored company subsidy balance for ${period.month}`
+          }
+        );
+      }
+    }
+    return;
+  }
 
   const [priorRows] = await connection.query<Array<RowDataPacket & { remaining_amount: number }>>(
     `SELECT id, remaining_amount FROM employee_token_allowances
@@ -527,6 +571,8 @@ export async function restoreEmployeeAllowanceForRefund(
   orderId: number
 ): Promise<{ allowanceUsed: number; restored: number }> {
   const [rows] = await connection.query<Array<RowDataPacket & {
+    user_id: number;
+    order_ref: string | null;
     allowance_used: number;
     allowance_id: number | null;
     remaining_amount: number | null;
@@ -537,7 +583,8 @@ export async function restoreEmployeeAllowanceForRefund(
     period_end: Date | null;
     allowance_status: 'active' | 'fully_spent' | 'expired' | 'revoked' | null;
   }>>(
-    `SELECT o.employee_allowance_tokens_used AS allowance_used,
+    `SELECT o.user_id, o.order_ref,
+            o.employee_allowance_tokens_used AS allowance_used,
             o.employee_allowance_tokens_refunded AS allowance_refunded,
             o.employee_allowance_was_unlimited AS allowance_was_unlimited,
             eta.id AS allowance_id, eta.remaining_amount, eta.granted_amount,
@@ -591,6 +638,40 @@ export async function restoreEmployeeAllowanceForRefund(
         WHERE id = :orderId`,
       { restored, orderId }
     );
+    if (row.user_id) {
+      const [accountRows] = await connection.query<Array<RowDataPacket & { balance_available: number; balance_cap: number }>>(
+        `SELECT balance_available, balance_cap
+           FROM token_accounts
+          WHERE user_id = :userId
+          LIMIT 1 FOR UPDATE`,
+        { userId: row.user_id }
+      );
+      const account = accountRows[0];
+      if (account) {
+        const balanceAfterRestore = Number(account.balance_available) + restored;
+        await connection.execute(
+          `UPDATE token_accounts
+              SET balance_available = :balanceAfterRestore,
+                  balance_cap = GREATEST(balance_cap, :balanceAfterRestore),
+                  updated_at = UTC_TIMESTAMP()
+            WHERE user_id = :userId`,
+          { balanceAfterRestore, userId: row.user_id }
+        );
+        await connection.execute(
+          `INSERT INTO token_ledger
+            (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)
+           VALUES (:userId, NULL, 'credit', 'refund_return', :orderId, :amount,
+                   :balanceAfterRestore, :remarks, UTC_TIMESTAMP())`,
+          {
+            userId: row.user_id,
+            orderId,
+            amount: restored,
+            balanceAfterRestore,
+            remarks: `Company subsidy restored for order ${row.order_ref || orderId}`
+          }
+        );
+      }
+    }
   }
   return { allowanceUsed, restored };
 }

@@ -19,6 +19,7 @@ class ApiService {
 
   static String? _accessToken;
   static String? _refreshToken;
+  static Future<bool>? _refreshInFlight;
   static String _tenantCode = ApiConfig.tenantCode;
   static String _currentUserName = '';
   static String _currentUsername = '';
@@ -249,47 +250,18 @@ class ApiService {
               }
 
               // Keep the real creation time so the preparation queue is FIFO.
-              final dateStr = json['date'] ?? 'Aug 19, 2026';
-              final timeStr = json['time'] ?? '10:00 AM';
-              final rawCreatedAt = json['createdAt']?.toString();
-              final parsedCreatedAt = rawCreatedAt != null
-                  ? DateTime.tryParse(rawCreatedAt)
-                  : null;
-              final createdAt = parsedCreatedAt?.toLocal() ??
+              final createdAt =
+                  DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
                   DateTime.fromMillisecondsSinceEpoch(0);
-
-              String formattedTimeDate;
-              if (parsedCreatedAt != null) {
-                final localTime = parsedCreatedAt.toLocal();
-                final hourRaw = localTime.hour.remainder(12);
-                final hour = hourRaw == 0 ? 12 : hourRaw;
-                final minute = localTime.minute.toString().padLeft(2, '0');
-                final suffix = localTime.hour >= 12 ? 'PM' : 'AM';
-                const months = [
-                  'Jan',
-                  'Feb',
-                  'Mar',
-                  'Apr',
-                  'May',
-                  'Jun',
-                  'Jul',
-                  'Aug',
-                  'Sep',
-                  'Oct',
-                  'Nov',
-                  'Dec'
-                ];
-                final monthStr = months[localTime.month - 1];
-                formattedTimeDate =
-                    '$hour:$minute $suffix - $monthStr ${localTime.day}, ${localTime.year}';
-              } else {
-                formattedTimeDate = '$timeStr - $dateStr';
-              }
 
               return CurrentOrder(
                 status: parsedStatus,
                 orderId: json['id'] ?? 'ORD-000',
-                timeDate: formattedTimeDate,
+                timeDate: resolveOrderDisplayDateTime(
+                  createdAt: createdAt,
+                  serverTime: json['time']?.toString(),
+                  serverDate: json['date']?.toString(),
+                ),
                 orderDate: createdAt,
                 customerDetails:
                     '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
@@ -408,6 +380,8 @@ class ApiService {
           case 'direct_printer_not_assigned':
             return 'The printer test worked, but this C2 Store device is not assigned to that printer in Admin Web.';
           case 'forbidden':
+          case 'admin_forbidden':
+          case 'barista_route_forbidden':
             return 'Your account does not have permission for this action.';
           case 'rate_limit_exceeded':
             return 'Too many sign-in attempts. Please wait a few minutes before trying again.';
@@ -448,7 +422,19 @@ class ApiService {
     if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
   };
 
-  static Future<bool> _refreshAccessToken() async {
+  static Future<bool> _refreshAccessToken() {
+    final inFlight = _refreshInFlight;
+    if (inFlight != null) return inFlight;
+    final future = _performRefreshAccessToken();
+    _refreshInFlight = future;
+    return future.whenComplete(() {
+      if (identical(_refreshInFlight, future)) {
+        _refreshInFlight = null;
+      }
+    });
+  }
+
+  static Future<bool> _performRefreshAccessToken() async {
     final refreshToken = _refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) return false;
 
@@ -534,6 +520,26 @@ class ApiService {
     return BaristaAttendanceStatus.fromJson(
       json.decode(response.body) as Map<String, dynamic>,
     );
+  }
+
+  static Future<List<AttendanceHistoryEntry>> fetchAttendanceHistory() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/attendance/history'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    final data = json.decode(response.body) as Map<String, dynamic>;
+    return (data['attendance'] as List? ?? const [])
+        .map(
+          (item) =>
+              AttendanceHistoryEntry.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
   }
 
   static Future<ApiRequestResult> updateAttendance({
@@ -767,7 +773,7 @@ class ApiService {
             'inventory_item_id': itemId,
             'quantity': quantity,
             'movement_type': isWaste ? 'waste' : 'stock_add',
-            if (reasonCode case final value?) 'reason_code': value,
+            'reason_code': ?reasonCode,
             if (note case final value? when value.trim().isNotEmpty)
               'note': value.trim(),
           }),
@@ -946,6 +952,38 @@ class ApiService {
       );
 }
 
+String formatOrderDisplayDateTime(DateTime value) {
+  final local = value.toLocal();
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final period = local.hour < 12 ? 'AM' : 'PM';
+  return '$hour:$minute $period - ${months[local.month - 1]} ${local.day}, ${local.year}';
+}
+
+String resolveOrderDisplayDateTime({
+  required DateTime createdAt,
+  String? serverTime,
+  String? serverDate,
+}) {
+  final time = serverTime?.trim() ?? '';
+  final date = serverDate?.trim() ?? '';
+  if (time.isNotEmpty && date.isNotEmpty) return '$time - $date';
+  return formatOrderDisplayDateTime(createdAt);
+}
 
 class BaristaInventoryResult {
   final int storeId;
@@ -1024,6 +1062,33 @@ class BaristaAttendance {
         baristaId: (json['barista_id'] as num?)?.toInt() ?? 0,
         baristaName: json['barista_name']?.toString() ?? 'Barista',
         clockedInAt: DateTime.parse(json['clocked_in_at'].toString()).toLocal(),
+      );
+}
+
+class AttendanceHistoryEntry {
+  final int id;
+  final int baristaId;
+  final String baristaName;
+  final DateTime clockedInAt;
+  final DateTime? clockedOutAt;
+
+  const AttendanceHistoryEntry({
+    required this.id,
+    required this.baristaId,
+    required this.baristaName,
+    required this.clockedInAt,
+    required this.clockedOutAt,
+  });
+
+  factory AttendanceHistoryEntry.fromJson(Map<String, dynamic> json) =>
+      AttendanceHistoryEntry(
+        id: (json['id'] as num).toInt(),
+        baristaId: (json['barista_id'] as num?)?.toInt() ?? 0,
+        baristaName: json['barista_name']?.toString() ?? 'Barista',
+        clockedInAt: DateTime.parse(json['clocked_in_at'].toString()).toLocal(),
+        clockedOutAt: json['clocked_out_at'] == null
+            ? null
+            : DateTime.tryParse(json['clocked_out_at'].toString())?.toLocal(),
       );
 }
 

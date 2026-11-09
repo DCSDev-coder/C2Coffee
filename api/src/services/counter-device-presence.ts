@@ -1,4 +1,4 @@
-export const COUNTER_DEVICE_ONLINE_WINDOW_SECONDS = 30;
+export const COUNTER_DEVICE_ONLINE_WINDOW_SECONDS = 60;
 
 export type CounterDeviceConnectionStatus =
   | 'online'

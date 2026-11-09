@@ -20,6 +20,7 @@ import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-el
 import { ApiError } from '../errors.js';
 import {
   collectMatchedUnits,
+  collectMatchedOptionUnits,
   assertTierVoucherStillEligible,
   isVoucherAvailableNow,
   loadCheckoutMenuItems,
@@ -269,7 +270,13 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         if (!menuItem || menuItem.is_available !== 1) {
           throw new ApiError(400, 'menu_item_not_available', 'One or more items are unavailable.');
         }
-        const modifiers = await verifyCheckoutModifiers(connection, store.tenant_id, menuItem.id, item.modifiers);
+        const modifiers = await verifyCheckoutModifiers(
+          connection,
+          store.tenant_id,
+          menuItem.id,
+          item.modifiers,
+          store.id
+        );
         const modifierTotal = modifiers.reduce((sum, modifier) => sum + normalizeMoney(modifier.price_delta_rm), 0);
         const basePrice = Number(menuItem.base_price_rm);
         subtotal += basePrice * item.quantity;
@@ -373,7 +380,10 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         }
         const qualifying = collectMatchedUnits(rule.qualifying_scope, normalized);
         const rewards = collectMatchedUnits(rule.reward_scope, normalized);
-        if (qualifying.length < rule.qualifying_quantity || rewards.length < rule.reward_quantity) {
+        const options = voucher.discount_mode === 'free_option'
+          ? collectMatchedOptionUnits(rule.reward_scope, normalized)
+          : [];
+        if (qualifying.length < rule.qualifying_quantity || (voucher.discount_mode === 'free_option' ? options.length : rewards.length) < rule.reward_quantity) {
           throw new ApiError(400, 'voucher_not_applicable_to_cart', 'Selected voucher does not match this basket.');
         }
         const minimum = voucher.min_spend_rm === null ? 0 : Number(voucher.min_spend_rm);
@@ -386,6 +396,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         if (voucher.discount_mode === 'fixed_rm') discountRm = Math.min(totalBeforeDiscount, Number(voucher.discount_value));
         else if (voucher.discount_mode === 'percent_rm') discountRm = Math.min(totalBeforeDiscount, totalBeforeDiscount * Number(voucher.discount_value) / 100);
         else if (voucher.discount_mode === 'free_drink') discountRm = rewardable.reduce((sum, unit) => sum + unit.basePriceRm + unit.modifierRm, 0);
+        else if (voucher.discount_mode === 'free_option') discountRm = options.sort((a, b) => b.priceRm - a.priceRm).slice(0, rule.reward_quantity).reduce((sum, option) => sum + option.priceRm, 0);
         else throw new ApiError(400, 'voucher_payment_mode_mismatch', 'This voucher cannot be used for an RM counter order.');
         discountRm = normalizeMoney(discountRm);
         await connection.execute(

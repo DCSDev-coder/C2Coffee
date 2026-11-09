@@ -176,7 +176,21 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canReadWeeklySchedule =
     request.method === 'GET' && path === '/v1/barista/weekly-schedule';
   const canUseStaffAttendance =
-    /^\/v1\/barista\/attendance\/(status|current|clock-in|clock-out)$/.test(path);
+    /^\/v1\/barista\/attendance\/(status|history|current|clock-in|clock-out)$/.test(path);
+  const canUseOutletEmergencyClosure =
+    request.method === 'POST' &&
+    (path === '/v1/barista/outlet/emergency-close' ||
+      path === '/v1/barista/outlet/emergency-reopen');
+  const canUseBaristaInventory =
+    (request.method === 'GET' && path === '/v1/barista/inventory') ||
+    (request.method === 'POST' && path === '/v1/barista/inventory/movements');
+  const canUseBaristaMenuAvailability =
+    (request.method === 'GET' && path === '/v1/barista/menu/availability') ||
+    (request.method === 'PATCH' && (
+      /^\/v1\/barista\/menu\/items\/[^/]+\/availability$/.test(path) ||
+      path === '/v1/barista/menu/customizations/availability' ||
+      path === '/v1/barista/menu/beans/availability'
+    ));
   const canReadStaffGuides = request.method === 'GET' && path === '/v1/barista/guides';
   const canUseSideWork =
     (request.method === 'GET' && path === '/v1/barista/side-work') ||
@@ -213,6 +227,9 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadWorkstationAccess &&
     !canReadWeeklySchedule &&
     !canUseStaffAttendance &&
+    !canUseOutletEmergencyClosure &&
+    !canUseBaristaInventory &&
+    !canUseBaristaMenuAvailability &&
     !canReadStaffGuides &&
     !canUseSideWork &&
     !canUseMarketingDrinks &&

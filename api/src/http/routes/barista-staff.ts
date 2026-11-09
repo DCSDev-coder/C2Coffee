@@ -8,7 +8,7 @@ import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
 import { verifyPassword } from '../../lib/password.js';
-import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
+import { resolveBaristaShiftAccess, shouldBlockBaristaClockOut } from '../../services/barista-shift-access.js';
 import { loadBaristaSoundSettings } from '../../services/barista-sound-settings.js';
 import { createUserNotification } from '../notifications.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
@@ -469,6 +469,34 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     }
   });
 
+  app.get('/v1/barista/attendance/history', { preHandler: authenticateAdminRequest }, async (request) => {
+    assertStaffAccess(request);
+    const storeId = await resolveAttendanceStoreId(request);
+    const to = malaysiaDate();
+    const from = addDays(to, -30);
+    const [rows] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT a.id, a.barista_id, b.name AS barista_name, a.clocked_in_at, a.clocked_out_at
+         FROM barista_attendance a JOIN baristas b ON b.id = a.barista_id
+        WHERE a.tenant_id = :tenantId AND (a.store_id = :storeId OR a.store_id IS NULL)
+          AND a.clocked_in_at >= CONVERT_TZ(CONCAT(:from, ' 00:00:00'), '+08:00', '+00:00')
+          AND a.clocked_in_at < CONVERT_TZ(CONCAT(DATE_ADD(:to, INTERVAL 1 DAY), ' 00:00:00'), '+08:00', '+00:00')
+        ORDER BY a.clocked_in_at DESC
+        LIMIT 500`,
+      { tenantId: request.adminAuth.tenantId, storeId, from, to }
+    );
+    return {
+      from,
+      to,
+      attendance: rows.map((row) => ({
+        id: Number(row.id),
+        barista_id: Number(row.barista_id),
+        barista_name: String(row.barista_name),
+        clocked_in_at: new Date(row.clocked_in_at).toISOString(),
+        clocked_out_at: row.clocked_out_at ? new Date(row.clocked_out_at).toISOString() : null
+      }))
+    };
+  });
+
   app.get('/v1/barista/workstation/access-state', { preHandler: authenticateAdminRequest }, async (request) => {
     assertStaffAccess(request);
     const storeId = await resolveAttendanceStoreId(request);
@@ -565,55 +593,68 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
-      const [activeRows] = await connection.query<RowDataPacket[]>(
-        `SELECT id FROM barista_attendance
-         WHERE tenant_id = :tenantId AND store_id = :storeId AND barista_id = :baristaId
-           AND clocked_out_at IS NULL
+      await connection.query(
+        `SELECT id FROM stores
+         WHERE id = :storeId AND tenant_id = :tenantId
          LIMIT 1 FOR UPDATE`,
-        { tenantId: request.adminAuth.tenantId, storeId, baristaId: payload.barista_id }
+        { storeId, tenantId: request.adminAuth.tenantId }
       );
-      if (!activeRows[0]) {
+      const [activeRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id, barista_id FROM barista_attendance
+         WHERE tenant_id = :tenantId AND (store_id = :storeId OR store_id IS NULL)
+           AND clocked_out_at IS NULL
+         FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId, storeId }
+      );
+      const selectedAttendance = activeRows.find((row) => Number(row.barista_id) === payload.barista_id);
+      if (!selectedAttendance) {
         await connection.commit();
         return reply.send({ success: true, unchanged: true });
       }
 
-      const [activeOrders, access] = await Promise.all([
-        connection.query<RowDataPacket[]>(
-          `SELECT COUNT(*) AS total FROM orders
-           WHERE store_id = :storeId AND status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup')`,
+      const access = await resolveBaristaShiftAccess(connection, {
+        tenantId: request.adminAuth.tenantId,
+        tenantCode: request.adminAuth.tenantCode,
+        storeId,
+      });
+      const currentBaristaIds = new Set(access.active_attendance.map((attendance) => attendance.barista_id));
+      const recentBaristaIds = new Set(access.coverage_attendance.map((attendance) => attendance.barista_id));
+      const coverageBaristaIds = currentBaristaIds.size > 0 ? currentBaristaIds : recentBaristaIds;
+      const selectedProvidesCoverage = coverageBaristaIds.has(payload.barista_id);
+      let activeOrderCount = 0;
+      if (selectedProvidesCoverage && coverageBaristaIds.size === 1) {
+        const [activeOrders] = await connection.query<RowDataPacket[]>(
+          `SELECT COUNT(*) AS total FROM orders o
+           WHERE o.store_id = :storeId
+             AND o.status IN ('pending_payment', 'paid', 'accepted', 'preparing')
+             AND NOT EXISTS (
+               SELECT 1 FROM order_cancellation_requests ocr
+               WHERE ocr.order_id = o.id
+                 AND ocr.status IN ('approved', 'refund_pending', 'completed')
+             )
+             AND DATE(DATE_ADD(o.created_at, INTERVAL 8 HOUR)) =
+                 DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))`,
           { storeId }
-        ),
-        resolveBaristaShiftAccess(connection, {
-          tenantId: request.adminAuth.tenantId,
-          tenantCode: request.adminAuth.tenantCode,
-          storeId
-        })
-      ]);
-      const otherActiveIds = new Set<number>(
-        access.active_attendance
-          .filter((item) => item.barista_id !== payload.barista_id)
-          .map((item) => item.barista_id)
-      );
-      const incomingRequired = access.current_staff.some(
-        (staff) => staff.barista_id !== payload.barista_id && !otherActiveIds.has(staff.barista_id)
-      );
-      if (incomingRequired) {
-        throw new ApiError(409, 'handover_required', 'The incoming scheduled barista must clock in before this shift can clock out.');
+        );
+        activeOrderCount = Number(activeOrders[0]?.total ?? 0);
       }
-      const currentShiftStillActive = access.current_staff.some(
-        (staff) => staff.barista_id === payload.barista_id
-      );
-      if (otherActiveIds.size === 0 && currentShiftStillActive) {
-        throw new ApiError(409, 'shift_coverage_required', 'The final scheduled barista must remain clocked in until the shift ends or another scheduled barista takes over.');
-      }
-      if (otherActiveIds.size === 0 && Number(activeOrders[0][0]?.total ?? 0) > 0) {
+      if (shouldBlockBaristaClockOut({
+        activeAttendanceCount: selectedProvidesCoverage ? coverageBaristaIds.size : 0,
+        activeOrderCount,
+      })) {
         throw new ApiError(409, 'active_orders_require_coverage', 'The final barista cannot clock out while active orders still need outlet coverage.');
       }
 
       const [result] = await connection.execute<ResultSetHeader>(
         `UPDATE barista_attendance SET clocked_out_at = UTC_TIMESTAMP()
-         WHERE id = :attendanceId AND clocked_out_at IS NULL`,
-        { attendanceId: activeRows[0].id }
+         WHERE tenant_id = :tenantId AND barista_id = :baristaId
+           AND (store_id = :storeId OR store_id IS NULL)
+           AND clocked_out_at IS NULL`,
+        {
+          tenantId: request.adminAuth.tenantId,
+          baristaId: payload.barista_id,
+          storeId,
+        }
       );
       await connection.commit();
       return reply.send({ success: true, unchanged: result.affectedRows === 0 });
@@ -688,6 +729,8 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
            )
           WHERE o.store_id = :storeId
             AND o.status IN ('pending_payment', 'payment_failed', 'paid', 'accepted', 'preparing', 'ready_for_pickup')
+            AND DATE(DATE_ADD(o.created_at, INTERVAL 8 HOUR)) =
+                DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))
           ORDER BY o.id FOR UPDATE`,
         { storeId }
       );
@@ -866,21 +909,6 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       if (!closures[0]) {
         await connection.commit();
         return reply.send({ reopened: true, unchanged: true });
-      }
-      const [scheduled] = await connection.query<RowDataPacket[]>(
-        `SELECT s.id FROM barista_dated_shifts s
-          WHERE s.tenant_code = :tenantCode AND s.barista_id = :baristaId
-            AND (s.store_id = :storeId OR s.store_id IS NULL)
-            AND (
-              (s.ends_at > s.starts_at AND CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00') BETWEEN TIMESTAMP(s.shift_date, s.starts_at) AND TIMESTAMP(s.shift_date, s.ends_at))
-              OR
-              (s.ends_at < s.starts_at AND CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00') BETWEEN TIMESTAMP(s.shift_date, s.starts_at) AND DATE_ADD(TIMESTAMP(s.shift_date, s.ends_at), INTERVAL 1 DAY))
-            )
-          LIMIT 1`,
-        { tenantCode: request.adminAuth.tenantCode, baristaId: payload.barista_id, storeId }
-      );
-      if (!scheduled[0] && request.adminAuth.isBaristaOnly) {
-        throw new ApiError(409, 'barista_not_scheduled', 'Only a barista scheduled for the current shift can reopen this outlet.');
       }
       await connection.execute(
         `UPDATE outlet_emergency_closures

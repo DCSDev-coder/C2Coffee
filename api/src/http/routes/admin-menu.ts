@@ -284,7 +284,39 @@ type AdminMenuResponse = {
   subcategories: Array<AdminMenuSubcategory>;
 };
 
-function resolveProductKind(productKindCode: string | null | undefined, categoryCode?: string): { code: string; name: string } {
+function resolveProductKind(productKindCode: string | null | undefined, categoryCode?: string, isHandcraftedDrink?: boolean): { code: string; name: string } {
+  const normalizedCategory = String(categoryCode ?? '').trim().toLowerCase();
+  const inferredFromCategory = (() => {
+    switch (normalizedCategory) {
+      case 'coffee':
+      case 'non_coffee':
+      case 'coffee_craft':
+      case 'mocktails':
+      case 'chocolate':
+      case 'matcha':
+      case 'flavoured_coffee':
+      case 'tea':
+      case 'drinks':
+      case 'beverages':
+        return { code: 'drink', name: 'Drinks' };
+      case 'food':
+      case 'dessert':
+      case 'desserts':
+      case 'pastries':
+      case 'pastry':
+      case 'bakery':
+        return { code: 'food', name: 'Food' };
+      case 'merchandise':
+        return { code: 'merchandise', name: 'Merchandise' };
+      case 'candles':
+      case '5luxe_scents_co':
+      case '5luxe-scents-co':
+        return { code: 'candle', name: 'Candles' };
+      default:
+        return isHandcraftedDrink ? { code: 'drink', name: 'Drinks' } : null;
+    }
+  })();
+
   switch (String(productKindCode ?? '').trim().toLowerCase()) {
     case 'drink':
       return { code: 'drink', name: 'Drinks' };
@@ -295,21 +327,9 @@ function resolveProductKind(productKindCode: string | null | undefined, category
     case 'candle':
       return { code: 'candle', name: 'Candles' };
     case 'other':
-      return { code: 'other', name: 'Other' };
+      return inferredFromCategory ?? { code: 'other', name: 'Other' };
     default:
-      switch (String(categoryCode ?? '').trim().toLowerCase()) {
-        case 'coffee':
-        case 'non_coffee':
-          return { code: 'drink', name: 'Drinks' };
-        case 'food':
-          return { code: 'food', name: 'Food' };
-        case 'merchandise':
-          return { code: 'merchandise', name: 'Merchandise' };
-        case 'candles':
-          return { code: 'candle', name: 'Candles' };
-        default:
-          return { code: 'other', name: 'Other' };
-      }
+      return inferredFromCategory ?? { code: 'other', name: 'Other' };
   }
 }
 
@@ -437,13 +457,13 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           c.id AS category_id,
           c.code AS category_code,
           c.name AS category_name,
-          CASE
+          COALESCE(NULLIF(LOWER(c.product_kind_code), ''), CASE
             WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
             WHEN LOWER(c.code) = 'food' THEN 'food'
             WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
             WHEN LOWER(c.code) = 'candles' THEN 'candle'
             ELSE 'other'
-          END AS category_product_kind_code,
+          END) AS category_product_kind_code,
           c.sort_order AS category_sort_order,
           c.is_active AS category_is_active,
           sc.id AS subcategory_id,
@@ -1357,7 +1377,7 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
 
     let item = category.items.find((candidate) => candidate.id === row.item_id);
       if (!item) {
-      const productKind = resolveProductKind(row.category_product_kind_code, row.category_code);
+      const productKind = resolveProductKind(row.category_product_kind_code, row.category_code, row.is_handcrafted_drink === 1);
       const archivedAt = row.item_archived_at ? new Date(row.item_archived_at) : null;
       const retentionReviewAt = archivedAt ? new Date(archivedAt) : null;
       retentionReviewAt?.setUTCFullYear(retentionReviewAt.getUTCFullYear() + 5);
@@ -1679,13 +1699,13 @@ async function loadMenuCategoryById(categoryId: number): Promise<AdminMenuCatego
         id,
         code,
         name,
-        CASE
+        COALESCE(NULLIF(LOWER(product_kind_code), ''), CASE
           WHEN LOWER(code) IN ('coffee', 'non_coffee') THEN 'drink'
           WHEN LOWER(code) = 'food' THEN 'food'
           WHEN LOWER(code) = 'merchandise' THEN 'merchandise'
           WHEN LOWER(code) = 'candles' THEN 'candle'
           ELSE 'other'
-        END AS product_kind_code,
+        END) AS product_kind_code,
         sort_order,
         is_active
       FROM menu_categories
@@ -1768,13 +1788,13 @@ async function loadMenuSubcategoryById(subcategoryId: number): Promise<AdminMenu
         c.id AS category_id,
         c.code AS category_code,
         c.name AS category_name,
-        CASE
+        COALESCE(NULLIF(LOWER(c.product_kind_code), ''), CASE
           WHEN LOWER(c.code) IN ('coffee', 'non_coffee') THEN 'drink'
           WHEN LOWER(c.code) = 'food' THEN 'food'
           WHEN LOWER(c.code) = 'merchandise' THEN 'merchandise'
           WHEN LOWER(c.code) = 'candles' THEN 'candle'
           ELSE 'other'
-        END AS category_product_kind_code
+        END) AS category_product_kind_code
       FROM menu_subcategories sc
       JOIN menu_categories c ON c.id = sc.category_id
       WHERE sc.id = :subcategoryId

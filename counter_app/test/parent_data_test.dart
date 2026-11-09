@@ -5,7 +5,9 @@ import 'package:counter_app/barista/services/api_service.dart';
 import 'package:counter_app/barista/main.dart';
 
 void main() {
-  testWidgets('Check for Flutter errors across all workstation access states', (tester) async {
+  testWidgets('Check for Flutter errors across all workstation access states', (
+    tester,
+  ) async {
     final errors = <FlutterErrorDetails>[];
     FlutterError.onError = (details) {
       errors.add(details);
@@ -26,18 +28,25 @@ void main() {
       scheduleStatus: 'published',
       accessState: 'locked',
       canPrepareOrders: false,
-      message: 'All opening-shift baristas must clock in once before order preparation unlocks.',
+      message:
+          'All opening-shift baristas must clock in once before order preparation unlocks.',
       soundSettings: BaristaSoundSettings.defaults(),
       currentStaff: [],
       activeAttendance: [],
       missingStaff: [
-        ShiftStaff(baristaId: 8, baristaName: 'Hafiz', startsAt: '08:00', endsAt: '17:00'),
+        ShiftStaff(
+          baristaId: 8,
+          baristaName: 'Hafiz',
+          startsAt: '08:00',
+          endsAt: '17:00',
+        ),
       ],
       scheduleDate: '2026-10-22',
       minutesUntilShiftEnd: null,
     );
     await tester.pump();
     expect(find.text('Clock in to unlock'), findsOneWidget);
+    expect(find.text('Clock in with PIN'), findsOneWidget);
 
     // 3. handover (unlocked for preparation, but warning notice)
     globalWorkstationAccess.value = const WorkstationAccessState(
@@ -47,18 +56,31 @@ void main() {
       message: 'Awish has not clocked in yet. Handover is in progress.',
       soundSettings: BaristaSoundSettings.defaults(),
       currentStaff: [
-        ShiftStaff(baristaId: 8, baristaName: 'Hafiz', startsAt: '08:00', endsAt: '17:00'),
+        ShiftStaff(
+          baristaId: 8,
+          baristaName: 'Hafiz',
+          startsAt: '08:00',
+          endsAt: '17:00',
+        ),
       ],
       activeAttendance: [],
       missingStaff: [
-        ShiftStaff(baristaId: 10, baristaName: 'Awish', startsAt: '08:00', endsAt: '17:00'),
+        ShiftStaff(
+          baristaId: 10,
+          baristaName: 'Awish',
+          startsAt: '08:00',
+          endsAt: '17:00',
+        ),
       ],
       scheduleDate: '2026-10-22',
       minutesUntilShiftEnd: 480,
     );
     await tester.pump();
     expect(find.text('Clock in to unlock'), findsNothing);
-    expect(find.text('Awish has not clocked in yet. Handover is in progress.'), findsOneWidget);
+    expect(
+      find.text('Awish has not clocked in yet. Handover is in progress.'),
+      findsOneWidget,
+    );
     expect(find.text('Current Order'), findsOneWidget);
 
     // 4. fully unlocked
@@ -69,8 +91,18 @@ void main() {
       message: 'Workstation is active.',
       soundSettings: BaristaSoundSettings.defaults(),
       currentStaff: [
-        ShiftStaff(baristaId: 8, baristaName: 'Hafiz', startsAt: '08:00', endsAt: '17:00'),
-        ShiftStaff(baristaId: 10, baristaName: 'Awish', startsAt: '08:00', endsAt: '17:00'),
+        ShiftStaff(
+          baristaId: 8,
+          baristaName: 'Hafiz',
+          startsAt: '08:00',
+          endsAt: '17:00',
+        ),
+        ShiftStaff(
+          baristaId: 10,
+          baristaName: 'Awish',
+          startsAt: '08:00',
+          endsAt: '17:00',
+        ),
       ],
       activeAttendance: [],
       missingStaff: [],

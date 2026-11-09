@@ -135,9 +135,9 @@ export const adminManualSections = [
   {
     group: 'Staff & store',
     page: 'Operations',
-    purpose: 'Manage operational schedules, attendance, tasks, and store readiness.',
-    steps: ['Publish the correct timetable and roster.', 'Record attendance and complete assigned operational tasks.', 'Review store locks or notices before opening service.'],
-    notes: 'Operational availability depends on the published schedule and required opening conditions.'
+    purpose: 'Manage attendance, tasks, sounds, and store readiness.',
+    steps: ['Review the configured outlet opening hours.', 'Record attendance and complete assigned operational tasks.', 'Review store locks or notices before opening service.'],
+    notes: 'Operational availability depends on opening hours and at least one barista being clocked in.'
   },
   {
     group: 'Administration',

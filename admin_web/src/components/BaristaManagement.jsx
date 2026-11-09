@@ -194,7 +194,7 @@ const BaristaManagement = () => {
   };
   
   const handleDeleteBarista = async (id, name) => {
-    if (!await requestAdminConfirm({ title: 'Remove barista?', message: `${name} will lose access and be removed from future timetables. Historical attendance records will be preserved, and the profile will remain available under Inactive.`, confirmLabel: 'Remove', tone: 'danger' })) return;
+    if (!await requestAdminConfirm({ title: 'Remove barista?', message: `${name} will lose access to clock-in and clock-out. Historical attendance records will be preserved, and the profile will remain available under Inactive.`, confirmLabel: 'Remove', tone: 'danger' })) return;
     
     try {
       await adminRequest(`/v1/admin/baristas/${id}`, { method: 'DELETE' });
@@ -247,9 +247,9 @@ const BaristaManagement = () => {
         <div className="mb-6 shrink-0">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900">Barista Management</h1>
-            <InfoTooltip content="Manage staff profiles used for timetable attendance and six-digit PIN clock-ins on the shared workstation." title="Barista Management" />
+            <InfoTooltip content="Manage staff profiles used for attendance and six-digit PIN clock-ins on the shared workstation." title="Barista Management" />
           </div>
-          <p className="text-sm text-gray-500 mt-1">Manage staff profiles used for timetable attendance and six-digit PIN clock-ins on the shared workstation. Profiles do not need email, phone number, or separate app credentials.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage staff profiles used for attendance and six-digit PIN clock-ins on the shared workstation. Profiles do not need email, phone number, or separate app credentials.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 shrink-0">
@@ -269,7 +269,7 @@ const BaristaManagement = () => {
             icon={CheckCircle}
             iconBgColor="bg-[#6F9F96]"
             iconColor="text-white"
-            info="Staff members eligible for weekly shift scheduling and PIN clock-in."
+            info="Staff members eligible for PIN clock-in and attendance recording."
           />
           <StatCard
             title="Inactive Baristas"

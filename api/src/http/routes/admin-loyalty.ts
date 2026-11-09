@@ -1013,6 +1013,28 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
         throw new ApiError(400, 'token_adjustment_exceeds_balance', 'You cannot deduct more tokens than the customer has available.');
       }
 
+      if (payload.action === 'debit') {
+        const allowancePeriod = currentEmployeeAllowancePeriod();
+        const [allowanceRows] = await connection.query<Array<RowDataPacket & { remaining_amount: number }>>(
+          `
+            SELECT COALESCE(SUM(remaining_amount), 0) AS remaining_amount
+            FROM employee_token_allowances
+            WHERE user_id = :customerId
+              AND period_start = :periodStart
+              AND status = 'active'
+          `,
+          { customerId: params.customerId, periodStart: allowancePeriod.start }
+        );
+        const protectedAllowance = Number(allowanceRows[0]?.remaining_amount ?? 0);
+        if (nextBalance < protectedAllowance) {
+          throw new ApiError(
+            400,
+            'token_adjustment_exceeds_personal_balance',
+            `Cannot deduct company Monthly Subsidy tokens via manual wallet adjustment. At most ${Math.max(0, previousBalance - protectedAllowance)} personal C2 Credit token(s) can be deducted.`
+          );
+        }
+      }
+
       if (nextBalance > balanceCap) {
         throw new ApiError(
           400,

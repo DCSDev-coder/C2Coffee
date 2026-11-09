@@ -120,19 +120,9 @@ function itemModifiers(item) {
   return values.join(' · ');
 }
 
-function formatCoverageTime(value) {
-  return String(value || '').slice(0, 5) || '--:--';
-}
-
 function dateKey(value) {
   const match = String(value || '').match(/^\d{4}-\d{2}-\d{2}/);
   return match ? match[0] : '';
-}
-
-function formatCoverageShift(startsAt, endsAt) {
-  const start = formatCoverageTime(startsAt);
-  const end = formatCoverageTime(endsAt);
-  return `${start} - ${end}${end < start ? ' (next day)' : ''}`;
 }
 
 function formatAttendanceTime(value) {
@@ -140,12 +130,6 @@ function formatAttendanceTime(value) {
   return Number.isNaN(parsed.getTime())
     ? '--:--'
     : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(parsed);
-}
-
-function malaysiaDate(value = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(value);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function formatScheduleDate(value) {
@@ -459,7 +443,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
   const [attendance, setAttendance] = useState(null);
-  const [weeklySchedule, setWeeklySchedule] = useState([]);
+  const [attendanceHistory, setAttendanceHistory] = useState([]);
   const [guides, setGuides] = useState([]);
   const [sideWork, setSideWork] = useState([]);
   const [selectedSideWork, setSelectedSideWork] = useState(null);
@@ -499,28 +483,25 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
   };
 
   const loadStaffWorkspace = async () => {
-    const [attendanceResult, scheduleResult, guidesResult, sideWorkResult] = await Promise.allSettled([
+    const [attendanceResult, historyResult, guidesResult, sideWorkResult] = await Promise.allSettled([
       adminRequest('/v1/barista/attendance/status'),
-      adminRequest('/v1/barista/weekly-schedule'),
+      adminRequest('/v1/barista/attendance/history'),
       adminRequest('/v1/barista/guides'),
       adminRequest('/v1/barista/side-work'),
     ]);
 
     if (attendanceResult.status === 'fulfilled') setAttendance(attendanceResult.value || null);
-    if (scheduleResult.status === 'fulfilled') {
-      const datedShifts = Array.isArray(scheduleResult.value?.scheduled_shifts)
-        ? scheduleResult.value.scheduled_shifts.map((shift) => ({ ...shift, shift_date: dateKey(shift.shift_date) }))
-        : [];
-      setWeeklySchedule(datedShifts);
+    if (historyResult.status === 'fulfilled') {
+      setAttendanceHistory(Array.isArray(historyResult.value?.attendance) ? historyResult.value.attendance : []);
     } else {
-      setWeeklySchedule([]);
-      setError(scheduleResult.reason?.message || 'Internet connection issue. The published timetable could not be loaded.');
+      setAttendanceHistory([]);
+      setError(historyResult.reason?.message || 'Internet connection issue. Attendance history could not be loaded.');
     }
     if (guidesResult.status === 'fulfilled') setGuides(Array.isArray(guidesResult.value?.guides) ? guidesResult.value.guides : []);
     if (sideWorkResult.status === 'fulfilled') setSideWork(Array.isArray(sideWorkResult.value?.tasks) ? sideWorkResult.value.tasks : []);
 
-    if ([attendanceResult, scheduleResult, guidesResult, sideWorkResult].every((result) => result.status === 'rejected')) {
-      const failedResult = [attendanceResult, scheduleResult, guidesResult, sideWorkResult].find((result) => result.status === 'rejected');
+    if ([attendanceResult, historyResult, guidesResult, sideWorkResult].every((result) => result.status === 'rejected')) {
+      const failedResult = [attendanceResult, historyResult, guidesResult, sideWorkResult].find((result) => result.status === 'rejected');
       setError(failedResult?.reason?.message || 'Unable to load the staff workspace. Please refresh the page.');
     }
   };
@@ -667,8 +648,6 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
     overdueOrderIds.forEach((orderId) => lastReminderAtByOrderId.current.set(orderId, now));
   }, [canOperate, isWorkspace, overdueOrderIds]);
 
-  const todayCoverage = weeklySchedule.filter((entry) => entry.shift_date === malaysiaDate());
-  const upcomingSchedule = weeklySchedule;
   const activeAttendance = attendance?.active_attendance || [];
   const dueSideWork = sideWork.filter((task) => !task.completed_at && currentTime >= new Date(`${task.scheduled_date}T${task.scheduled_time}:00+08:00`).getTime());
 
@@ -840,15 +819,10 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
             </div>
 
             <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><CalendarDays size={20} /></div><div><h2 className="font-extrabold text-slate-900">Upcoming timetable</h2><p className="text-xs text-slate-500">Published shifts for today and the next 30 days</p></div></div>
-              {upcomingSchedule.length > 0 ? <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {Object.entries(upcomingSchedule.reduce((groups, shift) => {
-                  const date = shift.shift_date;
-                  if (!groups[date]) groups[date] = [];
-                  groups[date].push(shift);
-                  return groups;
-                }, {})).map(([date, shifts]) => <div key={date} className="rounded-xl bg-slate-50 p-4"><h3 className="text-sm font-extrabold text-slate-800">{formatScheduleDate(date)}</h3><div className="mt-3 space-y-2">{shifts.map((shift, index) => <p key={`${shift.barista_id}-${shift.starts_at}-${index}`} className="rounded-lg bg-white px-3 py-2 text-sm text-slate-700"><span className="font-bold">{shift.barista_name}</span><br /><span className="text-xs text-slate-500">{formatCoverageShift(shift.starts_at, shift.ends_at)}</span></p>)}</div></div>)}
-              </div> : <div className="mt-4 space-y-3"><p className="rounded-xl bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">No dated timetable has been published yet.</p>{todayCoverage.length > 0 && <div className="rounded-xl border border-dashed border-slate-200 p-3 text-sm text-slate-600"><span className="font-bold text-slate-800">Today's legacy coverage:</span> {todayCoverage.map((shift) => `${shift.barista_name} ${formatCoverageShift(shift.starts_at, shift.ends_at)}`).join(', ')}</div>}</div>}
+              <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><CalendarDays size={20} /></div><div><h2 className="font-extrabold text-slate-900">Attendance history</h2><p className="text-xs text-slate-500">Clock-in and clock-out records from the last 31 days</p></div></div>
+              {attendanceHistory.length > 0 ? <div className="mt-4 max-h-96 space-y-2 overflow-y-auto pr-1">
+                {attendanceHistory.map((entry) => <div key={entry.id} className="rounded-xl bg-slate-50 px-3 py-2.5 text-sm text-slate-700"><div className="flex items-center justify-between gap-3"><span className="font-bold">{entry.barista_name}</span><span className="text-xs font-semibold text-slate-500">{formatScheduleDate(entry.date)}</span></div><div className="mt-1 text-xs text-slate-500">In {formatAttendanceTime(entry.clocked_in_at)} · {entry.clocked_out_at ? `Out ${formatAttendanceTime(entry.clocked_out_at)}` : 'Still clocked in'}</div></div>)}
+              </div> : <p className="mt-4 rounded-xl bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">No attendance records yet.</p>}
             </article>
           </section>
         )}

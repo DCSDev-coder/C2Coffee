@@ -1,10 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api_client.dart';
 import 'safe_error_message.dart';
+
+enum DeviceVerificationStatus {
+  activated,
+  activationRequired,
+  temporarilyUnavailable,
+}
 
 class DeviceActivationResult {
   final bool success;
@@ -19,43 +26,62 @@ class DeviceActivationResult {
 class AdministratorUnlockResult {
   final bool success;
   final String? message;
+  final bool deviceTokenValid;
 
-  const AdministratorUnlockResult._(this.success, this.message);
+  const AdministratorUnlockResult._(
+    this.success,
+    this.message, {
+    this.deviceTokenValid = true,
+  });
 
-  const AdministratorUnlockResult.success() : this._(true, null);
+  const AdministratorUnlockResult.success({bool deviceTokenValid = true})
+      : this._(true, null, deviceTokenValid: deviceTokenValid);
   const AdministratorUnlockResult.failure(String message)
-    : this._(false, message);
+      : this._(false, message);
 }
 
 class AuthService {
-  final ApiClient _apiClient = ApiClient();
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  AuthService({ApiClient? apiClient, FlutterSecureStorage? storage})
+    : _apiClient = apiClient ?? ApiClient(),
+      _storage = storage ?? const FlutterSecureStorage();
+
+  final ApiClient _apiClient;
+  final FlutterSecureStorage _storage;
 
   static const String _tokenKey = 'device_token';
+
+  final ValueNotifier<DeviceVerificationStatus> statusNotifier =
+      ValueNotifier<DeviceVerificationStatus>(
+    DeviceVerificationStatus.temporarilyUnavailable,
+  );
 
   Future<String?> getToken() async {
     return _storage.read(key: _tokenKey);
   }
 
-  Future<bool> verifyDevice() async {
+  Future<DeviceVerificationStatus> verifyDevice() async {
     final token = await getToken();
     if (token == null) {
-      return false;
+      statusNotifier.value = DeviceVerificationStatus.activationRequired;
+      return DeviceVerificationStatus.activationRequired;
     }
 
     try {
       final response = await _apiClient.get('/v1/counter/device', token: token);
       if (response.statusCode == 200) {
-        return true;
+        statusNotifier.value = DeviceVerificationStatus.activated;
+        return DeviceVerificationStatus.activated;
       } else if (response.statusCode == 401) {
         // Device revoked, reset, or no longer valid
         await logout();
-        return false;
+        statusNotifier.value = DeviceVerificationStatus.activationRequired;
+        return DeviceVerificationStatus.activationRequired;
       }
-      return false; // Handle other errors as failed validation for now
-    } catch (e) {
-      // Network error, you might want to handle this differently in a real app
-      return false;
+      statusNotifier.value = DeviceVerificationStatus.temporarilyUnavailable;
+      return DeviceVerificationStatus.temporarilyUnavailable;
+    } catch (_) {
+      statusNotifier.value = DeviceVerificationStatus.temporarilyUnavailable;
+      return DeviceVerificationStatus.temporarilyUnavailable;
     }
   }
 
@@ -63,11 +89,6 @@ class AuthService {
     String password,
   ) async {
     final token = await getToken();
-    if (token == null) {
-      return const AdministratorUnlockResult.failure(
-        'This C2 Store device is no longer activated.',
-      );
-    }
 
     try {
       final response = await _apiClient.post(
@@ -76,7 +97,20 @@ class AuthService {
         token: token,
       );
       if (response.statusCode == 200) {
-        return const AdministratorUnlockResult.success();
+        try {
+          final body = jsonDecode(response.body) as Map<String, dynamic>? ?? const {};
+          final deviceTokenValid = body['device_token_valid'] as bool? ?? true;
+          if (!deviceTokenValid) {
+            // Device token is no longer recognized by the backend.
+            // Clear local token so the tablet can return to the activation screen.
+            await logout();
+          }
+          return AdministratorUnlockResult.success(
+            deviceTokenValid: deviceTokenValid,
+          );
+        } catch (_) {
+          return const AdministratorUnlockResult.success();
+        }
       }
       if (response.statusCode == 429) {
         return const AdministratorUnlockResult.failure(
@@ -125,6 +159,7 @@ class AuthService {
         }
         try {
           await _storage.write(key: _tokenKey, value: token);
+          statusNotifier.value = DeviceVerificationStatus.activated;
         } catch (_) {
           return const DeviceActivationResult.failure(
             'The server activated this device, but iOS/Android secure storage could not save its credential. Rebuild the app with Keychain/Keystore configuration, then reissue activation.',
@@ -158,5 +193,6 @@ class AuthService {
 
   Future<void> logout() async {
     await _storage.delete(key: _tokenKey);
+    statusNotifier.value = DeviceVerificationStatus.activationRequired;
   }
 }

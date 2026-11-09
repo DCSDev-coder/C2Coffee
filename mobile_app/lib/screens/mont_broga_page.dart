@@ -183,6 +183,28 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     }
     if (widget.initialQuantity != null) quantity = widget.initialQuantity!;
 
+    if (widget.initialBean == null && !_isBeanAvailable(selectedBean)) {
+      if (_isBeanAvailable('Dato Blend')) {
+        selectedBean = 'Dato Blend';
+      } else if (_isBeanAvailable('Datin Blend')) {
+        selectedBean = 'Datin Blend';
+      }
+    }
+    if (widget.initialMilk == null && !_isMilkAvailable(milk)) {
+      if (_isMilkAvailable('Fresh Milk')) {
+        milk = 'Fresh Milk';
+      } else if (_isMilkAvailable('Oat Milk')) {
+        milk = 'Oat Milk';
+      }
+    }
+    if (!_isSparklingAvailable(sparklingMixer)) {
+      if (_isSparklingAvailable('Ginger Ade')) {
+        sparklingMixer = 'Ginger Ade';
+      } else if (_isSparklingAvailable('Tonic Water')) {
+        sparklingMixer = 'Tonic Water';
+      }
+    }
+
     for (final group in _libraryGroups) {
       final options = (group['options'] as List? ?? const [])
           .whereType<Map>()
@@ -384,6 +406,33 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         'allowRemarks',
         fallback: true,
       );
+
+  bool _isBeanAvailable(String bean) {
+    final availableBeans = widget.item['available_beans'];
+    if (availableBeans is List) {
+      return availableBeans
+          .any((b) => b.toString().toLowerCase() == bean.toLowerCase());
+    }
+    return true;
+  }
+
+  bool _isMilkAvailable(String milkOption) {
+    final availableMilks = widget.item['available_milks'];
+    if (availableMilks is List) {
+      return availableMilks
+          .any((m) => m.toString().toLowerCase() == milkOption.toLowerCase());
+    }
+    return true;
+  }
+
+  bool _isSparklingAvailable(String sparkling) {
+    final availableSparkling = widget.item['available_sparkling'];
+    if (availableSparkling is List) {
+      return availableSparkling
+          .any((s) => s.toString().toLowerCase() == sparkling.toLowerCase());
+    }
+    return true;
+  }
 
   String get _itemDescription {
     if (widget.item['desc'] != null &&
@@ -601,6 +650,8 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       return _activeLibraryGroups.expand((group) {
         final selected = _librarySelections[group['id'] as int] ?? const [];
         return selected.map((option) => CartModifier(
+              optionGroupId: (group['id'] as num?)?.toInt(),
+              optionGroupOptionId: (option['id'] as num?)?.toInt(),
               groupName: group['name']?.toString() ?? 'Option',
               optionName: option['name']?.toString() ?? '',
               priceDeltaRm:
@@ -1232,40 +1283,42 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             _buildSectionTitle('Choice of Beans'),
                             Row(
                               children: [
-                                _buildOptionCard(
-                                  title: 'DATO\nBLEND',
-                                  subtitle: 'Bold and Smoky',
-                                  value: 'Dato Blend',
-                                  groupValue: selectedBean,
-                                  onChanged: (v) =>
-                                      setState(() => selectedBean = v),
-                                  color: Colors.transparent,
-                                  textColor: Colors.white,
-                                  isGradient: true,
-                                  gradientColors: [
-                                    const Color(0xFFC76B26),
-                                    const Color(0xFF7A1800)
-                                  ],
-                                  icon: Image.asset('assets/images/dato.png',
-                                      height: 28, color: Colors.white),
-                                ),
-                                _buildOptionCard(
-                                  title: 'DATIN\nBLEND',
-                                  subtitle: 'Chocolatey & Medium Acidity',
-                                  value: 'Datin Blend',
-                                  groupValue: selectedBean,
-                                  onChanged: (v) =>
-                                      setState(() => selectedBean = v),
-                                  color: Colors.transparent,
-                                  textColor: Colors.white,
-                                  isGradient: true,
-                                  gradientColors: [
-                                    const Color(0xFFE91E63),
-                                    const Color(0xFF009624)
-                                  ],
-                                  icon: Image.asset('assets/images/datin.png',
-                                      height: 28, color: Colors.white),
-                                ),
+                                if (_isBeanAvailable('Dato Blend'))
+                                  _buildOptionCard(
+                                    title: 'DATO\nBLEND',
+                                    subtitle: 'Bold and Smoky',
+                                    value: 'Dato Blend',
+                                    groupValue: selectedBean,
+                                    onChanged: (v) =>
+                                        setState(() => selectedBean = v),
+                                    color: Colors.transparent,
+                                    textColor: Colors.white,
+                                    isGradient: true,
+                                    gradientColors: [
+                                      const Color(0xFFC76B26),
+                                      const Color(0xFF7A1800)
+                                    ],
+                                    icon: Image.asset('assets/images/dato.png',
+                                        height: 28, color: Colors.white),
+                                  ),
+                                if (_isBeanAvailable('Datin Blend'))
+                                  _buildOptionCard(
+                                    title: 'DATIN\nBLEND',
+                                    subtitle: 'Chocolatey & Medium Acidity',
+                                    value: 'Datin Blend',
+                                    groupValue: selectedBean,
+                                    onChanged: (v) =>
+                                        setState(() => selectedBean = v),
+                                    color: Colors.transparent,
+                                    textColor: Colors.white,
+                                    isGradient: true,
+                                    gradientColors: [
+                                      const Color(0xFFE91E63),
+                                      const Color(0xFF009624)
+                                    ],
+                                    icon: Image.asset('assets/images/datin.png',
+                                        height: 28, color: Colors.white),
+                                  ),
                               ],
                             ),
                             const Divider(height: 24),
@@ -1403,26 +1456,28 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             _buildSectionTitle('Choice of Sparkling'),
                             Row(
                               children: [
-                                _buildOptionCard(
-                                  title: 'GINGER\nADE',
-                                  subtitle: '+ 0.00',
-                                  value: 'Ginger Ade',
-                                  groupValue: sparklingMixer,
-                                  onChanged: (v) =>
-                                      setState(() => sparklingMixer = v),
-                                  color: const Color(0xFFC76B26),
-                                  textColor: Colors.white,
-                                ),
-                                _buildOptionCard(
-                                  title: 'TONIC\nWATER',
-                                  subtitle: '+ 0.00',
-                                  value: 'Tonic Water',
-                                  groupValue: sparklingMixer,
-                                  onChanged: (v) =>
-                                      setState(() => sparklingMixer = v),
-                                  color: const Color(0xFF007AEC),
-                                  textColor: Colors.white,
-                                ),
+                                if (_isSparklingAvailable('Ginger Ade'))
+                                  _buildOptionCard(
+                                    title: 'GINGER\nADE',
+                                    subtitle: '+ 0.00',
+                                    value: 'Ginger Ade',
+                                    groupValue: sparklingMixer,
+                                    onChanged: (v) =>
+                                        setState(() => sparklingMixer = v),
+                                    color: const Color(0xFFC76B26),
+                                    textColor: Colors.white,
+                                  ),
+                                if (_isSparklingAvailable('Tonic Water'))
+                                  _buildOptionCard(
+                                    title: 'TONIC\nWATER',
+                                    subtitle: '+ 0.00',
+                                    value: 'Tonic Water',
+                                    groupValue: sparklingMixer,
+                                    onChanged: (v) =>
+                                        setState(() => sparklingMixer = v),
+                                    color: const Color(0xFF007AEC),
+                                    textColor: Colors.white,
+                                  ),
                               ],
                             ),
                             const Divider(height: 24),
@@ -1431,24 +1486,26 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                             _buildSectionTitle('Choice of Milk'),
                             Row(
                               children: [
-                                _buildOptionCard(
-                                  title: 'FRESH\nMILK',
-                                  subtitle: '+ 0.00',
-                                  value: 'Fresh Milk',
-                                  groupValue: milk,
-                                  onChanged: (v) => setState(() => milk = v),
-                                  color: const Color(0xFF007AEC),
-                                  textColor: Colors.white,
-                                ),
-                                _buildOptionCard(
-                                  title: 'OAT\nMILK',
-                                  subtitle: 'OATSIDE\n+ 3.00',
-                                  value: 'Oat Milk',
-                                  groupValue: milk,
-                                  onChanged: (v) => setState(() => milk = v),
-                                  color: const Color(0xFF995C00),
-                                  textColor: Colors.white,
-                                ),
+                                if (_isMilkAvailable('Fresh Milk'))
+                                  _buildOptionCard(
+                                    title: 'FRESH\nMILK',
+                                    subtitle: '+ 0.00',
+                                    value: 'Fresh Milk',
+                                    groupValue: milk,
+                                    onChanged: (v) => setState(() => milk = v),
+                                    color: const Color(0xFF007AEC),
+                                    textColor: Colors.white,
+                                  ),
+                                if (_isMilkAvailable('Oat Milk'))
+                                  _buildOptionCard(
+                                    title: 'OAT\nMILK',
+                                    subtitle: 'OATSIDE\n+ 3.00',
+                                    value: 'Oat Milk',
+                                    groupValue: milk,
+                                    onChanged: (v) => setState(() => milk = v),
+                                    color: const Color(0xFF995C00),
+                                    textColor: Colors.white,
+                                  ),
                               ],
                             ),
                             const Divider(height: 24),

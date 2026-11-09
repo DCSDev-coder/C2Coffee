@@ -140,6 +140,8 @@ function emptyTierRewardForm(tiers = []) {
     rewardTiming: 'achievement',
     name: '',
     benefitType: 'Free',
+    optionGroupId: null,
+    optionIds: [],
     discountValue: '',
     productKinds: ['drink', 'food', 'merchandise', 'candle'],
     subcategoryCodes: [],
@@ -157,6 +159,7 @@ const REWARD_BENEFIT_OPTIONS = [
   { value: 'Cash Voucher', label: 'Fixed RM discount (e.g. RM1 OFF)' },
   { value: 'Discount', label: 'Percentage discount' },
   { value: 'Free', label: 'Free item(s)' },
+  { value: 'Free Option', label: 'Free option / add-on' },
   { value: 'Bundle', label: 'Buy X, get Y free' }
 ];
 
@@ -164,6 +167,7 @@ const normalizeRewardBenefit = (voucher) => {
   if (voucher?.promotionKind === 'bundle') return 'Bundle';
   if (voucher?.benefitType === 'Cash Voucher') return 'Cash Voucher';
   if (['Percentage Off', 'Discount'].includes(voucher?.benefitType)) return 'Discount';
+  if (voucher?.benefitType === 'Free Option') return 'Free Option';
   return 'Free';
 };
 
@@ -336,7 +340,7 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
   );
 };
 
-const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSave, saving, isEditing = false }) => {
+const TierRewardModal = ({ open, form, tiers, menuItems, optionGroups = [], onChange, onClose, onSave, saving, isEditing = false }) => {
   if (!open || typeof document === 'undefined') return null;
 
   const eligibleTiers = tiers.filter((tier) => tier.isActive);
@@ -344,6 +348,8 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
   const isDiscount = form.benefitType === 'Discount';
   const isCash = form.benefitType === 'Cash Voucher';
   const isBundle = form.benefitType === 'Bundle';
+  const isFreeOption = form.benefitType === 'Free Option';
+  const selectedOptionGroup = optionGroups.find((group) => Number(group.id) === Number(form.optionGroupId));
   const hasDiscountValue = isDiscount || isCash;
   const rewardPickerItems = menuItems;
   const scopedItems = menuItems.filter((item) =>
@@ -432,14 +438,37 @@ const TierRewardModal = ({ open, form, tiers, menuItems, onChange, onClose, onSa
                   <p className="mt-1 text-[11px] text-gray-400">Items from the eligible list below that must be in the cart.</p>
                 </div>
               )}
-              {(form.benefitType === 'Free' || isBundle) && (
+              {(form.benefitType === 'Free' || isBundle || isFreeOption) && (
                 <div>
                   <label className="block text-xs font-medium text-gray-500">{isBundle ? 'Customer gets free (qty)' : 'Items included per claim'}</label>
                   <input required type="number" min="1" max="20" value={form.rewardQuantity} onChange={(event) => onChange({ rewardQuantity: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
-                  <p className="mt-1 text-[11px] text-gray-400">{isBundle ? 'e.g. Buy 3 get 1 free: buys 3, gets free 1.' : 'Choose how many eligible products become free in one claim (1–20).'}</p>
+                  <p className="mt-1 text-[11px] text-gray-400">{isBundle ? 'e.g. Buy 3 get 1 free: buys 3, gets free 1.' : isFreeOption ? 'Only the selected option/add-on is free; the base item remains chargeable.' : 'Choose how many eligible products become free in one claim (1–20).'}</p>
                 </div>
               )}
             </div>
+            {isFreeOption && (
+              <div className="rounded-lg border border-[#BFD3CE] bg-[#F8FBFA] p-3 space-y-3">
+                <div>
+                  <p className="text-xs font-bold text-gray-700">Free option scope</p>
+                  <p className="mt-1 text-[11px] text-gray-500">Choose one option group from Options & Nutrition. Customers must select a matching choice; the base menu item is not free.</p>
+                </div>
+                <select required value={form.optionGroupId || ''} onChange={(event) => onChange({ optionGroupId: event.target.value || null, optionIds: [] })} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+                  <option value="">Choose an option group</option>
+                  {optionGroups.filter((group) => group.is_active !== false).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                </select>
+                {selectedOptionGroup && (
+                  <div className="max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
+                    <label className="mb-2 flex items-center gap-2 border-b border-gray-100 pb-2 text-xs font-bold text-gray-700">
+                      <input type="checkbox" checked={form.optionIds.length === 0} onChange={() => onChange({ optionIds: form.optionIds.length === 0 ? selectedOptionGroup.options.filter((option) => option.is_active !== false).map((option) => option.id) : [] })} className="rounded text-[#1F3A34]" />
+                      All active choices
+                    </label>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {(selectedOptionGroup.options || []).filter((option) => option.is_active !== false).map((option) => <label key={option.id} className="flex items-center gap-2 text-xs text-gray-700"><input type="checkbox" checked={form.optionIds.includes(option.id)} onChange={() => onChange({ optionIds: form.optionIds.includes(option.id) ? form.optionIds.filter((id) => id !== option.id) : [...form.optionIds, option.id] })} className="rounded text-[#1F3A34]" /><span className="truncate">{option.name}</span></label>)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div>
               <p className="text-xs font-medium text-gray-500">Eligible menu items</p>
               <div className="mt-1 grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3 sm:grid-cols-4">
@@ -571,6 +600,7 @@ const TierManagement = () => {
   const [tierRewardForm, setTierRewardForm] = useState(emptyTierRewardForm());
   const [editingTierReward, setEditingTierReward] = useState(null);
   const [tierRewardMenuItems, setTierRewardMenuItems] = useState([]);
+  const [tierRewardOptionGroups, setTierRewardOptionGroups] = useState([]);
   const [codeAutoGenerated, setCodeAutoGenerated] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [tierSortKey, setTierSortKey] = useState('minCups');
@@ -592,10 +622,11 @@ const TierManagement = () => {
           setIsLoading(true);
         }
         setLoadError('');
-        const [response, voucherResponse, menuResponse] = await Promise.all([
+        const [response, voucherResponse, menuResponse, optionResponse] = await Promise.all([
           loadAdminLoyaltyOverview(100),
           loadAdminVouchers({ includeTierRewards: true }),
-          loadAdminMenu()
+          loadAdminMenu(),
+          adminRequest('/v1/admin/menu/options-library')
         ]);
         if (!isMounted) return;
 
@@ -603,6 +634,7 @@ const TierManagement = () => {
         setTiers(Array.isArray(response?.tiers) ? response.tiers : []);
         setVoucherOptions(Array.isArray(voucherResponse?.vouchers) ? voucherResponse.vouchers : []);
         setTierRewardMenuItems(deriveTierRewardMenuItems(menuResponse));
+        setTierRewardOptionGroups(Array.isArray(optionResponse?.groups) ? optionResponse.groups : []);
       } catch (error) {
         console.error('Failed to load loyalty tiers', error);
         if (isMounted) {
@@ -705,15 +737,17 @@ const TierManagement = () => {
   };
 
   const refreshTiers = async () => {
-    const [response, voucherResponse, menuResponse] = await Promise.all([
+    const [response, voucherResponse, menuResponse, optionResponse] = await Promise.all([
       loadAdminLoyaltyOverview(100),
       loadAdminVouchers({ includeTierRewards: true }),
-      loadAdminMenu()
+      loadAdminMenu(),
+      adminRequest('/v1/admin/menu/options-library')
     ]);
     setOverview(response ?? null);
     setTiers(Array.isArray(response?.tiers) ? response.tiers : []);
     setVoucherOptions(Array.isArray(voucherResponse?.vouchers) ? voucherResponse.vouchers : []);
     setTierRewardMenuItems(deriveTierRewardMenuItems(menuResponse));
+    setTierRewardOptionGroups(Array.isArray(optionResponse?.groups) ? optionResponse.groups : []);
     setCurrentPage(1);
   };
 
@@ -733,6 +767,8 @@ const TierManagement = () => {
       rewardTiming: timing,
       name: voucher.name || '',
       benefitType: normalizeRewardBenefit(voucher),
+      optionGroupId: voucher.optionGroupId || null,
+      optionIds: (voucher.optionIds || []).map(Number),
       discountValue: voucher.discountValue ?? '',
       productKinds: voucher.productKinds?.length ? voucher.productKinds : ['drink', 'food', 'merchandise', 'candle'],
       subcategoryCodes: voucher.subcategoryCodes || [],
@@ -760,6 +796,7 @@ const TierManagement = () => {
 
   const buildTierRewardPayload = () => {
     const isBundle = tierRewardForm.benefitType === 'Bundle';
+    const isFreeOption = tierRewardForm.benefitType === 'Free Option';
     const isFixedOrPercent = ['Discount', 'Cash Voucher'].includes(tierRewardForm.benefitType);
     const differentReward = isBundle && tierRewardForm.rewardMode === 'different' && tierRewardForm.rewardItems.length > 0;
     const rewardKinds = differentReward
@@ -786,6 +823,8 @@ const TierManagement = () => {
       rewardItems: differentReward ? tierRewardForm.rewardItems : [],
       qualifyingQuantity: isBundle ? Math.max(1, Number(tierRewardForm.qualifyingQuantity) || 1) : 1,
       rewardQuantity: isFixedOrPercent ? 1 : Math.max(1, Number(tierRewardForm.rewardQuantity) || 1),
+      optionGroupId: isFreeOption ? Number(tierRewardForm.optionGroupId) : null,
+      optionIds: isFreeOption ? tierRewardForm.optionIds.map(Number) : [],
       expiry: null,
       totalQty: null,
       limitPerUser: claims,
@@ -810,6 +849,10 @@ const TierManagement = () => {
     }
     if (tierRewardForm.productKinds.length === 0) {
       showAdminError('Choose at least one eligible menu item type.');
+      return;
+    }
+    if (tierRewardForm.benefitType === 'Free Option' && !tierRewardForm.optionGroupId) {
+      showAdminError('Choose an option group for this reward.');
       return;
     }
     if (tierRewardForm.benefitType === 'Bundle' && tierRewardForm.rewardMode === 'different' && tierRewardForm.rewardItems.length === 0) {
@@ -1225,6 +1268,7 @@ const TierManagement = () => {
         form={tierRewardForm}
         tiers={sortedTiers}
         menuItems={tierRewardMenuItems}
+        optionGroups={tierRewardOptionGroups}
         onChange={updateTierRewardForm}
         onClose={() => {
           setTierRewardModalOpen(false);

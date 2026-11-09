@@ -303,7 +303,7 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
     const to = query.to ?? today;
     const from = query.from ?? malaysiaDate(new Date(new Date(`${to}T12:00:00+08:00`).getTime() - 29 * 86400000));
     if (from > to || datesBetween(from, to).length > 93) throw new ApiError(400, 'invalid_date_range', 'Choose a date range of up to 93 days.');
-    const [attendanceResult, scheduleResult, datedScheduleResult] = await Promise.all([
+    const [attendanceResult] = await Promise.all([
       mysqlPool.query<RowDataPacket[]>(
         `SELECT a.id, a.barista_id, b.name AS barista_name, a.clocked_in_at, a.clocked_out_at
          FROM barista_attendance a JOIN baristas b ON b.id = a.barista_id
@@ -313,105 +313,26 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
            AND (:baristaId IS NULL OR a.barista_id = :baristaId)
          ORDER BY a.clocked_in_at DESC`,
         { tenantId: request.adminAuth.tenantId, from, to, baristaId: query.barista_id ?? null }
-      ),
-      mysqlPool.query<RowDataPacket[]>(
-        `SELECT s.barista_id, b.name AS barista_name, s.weekday, s.starts_at, s.ends_at, s.created_at
-         FROM barista_weekly_schedules s JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND s.is_active = 1 AND b.is_active = 1
-           AND (:baristaId IS NULL OR s.barista_id = :baristaId)`,
-        { tenantCode: request.adminAuth.tenantCode, baristaId: query.barista_id ?? null }
-      ),
-      mysqlPool.query<RowDataPacket[]>(
-        `SELECT s.barista_id, b.name AS barista_name, DATE_FORMAT(s.shift_date, '%Y-%m-%d') AS shift_date, s.starts_at, s.ends_at
-         FROM barista_dated_shifts s JOIN baristas b ON b.id = s.barista_id
-         WHERE s.tenant_code = :tenantCode AND b.is_active = 1
-           AND s.shift_date BETWEEN DATE_SUB(:from, INTERVAL 1 DAY) AND :to
-           AND (:baristaId IS NULL OR s.barista_id = :baristaId)`,
-        { tenantCode: request.adminAuth.tenantCode, from, to, baristaId: query.barista_id ?? null }
       )
     ]);
-    const schedules = scheduleResult[0];
-    const datedSchedules = datedScheduleResult[0];
-    const useDatedSchedules = datedSchedules.length > 0;
-    const actualByKey = new Set<string>();
     const records: Array<Record<string, unknown>> = attendanceResult[0].map((row) => {
       const clockInDate = malaysiaDate(new Date(row.clocked_in_at));
-      const time = malaysiaTime(row.clocked_in_at);
-      const previousDate = previousMalaysiaDate(clockInDate);
-      const candidates = useDatedSchedules
-        ? datedSchedules
-          .filter((schedule) => Number(schedule.barista_id) === Number(row.barista_id))
-          .map((schedule) => ({ schedule, shiftDate: String(schedule.shift_date) }))
-          .filter(({ schedule, shiftDate }) => shiftDate === clockInDate || (
-            shiftDate === previousDate
-            && isOvernightShift(String(schedule.starts_at), String(schedule.ends_at))
-            && time <= String(schedule.ends_at).slice(0, 5)
-          ))
-        : schedules
-          .filter((schedule) => Number(schedule.barista_id) === Number(row.barista_id))
-          .map((schedule) => ({
-            schedule,
-            shiftDate: Number(schedule.weekday) === weekdayForDate(clockInDate)
-              ? clockInDate
-              : previousDate
-          }))
-          .filter(({ schedule, shiftDate }) => malaysiaDate(new Date(schedule.created_at)) <= shiftDate && (
-            shiftDate === clockInDate || (
-              Number(schedule.weekday) === weekdayForDate(previousDate)
-              && isOvernightShift(String(schedule.starts_at), String(schedule.ends_at))
-              && time <= String(schedule.ends_at).slice(0, 5)
-            )
-          ));
-      const planned = candidates.sort((left, right) => Math.abs(time.localeCompare(String(left.schedule.starts_at).slice(0, 5))) - Math.abs(time.localeCompare(String(right.schedule.starts_at).slice(0, 5))))[0];
-      const plannedStart = planned?.schedule.starts_at?.slice(0, 5);
-      const plannedEnd = planned?.schedule.ends_at?.slice(0, 5);
-      const lateMinutes = planned
-        ? Math.max(0, Math.round((new Date(`${clockInDate}T${time}:00+08:00`).getTime() - new Date(`${planned.shiftDate}T${plannedStart}:00+08:00`).getTime()) / 60000))
-        : 0;
-      const durationMinutes = row.clocked_out_at ? Math.round((new Date(row.clocked_out_at).getTime() - new Date(row.clocked_in_at).getTime()) / 60000) : null;
-      const shiftDate = planned?.shiftDate ?? clockInDate;
-      actualByKey.add(`${row.barista_id}:${shiftDate}`);
+      const durationMinutes = row.clocked_out_at
+        ? Math.round((new Date(row.clocked_out_at).getTime() - new Date(row.clocked_in_at).getTime()) / 60000)
+        : null;
       return {
-        id: Number(row.id), barista_id: Number(row.barista_id), barista_name: row.barista_name, date: shiftDate,
-        planned_start: plannedStart ?? null, planned_end: plannedEnd ?? null,
-        planned_ends_next_day: planned ? isOvernightShift(String(planned.schedule.starts_at), String(planned.schedule.ends_at)) : false,
-        clocked_in_at: row.clocked_in_at, clocked_out_at: row.clocked_out_at, late_minutes: lateMinutes, duration_minutes: durationMinutes,
-        status: !row.clocked_out_at
-          ? clockInDate < today
-            ? 'missing_clock_out'
-            : lateMinutes > 0
-              ? 'clocked_in_late'
-              : 'clocked_in'
-          : !planned
-            ? 'unscheduled'
-            : lateMinutes > 0
-              ? 'late'
-              : 'completed'
+        id: Number(row.id), barista_id: Number(row.barista_id), barista_name: row.barista_name, date: clockInDate,
+        planned_start: null, planned_end: null, planned_ends_next_day: false,
+        clocked_in_at: row.clocked_in_at, clocked_out_at: row.clocked_out_at,
+        late_minutes: 0, duration_minutes: durationMinutes,
+        status: row.clocked_out_at ? 'completed' : clockInDate < today ? 'missing_clock_out' : 'clocked_in'
       };
     });
-    for (const date of datesBetween(from, to)) {
-      if (date >= today) continue;
-      const plannedShifts = useDatedSchedules
-        ? datedSchedules.filter((entry) => entry.shift_date === date)
-        : schedules.filter((entry) =>
-          Number(entry.weekday) === weekdayForDate(date)
-          && malaysiaDate(new Date(entry.created_at)) <= date
-        );
-      for (const shift of plannedShifts) {
-        if (!actualByKey.has(`${shift.barista_id}:${date}`)) records.push({
-          id: `missing-${shift.barista_id}-${date}`, barista_id: Number(shift.barista_id), barista_name: shift.barista_name, date,
-          planned_start: shift.starts_at.slice(0, 5), planned_end: shift.ends_at.slice(0, 5),
-          planned_ends_next_day: isOvernightShift(String(shift.starts_at), String(shift.ends_at)), clocked_in_at: null, clocked_out_at: null,
-          late_minutes: 0, duration_minutes: null, status: 'missed_clock_in'
-        });
-      }
-    }
-    records.sort((left, right) => `${right.date}${right.barista_name}`.localeCompare(`${left.date}${left.barista_name}`));
     return { from, to, attendance: records, summary: {
       active_now: records.filter((record) => record.status === 'clocked_in' || record.status === 'clocked_in_late').length,
-      late_arrivals: records.filter((record) => record.status === 'late' || record.status === 'clocked_in_late').length,
+      late_arrivals: 0,
       missing_clock_out: records.filter((record) => record.status === 'missing_clock_out').length,
-      missed_clock_in: records.filter((record) => record.status === 'missed_clock_in').length
+      missed_clock_in: 0
     } };
   });
 

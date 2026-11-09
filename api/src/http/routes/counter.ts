@@ -3,7 +3,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
-import { authenticateCounterDevice } from '../../counter/guard.js';
+import { authenticateCounterDevice, type CounterAuthContext } from '../../counter/guard.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { generateOpaqueToken, generateOtpCode, hashSha256, otpMatches } from '../../lib/crypto.js';
 import { normalizePhoneE164 } from '../../lib/phone.js';
@@ -18,6 +18,7 @@ import { verifyPassword } from '../../lib/password.js';
 import { isAllowedDirectPrinterDestination } from '../../lib/printer-network.js';
 import {
   collectMatchedUnits,
+  collectMatchedOptionUnits,
   assertTierVoucherStillEligible,
   isVoucherAvailableNow,
   loadCheckoutMenuItems,
@@ -181,7 +182,7 @@ async function getCounterCustomerSummary(tenantId: number, userId: number) {
       code: string;
       name: string;
       voucher_type: string;
-      discount_mode: 'fixed_rm' | 'percent_rm' | 'free_drink';
+      discount_mode: 'fixed_rm' | 'percent_rm' | 'free_drink' | 'free_option';
       discount_value: string;
       min_spend_rm: string | null;
       eligible_scope_json: unknown;
@@ -198,7 +199,7 @@ async function getCounterCustomerSummary(tenantId: number, userId: number) {
          AND uv.status = 'active'
          AND vt.tenant_id = :tenantId
          AND vt.is_active = 1
-         AND vt.discount_mode IN ('fixed_rm', 'percent_rm', 'free_drink')
+         AND vt.discount_mode IN ('fixed_rm', 'percent_rm', 'free_drink', 'free_option')
          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
          AND (uv.expires_at IS NULL OR uv.expires_at > UTC_TIMESTAMP())
        ORDER BY uv.expires_at IS NULL DESC, uv.expires_at ASC, uv.id ASC
@@ -304,12 +305,52 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
   }));
 
   app.post('/v1/counter/administrator-unlock', {
-    preHandler: authenticateCounterDevice,
     config: { rateLimit: { max: 5, timeWindow: '15 minutes' } }
   }, async (request) => {
     const parsed = administratorUnlockSchema.safeParse(request.body);
     if (!parsed.success) {
       throw new ApiError(401, 'administrator_unlock_failed', 'Administrator password is incorrect.');
+    }
+
+    // Attempt to identify the device if a valid device token is provided,
+    // but do NOT reject the unlock if the device token is invalid, rotated, or missing.
+    // An administrator entering their password is the ultimate recovery mechanism.
+    let deviceContext: CounterAuthContext | null = null;
+    const authorization = request.headers.authorization;
+    if (authorization?.startsWith('Bearer ')) {
+      const token = authorization.slice('Bearer '.length).trim();
+      if (token) {
+        try {
+          const [devices] = await mysqlPool.query<Array<RowDataPacket & CounterAuthContext>>(
+            `SELECT cd.id AS deviceId, cd.tenant_id AS tenantId, tenant.code AS tenantCode,
+                    cd.store_id AS storeId, cd.label
+             FROM counter_devices cd
+             JOIN admin_tenants tenant ON tenant.id = cd.tenant_id AND tenant.status = 'active' AND tenant.code = :tenantCode
+             JOIN stores store ON store.id = cd.store_id AND store.tenant_id = cd.tenant_id AND store.status = 'active'
+             WHERE cd.token_hash = :tokenHash AND cd.status = 'active'
+             LIMIT 1`,
+            { tokenHash: hashSha256(token), tenantCode: env.DEPLOYMENT_TENANT_CODE }
+          );
+          if (devices[0]) {
+            deviceContext = devices[0];
+          }
+        } catch {
+          // Non-fatal device lookup failure
+        }
+      }
+    }
+
+    let tenantId = deviceContext?.tenantId;
+    if (!tenantId) {
+      const [tenants] = await mysqlPool.query<RowDataPacket[]>(
+        `SELECT id FROM admin_tenants WHERE code = :tenantCode AND status = 'active' LIMIT 1`,
+        { tenantCode: env.DEPLOYMENT_TENANT_CODE }
+      );
+      tenantId = tenants[0] ? Number(tenants[0].id) : undefined;
+    }
+
+    if (!tenantId) {
+      throw new ApiError(503, 'deployment_tenant_unavailable', 'Deployment tenant is not configured.');
     }
 
     const [administrators] = await mysqlPool.query<RowDataPacket[]>(
@@ -320,8 +361,8 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
        WHERE u.tenant_id = :tenantId
          AND u.status = 'active'
          AND u.password_hash IS NOT NULL
-         AND r.code IN ('super_admin', 'operations_admin')`,
-      { tenantId: request.counterAuth.tenantId }
+         AND r.code IN ('super_admin', 'operations_admin', 'support_admin')`,
+      { tenantId }
     );
 
     let administratorId: number | null = null;
@@ -335,24 +376,34 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       throw new ApiError(401, 'administrator_unlock_failed', 'Administrator password is incorrect.');
     }
 
-    await mysqlPool.execute(
-      `INSERT INTO admin_audit_logs
-         (admin_user_id, effective_roles_json, action_code, target_type, target_id,
-          after_json, ip_address, user_agent, created_at)
-       VALUES
-         (:adminUserId, :roles, 'counter_workspace_unlocked', 'counter_device', :deviceId,
-          :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
-      {
-        adminUserId: administratorId,
-        roles: JSON.stringify(['device_unlock']),
-        deviceId: String(request.counterAuth.deviceId),
-        afterJson: JSON.stringify({ store_id: request.counterAuth.storeId }),
-        ipAddress: request.ip,
-        userAgent: request.headers['user-agent'] ?? null
-      }
-    );
+    try {
+      await mysqlPool.execute(
+        `INSERT INTO admin_audit_logs
+           (admin_user_id, effective_roles_json, action_code, target_type, target_id,
+            after_json, ip_address, user_agent, created_at)
+         VALUES
+           (:adminUserId, :roles, 'counter_workspace_unlocked', 'counter_device', :deviceId,
+            :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        {
+          adminUserId: administratorId,
+          roles: JSON.stringify(['device_unlock']),
+          deviceId: deviceContext ? String(deviceContext.deviceId) : 'unpaired_or_rotated',
+          afterJson: JSON.stringify({
+            store_id: deviceContext?.storeId ?? null,
+            device_token_valid: deviceContext !== null
+          }),
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null
+        }
+      );
+    } catch {
+      // Non-fatal audit log insert failure
+    }
 
-    return { unlocked: true };
+    return {
+      unlocked: true,
+      device_token_valid: deviceContext !== null
+    };
   });
 
   app.post('/v1/counter/direct-printer/configure', { preHandler: authenticateCounterDevice }, async (request, reply) => {
@@ -684,7 +735,8 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           connection,
           store.tenant_id,
           menuItem.id,
-          item.modifiers
+          item.modifiers,
+          request.counterAuth.storeId
         );
         const modifierRm = modifiers.reduce(
           (sum, modifier) => sum + normalizeMoney(modifier.price_delta_rm),
@@ -762,7 +814,10 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
         }
         const qualifying = collectMatchedUnits(rule.qualifying_scope, normalizedItems);
         const rewards = collectMatchedUnits(rule.reward_scope, normalizedItems);
-        if (qualifying.length < rule.qualifying_quantity || rewards.length < rule.reward_quantity) {
+        const options = voucher.discount_mode === 'free_option'
+          ? collectMatchedOptionUnits(rule.reward_scope, normalizedItems)
+          : [];
+        if (qualifying.length < rule.qualifying_quantity || (voucher.discount_mode === 'free_option' ? options.length : rewards.length) < rule.reward_quantity) {
           throw new ApiError(400, 'voucher_not_applicable_to_cart', 'Selected voucher does not match this basket.');
         }
         const minimum = voucher.min_spend_rm === null ? 0 : Number(voucher.min_spend_rm);
@@ -778,6 +833,8 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           discountRm = Math.min(totalBeforeDiscountRm, totalBeforeDiscountRm * Number(voucher.discount_value) / 100);
         } else if (voucher.discount_mode === 'free_drink') {
           discountRm = rewardable.reduce((sum, unit) => sum + unit.basePriceRm + unit.modifierRm, 0);
+        } else if (voucher.discount_mode === 'free_option') {
+          discountRm = options.sort((a, b) => b.priceRm - a.priceRm).slice(0, rule.reward_quantity).reduce((sum, option) => sum + option.priceRm, 0);
         }
         voucherName = voucher.template_name;
       }
@@ -834,7 +891,7 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
          AND uv.status = 'active'
          AND vt.tenant_id = :tenantId
          AND vt.is_active = 1
-         AND vt.discount_mode IN ('fixed_rm', 'percent_rm', 'free_drink')
+         AND vt.discount_mode IN ('fixed_rm', 'percent_rm', 'free_drink', 'free_option')
          AND (vt.valid_until IS NULL OR vt.valid_until > UTC_TIMESTAMP())
          AND (uv.expires_at IS NULL OR uv.expires_at > UTC_TIMESTAMP())
        LIMIT 1`,

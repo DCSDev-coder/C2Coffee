@@ -170,20 +170,18 @@ export async function registerAdminCounterDeviceRoutes(app: FastifyInstance): Pr
     try {
       await connection.beginTransaction();
       await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
+      // Keep the current pairing alive until the new activation code is actually redeemed.
+      // Clearing token_hash immediately would instantly break printing and beeping on the
+      // in-store counter tablet while staff walk over to input the code.
       const [result] = await connection.execute<ResultSetHeader>(
         `UPDATE counter_devices
-         SET token_hash = NULL, activation_code_hash = :activationCodeHash,
-             activation_expires_at = :activationExpiresAt, activated_at = NULL,
+         SET activation_code_hash = :activationCodeHash,
+             activation_expires_at = :activationExpiresAt,
              status = 'active', updated_at = UTC_TIMESTAMP()
          WHERE id = :deviceId AND tenant_id = :tenantId`,
         { deviceId, tenantId: request.adminAuth.tenantId,
           activationCodeHash: hashSha256(activationCode), activationExpiresAt: expiresAt });
       if (!result.affectedRows) throw new ApiError(404, 'counter_device_not_found', 'Counter device was not found.');
-      await connection.execute(
-        `UPDATE counter_customer_sessions SET ended_at = UTC_TIMESTAMP()
-         WHERE counter_device_id = :deviceId AND ended_at IS NULL`,
-        { deviceId }
-      );
       await connection.execute(
         `INSERT INTO admin_audit_logs
          (admin_user_id, effective_roles_json, action_code, target_type, target_id, after_json, ip_address, user_agent)

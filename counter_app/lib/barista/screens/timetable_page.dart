@@ -12,73 +12,77 @@ class TimetablePage extends StatefulWidget {
 }
 
 class _TimetablePageState extends State<TimetablePage> {
+  static const _ink = Color(0xFF203E32);
   static const _canvas = Colors.white;
-  late Future<OperationsContext> _operations;
+  late Future<List<AttendanceHistoryEntry>> _attendance;
 
   @override
   void initState() {
     super.initState();
-    _operations = ApiService.fetchOperationsContext();
+    _attendance = ApiService.fetchAttendanceHistory();
   }
 
   void _refresh() {
-    setState(() => _operations = ApiService.fetchOperationsContext());
+    setState(() => _attendance = ApiService.fetchAttendanceHistory());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _canvas,
-      body: Stack(
-        children: [
-          RefreshIndicator(
-            onRefresh: () async {
-              _refresh();
-              await _operations;
-            },
-            child: FutureBuilder<OperationsContext>(
-              future: _operations,
-              builder: (context, snapshot) {
-                return ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
-                  children: [
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1120),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            BaristaPageHeader(
-                              title: 'Timetable',
-                              subtitle:
-                                  'Published shifts for today and the next 30 days. Matching colours mean those baristas are working at the same time.',
-                              onRefresh: _refresh,
-                              refreshTooltip: 'Refresh timetable',
-                            ),
-                            const SizedBox(height: 22),
-                            _buildContent(snapshot),
-                          ],
-                        ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _refresh();
+          await _attendance;
+        },
+        child: FutureBuilder<List<AttendanceHistoryEntry>>(
+          future: _attendance,
+          builder: (context, snapshot) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1120),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      BaristaPageHeader(
+                        title: 'Attendance history',
+                        subtitle:
+                            'Clock-in and clock-out records from the last 31 days.',
+                        onRefresh: _refresh,
+                        refreshTooltip: 'Refresh attendance history',
                       ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                      const SizedBox(height: 22),
+                      BaristaCard(
+                        padding: const EdgeInsets.all(20),
+                        child: _buildContent(context, snapshot),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildContent(AsyncSnapshot<OperationsContext> snapshot) {
+  Widget _buildContent(
+    BuildContext context,
+    AsyncSnapshot<List<AttendanceHistoryEntry>> snapshot,
+  ) {
     if (snapshot.hasError) {
+      final error = snapshot.error;
+      final detail = error is StateError && error.message.trim().isNotEmpty
+          ? error.message
+          : 'Attendance history could not be loaded. Check the connection and refresh.';
       return _StatusMessage(
         icon: Icons.cloud_off_rounded,
-        title: 'Internet connection issue',
-        message:
-            'The published timetable could not be loaded. Check the connection and refresh.',
+        title: 'Unable to load attendance history',
+        message: detail,
         onRetry: _refresh,
       );
     }
@@ -88,172 +92,84 @@ class _TimetablePageState extends State<TimetablePage> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
-
-    final operations = snapshot.data!;
-    final today = DateTime.now();
-    final dates = List.generate(
-      31,
-      (index) => DateTime(today.year, today.month, today.day + index),
-    );
+    if (snapshot.data!.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: Center(child: Text('No attendance records yet.')),
+      );
+    }
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const BaristaSectionLabel(label: 'NEXT 31 DAYS'),
-        const SizedBox(height: 12),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 900
-                ? 3
-                : constraints.maxWidth >= 590
-                ? 2
-                : 1;
-            final width =
-                (constraints.maxWidth - ((columns - 1) * 12)) / columns;
-            return Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: dates.map((date) {
-                final entries =
-                    operations.scheduledShifts
-                        .where((entry) => entry.shiftDate == _dateKey(date))
-                        .toList()
-                      ..sort(
-                        (left, right) =>
-                            left.startsAt.compareTo(right.startsAt),
-                      );
-                return SizedBox(
-                  width: width,
-                  child: _DayCard(date: date, entries: entries),
-                );
-              }).toList(),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _DayCard extends StatelessWidget {
-  const _DayCard({required this.date, required this.entries});
-
-  final DateTime date;
-  final List<DatedShiftEntry> entries;
-
-  static const _palette = [
-    (Color(0xFFEAF6FD), Color(0xFF8DD3F4), Color(0xFF153B52)),
-    (Color(0xFFF2EDFD), Color(0xFFC7AFF8), Color(0xFF3D246B)),
-    (Color(0xFFFFF4DA), Color(0xFFF1CE78), Color(0xFF694A00)),
-    (Color(0xFFE9F8EF), Color(0xFF91D5AA), Color(0xFF174B2A)),
-    (Color(0xFFFCECEF), Color(0xFFF2A8B5), Color(0xFF6B2430)),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final colorIndexes = _coverageColorIndexes(entries);
-    return BaristaCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            _dateLabel(date),
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF203E32),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (entries.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 22),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: snapshot.data!
+          .map(
+            (entry) => Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF203E32).withValues(alpha: 0.03),
-                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFFAFBFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFDCE3EA)),
               ),
-              child: Text(
-                'No shift planned',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: const Color(0xFF203E32).withValues(alpha: 0.40),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            )
-          else
-            ...List.generate(entries.length, (index) {
-              final entry = entries[index];
-              final colors = _palette[colorIndexes[index] % _palette.length];
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: index == entries.length - 1 ? 0 : 8,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 13,
-                    vertical: 10,
+              child: Row(
+                children: [
+                  const Icon(Icons.person_outline_rounded, color: _ink),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.baristaName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _dateLabel(entry.clockedInAt),
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                      ],
+                    ),
                   ),
-                  decoration: BoxDecoration(
-                    color: colors.$1,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colors.$2),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        entry.baristaName,
-                        style: TextStyle(
-                          color: colors.$3,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        'In ${_timeLabel(context, entry.clockedInAt)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        _shiftTime(entry),
+                        entry.clockedOutAt == null
+                            ? 'Still clocked in'
+                            : 'Out ${_timeLabel(context, entry.clockedOutAt!)}',
                         style: TextStyle(
-                          color: colors.$3.withValues(alpha: .72),
+                          color: entry.clockedOutAt == null
+                              ? _ink
+                              : Colors.black54,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
-                ),
-              );
-            }),
-        ],
-      ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
     );
   }
-
-  static List<int> _coverageColorIndexes(List<DatedShiftEntry> entries) {
-    var colorIndex = -1;
-    var coverageEndsAt = -1;
-    return entries.map((entry) {
-      final startsAt = _minutes(entry.startsAt);
-      var endsAt = _minutes(entry.endsAt);
-      if (endsAt <= startsAt) endsAt += 24 * 60;
-      if (startsAt >= coverageEndsAt) {
-        colorIndex += 1;
-        coverageEndsAt = endsAt;
-      } else if (endsAt > coverageEndsAt) {
-        coverageEndsAt = endsAt;
-      }
-      return colorIndex;
-    }).toList();
-  }
-
-  static int _minutes(String value) {
-    final parts = value.split(':');
-    return (int.tryParse(parts.first) ?? 0) * 60 +
-        (parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0);
-  }
-
-  static String _shiftTime(DatedShiftEntry entry) {
-    final nextDay = _minutes(entry.endsAt) <= _minutes(entry.startsAt);
-    return '${entry.startsAt.substring(0, 5)} – ${entry.endsAt.substring(0, 5)}${nextDay ? ' (next day)' : ''}';
-  }
 }
+
+String _timeLabel(BuildContext context, DateTime value) =>
+    MaterialLocalizations.of(
+      context,
+    ).formatTimeOfDay(TimeOfDay.fromDateTime(value));
+
+String _dateLabel(DateTime value) =>
+    '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
 
 class _StatusMessage extends StatelessWidget {
   const _StatusMessage({
@@ -262,7 +178,6 @@ class _StatusMessage extends StatelessWidget {
     required this.message,
     required this.onRetry,
   });
-
   final IconData icon;
   final String title;
   final String message;
@@ -270,48 +185,20 @@ class _StatusMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 50),
+    padding: const EdgeInsets.symmetric(vertical: 48),
     child: Column(
       children: [
-        Icon(icon, size: 46, color: const Color(0xFFD3B17D)),
-        const SizedBox(height: 14),
+        Icon(icon, size: 42, color: Colors.black45),
+        const SizedBox(height: 12),
         Text(
           title,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
         ),
         const SizedBox(height: 6),
         Text(message, textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        OutlinedButton.icon(
-          onPressed: onRetry,
-          icon: const Icon(Icons.refresh_rounded),
-          label: const Text('Try again'),
-        ),
+        FilledButton(onPressed: onRetry, child: const Text('Try again')),
       ],
     ),
   );
-}
-
-String _dateKey(DateTime date) {
-  String pad(int value) => value.toString().padLeft(2, '0');
-  return '${date.year}-${pad(date.month)}-${pad(date.day)}';
-}
-
-String _dateLabel(DateTime date) {
-  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${weekdays[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
 }

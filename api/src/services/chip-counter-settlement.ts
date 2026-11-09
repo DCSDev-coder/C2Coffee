@@ -52,6 +52,20 @@ async function settleChipOrderPurchase(
   const connection = await getUtcConnection();
   try {
     await connection.beginTransaction();
+    const [storeRows] = await connection.execute<Array<RowDataPacket & { store_id: number }>>(
+      `SELECT o.store_id
+       FROM payments p
+       JOIN orders o ON o.id = p.order_id
+       WHERE p.provider = 'chip' AND p.provider_bill_id = :purchaseId
+         AND o.order_channel = :orderChannel
+       LIMIT 1`,
+      { purchaseId, orderChannel }
+    );
+    if (!storeRows[0]) throw new ApiError(404, 'chip_payment_not_found', 'Counter payment was not found.');
+    await connection.execute(
+      'SELECT id FROM stores WHERE id = :storeId LIMIT 1 FOR UPDATE',
+      { storeId: Number(storeRows[0].store_id) }
+    );
     const [rows] = await connection.execute<PaymentRow[]>(
       `SELECT p.id AS payment_id, p.status AS payment_status,
               o.id AS order_id, o.order_ref, o.status AS order_status, o.store_id, o.user_id,
