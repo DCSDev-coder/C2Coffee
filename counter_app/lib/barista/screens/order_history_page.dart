@@ -72,66 +72,69 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
           backgroundColor: Colors.white,
           body: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: RefreshIndicator(
-                color: _darkGreen,
-                onRefresh: _refreshOrders,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
-                  children: [
-                    const Text(
-                      "Today's Order History",
-                      style: TextStyle(
-                        color: _darkGreen,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '${newestFirst.length} finished orders today',
-                      style: const TextStyle(
-                        color: _beige,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    if (newestFirst.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 72),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.history_rounded,
-                              size: 52,
-                              color: Color(0xFFBDBDBD),
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'No finished orders yet today.',
-                              style: TextStyle(color: Color(0xFF757575)),
-                            ),
-                          ],
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: Container(
+                color: Colors.white,
+                child: RefreshIndicator(
+                  color: _darkGreen,
+                  onRefresh: _refreshOrders,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
+                    children: [
+                      const Text(
+                        "Today's Order History",
+                        style: TextStyle(
+                          color: _darkGreen,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
                         ),
-                      )
-                    else
-                      ...newestFirst.map(
-                        (order) => OrderCard(
-                          timeDate: order.timeDate,
-                          status: order.status,
-                          orderId: order.orderId,
-                          customerDetails: order.customerDetails,
-                          items: order.items,
-                          cancellationRequestStatus:
-                              order.cancellationRequestStatus,
-                          isPrintLoading: _printingOrderIds.contains(
-                            order.orderId,
+                      ),
+                      Text(
+                        '${newestFirst.length} finished orders today',
+                        style: const TextStyle(
+                          color: _beige,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      if (newestFirst.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 72),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.history_rounded,
+                                size: 52,
+                                color: Color(0xFFBDBDBD),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'No finished orders yet today.',
+                                style: TextStyle(color: Color(0xFF757575)),
+                              ),
+                            ],
                           ),
-                          onPrintPressed: () => _printReceipt(order),
-                          onTap: () => _openOrder(order),
+                        )
+                      else
+                        ...newestFirst.map(
+                          (order) => OrderCard(
+                            timeDate: order.timeDate,
+                            status: order.status,
+                            orderId: order.orderId,
+                            customerDetails: order.customerDetails,
+                            items: order.items,
+                            cancellationRequestStatus:
+                                order.cancellationRequestStatus,
+                            isPrintLoading: _printingOrderIds.contains(
+                              order.orderId,
+                            ),
+                            onPrintPressed: () => _printReceipt(order),
+                            onTap: () => _openOrder(order),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

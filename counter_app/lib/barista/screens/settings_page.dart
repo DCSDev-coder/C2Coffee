@@ -14,7 +14,7 @@ class SettingsPage extends StatefulWidget {
   static const Color ink = Color(0xFF203E32);
   static const Color green = Color(0xFF304A3A);
   static const Color gold = Color(0xFFD3B17D);
-  static const Color canvas = Color(0xFFF7F6F1);
+  static const Color canvas = Colors.white;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -184,7 +184,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
+              constraints: const BoxConstraints(maxWidth: 1120),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
                 children: [
@@ -575,7 +575,7 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: SettingsPage.green.withValues(alpha: .08),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: SettingsPage.green.withValues(alpha: .30),
@@ -616,7 +616,7 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: SettingsPage.green.withValues(alpha: .08),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: SettingsPage.green.withValues(alpha: .30),

@@ -11,7 +11,7 @@ class TimetablePage extends StatefulWidget {
 
 class _TimetablePageState extends State<TimetablePage> {
   static const _ink = Color(0xFF203E32);
-  static const _canvas = Color(0xFFF7F6F1);
+  static const _canvas = Colors.white;
   late Future<OperationsContext> _operations;
 
   @override
@@ -82,13 +82,7 @@ class _TimetablePageState extends State<TimetablePage> {
                             const SizedBox(height: 22),
                             Container(
                               padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(22),
-                                border: Border.all(
-                                  color: _ink.withValues(alpha: .10),
-                                ),
-                              ),
+                              decoration: BoxDecoration(color: Colors.white),
                               child: _buildContent(snapshot),
                             ),
                           ],

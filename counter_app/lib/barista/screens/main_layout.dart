@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'current_order_page.dart';
 import 'order_history_page.dart';
 import 'marketing_drink_page.dart';
+import 'inventory_page.dart';
 
 import 'settings_page.dart';
 import 'side_work_page.dart';
@@ -215,7 +216,7 @@ class _MainLayoutState extends State<MainLayout> {
         fit: StackFit.expand,
         children: [
           Positioned(
-            top: 110,
+            top: 128,
             left: 0,
             right: 0,
             bottom: 0,
@@ -228,9 +229,10 @@ class _MainLayoutState extends State<MainLayout> {
                 });
               },
               children: [
-                CurrentOrderPage(onSettingsTap: () => _onTabSelected(5)),
-                OrderHistoryPage(onSettingsTap: () => _onTabSelected(5)),
+                CurrentOrderPage(onSettingsTap: () => _onTabSelected(6)),
+                OrderHistoryPage(onSettingsTap: () => _onTabSelected(6)),
                 const MarketingDrinkPage(),
+                const InventoryPage(),
                 const TimetablePage(),
                 const SideWorkPage(),
                 SettingsPage(onSignedOut: widget.onSignedOut),
@@ -344,6 +346,7 @@ class _HeaderNavBar extends StatelessWidget {
     (Icons.shopping_basket_outlined, Icons.shopping_basket_rounded, 'Orders'),
     (Icons.history_outlined, Icons.history_rounded, 'History'),
     (Icons.campaign_outlined, Icons.campaign_rounded, 'Marketing'),
+    (Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Inventory'),
     (Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Timetable'),
     (Icons.checklist_outlined, Icons.task_alt_rounded, 'Tasks'),
     (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),

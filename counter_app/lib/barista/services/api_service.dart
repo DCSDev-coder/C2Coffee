@@ -702,6 +702,59 @@ class ApiService {
         .toList();
   }
 
+  static Future<BaristaInventoryResult> fetchBaristaInventory() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/inventory'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    return BaristaInventoryResult.fromJson(
+      json.decode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  static Future<ApiRequestResult> recordBaristaInventoryMovement({
+    required int itemId,
+    required double quantity,
+    required bool isWaste,
+    String? reasonCode,
+    String? note,
+  }) async {
+    try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/inventory/movements'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+          body: json.encode({
+            'inventory_item_id': itemId,
+            'quantity': quantity,
+            'movement_type': isWaste ? 'waste' : 'stock_add',
+            if (reasonCode case final value?) 'reason_code': value,
+            if (note case final value? when value.trim().isNotEmpty)
+              'note': value.trim(),
+          }),
+        ),
+      );
+      return response.statusCode == 201
+          ? ApiRequestResult.success(
+              json.decode(response.body) as Map<String, dynamic>,
+            )
+          : ApiRequestResult.failure(_responseMessage(response));
+    } catch (error) {
+      debugPrint('Barista inventory movement error: $error');
+      return const ApiRequestResult.failure(
+        'Unable to update inventory. Check the connection and try again.',
+      );
+    }
+  }
+
   static Future<List<MarketingDrinkUsage>>
   fetchTodayMarketingDrinkUsages() async {
     final workstationKey = await DirectPrinterService.instance.workstationKey();
@@ -783,6 +836,64 @@ class ApiService {
     _currentRoles = const [];
     await SecureSessionService.instance.clear();
   }
+}
+
+class BaristaInventoryResult {
+  final int storeId;
+  final String storeName;
+  final List<BaristaInventoryItem> items;
+  const BaristaInventoryResult({
+    required this.storeId,
+    required this.storeName,
+    required this.items,
+  });
+  factory BaristaInventoryResult.fromJson(Map<String, dynamic> json) =>
+      BaristaInventoryResult(
+        storeId: (json['store_id'] as num?)?.toInt() ?? 0,
+        storeName: json['store_name']?.toString() ?? 'Current outlet',
+        items: (json['items'] as List? ?? const [])
+            .map(
+              (item) =>
+                  BaristaInventoryItem.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+}
+
+class BaristaInventoryItem {
+  final int id;
+  final String name;
+  final String category;
+  final String unitCode;
+  final double onHand;
+  final double reserved;
+  final double available;
+  const BaristaInventoryItem({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.unitCode,
+    required this.onHand,
+    required this.reserved,
+    required this.available,
+  });
+  factory BaristaInventoryItem.fromJson(
+    Map<String, dynamic> json,
+  ) => BaristaInventoryItem(
+    id: (json['id'] as num).toInt(),
+    name: json['name']?.toString() ?? 'Item',
+    category: json['category']?.toString() ?? 'ingredient',
+    unitCode: json['unit_code']?.toString() ?? 'piece',
+    onHand: double.tryParse(json['on_hand_quantity']?.toString() ?? '') ?? 0,
+    reserved: double.tryParse(json['reserved_quantity']?.toString() ?? '') ?? 0,
+    available:
+        double.tryParse(json['available_quantity']?.toString() ?? '') ?? 0,
+  );
+  String get unitLabel => unitCode == 'millilitre'
+      ? 'ml'
+      : unitCode == 'gram'
+      ? 'g'
+      : 'pcs';
 }
 
 class BaristaAttendance {

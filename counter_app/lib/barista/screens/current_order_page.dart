@@ -110,177 +110,180 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
             children: [
               Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 800),
-                  child: RefreshIndicator(
-                    color: darkGreen,
-                    onRefresh: _refreshOrders,
-                    child: ListView(
-                      padding: const EdgeInsets.only(top: 16, bottom: 36),
-                      children: [
-                        // Content
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24.0,
-                            vertical: 16.0,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Queue summary for the shared workstation.
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Current Order',
-                                          style: TextStyle(
-                                            color: darkGreen,
-                                            fontSize: 32,
-                                            fontWeight: FontWeight.bold,
+                  constraints: const BoxConstraints(maxWidth: 1120),
+                  child: Container(
+                    color: Colors.white,
+                    child: RefreshIndicator(
+                      color: darkGreen,
+                      onRefresh: _refreshOrders,
+                      child: ListView(
+                        padding: const EdgeInsets.only(top: 16, bottom: 36),
+                        children: [
+                          // Content
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
+                              vertical: 16.0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Queue summary for the shared workstation.
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Current Order',
+                                            style: TextStyle(
+                                              color: darkGreen,
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          '${allOrders.length} active orders',
-                                          style: TextStyle(
-                                            color: beigeColor,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
+                                          Text(
+                                            '${allOrders.length} active orders',
+                                            style: TextStyle(
+                                              color: beigeColor,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ),
-                                        ValueListenableBuilder<DateTime?>(
-                                          valueListenable: globalLastOrderSync,
-                                          builder: (context, lastSync, _) {
-                                            if (lastSync == null) {
-                                              return const SizedBox.shrink();
-                                            }
-                                            final hour = lastSync.hour
-                                                .remainder(12)
-                                                .toString()
-                                                .padLeft(2, '0');
-                                            final minute = lastSync.minute
-                                                .toString()
-                                                .padLeft(2, '0');
-                                            final suffix = lastSync.hour >= 12
-                                                ? 'PM'
-                                                : 'AM';
-                                            return Text(
-                                              'Updated $hour:$minute $suffix',
-                                              style: TextStyle(
-                                                color: darkGreen.withValues(
-                                                  alpha: 0.62,
+                                          ValueListenableBuilder<DateTime?>(
+                                            valueListenable:
+                                                globalLastOrderSync,
+                                            builder: (context, lastSync, _) {
+                                              if (lastSync == null) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              final hour = lastSync.hour
+                                                  .remainder(12)
+                                                  .toString()
+                                                  .padLeft(2, '0');
+                                              final minute = lastSync.minute
+                                                  .toString()
+                                                  .padLeft(2, '0');
+                                              final suffix = lastSync.hour >= 12
+                                                  ? 'PM'
+                                                  : 'AM';
+                                              return Text(
+                                                'Updated $hour:$minute $suffix',
+                                                style: TextStyle(
+                                                  color: darkGreen.withValues(
+                                                    alpha: 0.62,
+                                                  ),
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 24.0),
-                              ValueListenableBuilder<String?>(
-                                valueListenable: globalOrderSyncError,
-                                builder: (context, syncError, _) {
-                                  if (syncError == null) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 16),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF4E5),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: const Color(0xFFD3B17D),
+                                              );
+                                            },
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.cloud_off_outlined,
-                                          color: Color(0xFF8A5A13),
+                                  ],
+                                ),
+                                const SizedBox(height: 24.0),
+                                ValueListenableBuilder<String?>(
+                                  valueListenable: globalOrderSyncError,
+                                  builder: (context, syncError, _) {
+                                    if (syncError == null) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFF4E5),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: const Color(0xFFD3B17D),
                                         ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            '$syncError Showing the last successful queue.',
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.cloud_off_outlined,
+                                            color: Color(0xFF8A5A13),
                                           ),
-                                        ),
-                                        TextButton(
-                                          onPressed: _refreshOrders,
-                                          child: const Text('Retry'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              '$syncError Showing the last successful queue.',
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: _refreshOrders,
+                                            child: const Text('Retry'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
 
-                              if (filteredOrders.isEmpty)
-                                Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(32.0),
-                                    child: Column(
-                                      children: [
-                                        Icon(
-                                          Icons.search_off,
-                                          size: 48,
-                                          color: Colors.grey.shade300,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          'No orders found.',
-                                          style: TextStyle(
-                                            color: Colors.grey.shade500,
+                                if (filteredOrders.isEmpty)
+                                  Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(32.0),
+                                      child: Column(
+                                        children: [
+                                          Icon(
+                                            Icons.search_off,
+                                            size: 48,
+                                            color: Colors.grey.shade300,
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'No orders found.',
+                                            style: TextStyle(
+                                              color: Colors.grey.shade500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                )
-                              else
-                                ...filteredOrders.map((order) {
-                                  return OrderCard(
-                                    timeDate: order.timeDate,
-                                    status: order.status,
-                                    orderId: order.orderId,
-                                    customerDetails: order.customerDetails,
-                                    items: order.items,
-                                    cancellationRequestStatus:
-                                        order.cancellationRequestStatus,
-                                    isActionLoading: _updatingOrderIds.contains(
-                                      order.orderId,
-                                    ),
-                                    isPrintLoading: _printingOrderIds.contains(
-                                      order.orderId,
-                                    ),
-                                    onPrintPressed: () => _printReceipt(order),
-                                    onActionPressed: () {
-                                      if (order.status ==
-                                              OrderStatus.newOrder &&
-                                          order.cancellationRequestStatus ==
-                                              null) {
-                                        _startPreparing(order);
-                                      } else {
-                                        _openOrderDetails(order);
-                                      }
-                                    },
-                                    onTap: () => _openOrderDetails(order),
-                                  );
-                                }),
-                            ],
+                                  )
+                                else
+                                  ...filteredOrders.map((order) {
+                                    return OrderCard(
+                                      timeDate: order.timeDate,
+                                      status: order.status,
+                                      orderId: order.orderId,
+                                      customerDetails: order.customerDetails,
+                                      items: order.items,
+                                      cancellationRequestStatus:
+                                          order.cancellationRequestStatus,
+                                      isActionLoading: _updatingOrderIds
+                                          .contains(order.orderId),
+                                      isPrintLoading: _printingOrderIds
+                                          .contains(order.orderId),
+                                      onPrintPressed: () =>
+                                          _printReceipt(order),
+                                      onActionPressed: () {
+                                        if (order.status ==
+                                                OrderStatus.newOrder &&
+                                            order.cancellationRequestStatus ==
+                                                null) {
+                                          _startPreparing(order);
+                                        } else {
+                                          _openOrderDetails(order);
+                                        }
+                                      },
+                                      onTap: () => _openOrderDetails(order),
+                                    );
+                                  }),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

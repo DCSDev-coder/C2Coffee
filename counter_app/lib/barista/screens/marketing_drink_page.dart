@@ -185,163 +185,198 @@ class _MarketingDrinkPageState extends State<MarketingDrinkPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(28, 28, 28, 48),
-        children: [
-          const Text(
-            'Complimentary Drinks',
-            style: TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 30,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF203E32),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Record approved marketing use. No customer payment, employee allowance, voucher, or loyalty cup is created.',
-          ),
-          const SizedBox(height: 20),
-          DropdownButtonFormField<int>(
-            initialValue: _baristaId,
-            decoration: const InputDecoration(
-              labelText: 'Clocked-in barista',
-              border: OutlineInputBorder(),
-            ),
-            items: _activeBaristas
-                .map(
-                  (item) => DropdownMenuItem(
-                    value: item.baristaId,
-                    child: Text(item.baristaName),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => _baristaId = value),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _purpose,
-            decoration: const InputDecoration(
-              labelText: 'Purpose',
-              border: OutlineInputBorder(),
-            ),
-            items: _purposes.entries
-                .map(
-                  (entry) => DropdownMenuItem(
-                    value: entry.key,
-                    child: Text(entry.value),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => _purpose = value ?? 'other'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _campaign,
-            decoration: const InputDecoration(
-              labelText: 'Campaign / activity (optional)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _reason,
-            maxLength: 500,
-            decoration: const InputDecoration(
-              labelText: 'Reason / approval reference',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Select drinks',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          ..._drinks.map((drink) {
-            final quantity = _quantities[drink.id] ?? 0;
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(drink.name),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    onPressed: quantity == 0
-                        ? null
-                        : () => setState(
-                            () => _quantities[drink.id] = quantity - 1,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1120),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(color: Colors.white),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Complimentary Drinks',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF203E32),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Record approved marketing use. No customer payment, employee allowance, voucher, or loyalty cup is created.',
+                      ),
+                      const SizedBox(height: 20),
+                      DropdownButtonFormField<int>(
+                        initialValue: _baristaId,
+                        decoration: const InputDecoration(
+                          labelText: 'Clocked-in barista',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _activeBaristas
+                            .map(
+                              (item) => DropdownMenuItem(
+                                value: item.baristaId,
+                                child: Text(item.baristaName),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _baristaId = value),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: _purpose,
+                        decoration: const InputDecoration(
+                          labelText: 'Purpose',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _purposes.entries
+                            .map(
+                              (entry) => DropdownMenuItem(
+                                value: entry.key,
+                                child: Text(entry.value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setState(() => _purpose = value ?? 'other'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _campaign,
+                        decoration: const InputDecoration(
+                          labelText: 'Campaign / activity (optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _reason,
+                        maxLength: 500,
+                        decoration: const InputDecoration(
+                          labelText: 'Reason / approval reference',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Select drinks',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      ..._drinks.map((drink) {
+                        final quantity = _quantities[drink.id] ?? 0;
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(drink.name),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: quantity == 0
+                                    ? null
+                                    : () => setState(
+                                        () => _quantities[drink.id] =
+                                            quantity - 1,
+                                      ),
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
+                              Text(
+                                '$quantity',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: quantity >= 20
+                                    ? null
+                                    : () => setState(
+                                        () => _quantities[drink.id] =
+                                            quantity + 1,
+                                      ),
+                                icon: const Icon(Icons.add_circle_outline),
+                              ),
+                            ],
                           ),
-                    icon: const Icon(Icons.remove_circle_outline),
-                  ),
-                  Text(
-                    '$quantity',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  IconButton(
-                    onPressed: quantity >= 20
-                        ? null
-                        : () => setState(
-                            () => _quantities[drink.id] = quantity + 1,
+                        );
+                      }),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _pin,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(6),
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Barista 6-digit PIN',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _saving ? null : _submit,
+                        icon: const Icon(Icons.print),
+                        label: Text(
+                          _saving ? 'Recording…' : 'Record & print slip',
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      const Text(
+                        "Today's records",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (_usages.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Text(
+                            'No complimentary drinks recorded today.',
                           ),
-                    icon: const Icon(Icons.add_circle_outline),
+                        ),
+                      ..._usages.map(
+                        (usage) => Card(
+                          color: Colors.white,
+                          child: ListTile(
+                            title: Text(
+                              '${usage.usageRef} · ${usage.items.map((item) => '${item.quantity}× ${item.name}').join(', ')}',
+                            ),
+                            subtitle: Text(
+                              '${usage.baristaName} · ${_purposes[usage.purposeCode] ?? usage.purposeCode}\n${usage.reasonNote}',
+                            ),
+                            isThreeLine: true,
+                            trailing: IconButton(
+                              onPressed: usage.status == 'posted'
+                                  ? () => _reprint(usage)
+                                  : null,
+                              icon: const Icon(Icons.print_outlined),
+                              tooltip: 'Reprint slip',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _pin,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(6),
-            ],
-            decoration: const InputDecoration(
-              labelText: 'Barista 6-digit PIN',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _saving ? null : _submit,
-            icon: const Icon(Icons.print),
-            label: Text(_saving ? 'Recording…' : 'Record & print slip'),
-          ),
-          const SizedBox(height: 32),
-          const Text(
-            "Today's records",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-          ),
-          if (_usages.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Text('No complimentary drinks recorded today.'),
-            ),
-          ..._usages.map(
-            (usage) => Card(
-              child: ListTile(
-                title: Text(
-                  '${usage.usageRef} · ${usage.items.map((item) => '${item.quantity}× ${item.name}').join(', ')}',
-                ),
-                subtitle: Text(
-                  '${usage.baristaName} · ${_purposes[usage.purposeCode] ?? usage.purposeCode}\n${usage.reasonNote}',
-                ),
-                isThreeLine: true,
-                trailing: IconButton(
-                  onPressed: usage.status == 'posted'
-                      ? () => _reprint(usage)
-                      : null,
-                  icon: const Icon(Icons.print_outlined),
-                  tooltip: 'Reprint slip',
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

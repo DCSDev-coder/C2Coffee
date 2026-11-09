@@ -131,7 +131,7 @@ function assertStaffAccess(request: { adminAuth: { roles: string[] } }) {
   requireAnyAdminRole(request as never, ['super_admin', 'operations_admin', 'barista']);
 }
 
-async function resolveAttendanceStoreId(request: {
+export async function resolveAttendanceStoreId(request: {
   headers: Record<string, string | string[] | undefined>;
   adminAuth: { adminUserId: number; tenantId: number; tenantCode: string; isBaristaOnly: boolean };
 }): Promise<number> {

@@ -14,7 +14,7 @@ class SideWorkPage extends StatefulWidget {
 class _SideWorkPageState extends State<SideWorkPage> {
   static const _ink = Color(0xFF203E32);
   static const _green = Color(0xFF304A3A);
-  static const _canvas = Color(0xFFF7F6F1);
+  static const _canvas = Colors.white;
   late Future<List<BaristaSideWorkTask>> _tasks;
   int? _completingTaskId;
 
@@ -100,7 +100,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
                 children: [
                   Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 960),
+                      constraints: const BoxConstraints(maxWidth: 1120),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -137,13 +137,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
                           const SizedBox(height: 22),
                           Container(
                             padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(
-                                color: _ink.withValues(alpha: .10),
-                              ),
-                            ),
+                            decoration: BoxDecoration(color: Colors.white),
                             child: _buildContent(snapshot),
                           ),
                         ],
@@ -164,8 +158,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
       return _StatusMessage(
         icon: Icons.cloud_off_rounded,
         title: 'Internet connection issue',
-        message:
-            'Tasks could not be loaded. Check the connection and refresh.',
+        message: 'Tasks could not be loaded. Check the connection and refresh.',
         onRetry: _refresh,
       );
     }
@@ -227,7 +220,7 @@ class _TaskCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: task.isCompleted ? const Color(0xFFF0FBF4) : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: task.isCompleted
