@@ -266,6 +266,9 @@ class ApiService {
                 customerDetails:
                     '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
                 items: parsedItems,
+                voucherName: json['voucherName']?.toString(),
+                voucherType: json['voucherType']?.toString(),
+                discount: (json['discount'] as num?)?.toDouble() ?? 0,
                 cancellationRequestStatus: json['cancellationRequestStatus']
                     ?.toString(),
               );

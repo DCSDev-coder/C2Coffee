@@ -18,6 +18,9 @@ class CurrentOrder {
   final String customerDetails;
   final List<OrderItem> items;
   String? cancellationRequestStatus;
+  final String? voucherName;
+  final String? voucherType;
+  final double discount;
 
   CurrentOrder({
     required this.status,
@@ -27,6 +30,9 @@ class CurrentOrder {
     required this.customerDetails,
     required this.items,
     this.cancellationRequestStatus,
+    this.voucherName,
+    this.voucherType,
+    this.discount = 0,
   });
 }
 
@@ -42,6 +48,9 @@ class OrderCard extends StatelessWidget {
   final bool isActionLoading;
   final bool isPrintLoading;
   final String? cancellationRequestStatus;
+  final String? voucherName;
+  final String? voucherType;
+  final double discount;
 
   const OrderCard({
     super.key,
@@ -56,6 +65,9 @@ class OrderCard extends StatelessWidget {
     this.isActionLoading = false,
     this.isPrintLoading = false,
     this.cancellationRequestStatus,
+    this.voucherName,
+    this.voucherType,
+    this.discount = 0,
   });
 
   @override
@@ -203,6 +215,18 @@ class OrderCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (voucherName != null && voucherName!.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Voucher: ${voucherName!.trim()}${discount > 0 ? ' • Discount RM ${discount.toStringAsFixed(2)}' : ''}',
+                    style: const TextStyle(
+                      color: Color(0xFF6B1A5B),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
 
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12.0),

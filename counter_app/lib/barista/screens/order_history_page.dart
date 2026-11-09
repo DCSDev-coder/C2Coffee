@@ -170,6 +170,9 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
                             orderId: order.orderId,
                             customerDetails: order.customerDetails,
                             items: order.items,
+                            voucherName: order.voucherName,
+                            voucherType: order.voucherType,
+                            discount: order.discount,
                             cancellationRequestStatus:
                                 order.cancellationRequestStatus,
                             isPrintLoading: _printingOrderIds.contains(

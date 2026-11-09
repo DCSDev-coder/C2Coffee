@@ -593,6 +593,7 @@ test('barista menu availability is role guarded, tenant scoped, and enforced acr
   assert.match(catalog, /group\.is_required && group\.options\.length === 0/);
   assert.match(catalog, /app\.get\("\/v1\/menu"[\s\S]{0,700}Cache-Control", "no-store"/);
   assert.match(checkout, /store_customization_availability/);
+  assert.match(checkout, /group:\$\{Number\(modifier\.option_group_id\)\}/);
   assert.match(readiness, /142_create_store_customization_availability\.sql/);
   assert.match(readiness, /143_add_free_option_voucher_mode\.sql/);
 });

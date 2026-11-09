@@ -2210,9 +2210,17 @@ export async function verifyCheckoutModifiers(
       }
       for (const modifier of canonical) {
         const customizationType = resolveCustomizationTypeForGroup(modifier.group_name);
-        if (!customizationType) continue;
-        const key = `${customizationType}:${normalizeCustomizationValue(modifier.option_name)}`;
-        if (customizationMap.get(key) === false) {
+        const normalizedOption = normalizeCustomizationValue(modifier.option_name);
+        const legacyKey = customizationType
+          ? `${customizationType}:${normalizedOption}`
+          : null;
+        const dynamicKey = modifier.option_group_id
+          ? `group:${Number(modifier.option_group_id)}:${normalizedOption}`
+          : null;
+        const isUnavailable =
+          (legacyKey !== null && customizationMap.get(legacyKey) === false) ||
+          (dynamicKey !== null && customizationMap.get(dynamicKey) === false);
+        if (isUnavailable) {
           throw new ApiError(
             400,
             'invalid_option_selection',

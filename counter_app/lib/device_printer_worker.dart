@@ -140,6 +140,7 @@ class DevicePrinterWorker {
   DirectPrintJob _parseJobPayload(Map<String, dynamic> json) {
     final printer = json['printer'] as Map<String, dynamic>;
     final order = json['order'] as Map<String, dynamic>;
+    final voucher = order['voucher'] as Map<String, dynamic>?;
     return DirectPrintJob(
       jobRef: json['job_ref'].toString(),
       config: DirectPrinterConfig(
@@ -151,6 +152,10 @@ class DevicePrinterWorker {
           ? order['customer_name'].toString().trim()
           : 'Guest',
       customerIsEmployee: order['is_employee'] == true,
+      voucherName: voucher?['name']?.toString(),
+      voucherType: voucher?['type']?.toString(),
+      voucherCode: voucher?['code']?.toString(),
+      discount: (voucher?['discount_rm'] as num?)?.toDouble() ?? 0,
       createdAt: DateTime.parse(order['created_at'].toString()),
       items: (order['items'] as List).map((item) {
         final value = item as Map<String, dynamic>;

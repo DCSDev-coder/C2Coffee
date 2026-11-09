@@ -53,6 +53,10 @@ class DirectPrintJob {
     required this.customerIsEmployee,
     required this.createdAt,
     required this.items,
+    this.voucherName,
+    this.voucherType,
+    this.voucherCode,
+    this.discount = 0,
   });
 
   final String jobRef;
@@ -62,6 +66,10 @@ class DirectPrintJob {
   final bool customerIsEmployee;
   final DateTime createdAt;
   final List<DirectPrintItem> items;
+  final String? voucherName;
+  final String? voucherType;
+  final String? voucherCode;
+  final double discount;
 
   String get printedCustomerName =>
       customerIsEmployee ? '$customerName (Employee)' : customerName;
@@ -318,6 +326,12 @@ class DirectPrinterService {
     write('${order.orderRef}\n${_formatPrintedTime(order.createdAt)}\n');
     buffer.add(const [0x1B, 0x61, 0x00]); // Left.
     _writeWrapped(buffer, 'Customer: ${order.printedCustomerName}');
+    if (order.voucherName != null && order.voucherName!.trim().isNotEmpty) {
+      _writeWrapped(buffer, 'Voucher: ${order.voucherName}');
+      if (order.discount > 0) {
+        _writeWrapped(buffer, 'Discount: RM ${order.discount.toStringAsFixed(2)}');
+      }
+    }
     write('--------------------------------\n');
     for (final item in order.items) {
       final parsed = _printedItem(item);

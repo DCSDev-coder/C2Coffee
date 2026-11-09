@@ -205,6 +205,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           u.id as user_id,
           up.avatar_value as avatar,
           o.discount_total_rm as discount,
+          vt.name as voucherName,
+          vt.voucher_type as voucherType,
+          vt.code as voucherCode,
           o.final_total_rm as total,
           o.token_amount_charged as tokenAmountCharged,
           o.payment_mode as paymentMode,
@@ -234,6 +237,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
         LEFT JOIN payments p ON o.id = p.order_id
+        LEFT JOIN user_vouchers uv ON uv.id = o.voucher_id
+        LEFT JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
         LEFT JOIN order_cancellation_requests ocr ON ocr.order_id = o.id
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
@@ -363,6 +368,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           avatar: o.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
           items: itemsByOrderId[o.internal_id] || [],
           discount: Number(o.discount || 0),
+          voucherName: o.voucherName || null,
+          voucherType: o.voucherType || null,
+          voucherCode: o.voucherCode || null,
           total: Number(o.total || 0),
           tokenAmountCharged: Number(o.tokenAmountCharged || 0),
           paymentMode: o.paymentMode || '',
@@ -866,6 +874,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             refund.order_id,
             request.adminAuth.adminUserId
           );
+          const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, {
+            orderId: refund.order_id,
+            userId: refund.user_id,
+            issueCaseRef: `refund:${refundRef}`,
+            reason: `Replacement voucher for refunded order ${refund.order_ref}`
+          });
           await connection.execute(
             `UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
              WHERE id = :orderId AND status IN ('paid', 'accepted')`,
@@ -893,7 +907,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             title: 'Refund completed',
             body: loyaltyReversal.rewardNeedsReview || referralReversal.needsReview
               ? 'Your direct payment refund is complete. A reward linked to this order requires staff review.'
-              : 'Your direct payment refund is complete.'
+              : replacementVoucherIssued
+                ? 'Your direct payment refund is complete and an equivalent voucher was added back to your account.'
+                : 'Your direct payment refund is complete.'
           });
         }
       }

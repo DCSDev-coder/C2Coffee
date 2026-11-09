@@ -276,6 +276,9 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                       orderId: order.orderId,
                                       customerDetails: order.customerDetails,
                                       items: order.items,
+                                      voucherName: order.voucherName,
+                                      voucherType: order.voucherType,
+                                      discount: order.discount,
                                       cancellationRequestStatus:
                                           order.cancellationRequestStatus,
                                       isActionLoading: _updatingOrderIds
