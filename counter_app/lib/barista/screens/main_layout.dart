@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'current_order_page.dart';
 import 'order_history_page.dart';
+import 'menu_availability_page.dart';
 import 'marketing_drink_page.dart';
 import 'inventory_page.dart';
 
@@ -229,8 +230,9 @@ class _MainLayoutState extends State<MainLayout> {
                 });
               },
               children: [
-                CurrentOrderPage(onSettingsTap: () => _onTabSelected(6)),
-                OrderHistoryPage(onSettingsTap: () => _onTabSelected(6)),
+                CurrentOrderPage(onSettingsTap: () => _onTabSelected(7)),
+                OrderHistoryPage(onSettingsTap: () => _onTabSelected(7)),
+                const MenuAvailabilityPage(),
                 const MarketingDrinkPage(),
                 const InventoryPage(),
                 const TimetablePage(),
@@ -345,6 +347,7 @@ class _HeaderNavBar extends StatelessWidget {
   static const _navItems = [
     (Icons.shopping_basket_outlined, Icons.shopping_basket_rounded, 'Orders'),
     (Icons.history_outlined, Icons.history_rounded, 'History'),
+    (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu'),
     (Icons.campaign_outlined, Icons.campaign_rounded, 'Marketing'),
     (Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Inventory'),
     (Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Timetable'),
@@ -436,16 +439,14 @@ class _HeaderNavBar extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? const Color(0xFF203E32)
-                                    : const Color(0xFFE8B349),
+                                    : Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 '$count',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: 'Afacad',
-                                  color: isSelected
-                                      ? Colors.white
-                                      : const Color(0xFF203E32),
+                                  color: Colors.white,
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w800,
                                 ),

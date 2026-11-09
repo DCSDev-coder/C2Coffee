@@ -158,6 +158,38 @@ class CounterMenuItem {
       source: Map<String, dynamic>.from(json),
     );
   }
+
+  List<String> get availableBeans {
+    final list = source['available_beans'];
+    if (list is List) {
+      return list.map((e) => e.toString()).toList();
+    }
+    return const ['Dato Blend', 'Datin Blend'];
+  }
+
+  bool isBeanAvailable(String bean) {
+    if (!allowChoiceOfBeans) return false;
+    final beans = availableBeans;
+    if (beans.isEmpty) return false;
+    final normalized = bean.toLowerCase().replaceAll("'", "").replaceAll(" ", "");
+    return beans.any((b) => b.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized);
+  }
+
+  List<String> get availableMilks {
+    final list = source['available_milks'];
+    if (list is List) {
+      return list.map((e) => e.toString()).toList();
+    }
+    return const ['Fresh Milk', 'Oat Milk'];
+  }
+
+  bool isMilkAvailable(String milk) {
+    if (!allowChoiceOfMilk) return false;
+    final milks = availableMilks;
+    if (milks.isEmpty) return false;
+    final normalized = milk.toLowerCase().replaceAll("'", "").replaceAll(" ", "");
+    return milks.any((m) => m.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized);
+  }
 }
 
 List<CounterMenuItem> parseCounterMenu(Object? decoded) {

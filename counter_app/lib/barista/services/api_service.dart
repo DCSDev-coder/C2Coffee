@@ -251,14 +251,45 @@ class ApiService {
               // Keep the real creation time so the preparation queue is FIFO.
               final dateStr = json['date'] ?? 'Aug 19, 2026';
               final timeStr = json['time'] ?? '10:00 AM';
-              final createdAt =
-                  DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+              final rawCreatedAt = json['createdAt']?.toString();
+              final parsedCreatedAt = rawCreatedAt != null
+                  ? DateTime.tryParse(rawCreatedAt)
+                  : null;
+              final createdAt = parsedCreatedAt?.toLocal() ??
                   DateTime.fromMillisecondsSinceEpoch(0);
+
+              String formattedTimeDate;
+              if (parsedCreatedAt != null) {
+                final localTime = parsedCreatedAt.toLocal();
+                final hourRaw = localTime.hour.remainder(12);
+                final hour = hourRaw == 0 ? 12 : hourRaw;
+                final minute = localTime.minute.toString().padLeft(2, '0');
+                final suffix = localTime.hour >= 12 ? 'PM' : 'AM';
+                const months = [
+                  'Jan',
+                  'Feb',
+                  'Mar',
+                  'Apr',
+                  'May',
+                  'Jun',
+                  'Jul',
+                  'Aug',
+                  'Sep',
+                  'Oct',
+                  'Nov',
+                  'Dec'
+                ];
+                final monthStr = months[localTime.month - 1];
+                formattedTimeDate =
+                    '$hour:$minute $suffix - $monthStr ${localTime.day}, ${localTime.year}';
+              } else {
+                formattedTimeDate = '$timeStr - $dateStr';
+              }
 
               return CurrentOrder(
                 status: parsedStatus,
                 orderId: json['id'] ?? 'ORD-000',
-                timeDate: '$timeStr - $dateStr',
+                timeDate: formattedTimeDate,
                 orderDate: createdAt,
                 customerDetails:
                     '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
@@ -836,7 +867,85 @@ class ApiService {
     _currentRoles = const [];
     await SecureSessionService.instance.clear();
   }
+
+  static Future<BaristaMenuAvailabilityResult> fetchMenuAvailability() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/menu/availability'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    return BaristaMenuAvailabilityResult.fromJson(
+      json.decode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  static Future<ApiRequestResult> updateMenuItemAvailability({
+    required int itemId,
+    required bool isAvailable,
+  }) async {
+    try {
+      final workstationKey =
+          await DirectPrinterService.instance.workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.patch(
+          Uri.parse('$baseUrl/barista/menu/items/$itemId/availability'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+          body: json.encode({'is_available': isAvailable}),
+        ),
+      );
+      if (response.statusCode == 200) {
+        return const ApiRequestResult.success();
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (e) {
+      return ApiRequestResult.failure(e.toString());
+    }
+  }
+
+  static Future<ApiRequestResult> updateCustomizationAvailability({
+    required String type,
+    required String value,
+    required bool isAvailable,
+  }) async {
+    try {
+      final workstationKey =
+          await DirectPrinterService.instance.workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.patch(
+          Uri.parse('$baseUrl/barista/menu/customizations/availability'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+          body: json.encode({
+            'type': type,
+            'value': value,
+            'is_available': isAvailable,
+          }),
+        ),
+      );
+      if (response.statusCode == 200) {
+        return const ApiRequestResult.success();
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (e) {
+      return ApiRequestResult.failure(e.toString());
+    }
+  }
+
+  static Future<ApiRequestResult> updateBeanAvailability({
+    required String bean,
+    required bool isAvailable,
+  }) =>
+      updateCustomizationAvailability(
+        type: 'bean',
+        value: bean,
+        isAvailable: isAvailable,
+      );
 }
+
 
 class BaristaInventoryResult {
   final int storeId;
@@ -1388,5 +1497,169 @@ class DatedShiftEntry {
         startsAt: json['starts_at']?.toString() ?? '',
         endsAt: json['ends_at']?.toString() ?? '',
         baristaName: json['barista_name']?.toString() ?? 'Unassigned',
+      );
+}
+
+
+class BaristaMenuAvailabilityResult {
+  final int storeId;
+  final String storeName;
+  final List<BaristaCustomizationGroup> customizations;
+  final List<BaristaBeanBlend> beans;
+  final List<BaristaMenuCategory> categories;
+
+  const BaristaMenuAvailabilityResult({
+    required this.storeId,
+    required this.storeName,
+    required this.customizations,
+    required this.beans,
+    required this.categories,
+  });
+
+  factory BaristaMenuAvailabilityResult.fromJson(Map<String, dynamic> json) {
+    final customizationGroups = (json['customizations'] as List<dynamic>? ?? const [])
+        .map((e) => BaristaCustomizationGroup.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    return BaristaMenuAvailabilityResult(
+      storeId: (json['store_id'] as num?)?.toInt() ?? 0,
+      storeName: json['store_name']?.toString() ?? 'Current outlet',
+      customizations: customizationGroups,
+      beans: (json['beans'] as List<dynamic>? ?? const [])
+          .map((e) => BaristaBeanBlend.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      categories: (json['categories'] as List<dynamic>? ?? const [])
+          .map((e) => BaristaMenuCategory.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+class BaristaCustomizationGroup {
+  final String type;
+  final String categoryName;
+  final String description;
+  final List<BaristaCustomizationOption> options;
+
+  const BaristaCustomizationGroup({
+    required this.type,
+    required this.categoryName,
+    required this.description,
+    required this.options,
+  });
+
+  factory BaristaCustomizationGroup.fromJson(Map<String, dynamic> json) =>
+      BaristaCustomizationGroup(
+        type: json['type']?.toString() ?? '',
+        categoryName: json['category_name']?.toString() ?? '',
+        description: json['description']?.toString() ?? '',
+        options: (json['options'] as List<dynamic>? ?? const [])
+            .map((e) => BaristaCustomizationOption.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+class BaristaCustomizationOption {
+  final String code;
+  final String name;
+  final String subtitle;
+  final String value;
+  bool isAvailable;
+
+  BaristaCustomizationOption({
+    required this.code,
+    required this.name,
+    required this.subtitle,
+    required this.value,
+    required this.isAvailable,
+  });
+
+  factory BaristaCustomizationOption.fromJson(Map<String, dynamic> json) =>
+      BaristaCustomizationOption(
+        code: json['code']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        subtitle: json['subtitle']?.toString() ?? '',
+        value: json['value']?.toString() ?? '',
+        isAvailable: json['is_available'] == true,
+      );
+}
+
+class BaristaBeanBlend {
+  final String code;
+  final String name;
+  final String subtitle;
+  final String value;
+  bool isAvailable;
+
+  BaristaBeanBlend({
+    required this.code,
+    required this.name,
+    required this.subtitle,
+    required this.value,
+    required this.isAvailable,
+  });
+
+  factory BaristaBeanBlend.fromJson(Map<String, dynamic> json) =>
+      BaristaBeanBlend(
+        code: json['code']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        subtitle: json['subtitle']?.toString() ?? '',
+        value: json['value']?.toString() ?? '',
+        isAvailable: json['is_available'] == true,
+      );
+}
+
+class BaristaMenuCategory {
+  final int id;
+  final String name;
+  final int sortOrder;
+  final List<BaristaMenuItemAvailability> items;
+
+  const BaristaMenuCategory({
+    required this.id,
+    required this.name,
+    required this.sortOrder,
+    required this.items,
+  });
+
+  factory BaristaMenuCategory.fromJson(Map<String, dynamic> json) =>
+      BaristaMenuCategory(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        name: json['name']?.toString() ?? '',
+        sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
+        items: (json['items'] as List<dynamic>? ?? const [])
+            .map((e) => BaristaMenuItemAvailability.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+class BaristaMenuItemAvailability {
+  final int id;
+  final String name;
+  final String? description;
+  final String basePriceRm;
+  final String? imageUrl;
+  final bool allowChoiceOfBeans;
+  bool isAvailable;
+
+  BaristaMenuItemAvailability({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.basePriceRm,
+    this.imageUrl,
+    required this.allowChoiceOfBeans,
+    required this.isAvailable,
+  });
+
+  factory BaristaMenuItemAvailability.fromJson(Map<String, dynamic> json) =>
+      BaristaMenuItemAvailability(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        name: json['name']?.toString() ?? 'Item',
+        description: json['description']?.toString(),
+        basePriceRm: json['base_price_rm']?.toString() ?? '0.00',
+        imageUrl: json['image_url']?.toString(),
+        allowChoiceOfBeans: json['allow_choice_of_beans'] == true,
+        isAvailable: json['is_available'] != false,
       );
 }

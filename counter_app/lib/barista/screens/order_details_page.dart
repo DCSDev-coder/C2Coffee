@@ -161,7 +161,9 @@ class OrderDetailsPage extends StatelessWidget {
                                     child: Text(
                                       customerDetails,
                                       style: TextStyle(
-                                        color: beigeColor,
+                                        color: const Color(
+                                          0xFF203E32,
+                                        ).withValues(alpha: 0.65),
                                         fontSize: 10,
                                         fontWeight: FontWeight.w400,
                                       ),

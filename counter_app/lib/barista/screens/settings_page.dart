@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/direct_printer_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/barista_sound_service.dart';
+import '../widgets/barista_page_header.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.onSignedOut});
@@ -186,36 +187,16 @@ class _SettingsPageState extends State<SettingsPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1120),
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
                 children: [
-                  const Text(
-                    'Workstation',
-                    style: TextStyle(
-                      color: SettingsPage.ink,
-                      fontSize: 34,
-                      height: 1.05,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  BaristaPageHeader(
+                    title: 'Workstation',
+                    subtitle:
+                        'Manage shift attendance, receipt printing and staff guides.',
+                    onRefresh: _refreshWorkstation,
+                    refreshTooltip: 'Refresh workstation',
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Manage shift attendance, receipt printing and staff guides.',
-                    style: TextStyle(
-                      color: SettingsPage.ink.withValues(alpha: 0.65),
-                      fontSize: 16,
-                      height: 1.4,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: _refreshWorkstation,
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Refresh workstation'),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                   const _SectionLabel(label: 'RECEIPT PRINTER'),
                   const SizedBox(height: 12),
                   const _DirectPrinterCard(),

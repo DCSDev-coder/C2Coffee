@@ -22,7 +22,8 @@ function formatDisplayDate(dateObj: Date): string {
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'Asia/Kuala_Lumpur'
   }).format(dateObj);
 }
 
@@ -30,8 +31,9 @@ function formatDisplayTime(dateObj: Date): string {
   if (!dateObj) return '';
   return new Intl.DateTimeFormat('en-US', {
     hour: 'numeric',
-    minute: 'numeric',
-    hour12: true
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kuala_Lumpur'
   }).format(dateObj);
 }
 

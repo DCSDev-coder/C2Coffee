@@ -78,7 +78,8 @@ function formatDisplayDate(dateObj: Date): string {
   return new Intl.DateTimeFormat('en-MY', {
     month: 'short',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'Asia/Kuala_Lumpur'
   }).format(dateObj);
 }
 
@@ -86,7 +87,8 @@ function formatDisplayTime(dateObj: Date): string {
   return new Intl.DateTimeFormat('en-MY', {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true
+    hour12: true,
+    timeZone: 'Asia/Kuala_Lumpur'
   }).format(dateObj);
 }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../../widgets/top_notice.dart';
+import '../widgets/barista_page_header.dart';
+import '../widgets/barista_card.dart';
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
@@ -96,62 +98,134 @@ class _InventoryPageState extends State<InventoryPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Inventory',
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF203E32),
+                    BaristaPageHeader(
+                      title: 'Inventory',
+                      subtitle:
+                          'Track outlet stock levels, record movements, and report wastage.',
+                      onRefresh: _load,
+                      refreshTooltip: 'Refresh inventory',
+                      bottom: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _inventory?.storeName ?? 'Current outlet',
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 18),
-                    _buildMovementCard(items),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Current stock',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (_loading)
-                      const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else if (items.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text(
-                          'No active inventory items are configured.',
-                        ),
-                      )
-                    else
-                      ...items.map(
-                        (item) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const CircleAvatar(
-                            backgroundColor: Color(0xFF203E32),
-                            child: Icon(
-                              Icons.inventory_2_outlined,
-                              color: Colors.white,
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF203E32,
+                            ).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(
+                                0xFF203E32,
+                              ).withValues(alpha: 0.12),
                             ),
                           ),
-                          title: Text(
-                            item.name,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(item.category),
-                          trailing: Text(
-                            '${item.onHand.toStringAsFixed(3)} ${item.unitLabel}',
-                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.storefront_outlined,
+                                size: 14,
+                                color: Color(0xFF203E32),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _inventory?.storeName ?? 'Current outlet',
+                                style: const TextStyle(
+                                  color: Color(0xFF203E32),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 22),
+                    const BaristaSectionLabel(label: 'STOCK MOVEMENT'),
+                    const SizedBox(height: 12),
+                    _buildMovementCard(items),
+                    const SizedBox(height: 24),
+                    const BaristaSectionLabel(label: 'CURRENT STOCK'),
+                    const SizedBox(height: 12),
+                    BaristaCard(
+                      child: _loading
+                          ? const Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          : items.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 24,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.inventory_2_outlined,
+                                      size: 44,
+                                      color: const Color(
+                                        0xFF203E32,
+                                      ).withValues(alpha: 0.25),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      'No active inventory items are configured.',
+                                      style: TextStyle(
+                                        color: Color(0xFF203E32),
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: items.length,
+                              separatorBuilder: (context, index) => Divider(
+                                height: 1,
+                                color: const Color(
+                                  0xFF203E32,
+                                ).withValues(alpha: 0.08),
+                              ),
+                              itemBuilder: (context, index) {
+                                final item = items[index];
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  leading: const CircleAvatar(
+                                    backgroundColor: Color(0xFF203E32),
+                                    child: Icon(
+                                      Icons.inventory_2_outlined,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    item.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(item.category),
+                                  trailing: Text(
+                                    '${item.onHand.toStringAsFixed(3)} ${item.unitLabel}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
                   ],
                 ),
               ),
@@ -163,23 +237,15 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   Widget _buildMovementCard(List<BaristaInventoryItem> items) {
-    return Card(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xFFE2DDD3)),
-      ),
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+    return BaristaCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SegmentedButton<bool>(
               segments: const [
                 ButtonSegment(
                   value: false,
-                  label: Text('Add stock'),
+                  label: Text('Add Inventory'),
                   icon: Icon(Icons.add_box_outlined),
                 ),
                 ButtonSegment(
@@ -282,13 +348,22 @@ class _InventoryPageState extends State<InventoryPage> {
             ),
             const SizedBox(height: 14),
             FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: _isWaste
+                    ? const Color(0xFF9A4D43)
+                    : const Color(0xFF203E32),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
               onPressed: _loading ? null : _submit,
               icon: Icon(_isWaste ? Icons.delete_outline : Icons.add),
               label: Text(_isWaste ? 'Record wastage' : 'Add stock'),
             ),
           ],
         ),
-      ),
     );
   }
 }

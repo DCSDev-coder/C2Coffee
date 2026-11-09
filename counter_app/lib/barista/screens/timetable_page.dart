@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../widgets/barista_page_header.dart';
+import '../widgets/barista_card.dart';
 
 class TimetablePage extends StatefulWidget {
   const TimetablePage({super.key});
@@ -10,7 +12,6 @@ class TimetablePage extends StatefulWidget {
 }
 
 class _TimetablePageState extends State<TimetablePage> {
-  static const _ink = Color(0xFF203E32);
   static const _canvas = Colors.white;
   late Future<OperationsContext> _operations;
 
@@ -48,43 +49,15 @@ class _TimetablePageState extends State<TimetablePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(
-                              children: [
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Timetable',
-                                        style: TextStyle(
-                                          color: _ink,
-                                          fontSize: 34,
-                                          height: 1.05,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Published shifts for today and the next 30 days.',
-                                        style: TextStyle(fontSize: 16),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton.filledTonal(
-                                  tooltip: 'Refresh timetable',
-                                  onPressed: _refresh,
-                                  icon: const Icon(Icons.refresh_rounded),
-                                ),
-                              ],
+                            BaristaPageHeader(
+                              title: 'Timetable',
+                              subtitle:
+                                  'Published shifts for today and the next 30 days. Matching colours mean those baristas are working at the same time.',
+                              onRefresh: _refresh,
+                              refreshTooltip: 'Refresh timetable',
                             ),
                             const SizedBox(height: 22),
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(color: Colors.white),
-                              child: _buildContent(snapshot),
-                            ),
+                            _buildContent(snapshot),
                           ],
                         ),
                       ),
@@ -125,16 +98,8 @@ class _TimetablePageState extends State<TimetablePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Next 31 days',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 5),
-        const Text(
-          'Matching colours mean those baristas are working at the same time.',
-          style: TextStyle(color: Colors.black54),
-        ),
-        const Divider(height: 34),
+        const BaristaSectionLabel(label: 'NEXT 31 DAYS'),
+        const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
             final columns = constraints.maxWidth >= 900
@@ -186,36 +151,35 @@ class _DayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorIndexes = _coverageColorIndexes(entries);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 154),
+    return BaristaCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFBFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDCE3EA)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             _dateLabel(date),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF203E32),
+            ),
           ),
           const SizedBox(height: 12),
           if (entries.isEmpty)
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 25),
+              padding: const EdgeInsets.symmetric(vertical: 22),
               decoration: BoxDecoration(
+                color: const Color(0xFF203E32).withValues(alpha: 0.03),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFCBD5E1),
-                  style: BorderStyle.solid,
-                ),
               ),
-              child: const Text(
+              child: Text(
                 'No shift planned',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF94A3B8)),
+                style: TextStyle(
+                  color: const Color(0xFF203E32).withValues(alpha: 0.40),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             )
           else

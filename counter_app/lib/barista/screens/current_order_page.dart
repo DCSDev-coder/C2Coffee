@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:counter_app/widgets/top_notice.dart';
 import '../main.dart';
 import '../widgets/order_card.dart';
+import '../widgets/barista_page_header.dart';
+import '../widgets/barista_card.dart';
 import 'order_details_page.dart';
 import '../services/api_service.dart';
 import '../order_queue_partition.dart';
@@ -17,7 +19,6 @@ class CurrentOrderPage extends StatefulWidget {
 
 class _CurrentOrderPageState extends State<CurrentOrderPage> {
   final Color darkGreen = const Color(0xFF304A3A);
-  final Color beigeColor = const Color(0xFFD3B17D);
   final Set<String> _updatingOrderIds = <String>{};
   final Set<String> _printingOrderIds = <String>{};
 
@@ -117,139 +118,156 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                       color: darkGreen,
                       onRefresh: _refreshOrders,
                       child: ListView(
-                        padding: const EdgeInsets.only(top: 16, bottom: 36),
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
                         children: [
-                          // Content
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24.0,
-                              vertical: 16.0,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Queue summary for the shared workstation.
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              BaristaPageHeader(
+                                title: 'Current Order',
+                                subtitle:
+                                    'Live order queue for preparation and customer pickup.',
+                                onRefresh: _refreshOrders,
+                                refreshTooltip: 'Refresh orders',
+                                bottom: Row(
                                   children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Current Order',
-                                            style: TextStyle(
-                                              color: darkGreen,
-                                              fontSize: 32,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          Text(
-                                            '${allOrders.length} active orders',
-                                            style: TextStyle(
-                                              color: beigeColor,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          ValueListenableBuilder<DateTime?>(
-                                            valueListenable:
-                                                globalLastOrderSync,
-                                            builder: (context, lastSync, _) {
-                                              if (lastSync == null) {
-                                                return const SizedBox.shrink();
-                                              }
-                                              final hour = lastSync.hour
-                                                  .remainder(12)
-                                                  .toString()
-                                                  .padLeft(2, '0');
-                                              final minute = lastSync.minute
-                                                  .toString()
-                                                  .padLeft(2, '0');
-                                              final suffix = lastSync.hour >= 12
-                                                  ? 'PM'
-                                                  : 'AM';
-                                              return Text(
-                                                'Updated $hour:$minute $suffix',
-                                                style: TextStyle(
-                                                  color: darkGreen.withValues(
-                                                    alpha: 0.62,
-                                                  ),
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ],
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
                                       ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFF203E32,
+                                        ).withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: const Color(
+                                            0xFF203E32,
+                                          ).withValues(alpha: 0.12),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${allOrders.length} active orders',
+                                        style: const TextStyle(
+                                          color: Color(0xFF203E32),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    ValueListenableBuilder<DateTime?>(
+                                      valueListenable: globalLastOrderSync,
+                                      builder: (context, lastSync, _) {
+                                        if (lastSync == null) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        final hour = lastSync.hour
+                                            .remainder(12)
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        final minute = lastSync.minute
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        final suffix = lastSync.hour >= 12
+                                            ? 'PM'
+                                            : 'AM';
+                                        return Text(
+                                          'Updated $hour:$minute $suffix',
+                                          style: TextStyle(
+                                            color: const Color(
+                                              0xFF203E32,
+                                            ).withValues(alpha: 0.62),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 24.0),
-                                ValueListenableBuilder<String?>(
-                                  valueListenable: globalOrderSyncError,
-                                  builder: (context, syncError, _) {
-                                    if (syncError == null) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return Container(
-                                      margin: const EdgeInsets.only(bottom: 16),
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFF4E5),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: const Color(0xFFD3B17D),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.cloud_off_outlined,
-                                            color: Color(0xFF8A5A13),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              '$syncError Showing the last successful queue.',
-                                            ),
-                                          ),
-                                          TextButton(
-                                            onPressed: _refreshOrders,
-                                            child: const Text('Retry'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-
-                                if (filteredOrders.isEmpty)
-                                  Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(32.0),
-                                      child: Column(
-                                        children: [
-                                          Icon(
-                                            Icons.search_off,
-                                            size: 48,
-                                            color: Colors.grey.shade300,
-                                          ),
-                                          const SizedBox(height: 16),
-                                          Text(
-                                            'No orders found.',
-                                            style: TextStyle(
-                                              color: Colors.grey.shade500,
-                                            ),
-                                          ),
-                                        ],
+                              ),
+                              const SizedBox(height: 22.0),
+                              ValueListenableBuilder<String?>(
+                                valueListenable: globalOrderSyncError,
+                                builder: (context, syncError, _) {
+                                  if (syncError == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF4E5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: const Color(0xFFD3B17D),
                                       ),
                                     ),
-                                  )
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.cloud_off_outlined,
+                                          color: Color(0xFF8A5A13),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            '$syncError Showing the last successful queue.',
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: _refreshOrders,
+                                          child: const Text('Retry'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              const BaristaSectionLabel(label: 'LIVE QUEUE'),
+                              const SizedBox(height: 12),
+                              if (filteredOrders.isEmpty)
+                                BaristaCard(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 48,
+                                    horizontal: 24,
+                                  ),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.shopping_basket_outlined,
+                                          size: 48,
+                                          color: const Color(
+                                            0xFF203E32,
+                                          ).withValues(alpha: 0.25),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        const Text(
+                                          'No orders found.',
+                                          style: TextStyle(
+                                            color: Color(0xFF203E32),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'New incoming orders will appear here automatically.',
+                                          style: TextStyle(
+                                            color: const Color(
+                                              0xFF203E32,
+                                            ).withValues(alpha: 0.6),
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
                                 else
                                   ...filteredOrders.map((order) {
                                     return OrderCard(
@@ -281,7 +299,6 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                   }),
                               ],
                             ),
-                          ),
                         ],
                       ),
                     ),

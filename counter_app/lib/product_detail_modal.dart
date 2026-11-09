@@ -30,6 +30,8 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   final Map<int, List<int>> _librarySelections = {};
   final Set<int> _missingRequiredGroups = {};
 
+
+
   bool _hasLibraryGroup(String keyword) =>
       counterHasLibraryGroup(widget.item, keyword);
 
@@ -62,6 +64,22 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   @override
   void initState() {
     super.initState();
+    if (widget.item.allowChoiceOfBeans) {
+      if (!widget.item.isBeanAvailable('Dato Blend') &&
+          widget.item.isBeanAvailable('Datin Blend')) {
+        _bean = 'Datin Blend';
+      } else {
+        _bean = 'Dato Blend';
+      }
+    }
+    if (widget.item.allowChoiceOfMilk) {
+      if (!widget.item.isMilkAvailable('Fresh Milk') &&
+          widget.item.isMilkAvailable('Oat Milk')) {
+        _milk = 'Oat Milk';
+      } else {
+        _milk = 'Fresh Milk';
+      }
+    }
     if (widget.item.modifierGroups.isNotEmpty) {
       for (final group in widget.item.modifierGroups) {
         final defaultOptions = group.options
@@ -489,29 +507,31 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         _buildSectionTitle('Choice of Beans'),
         _buildResponsiveGrid(
           children: [
-            _buildOptionCard(
-              title: 'Dato Blend',
-              subtitle: '+ 0.00',
-              value: 'Dato Blend',
-              groupValue: _bean,
-              onChanged: (v) => setState(() => _bean = v),
-              color: const Color(0xFF993300),
-              textColor: Colors.white,
-            ),
-            _buildOptionCard(
-              title: 'Datin Blend',
-              subtitle: '+ 0.00',
-              value: 'Datin Blend',
-              groupValue: _bean,
-              onChanged: (v) => setState(() => _bean = v),
-              color: Colors.transparent,
-              textColor: Colors.white,
-              isGradient: true,
-              gradientColors: [
-                const Color(0xFFE91E63),
-                const Color(0xFF009624),
-              ],
-            ),
+            if (widget.item.isBeanAvailable('Dato Blend'))
+              _buildOptionCard(
+                title: 'Dato Blend',
+                subtitle: '+ 0.00',
+                value: 'Dato Blend',
+                groupValue: _bean,
+                onChanged: (v) => setState(() => _bean = v),
+                color: const Color(0xFF993300),
+                textColor: Colors.white,
+              ),
+            if (widget.item.isBeanAvailable('Datin Blend'))
+              _buildOptionCard(
+                title: 'Datin Blend',
+                subtitle: '+ 0.00',
+                value: 'Datin Blend',
+                groupValue: _bean,
+                onChanged: (v) => setState(() => _bean = v),
+                color: Colors.transparent,
+                textColor: Colors.white,
+                isGradient: true,
+                gradientColors: [
+                  const Color(0xFFE91E63),
+                  const Color(0xFF009624),
+                ],
+              ),
           ],
         ),
       ],
@@ -546,24 +566,26 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
         _buildSectionTitle('Choice of Milk'),
         _buildResponsiveGrid(
           children: [
-            _buildOptionCard(
-              title: 'Fresh Milk',
-              subtitle: '+ 0.00',
-              value: 'Fresh Milk',
-              groupValue: _milk,
-              onChanged: (v) => setState(() => _milk = v),
-              color: const Color(0xFF007AEC),
-              textColor: Colors.white,
-            ),
-            _buildOptionCard(
-              title: 'Oat Milk',
-              subtitle: 'Oatside • + RM 3.00',
-              value: 'Oat Milk',
-              groupValue: _milk,
-              onChanged: (v) => setState(() => _milk = v),
-              color: const Color(0xFF995C00),
-              textColor: Colors.white,
-            ),
+            if (widget.item.isMilkAvailable('Fresh Milk'))
+              _buildOptionCard(
+                title: 'Fresh Milk',
+                subtitle: '+ 0.00',
+                value: 'Fresh Milk',
+                groupValue: _milk,
+                onChanged: (v) => setState(() => _milk = v),
+                color: const Color(0xFF007AEC),
+                textColor: Colors.white,
+              ),
+            if (widget.item.isMilkAvailable('Oat Milk'))
+              _buildOptionCard(
+                title: 'Oat Milk',
+                subtitle: 'Oatside • + RM 3.00',
+                value: 'Oat Milk',
+                groupValue: _milk,
+                onChanged: (v) => setState(() => _milk = v),
+                color: const Color(0xFF995C00),
+                textColor: Colors.white,
+              ),
           ],
         ),
       ],

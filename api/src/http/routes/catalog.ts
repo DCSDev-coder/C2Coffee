@@ -143,6 +143,8 @@ type MenuItemResponse = {
   subcategory_name: string | null;
   product_kind_code: string;
   product_kind_name: string;
+  available_beans?: string[];
+  available_milks?: string[];
   token_prices: Record<string, number>;
   modifier_groups: Array<MenuModifierGroup>;
 };
@@ -675,6 +677,32 @@ export async function registerCatalogRoutes(
 }
 
 export async function loadCatalogMenu(storeId: number) {
+  let availableBeans = ['Dato Blend', 'Datin Blend'];
+  let availableMilks = ['Fresh Milk', 'Oat Milk'];
+  try {
+    const [customizationRows] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT customization_type, customization_value, is_available
+         FROM store_customization_availability
+        WHERE store_id = :storeId`,
+      { storeId }
+    );
+    const map = new Map<string, boolean>();
+    for (const r of customizationRows) {
+      map.set(`${String(r.customization_type).toLowerCase()}:${String(r.customization_value).toLowerCase()}`, Number(r.is_available) === 1);
+    }
+    const filteredBeans: string[] = [];
+    if (map.get('bean:dato blend') ?? true) filteredBeans.push('Dato Blend');
+    if (map.get('bean:datin blend') ?? true) filteredBeans.push('Datin Blend');
+    availableBeans = filteredBeans;
+
+    const filteredMilks: string[] = [];
+    if (map.get('milk:fresh milk') ?? true) filteredMilks.push('Fresh Milk');
+    if (map.get('milk:oat milk') ?? true) filteredMilks.push('Oat Milk');
+    availableMilks = filteredMilks;
+  } catch {
+    // If table doesn't exist yet, fallback to both
+  }
+
   const [rows] = await mysqlPool.query<Array<MenuRow>>(
     `
         SELECT
@@ -831,6 +859,8 @@ export async function loadCatalogMenu(storeId: number) {
         subcategory_name: row.subcategory_name,
         product_kind_code: productKind.code,
         product_kind_name: productKind.name,
+        available_beans: row.allow_choice_of_beans === 1 ? availableBeans : undefined,
+        available_milks: row.allow_choice_of_milk === 1 ? availableMilks : undefined,
         token_prices: {},
         modifier_groups: [],
       });

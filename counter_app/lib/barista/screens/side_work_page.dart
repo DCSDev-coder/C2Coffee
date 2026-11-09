@@ -3,6 +3,8 @@ import 'package:counter_app/widgets/top_notice.dart';
 
 import '../services/api_service.dart';
 import '../services/barista_sound_service.dart';
+import '../widgets/barista_page_header.dart';
+import '../widgets/barista_card.dart';
 
 class SideWorkPage extends StatefulWidget {
   const SideWorkPage({super.key});
@@ -104,42 +106,15 @@ class _SideWorkPageState extends State<SideWorkPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Daily Tasks',
-                                      style: TextStyle(
-                                        color: _ink,
-                                        fontSize: 34,
-                                        height: 1.05,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Store cleaning, maintenance, and routine tasks.',
-                                      style: TextStyle(fontSize: 16),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton.filledTonal(
-                                tooltip: 'Refresh tasks',
-                                onPressed: _refresh,
-                                icon: const Icon(Icons.refresh_rounded),
-                              ),
-                            ],
+                          BaristaPageHeader(
+                            title: 'Daily Tasks',
+                            subtitle:
+                                'Store cleaning, maintenance, and routine tasks. Completion is recorded against the clocked-in barista.',
+                            onRefresh: _refresh,
+                            refreshTooltip: 'Refresh tasks',
                           ),
                           const SizedBox(height: 22),
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(color: Colors.white),
-                            child: _buildContent(snapshot),
-                          ),
+                          _buildContent(snapshot),
                         ],
                       ),
                     ),
@@ -172,20 +147,40 @@ class _SideWorkPageState extends State<SideWorkPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Next 31 days',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 5),
-        const Text(
-          'Completion is recorded against the clocked-in barista who confirms the task.',
-          style: TextStyle(color: Colors.black54),
-        ),
-        const Divider(height: 34),
+        const BaristaSectionLabel(label: 'NEXT 31 DAYS'),
+        const SizedBox(height: 12),
         if (tasks.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 55),
-            child: Center(child: Text('No tasks scheduled.')),
+          BaristaCard(
+            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.checklist_rounded,
+                    size: 48,
+                    color: _ink.withValues(alpha: 0.25),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'No tasks scheduled.',
+                    style: TextStyle(
+                      color: _ink,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Routine tasks and store maintenance will appear here when due.',
+                    style: TextStyle(
+                      color: _ink.withValues(alpha: 0.6),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           )
         else
           ...tasks.map(
@@ -217,17 +212,10 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final completedBy = task.completedByBaristaName?.trim();
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: task.isCompleted
-              ? const Color(0xFF9AD7B2)
-              : const Color(0xFFDCE3EA),
-        ),
-      ),
+    return BaristaCard(
+      borderColor: task.isCompleted
+          ? const Color(0xFF9AD7B2)
+          : const Color(0xFF203E32).withValues(alpha: 0.10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

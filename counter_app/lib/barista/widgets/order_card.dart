@@ -61,7 +61,6 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const Color darkGreen = Color(0xFF304A3A);
-    const Color beigeColor = Color(0xFFD3B17D);
 
     final bool isPreparing = status == OrderStatus.preparing;
     final bool isReadyForPickup = status == OrderStatus.readyForPickup;
@@ -73,11 +72,14 @@ class OrderCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16.0),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24.0),
-          border: Border.all(color: darkGreen, width: 1.5),
+          borderRadius: BorderRadius.circular(18.0),
+          border: Border.all(
+            color: const Color(0xFF203E32).withValues(alpha: 0.12),
+            width: 1.0,
+          ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
+          padding: const EdgeInsets.all(18.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -193,8 +195,8 @@ class OrderCard extends StatelessWidget {
                   color: Colors.transparent,
                   child: Text(
                     customerDetails,
-                    style: const TextStyle(
-                      color: beigeColor,
+                    style: TextStyle(
+                      color: const Color(0xFF203E32).withValues(alpha: 0.65),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -251,7 +253,9 @@ class OrderCard extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: isActionLoading ? null : onActionPressed,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isPreparing ? beigeColor : darkGreen,
+                      backgroundColor: isPreparing
+                          ? const Color(0xFF2E5E58)
+                          : darkGreen,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14.0),
                       shape: RoundedRectangleBorder(

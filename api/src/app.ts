@@ -42,6 +42,7 @@ import { registerAdminDataRetentionRoutes } from './http/routes/admin-data-reten
 import { registerAdminInventoryRoutes } from './http/routes/admin-inventory.js';
 import { registerAdminInventoryOperationsRoutes } from './http/routes/admin-inventory-operations.js';
 import { registerBaristaInventoryRoutes } from './http/routes/barista-inventory.js';
+import { registerBaristaMenuAvailabilityRoutes } from './http/routes/barista-menu-availability.js';
 import { registerAdminMaintenanceRoutes } from './http/routes/admin-maintenance.js';
 import { registerAdminGiftCardRoutes } from './http/routes/admin-gift-cards.js';
 import { registerWebsiteContactRoutes } from './http/routes/website-contact.js';
@@ -165,6 +166,7 @@ export async function buildApp() {
   await registerAdminInventoryRoutes(app);
   await registerAdminInventoryOperationsRoutes(app);
   await registerBaristaInventoryRoutes(app);
+  await registerBaristaMenuAvailabilityRoutes(app);
   await registerAdminMaintenanceRoutes(app);
   await registerAdminGiftCardRoutes(app);
   await registerAdminPushRoutes(app);

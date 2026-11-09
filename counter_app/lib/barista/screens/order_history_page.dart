@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/api_service.dart';
 import '../widgets/order_card.dart';
+import '../widgets/barista_page_header.dart';
+import '../widgets/barista_card.dart';
 import 'order_details_page.dart';
 import '../order_queue_partition.dart';
 
@@ -18,7 +20,6 @@ class OrderHistoryPage extends StatefulWidget {
 
 class _OrderHistoryPageState extends State<OrderHistoryPage> {
   static const _darkGreen = Color(0xFF304A3A);
-  static const _beige = Color(0xFFD3B17D);
   final Set<String> _printingOrderIds = <String>{};
 
   Future<void> _refreshOrders() async {
@@ -79,41 +80,86 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
                   color: _darkGreen,
                   onRefresh: _refreshOrders,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
                     children: [
-                      const Text(
-                        "Today's Order History",
-                        style: TextStyle(
-                          color: _darkGreen,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
+                      BaristaPageHeader(
+                        title: 'Order History',
+                        subtitle:
+                            "Completed and finished orders for today's shift.",
+                        onRefresh: _refreshOrders,
+                        refreshTooltip: 'Refresh history',
+                        bottom: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF203E32,
+                              ).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF203E32,
+                                ).withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Text(
+                              '${newestFirst.length} finished orders today',
+                              style: const TextStyle(
+                                color: Color(0xFF203E32),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      Text(
-                        '${newestFirst.length} finished orders today',
-                        style: const TextStyle(
-                          color: _beige,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const SizedBox(height: 22),
+                      const BaristaSectionLabel(
+                        label: "TODAY'S FINISHED ORDERS",
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
                       if (newestFirst.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 72),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.history_rounded,
-                                size: 52,
-                                color: Color(0xFFBDBDBD),
-                              ),
-                              SizedBox(height: 16),
-                              Text(
-                                'No finished orders yet today.',
-                                style: TextStyle(color: Color(0xFF757575)),
-                              ),
-                            ],
+                        BaristaCard(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 48,
+                            horizontal: 24,
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.history_rounded,
+                                  size: 48,
+                                  color: const Color(
+                                    0xFF203E32,
+                                  ).withValues(alpha: 0.25),
+                                ),
+                                const SizedBox(height: 14),
+                                const Text(
+                                  'No finished orders yet today.',
+                                  style: TextStyle(
+                                    color: Color(0xFF203E32),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Orders marked completed will appear in this history log.',
+                                  style: TextStyle(
+                                    color: const Color(
+                                      0xFF203E32,
+                                    ).withValues(alpha: 0.6),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         )
                       else

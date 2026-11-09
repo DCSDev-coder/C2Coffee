@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../widgets/top_notice.dart';
 import '../services/api_service.dart';
 import '../services/direct_printer_service.dart';
+import '../widgets/barista_page_header.dart';
+import '../widgets/barista_card.dart';
 
 class MarketingDrinkPage extends StatefulWidget {
   const MarketingDrinkPage({super.key});
@@ -196,26 +198,23 @@ class _MarketingDrinkPageState extends State<MarketingDrinkPage> {
             Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 1120),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: const BoxDecoration(color: Colors.white),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text(
-                        'Complimentary Drinks',
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF203E32),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Record approved marketing use. No customer payment, employee allowance, voucher, or loyalty cup is created.',
-                      ),
-                      const SizedBox(height: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    BaristaPageHeader(
+                      title: 'Marketing Drinks',
+                      subtitle:
+                          'Record approved marketing use, sampling, and campaign drinks.',
+                      onRefresh: _load,
+                      refreshTooltip: 'Refresh complimentary records',
+                    ),
+                    const SizedBox(height: 22),
+                    const BaristaSectionLabel(label: 'RECORD MARKETING DRINK'),
+                    const SizedBox(height: 12),
+                    BaristaCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                       DropdownButtonFormField<int>(
                         initialValue: _baristaId,
                         decoration: const InputDecoration(
@@ -328,56 +327,98 @@ class _MarketingDrinkPageState extends State<MarketingDrinkPage> {
                       ),
                       const SizedBox(height: 16),
                       FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF203E32),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         onPressed: _saving ? null : _submit,
                         icon: const Icon(Icons.print),
                         label: Text(
                           _saving ? 'Recording…' : 'Record & print slip',
                         ),
                       ),
-                      const SizedBox(height: 32),
-                      const Text(
-                        "Today's records",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      if (_usages.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Text(
-                            'No complimentary drinks recorded today.',
-                          ),
-                        ),
-                      ..._usages.map(
-                        (usage) => Card(
-                          color: Colors.white,
-                          child: ListTile(
-                            title: Text(
-                              '${usage.usageRef} · ${usage.items.map((item) => '${item.quantity}× ${item.name}').join(', ')}',
-                            ),
-                            subtitle: Text(
-                              '${usage.baristaName} · ${_purposes[usage.purposeCode] ?? usage.purposeCode}\n${usage.reasonNote}',
-                            ),
-                            isThreeLine: true,
-                            trailing: IconButton(
-                              onPressed: usage.status == 'posted'
-                                  ? () => _reprint(usage)
-                                  : null,
-                              icon: const Icon(Icons.print_outlined),
-                              tooltip: 'Reprint slip',
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
-              ),
+                const SizedBox(height: 24),
+                const BaristaSectionLabel(label: "TODAY'S RECORDS"),
+                const SizedBox(height: 12),
+                if (_usages.isEmpty)
+                  BaristaCard(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 36,
+                      horizontal: 24,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.campaign_outlined,
+                            size: 44,
+                            color: const Color(
+                              0xFF203E32,
+                            ).withValues(alpha: 0.25),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'No complimentary drinks recorded today.',
+                            style: TextStyle(
+                              color: Color(0xFF203E32),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ..._usages.map(
+                    (usage) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: BaristaCard(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            '${usage.usageRef} · ${usage.items.map((item) => '${item.quantity}× ${item.name}').join(', ')}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${usage.baristaName} · ${_purposes[usage.purposeCode] ?? usage.purposeCode}\n${usage.reasonNote}',
+                            style: TextStyle(
+                              color: const Color(
+                                0xFF203E32,
+                              ).withValues(alpha: 0.65),
+                              height: 1.4,
+                            ),
+                          ),
+                          isThreeLine: true,
+                          trailing: IconButton(
+                            onPressed: usage.status == 'posted'
+                                ? () => _reprint(usage)
+                                : null,
+                            icon: const Icon(Icons.print_outlined),
+                            tooltip: 'Reprint slip',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    );
+      ],
+    ),
+  ),
+);
   }
 }
