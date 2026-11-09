@@ -297,17 +297,10 @@ class _InventoryPageState extends State<InventoryPage> {
                               ),
                               itemBuilder: (context, index) {
                                 final item = filteredItems[index];
-                                final isSelected = _selected?.id == item.id;
                                 return ListTile(
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
-                                    vertical: 6,
-                                  ),
-                                  tileColor: isSelected
-                                      ? const Color(0xFF203E32).withValues(alpha: 0.05)
-                                      : null,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                    vertical: 8,
                                   ),
                                   leading: const CircleAvatar(
                                     backgroundColor: Color(0xFF203E32),
@@ -335,62 +328,15 @@ class _InventoryPageState extends State<InventoryPage> {
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            '${item.onHand.toStringAsFixed(3)} ${item.unitLabel}',
-                                            style: const TextStyle(
-                                              fontFamily: 'Afacad',
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w800,
-                                              color: Color(0xFF203E32),
-                                            ),
-                                          ),
-                                          Text(
-                                            '${item.available.toStringAsFixed(3)} available',
-                                            style: TextStyle(
-                                              fontFamily: 'Afacad',
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF203E32).withValues(alpha: 0.5),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(width: 8),
-                                      IconButton(
-                                        tooltip: 'Select for stock movement',
-                                        icon: Icon(
-                                          isSelected
-                                              ? Icons.check_circle_rounded
-                                              : Icons.add_circle_outline_rounded,
-                                          color: isSelected
-                                              ? const Color(0xFF203E32)
-                                              : const Color(0xFF203E32).withValues(alpha: 0.4),
-                                          size: 22,
-                                        ),
-                                        onPressed: () {
-                                          setState(() => _selected = item);
-                                          TopNotice.info(
-                                            context,
-                                            'Selected "${item.name}" for stock movement.',
-                                          );
-                                        },
-                                      ),
-                                    ],
+                                  trailing: Text(
+                                    '${item.onHand.toStringAsFixed(3)} ${item.unitLabel}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF203E32),
+                                    ),
                                   ),
-                                  onTap: () {
-                                    setState(() => _selected = item);
-                                    TopNotice.info(
-                                      context,
-                                      'Selected "${item.name}" for stock movement.',
-                                    );
-                                  },
                                 );
                               },
                             ),
