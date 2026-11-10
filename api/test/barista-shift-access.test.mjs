@@ -28,12 +28,14 @@ const input = {
   now: new Date('2026-10-20T01:05:00.000Z')
 };
 
-test('closes outside configured opening hours without a timetable', async () => {
-  const state = await resolveBaristaShiftAccess(connectionFixture(), { ...input, now: new Date('2026-10-20T23:05:00.000Z') });
+test('opening hours are informational and early clock-in opens the outlet', async () => {
+  const state = await resolveBaristaShiftAccess(connectionFixture({
+    attendance: [{ id: 9, barista_id: 9, barista_name: 'Early', clocked_in_at: '2026-10-20T22:45:00.000Z' }]
+  }), { ...input, now: new Date('2026-10-20T23:05:00.000Z') });
   assert.equal(state.schedule_status, 'closed');
-  assert.equal(state.access_state, 'closed');
-  assert.equal(state.can_prepare_orders, false);
-  assert.match(state.message, /opening hours/);
+  assert.equal(state.access_state, 'unlocked');
+  assert.equal(state.can_prepare_orders, true);
+  assert.match(state.message, /open and staffed/);
 });
 
 test('waits for a barista during opening hours', async () => {
@@ -64,7 +66,7 @@ test('temporary closure overrides attendance and opening hours', async () => {
   assert.equal(state.access_state, 'closed');
 });
 
-test('does not use previous-day attendance to open a new operating window', async () => {
+test('ignores a stale missing clock-out instead of keeping the outlet open', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
     attendance: [{ id: 2, barista_id: 2, barista_name: 'Mira', clocked_in_at: '2026-10-19T01:00:00.000Z' }]
   }), input);
@@ -108,7 +110,7 @@ test('does not reuse an after-midnight attendance for the next evening shift', a
   assert.equal(state.can_prepare_orders, false);
 });
 
-test('after closing, coverage includes only the most recently ended operating window', async () => {
+test('active attendance keeps the outlet open after scheduled closing time', async () => {
   const overnightHours = Object.fromEntries(
     ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => [day, { closed: false, open: '20:00', close: '02:00' }]),
   );
@@ -119,8 +121,18 @@ test('after closing, coverage includes only the most recently ended operating wi
       { id: 7, barista_id: 7, barista_name: 'Stale', clocked_in_at: '2026-10-18T12:30:00.000Z' },
     ]
   }), { ...input, now: new Date('2026-10-20T19:00:00.000Z') });
-  assert.equal(state.active_attendance.length, 0);
+  assert.equal(state.active_attendance.length, 1);
+  assert.equal(state.can_prepare_orders, true);
   assert.deepEqual(state.coverage_attendance.map((row) => row.barista_name), ['Recent']);
+});
+
+test('temporary closure still overrides an early clock-in outside scheduled hours', async () => {
+  const state = await resolveBaristaShiftAccess(connectionFixture({
+    store: { temporarily_closed: 1 },
+    attendance: [{ id: 10, barista_id: 10, barista_name: 'Early', clocked_in_at: '2026-10-20T22:45:00.000Z' }]
+  }), { ...input, now: new Date('2026-10-20T23:05:00.000Z') });
+  assert.equal(state.access_state, 'closed');
+  assert.equal(state.can_prepare_orders, false);
 });
 
 test('active orders block only the final clocked-in barista', () => {
@@ -129,9 +141,10 @@ test('active orders block only the final clocked-in barista', () => {
   assert.equal(shouldBlockBaristaClockOut({ activeAttendanceCount: 1, activeOrderCount: 0 }), false);
 });
 
-test('clock-out active order check excludes ready_for_pickup and cancellation-approved orders', async () => {
+test('clock-out active order check matches visible active orders and excludes pending payment', async () => {
   const baristaStaff = await readFile(new URL('../src/http/routes/barista-staff.ts', import.meta.url), 'utf8');
-  assert.match(baristaStaff, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing'\)/);
-  assert.doesNotMatch(baristaStaff, /status IN \('paid', 'accepted', 'preparing', 'ready_for_pickup'\)/);
+  assert.match(baristaStaff, /o\.status IN \('paid', 'accepted', 'preparing', 'ready_for_pickup'\)/);
+  assert.doesNotMatch(baristaStaff, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing'\)/);
   assert.match(baristaStaff, /FROM order_cancellation_requests ocr/);
+  assert.match(baristaStaff, /Outstanding order/);
 });

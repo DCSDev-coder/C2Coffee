@@ -1806,6 +1806,7 @@ export async function registerCustomerDataRoutes(
             token_value: row.token_value,
             min_spend_rm: row.min_spend_rm,
             requires_drink_in_cart: row.requires_drink_in_cart === 1,
+            description: String(scope.description ?? '').trim(),
             usage_instructions: String(scope.usage_instructions ?? '').trim(),
             eligible_scope_json: row.eligible_scope_json,
             exclude_scope_json: row.exclude_scope_json
@@ -1832,6 +1833,9 @@ export async function registerCustomerDataRoutes(
           token_value: row.token_value,
           min_spend_rm: row.min_spend_rm,
           requires_drink_in_cart: row.requires_drink_in_cart === 1,
+          description: String(
+            parseVoucherScope(row.eligible_scope_json).description ?? ''
+          ).trim(),
           usage_instructions: String(
             parseVoucherScope(row.eligible_scope_json).usage_instructions ?? ''
           ).trim(),
@@ -1901,6 +1905,7 @@ export async function registerCustomerDataRoutes(
             token_value: row.token_value,
             min_spend_rm: row.min_spend_rm,
             requires_drink_in_cart: row.requires_drink_in_cart === 1,
+            description: String(scope.description ?? '').trim(),
             usage_instructions: String(scope.usage_instructions ?? '').trim(),
             eligible_scope_json: row.eligible_scope_json,
             exclude_scope_json: row.exclude_scope_json

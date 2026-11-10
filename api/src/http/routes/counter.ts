@@ -11,7 +11,7 @@ import { ApiError } from '../errors.js';
 import { getBootstrapForUser } from './auth.js';
 import { env } from '../../config/env.js';
 import { loadCatalogMenu } from './catalog.js';
-import { isStoreTradingNow } from '../../services/store-availability.js';
+import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 import { sendOtpEmail } from '../../services/otp-email.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { verifyPassword } from '../../lib/password.js';
@@ -525,7 +525,20 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
                 COALESCE(bs.clock_out_beeps, 2) AS clock_out_beeps,
                 COALESCE(bs.clock_out_style, 'long') AS clock_out_style,
                 COALESCE(bs.side_work_beeps, 3) AS side_work_beeps,
-                COALESCE(bs.side_work_style, 'two_tone') AS side_work_style
+                COALESCE(bs.side_work_style, 'two_tone') AS side_work_style,
+                COALESCE(bs.cancellation_alert_enabled, 1) AS cancellation_alert_enabled,
+                COALESCE(bs.cancellation_alert_beeps, 5) AS cancellation_alert_beeps,
+                COALESCE(bs.cancellation_alert_style, 'two_tone') AS cancellation_alert_style,
+                COALESCE(bs.waiting_alert_enabled, 1) AS waiting_alert_enabled,
+                COALESCE(bs.waiting_alert_after_minutes, 5) AS waiting_alert_after_minutes,
+                COALESCE(bs.waiting_alert_repeat_minutes, 10) AS waiting_alert_repeat_minutes,
+                COALESCE(bs.waiting_alert_beeps, 2) AS waiting_alert_beeps,
+                COALESCE(bs.waiting_alert_style, 'short') AS waiting_alert_style,
+                COALESCE(bs.preparing_alert_enabled, 1) AS preparing_alert_enabled,
+                COALESCE(bs.preparing_alert_after_minutes, 10) AS preparing_alert_after_minutes,
+                COALESCE(bs.preparing_alert_repeat_minutes, 10) AS preparing_alert_repeat_minutes,
+                COALESCE(bs.preparing_alert_beeps, 1) AS preparing_alert_beeps,
+                COALESCE(bs.preparing_alert_style, 'short') AS preparing_alert_style
          FROM printer_targets pt
          JOIN stores s ON s.id = pt.store_id
          LEFT JOIN barista_sound_settings bs
@@ -621,7 +634,20 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           clock_out_beeps: Number(printer.clock_out_beeps),
           clock_out_style: printer.clock_out_style,
           side_work_beeps: Number(printer.side_work_beeps),
-          side_work_style: printer.side_work_style
+          side_work_style: printer.side_work_style,
+          cancellation_alert_enabled: Number(printer.cancellation_alert_enabled) === 1,
+          cancellation_alert_beeps: Number(printer.cancellation_alert_beeps),
+          cancellation_alert_style: printer.cancellation_alert_style,
+          waiting_alert_enabled: Number(printer.waiting_alert_enabled) === 1,
+          waiting_alert_after_minutes: Number(printer.waiting_alert_after_minutes),
+          waiting_alert_repeat_minutes: Number(printer.waiting_alert_repeat_minutes),
+          waiting_alert_beeps: Number(printer.waiting_alert_beeps),
+          waiting_alert_style: printer.waiting_alert_style,
+          preparing_alert_enabled: Number(printer.preparing_alert_enabled) === 1,
+          preparing_alert_after_minutes: Number(printer.preparing_alert_after_minutes),
+          preparing_alert_repeat_minutes: Number(printer.preparing_alert_repeat_minutes),
+          preparing_alert_beeps: Number(printer.preparing_alert_beeps),
+          preparing_alert_style: printer.preparing_alert_style
         },
         order: {
           order_ref: job.order_ref,
@@ -712,9 +738,12 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       if (!store || store.status !== 'active') {
         throw new ApiError(404, 'store_not_found', 'This counter outlet is unavailable.');
       }
-      if (!isStoreTradingNow(store)) {
-        throw new ApiError(409, 'store_closed', 'This outlet is currently closed and cannot accept orders.');
-      }
+      const shiftAccess = await resolveBaristaShiftAccess(connection, {
+        tenantId: store.tenant_id,
+        tenantCode: request.counterAuth.tenantCode,
+        storeId: store.id,
+      });
+      if (!shiftAccess.can_prepare_orders) throw new ApiError(409, 'store_closed', shiftAccess.message);
 
       const bootstrap = await getBootstrapForUser(session.user_id, connection);
       const menuItems = await loadCheckoutMenuItems(
@@ -880,9 +909,21 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
        FROM stores WHERE id = :storeId AND tenant_id = :tenantId LIMIT 1`,
       { storeId: request.counterAuth.storeId, tenantId: session.tenant_id }
     );
-    if (!stores[0] || !isStoreTradingNow(stores[0])) {
+    if (!stores[0]) {
       throw new ApiError(409, 'store_closed', 'This outlet is currently closed and cannot accept orders.');
     }
+    const shiftConnection = await mysqlPool.getConnection();
+    let voucherShiftAccess;
+    try {
+      voucherShiftAccess = await resolveBaristaShiftAccess(shiftConnection, {
+        tenantId: session.tenant_id,
+        tenantCode: request.counterAuth.tenantCode,
+        storeId: request.counterAuth.storeId,
+      });
+    } finally {
+      shiftConnection.release();
+    }
+    if (!voucherShiftAccess.can_prepare_orders) throw new ApiError(409, 'store_closed', voucherShiftAccess.message);
     const [rows] = await mysqlPool.query<Array<RowDataPacket & {
       email: string | null;
       birthday_month_day: string | null;

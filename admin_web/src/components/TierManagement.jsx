@@ -151,7 +151,8 @@ function emptyTierRewardForm(tiers = []) {
     rewardMode: 'same',
     rewardItems: [],
     limitPerUser: 1,
-    description: ''
+    description: '',
+    howToUse: ''
   };
 }
 
@@ -569,7 +570,11 @@ const TierRewardModal = ({ open, form, tiers, menuItems, optionGroups = [], onCh
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500">Description</label>
-                <input value={form.description} onChange={(event) => onChange({ description: event.target.value })} placeholder="Optional redemption instructions" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+                <input value={form.description} onChange={(event) => onChange({ description: event.target.value })} placeholder="What this reward gives" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500">How to use</label>
+                <input value={form.howToUse} onChange={(event) => onChange({ howToUse: event.target.value })} placeholder="How the customer redeems it" className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1F3A34]" />
               </div>
             </div>
           </section>
@@ -782,7 +787,8 @@ const TierManagement = () => {
       rewardItems: voucher.promotionKind === 'bundle' && !sameSet(voucher.rewardItems, voucher.eligibleItems)
         ? (voucher.rewardItems || []).filter((item) => item !== 'All Items') : [],
       limitPerUser: timing === 'birthday_month' ? 1 : (Number(voucher.limitPerUser) || 1),
-      description: voucher.description || ''
+      description: voucher.description || '',
+      howToUse: voucher.usageInstructions || ''
     } : {
       ...emptyTierRewardForm(sortedTiers),
       ...(tierId ? { tierId: String(tierId) } : {})
@@ -829,6 +835,7 @@ const TierManagement = () => {
       totalQty: null,
       limitPerUser: claims,
       description: tierRewardForm.description || (tierRewardForm.rewardTiming === 'birthday_month' ? `Birthday-month tier reward: ${tierRewardForm.name}` : `Tier achievement reward: ${tierRewardForm.name}`),
+      usageInstructions: tierRewardForm.howToUse || 'Apply this reward in Checkout to an eligible menu item.',
       imageUrl: null,
       audience: 'all_customers',
       availabilityMode: 'always',

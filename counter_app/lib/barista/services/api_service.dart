@@ -253,6 +253,9 @@ class ApiService {
               final createdAt =
                   DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
                   DateTime.fromMillisecondsSinceEpoch(0);
+              final statusStartedAt = DateTime.tryParse(
+                json['statusStartedAt']?.toString() ?? '',
+              );
 
               return CurrentOrder(
                 status: parsedStatus,
@@ -263,6 +266,7 @@ class ApiService {
                   serverDate: json['date']?.toString(),
                 ),
                 orderDate: createdAt,
+                statusStartedAt: statusStartedAt,
                 customerDetails:
                     '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
                 items: parsedItems,
@@ -357,7 +361,8 @@ class ApiService {
           case 'shift_coverage_required':
             return 'The final scheduled barista must stay clocked in until the shift ends or another scheduled barista takes over.';
           case 'active_orders_require_coverage':
-            return 'The final barista cannot clock out while active orders still need coverage.';
+            return error['message']?.toString() ??
+                'The final barista cannot clock out while active orders still need coverage.';
           case 'emergency_active_orders_block':
             return 'Complete all preparing and ready-for-pickup orders before using emergency closure.';
           case 'emergency_closure_active':
@@ -898,8 +903,8 @@ class ApiService {
     required bool isAvailable,
   }) async {
     try {
-      final workstationKey =
-          await DirectPrinterService.instance.workstationKey();
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
       final response = await _authenticatedRequest(
         (headers) => http.patch(
           Uri.parse('$baseUrl/barista/menu/items/$itemId/availability'),
@@ -922,8 +927,8 @@ class ApiService {
     required bool isAvailable,
   }) async {
     try {
-      final workstationKey =
-          await DirectPrinterService.instance.workstationKey();
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
       final response = await _authenticatedRequest(
         (headers) => http.patch(
           Uri.parse('$baseUrl/barista/menu/customizations/availability'),
@@ -947,12 +952,11 @@ class ApiService {
   static Future<ApiRequestResult> updateBeanAvailability({
     required String bean,
     required bool isAvailable,
-  }) =>
-      updateCustomizationAvailability(
-        type: 'bean',
-        value: bean,
-        isAvailable: isAvailable,
-      );
+  }) => updateCustomizationAvailability(
+    type: 'bean',
+    value: bean,
+    isAvailable: isAvailable,
+  );
 }
 
 String formatOrderDisplayDateTime(DateTime value) {
@@ -1244,6 +1248,19 @@ class BaristaSoundSettings {
   final String clockOutStyle;
   final int sideWorkBeeps;
   final String sideWorkStyle;
+  final bool cancellationAlertEnabled;
+  final int cancellationAlertBeeps;
+  final String cancellationAlertStyle;
+  final bool waitingAlertEnabled;
+  final int waitingAlertAfterMinutes;
+  final int waitingAlertRepeatMinutes;
+  final int waitingAlertBeeps;
+  final String waitingAlertStyle;
+  final bool preparingAlertEnabled;
+  final int preparingAlertAfterMinutes;
+  final int preparingAlertRepeatMinutes;
+  final int preparingAlertBeeps;
+  final String preparingAlertStyle;
 
   const BaristaSoundSettings({
     required this.volumePercent,
@@ -1256,6 +1273,19 @@ class BaristaSoundSettings {
     required this.clockOutStyle,
     required this.sideWorkBeeps,
     required this.sideWorkStyle,
+    required this.cancellationAlertEnabled,
+    required this.cancellationAlertBeeps,
+    required this.cancellationAlertStyle,
+    required this.waitingAlertEnabled,
+    required this.waitingAlertAfterMinutes,
+    required this.waitingAlertRepeatMinutes,
+    required this.waitingAlertBeeps,
+    required this.waitingAlertStyle,
+    required this.preparingAlertEnabled,
+    required this.preparingAlertAfterMinutes,
+    required this.preparingAlertRepeatMinutes,
+    required this.preparingAlertBeeps,
+    required this.preparingAlertStyle,
   });
 
   const BaristaSoundSettings.defaults()
@@ -1268,7 +1298,20 @@ class BaristaSoundSettings {
       clockOutBeeps = 2,
       clockOutStyle = 'long',
       sideWorkBeeps = 3,
-      sideWorkStyle = 'two_tone';
+      sideWorkStyle = 'two_tone',
+      cancellationAlertEnabled = true,
+      cancellationAlertBeeps = 5,
+      cancellationAlertStyle = 'two_tone',
+      waitingAlertEnabled = true,
+      waitingAlertAfterMinutes = 5,
+      waitingAlertRepeatMinutes = 10,
+      waitingAlertBeeps = 2,
+      waitingAlertStyle = 'short',
+      preparingAlertEnabled = true,
+      preparingAlertAfterMinutes = 10,
+      preparingAlertRepeatMinutes = 10,
+      preparingAlertBeeps = 1,
+      preparingAlertStyle = 'short';
 
   factory BaristaSoundSettings.fromJson(
     Map<String, dynamic> json,
@@ -1283,6 +1326,27 @@ class BaristaSoundSettings {
     clockOutStyle: _soundStyle(json['clock_out_style'], 'long'),
     sideWorkBeeps: (json['side_work_beeps'] as num?)?.toInt() ?? 3,
     sideWorkStyle: _soundStyle(json['side_work_style'], 'two_tone'),
+    cancellationAlertEnabled: _soundEnabled(json['cancellation_alert_enabled']),
+    cancellationAlertBeeps:
+        (json['cancellation_alert_beeps'] as num?)?.toInt() ?? 5,
+    cancellationAlertStyle: _soundStyle(
+      json['cancellation_alert_style'],
+      'two_tone',
+    ),
+    waitingAlertEnabled: _soundEnabled(json['waiting_alert_enabled']),
+    waitingAlertAfterMinutes:
+        (json['waiting_alert_after_minutes'] as num?)?.toInt() ?? 5,
+    waitingAlertRepeatMinutes:
+        (json['waiting_alert_repeat_minutes'] as num?)?.toInt() ?? 10,
+    waitingAlertBeeps: (json['waiting_alert_beeps'] as num?)?.toInt() ?? 2,
+    waitingAlertStyle: _soundStyle(json['waiting_alert_style'], 'short'),
+    preparingAlertEnabled: _soundEnabled(json['preparing_alert_enabled']),
+    preparingAlertAfterMinutes:
+        (json['preparing_alert_after_minutes'] as num?)?.toInt() ?? 10,
+    preparingAlertRepeatMinutes:
+        (json['preparing_alert_repeat_minutes'] as num?)?.toInt() ?? 10,
+    preparingAlertBeeps: (json['preparing_alert_beeps'] as num?)?.toInt() ?? 1,
+    preparingAlertStyle: _soundStyle(json['preparing_alert_style'], 'short'),
   );
 
   static String _soundStyle(Object? value, String fallback) {
@@ -1568,7 +1632,6 @@ class DatedShiftEntry {
       );
 }
 
-
 class BaristaMenuAvailabilityResult {
   final int storeId;
   final String storeName;
@@ -1585,9 +1648,13 @@ class BaristaMenuAvailabilityResult {
   });
 
   factory BaristaMenuAvailabilityResult.fromJson(Map<String, dynamic> json) {
-    final customizationGroups = (json['customizations'] as List<dynamic>? ?? const [])
-        .map((e) => BaristaCustomizationGroup.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final customizationGroups =
+        (json['customizations'] as List<dynamic>? ?? const [])
+            .map(
+              (e) =>
+                  BaristaCustomizationGroup.fromJson(e as Map<String, dynamic>),
+            )
+            .toList();
 
     return BaristaMenuAvailabilityResult(
       storeId: (json['store_id'] as num?)?.toInt() ?? 0,
@@ -1622,7 +1689,11 @@ class BaristaCustomizationGroup {
         categoryName: json['category_name']?.toString() ?? '',
         description: json['description']?.toString() ?? '',
         options: (json['options'] as List<dynamic>? ?? const [])
-            .map((e) => BaristaCustomizationOption.fromJson(e as Map<String, dynamic>))
+            .map(
+              (e) => BaristaCustomizationOption.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
             .toList(),
       );
 }
@@ -1696,7 +1767,11 @@ class BaristaMenuCategory {
         name: json['name']?.toString() ?? '',
         sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
         items: (json['items'] as List<dynamic>? ?? const [])
-            .map((e) => BaristaMenuItemAvailability.fromJson(e as Map<String, dynamic>))
+            .map(
+              (e) => BaristaMenuItemAvailability.fromJson(
+                e as Map<String, dynamic>,
+              ),
+            )
             .toList(),
       );
 }

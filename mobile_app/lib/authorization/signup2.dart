@@ -624,6 +624,15 @@ class _Signup2State extends State<Signup2> with SingleTickerProviderStateMixin {
                                           fontWeight: FontWeight.bold,
                                           color: textColor),
                                     ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'You may include your address for your profile or leave all address fields blank.',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
                                     const SizedBox(height: 6),
                                     _buildFieldShake(
                                       field: _Signup2ErrorField.house,

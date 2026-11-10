@@ -54,7 +54,20 @@ const initialSoundSettings = {
   clock_out_beeps: 2,
   clock_out_style: 'long',
   side_work_beeps: 3,
-  side_work_style: 'two_tone'
+  side_work_style: 'two_tone',
+  cancellation_alert_enabled: true,
+  cancellation_alert_beeps: 5,
+  cancellation_alert_style: 'two_tone',
+  waiting_alert_enabled: true,
+  waiting_alert_after_minutes: 5,
+  waiting_alert_repeat_minutes: 10,
+  waiting_alert_beeps: 2,
+  waiting_alert_style: 'short',
+  preparing_alert_enabled: true,
+  preparing_alert_after_minutes: 10,
+  preparing_alert_repeat_minutes: 10,
+  preparing_alert_beeps: 1,
+  preparing_alert_style: 'short'
 };
 
 const soundStyleLabels = {
@@ -184,6 +197,7 @@ export default function Operations() {
   const [scheduleRevision, setScheduleRevision] = useState(0);
   const [attendance, setAttendance] = useState([]);
   const [attendanceSummary, setAttendanceSummary] = useState({ active_now: 0, late_arrivals: 0, missing_clock_out: 0, missed_clock_in: 0 });
+  const [monthlyHours, setMonthlyHours] = useState([]);
   const [attendanceFrom, setAttendanceFrom] = useState(isoDate(-29));
   const [attendanceTo, setAttendanceTo] = useState(isoDate());
   const [attendanceBaristaId, setAttendanceBaristaId] = useState('');
@@ -216,6 +230,16 @@ export default function Operations() {
     });
     return list;
   }, [attendance, attendanceSortKey, attendanceSortDirection]);
+  const attendanceByDate = useMemo(() => {
+    const groups = new Map();
+    sortedAttendance.forEach((record) => {
+      if (!groups.has(record.date)) groups.set(record.date, []);
+      groups.get(record.date).push(record);
+    });
+    return [...groups.entries()];
+  }, [sortedAttendance]);
+  const currentMonthKey = isoDate().slice(0, 7);
+  const previousMonthKey = isoDate(-new Date().getDate()).slice(0, 7);
   const [shiftForm, setShiftForm] = useState(initialShift);
   const [sideWork, setSideWork] = useState([]);
   const [sideWorkForm, setSideWorkForm] = useState(initialSideWork);
@@ -250,6 +274,7 @@ export default function Operations() {
       setSideWork(Array.isArray(sideWorkResponse.tasks) ? sideWorkResponse.tasks : []);
       setAttendance(attendanceResponse.attendance || []);
       setAttendanceSummary(attendanceResponse.summary || { active_now: 0, late_arrivals: 0, missing_clock_out: 0, missed_clock_in: 0 });
+      setMonthlyHours(attendanceResponse.monthly_hours || []);
       const outlets = Array.isArray(soundResponse.outlets) ? soundResponse.outlets : [];
       setSoundOutlets(outlets);
       const selected = outlets.find((outlet) => String(outlet.store_id) === String(selectedSoundStoreId)) || outlets[0];
@@ -265,7 +290,20 @@ export default function Operations() {
           clock_out_beeps: Number(selected.clock_out_beeps),
           clock_out_style: selected.clock_out_style || 'long',
           side_work_beeps: Number(selected.side_work_beeps),
-          side_work_style: selected.side_work_style || 'two_tone'
+          side_work_style: selected.side_work_style || 'two_tone',
+          cancellation_alert_enabled: selected.cancellation_alert_enabled !== false && Number(selected.cancellation_alert_enabled) !== 0,
+          cancellation_alert_beeps: Number(selected.cancellation_alert_beeps || 5),
+          cancellation_alert_style: selected.cancellation_alert_style || 'two_tone',
+          waiting_alert_enabled: selected.waiting_alert_enabled !== false && Number(selected.waiting_alert_enabled) !== 0,
+          waiting_alert_after_minutes: Number(selected.waiting_alert_after_minutes || 5),
+          waiting_alert_repeat_minutes: Number(selected.waiting_alert_repeat_minutes || 10),
+          waiting_alert_beeps: Number(selected.waiting_alert_beeps || 2),
+          waiting_alert_style: selected.waiting_alert_style || 'short',
+          preparing_alert_enabled: selected.preparing_alert_enabled !== false && Number(selected.preparing_alert_enabled) !== 0,
+          preparing_alert_after_minutes: Number(selected.preparing_alert_after_minutes || 10),
+          preparing_alert_repeat_minutes: Number(selected.preparing_alert_repeat_minutes || 10),
+          preparing_alert_beeps: Number(selected.preparing_alert_beeps || 1),
+          preparing_alert_style: selected.preparing_alert_style || 'short'
         });
       }
     } catch (loadError) {
@@ -416,15 +454,28 @@ export default function Operations() {
       clock_out_beeps: Number(outlet.clock_out_beeps),
       clock_out_style: outlet.clock_out_style || 'long',
       side_work_beeps: Number(outlet.side_work_beeps),
-      side_work_style: outlet.side_work_style || 'two_tone'
+      side_work_style: outlet.side_work_style || 'two_tone',
+      cancellation_alert_enabled: outlet.cancellation_alert_enabled !== false && Number(outlet.cancellation_alert_enabled) !== 0,
+      cancellation_alert_beeps: Number(outlet.cancellation_alert_beeps || 5),
+      cancellation_alert_style: outlet.cancellation_alert_style || 'two_tone',
+      waiting_alert_enabled: outlet.waiting_alert_enabled !== false && Number(outlet.waiting_alert_enabled) !== 0,
+      waiting_alert_after_minutes: Number(outlet.waiting_alert_after_minutes || 5),
+      waiting_alert_repeat_minutes: Number(outlet.waiting_alert_repeat_minutes || 10),
+      waiting_alert_beeps: Number(outlet.waiting_alert_beeps || 2),
+      waiting_alert_style: outlet.waiting_alert_style || 'short',
+      preparing_alert_enabled: outlet.preparing_alert_enabled !== false && Number(outlet.preparing_alert_enabled) !== 0,
+      preparing_alert_after_minutes: Number(outlet.preparing_alert_after_minutes || 10),
+      preparing_alert_repeat_minutes: Number(outlet.preparing_alert_repeat_minutes || 10),
+      preparing_alert_beeps: Number(outlet.preparing_alert_beeps || 1),
+      preparing_alert_style: outlet.preparing_alert_style || 'short'
     });
   };
 
   const saveSoundSettings = async (event) => {
     event.preventDefault();
-    const patterns = [soundForm.incoming_order_beeps, soundForm.clock_in_beeps, soundForm.clock_out_beeps, soundForm.side_work_beeps].map(Number);
+    const patterns = [soundForm.incoming_order_beeps, soundForm.clock_in_beeps, soundForm.clock_out_beeps, soundForm.side_work_beeps, soundForm.cancellation_alert_beeps].map(Number);
     if (new Set(patterns).size !== patterns.length) {
-      setError('Use a different beep count for incoming orders, clock-in, clock-out, and side work.');
+      setError('Use a different beep count for incoming orders, cancellation, clock-in, clock-out, and side work.');
       setNotice('');
       return;
     }
@@ -444,7 +495,20 @@ export default function Operations() {
           clock_out_beeps: Number(soundForm.clock_out_beeps),
           clock_out_style: soundForm.clock_out_style,
           side_work_beeps: Number(soundForm.side_work_beeps),
-          side_work_style: soundForm.side_work_style
+      side_work_style: soundForm.side_work_style,
+      cancellation_alert_enabled: Boolean(soundForm.cancellation_alert_enabled),
+      cancellation_alert_beeps: Number(soundForm.cancellation_alert_beeps),
+      cancellation_alert_style: soundForm.cancellation_alert_style,
+      waiting_alert_enabled: Boolean(soundForm.waiting_alert_enabled),
+      waiting_alert_after_minutes: Number(soundForm.waiting_alert_after_minutes),
+      waiting_alert_repeat_minutes: Number(soundForm.waiting_alert_repeat_minutes),
+      waiting_alert_beeps: Number(soundForm.waiting_alert_beeps),
+      waiting_alert_style: soundForm.waiting_alert_style,
+      preparing_alert_enabled: Boolean(soundForm.preparing_alert_enabled),
+      preparing_alert_after_minutes: Number(soundForm.preparing_alert_after_minutes),
+      preparing_alert_repeat_minutes: Number(soundForm.preparing_alert_repeat_minutes),
+      preparing_alert_beeps: Number(soundForm.preparing_alert_beeps),
+      preparing_alert_style: soundForm.preparing_alert_style
         })
       });
       setSoundOutlets((current) => current.map((outlet) => String(outlet.store_id) === String(selectedSoundStoreId) ? { ...outlet, ...soundForm } : outlet));
@@ -621,6 +685,14 @@ export default function Operations() {
             <label className="mt-6 block text-sm font-bold text-slate-700">Outlet<select value={selectedSoundStoreId} onChange={(event) => chooseSoundOutlet(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm" disabled={!soundOutlets.length}>{soundOutlets.map((outlet) => <option key={outlet.store_id} value={outlet.store_id}>{outlet.store_name}</option>)}</select></label>
             <label className="mt-5 block text-sm font-bold text-slate-700"><span className="flex items-center justify-between"><span>Beep volume</span><span className="text-[#2E5E58]">{soundForm.volume_percent}%</span></span><input type="range" min="0" max="100" step="5" value={soundForm.volume_percent} onChange={(event) => setSoundForm((current) => ({ ...current, volume_percent: Number(event.target.value) }))} className="mt-3 w-full accent-[#2E5E58]" /></label>
             <label className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><input type="checkbox" checked={Boolean(soundForm.incoming_order_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, incoming_order_enabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Beep when an incoming order prints</span><span className="mt-1 block text-xs leading-5 text-amber-800">The beep and printer job start together when the device claims a new order.</span></span></label>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <label className="flex items-start gap-3 text-sm text-red-950"><input type="checkbox" checked={Boolean(soundForm.cancellation_alert_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, cancellation_alert_enabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Beep for customer cancellation requests</span><span className="mt-1 block text-xs leading-5 text-red-800">Alerts once when a request changes status. The order remains protected until reviewed.</span></span></label>
+                <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Cancellation tone<select value={soundForm.cancellation_alert_style} onChange={(event) => setSoundForm((current) => ({ ...current, cancellation_alert_style: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{Object.entries(soundStyleLabels).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></label>
+                <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Beep count<select value={soundForm.cancellation_alert_beeps} onChange={(event) => setSoundForm((current) => ({ ...current, cancellation_alert_beeps: Number(event.target.value) }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} time{count === 1 ? '' : 's'}</option>)}</select></label>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-bold text-slate-800">Order reminders</p><label className="mt-3 flex items-center justify-between gap-3 text-sm font-semibold text-slate-700"><span><input type="checkbox" checked={Boolean(soundForm.waiting_alert_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, waiting_alert_enabled: event.target.checked }))} className="mr-2 h-4 w-4 accent-[#2E5E58]" />Waiting order reminder</span><input type="number" min="1" max="120" value={soundForm.waiting_alert_after_minutes} onChange={(event) => setSoundForm((current) => ({ ...current, waiting_alert_after_minutes: Number(event.target.value) }))} className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-sm" aria-label="Waiting reminder minutes" /></label><select value={soundForm.waiting_alert_style} onChange={(event) => setSoundForm((current) => ({ ...current, waiting_alert_style: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">{Object.entries(soundStyleLabels).map(([value, label]) => <option key={value} value={value}>Waiting tone: {label}</option>)}</select><label className="mt-3 flex items-center justify-between gap-3 text-sm font-semibold text-slate-700"><span><input type="checkbox" checked={Boolean(soundForm.preparing_alert_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, preparing_alert_enabled: event.target.checked }))} className="mr-2 h-4 w-4 accent-[#2E5E58]" />Preparing reminder</span><input type="number" min="1" max="240" value={soundForm.preparing_alert_after_minutes} onChange={(event) => setSoundForm((current) => ({ ...current, preparing_alert_after_minutes: Number(event.target.value) }))} className="w-20 rounded-lg border border-slate-300 px-2 py-2 text-sm" aria-label="Preparing reminder minutes" /></label><select value={soundForm.preparing_alert_style} onChange={(event) => setSoundForm((current) => ({ ...current, preparing_alert_style: event.target.value }))} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">{Object.entries(soundStyleLabels).map(([value, label]) => <option key={value} value={value}>Preparing tone: {label}</option>)}</select><p className="mt-3 text-xs leading-5 text-slate-500">Values are minutes before the first reminder. Repeats are rate-limited automatically to avoid stressing staff.</p></div>
+            </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">{[
               ['Incoming order', 'incoming_order_beeps', 'incoming_order_style'],
               ['Clock in', 'clock_in_beeps', 'clock_in_style'],
@@ -637,7 +709,7 @@ export default function Operations() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               { label: 'Working now', value: attendanceSummary.active_now, color: 'bg-emerald-50 text-emerald-700', info: 'Baristas currently clocked in at the physical workstation.' },
-              { label: 'Missing clock-out', value: attendanceSummary.missing_clock_out, color: 'bg-red-50 text-red-700', info: 'Attendance records from a previous date with no recorded sign-out.' }
+              { label: 'Needs attendance review', value: attendanceSummary.missing_clock_out, color: 'bg-red-50 text-red-700', info: 'Missing clock-outs and completed records longer than 18 hours are excluded from performance totals.' }
             ].map(({ label, value, color, info }) => (
               <div key={label} className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
                 <div className="flex items-center gap-1.5">
@@ -648,7 +720,31 @@ export default function Operations() {
               </div>
             ))}
           </div>
+          <div className="rounded-2xl border border-[#D8E6E2] bg-[#F7FBFA] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div><h2 className="text-lg font-bold text-slate-900">Barista hours</h2><p className="mt-1 text-sm text-slate-500">Admin-only totals from server-recorded attendance. Current open shifts are counted up to now.</p></div>
+              <InfoTooltip content="These totals are visible only in Admin Web and are calculated from clock-in and clock-out records." title="Barista hours" />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {[...new Set(monthlyHours.map((entry) => entry.month))].map((month) => (
+                <div key={month} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{month === currentMonthKey ? 'Current month' : month === previousMonthKey ? 'Previous month' : month}</p>
+                  <div className="mt-3 space-y-2">
+                    {monthlyHours.filter((entry) => entry.month === month).map((entry) => <div key={`${month}-${entry.barista_id}`} className="flex items-center justify-between text-sm"><span className="font-semibold text-slate-800">{entry.barista_name}</span><span className="font-bold text-[#2E5E58]">{Number(entry.hours).toFixed(2)} h</span></div>)}
+                  </div>
+                </div>
+              ))}
+              {monthlyHours.length === 0 && <p className="text-sm text-slate-500">No monthly attendance totals for the selected staff.</p>}
+            </div>
+          </div>
+          <div>
+            <div className="mb-3 flex items-center justify-between"><div><h2 className="text-lg font-bold text-slate-900">Timetable</h2><p className="mt-1 text-sm text-slate-500">Each card shows who worked, their clock-in/out time, and total duration.</p></div></div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {attendanceByDate.map(([date, records]) => <article key={date} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs"><div className="flex items-center justify-between"><h3 className="font-extrabold text-slate-900">{date}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{records.length} shift{records.length === 1 ? '' : 's'}</span></div><div className="mt-4 space-y-3">{records.map((record) => <div key={record.id} className="rounded-xl bg-slate-50 px-4 py-3"><div className="flex items-center justify-between gap-3"><span className="font-bold text-slate-900">{record.barista_name}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${record.status === 'needs_review' || record.status === 'missing_clock_out' ? 'bg-red-50 text-red-700' : record.clocked_out_at ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{record.status === 'needs_review' || record.status === 'missing_clock_out' ? 'Needs review' : record.clocked_out_at ? 'Completed' : 'Still clocked in'}</span></div><div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500"><span>In<br /><strong className="text-sm text-slate-700">{record.clocked_in_at ? new Date(record.clocked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}</strong></span><span>Out<br /><strong className="text-sm text-slate-700">{record.clocked_out_at ? new Date(record.clocked_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}</strong></span><span>Duration<br /><strong className="text-sm text-slate-700">{record.duration_minutes == null ? '--' : `${Math.floor(record.duration_minutes / 60)}h ${record.duration_minutes % 60}m`}</strong></span></div></div>)}</div></article>)}
+            </div>
+          </div>
           <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
+            <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">Detailed attendance records</h2><p className="mt-1 text-sm text-slate-500">Use the table for sorting and checking individual records.</p></div>
             <table className="min-w-[850px] w-full text-left text-sm">
               <thead className="bg-slate-50/95 backdrop-blur-sm border-b border-gray-200">
                 <tr>
@@ -683,7 +779,7 @@ export default function Operations() {
                             ? 'bg-amber-50 text-amber-700'
                             : 'bg-red-50 text-red-700'
                         }`}>
-                          {record.status === 'completed' ? 'Completed' : 'Still clocked in'}
+                          {record.status === 'completed' ? 'Completed' : record.status === 'clocked_in' ? 'Still clocked in' : 'Needs review'}
                         </span>
                       </td>
                     </tr>

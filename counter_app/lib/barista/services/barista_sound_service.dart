@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'api_service.dart';
 
-enum BaristaSoundEvent { incomingOrder, clockIn, clockOut, sideWork }
+enum BaristaSoundEvent { incomingOrder, cancellation, waitingOrder, preparingTooLong, clockIn, clockOut, sideWork }
 
 class BaristaSoundService {
   BaristaSoundService._();
@@ -21,18 +21,26 @@ class BaristaSoundService {
   }
 
   Future<void> play(BaristaSoundEvent event) async {
-    if (event == BaristaSoundEvent.incomingOrder &&
-        !_settings.incomingOrderEnabled) {
+    if (event == BaristaSoundEvent.incomingOrder && !_settings.incomingOrderEnabled ||
+        event == BaristaSoundEvent.cancellation && !_settings.cancellationAlertEnabled ||
+        event == BaristaSoundEvent.waitingOrder && !_settings.waitingAlertEnabled ||
+        event == BaristaSoundEvent.preparingTooLong && !_settings.preparingAlertEnabled) {
       return;
     }
     final count = switch (event) {
       BaristaSoundEvent.incomingOrder => _settings.incomingOrderBeeps,
+      BaristaSoundEvent.cancellation => _settings.cancellationAlertBeeps,
+      BaristaSoundEvent.waitingOrder => _settings.waitingAlertBeeps,
+      BaristaSoundEvent.preparingTooLong => _settings.preparingAlertBeeps,
       BaristaSoundEvent.clockIn => _settings.clockInBeeps,
       BaristaSoundEvent.clockOut => _settings.clockOutBeeps,
       BaristaSoundEvent.sideWork => _settings.sideWorkBeeps,
     };
     final style = switch (event) {
       BaristaSoundEvent.incomingOrder => _settings.incomingOrderStyle,
+      BaristaSoundEvent.cancellation => _settings.cancellationAlertStyle,
+      BaristaSoundEvent.waitingOrder => _settings.waitingAlertStyle,
+      BaristaSoundEvent.preparingTooLong => _settings.preparingAlertStyle,
       BaristaSoundEvent.clockIn => _settings.clockInStyle,
       BaristaSoundEvent.clockOut => _settings.clockOutStyle,
       BaristaSoundEvent.sideWork => _settings.sideWorkStyle,
@@ -51,6 +59,8 @@ class BaristaSoundService {
       await _fallback(count, style);
     }
   }
+
+  BaristaSoundSettings get settings => _settings;
 
   Future<void> _fallback(int count, String style) async {
     // Non-Android builds cannot independently control system volume, but still

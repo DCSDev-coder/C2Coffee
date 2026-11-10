@@ -622,11 +622,12 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       const coverageBaristaIds = currentBaristaIds.size > 0 ? currentBaristaIds : recentBaristaIds;
       const selectedProvidesCoverage = coverageBaristaIds.has(payload.barista_id);
       let activeOrderCount = 0;
+      let activeOrderRefs: string[] = [];
       if (selectedProvidesCoverage && coverageBaristaIds.size === 1) {
         const [activeOrders] = await connection.query<RowDataPacket[]>(
-          `SELECT COUNT(*) AS total FROM orders o
+          `SELECT o.order_ref, o.status FROM orders o
            WHERE o.store_id = :storeId
-             AND o.status IN ('pending_payment', 'paid', 'accepted', 'preparing')
+             AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup')
              AND NOT EXISTS (
                SELECT 1 FROM order_cancellation_requests ocr
                WHERE ocr.order_id = o.id
@@ -636,13 +637,20 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
                  DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))`,
           { storeId }
         );
-        activeOrderCount = Number(activeOrders[0]?.total ?? 0);
+        activeOrderCount = activeOrders.length;
+        activeOrderRefs = activeOrders
+          .map((order) => String(order.order_ref || '').trim())
+          .filter(Boolean)
+          .slice(0, 3);
       }
       if (shouldBlockBaristaClockOut({
         activeAttendanceCount: selectedProvidesCoverage ? coverageBaristaIds.size : 0,
         activeOrderCount,
       })) {
-        throw new ApiError(409, 'active_orders_require_coverage', 'The final barista cannot clock out while active orders still need outlet coverage.');
+        const orderSuffix = activeOrderRefs.length > 0
+          ? ` Outstanding order${activeOrderRefs.length === 1 ? '' : 's'}: ${activeOrderRefs.join(', ')}.`
+          : '';
+        throw new ApiError(409, 'active_orders_require_coverage', `The final barista cannot clock out while active orders still need outlet coverage.${orderSuffix}`);
       }
 
       const [result] = await connection.execute<ResultSetHeader>(

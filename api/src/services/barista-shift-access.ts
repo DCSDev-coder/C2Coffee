@@ -1,5 +1,6 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
-import { isStoreTradingNow, normalizeWeeklyHours } from './store-availability.js';
+import { isStoreTradingNow } from './store-availability.js';
+import { isCurrentAttendance } from './attendance-duration.js';
 
 const TIME_ZONE = 'Asia/Kuala_Lumpur';
 
@@ -35,78 +36,6 @@ function zonedParts(value: Date, timezone = TIME_ZONE): { date: string; time: st
   };
 }
 
-function parseClockMinutes(value: string): number {
-  const [hours, minutes] = value.split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-type OperatingWindow = {
-  start: number;
-  end: number;
-};
-
-function localDayNumber(date: string): number {
-  const [year, month, day] = date.split('-').map(Number);
-  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
-}
-
-function attendanceMinute(value: Date, timezone: string): number {
-  const parts = zonedParts(value, timezone);
-  return localDayNumber(parts.date) * 1440 + parts.minutes;
-}
-
-function resolveOperatingWindows(
-  store: RowDataPacket | undefined,
-  now: Date,
-): { current: OperatingWindow | null; mostRecent: OperatingWindow } {
-  const timezone = String(store?.timezone || TIME_ZONE);
-  const current = zonedParts(now, timezone);
-  const currentMinute = localDayNumber(current.date) * 1440 + current.minutes;
-  const schedule = normalizeWeeklyHours(store?.weekly_hours_json);
-  if (!schedule) {
-    const start = localDayNumber(current.date) * 1440;
-    return {
-      current: { start, end: start + 1440 },
-      mostRecent: { start, end: start + 1440 },
-    };
-  }
-
-  let currentWindow: OperatingWindow | null = null;
-  let mostRecent: OperatingWindow | null = null;
-  const currentDay = localDayNumber(current.date);
-  for (let offset = 0; offset <= 7; offset += 1) {
-    const weekday = (current.weekday - offset + 7) % 7;
-    const hours = schedule[DAY_KEYS[weekday]];
-    if (hours.closed) continue;
-    const day = currentDay - offset;
-    const open = parseClockMinutes(hours.open);
-    const close = parseClockMinutes(hours.close);
-    const window = {
-      start: day * 1440 + open,
-      end: day * 1440 + (close < open ? 1440 + close : close),
-    };
-    if (window.start <= currentMinute && currentMinute < window.end) {
-      currentWindow = window;
-    }
-    if (window.end <= currentMinute && (!mostRecent || window.end > mostRecent.end)) {
-      mostRecent = window;
-    }
-  }
-
-  return {
-    current: currentWindow,
-    mostRecent: currentWindow ?? mostRecent ?? {
-      start: currentDay * 1440,
-      end: (currentDay + 1) * 1440,
-    },
-  };
-}
-
-function attendanceInWindow(row: RowDataPacket, window: OperatingWindow, timezone: string): boolean {
-  const minute = attendanceMinute(new Date(row.clocked_in_at), timezone);
-  return minute >= window.start && minute <= window.end;
-}
-
 export function shouldBlockBaristaClockOut(input: {
   activeAttendanceCount: number;
   activeOrderCount: number;
@@ -138,7 +67,6 @@ export async function resolveBaristaShiftAccess(
 
   const store = storeRows[0][0];
   const timezone = String(store?.timezone || TIME_ZONE);
-  const operatingWindows = resolveOperatingWindows(store, now);
   const { date: today } = zonedParts(now, timezone);
   const withinOpeningHours = Boolean(store) && isStoreTradingNow({
     status: String(store.status),
@@ -150,21 +78,20 @@ export async function resolveBaristaShiftAccess(
       id: Number(row.id), barista_id: Number(row.barista_id), barista_name: String(row.barista_name),
       clocked_in_at: new Date(row.clocked_in_at).toISOString()
     });
-  const activeAttendance = operatingWindows.current
-    ? attendanceRows[0]
-      .filter((row) => attendanceInWindow(row, operatingWindows.current!, timezone))
-      .map(mapAttendance)
-    : [];
-  const coverageAttendance = attendanceRows[0]
-    .filter((row) => attendanceInWindow(row, operatingWindows.mostRecent, timezone))
+  const activeAttendance = attendanceRows[0]
+    .filter((row) => isCurrentAttendance(row.clocked_in_at, now))
     .map(mapAttendance);
-  const isOpen = withinOpeningHours && activeAttendance.length > 0;
+  const coverageAttendance = attendanceRows[0]
+    .filter((row) => isCurrentAttendance(row.clocked_in_at, now))
+    .map(mapAttendance);
+  const storeCanTrade = Boolean(store) && String(store.status) === 'active' && !Boolean(store.temporarily_closed);
+  const isOpen = storeCanTrade && activeAttendance.length > 0;
   return {
     schedule_status: withinOpeningHours ? 'published' : 'closed',
-    access_state: isOpen ? 'unlocked' : withinOpeningHours ? 'locked' : 'closed',
+    access_state: isOpen ? 'unlocked' : storeCanTrade ? 'locked' : 'closed',
     can_prepare_orders: isOpen,
-    message: !withinOpeningHours
-      ? 'The outlet is outside its configured opening hours.'
+    message: !storeCanTrade
+      ? 'The outlet is temporarily closed or unavailable.'
       : activeAttendance.length === 0
         ? 'Clock in a barista before preparing orders.'
         : 'Outlet is open and staffed.',

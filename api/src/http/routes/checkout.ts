@@ -21,10 +21,7 @@ import { resolveOrderLifecycleStatus } from '../order-lifecycle.js';
 import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import { deliverPushToStaff } from '../../services/push-delivery.js';
 import { cancelChipPurchase, createChipPurchase, getChipPurchase, type ChipPaymentMethod } from '../../payments/chip-client.js';
-import {
-  isStoreAcceptingMobileOrdersNow,
-  isStoreOpenNow
-} from '../../services/store-availability.js';
+import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 import {
   consumeInventoryForOrder,
   releaseInventoryForOrder,
@@ -593,15 +590,13 @@ export async function registerCheckoutRoutes(
       if (!store || store.status !== 'active' || store.supports_pickup !== 1) {
         throw new ApiError(404, 'store_not_found', 'Store was not found.');
       }
-      if (!isStoreOpenNow(store)) {
-        throw new ApiError(409, 'store_closed', 'This outlet is currently closed and cannot accept orders.');
-      }
-      if (!isStoreAcceptingMobileOrdersNow(store)) {
-        throw new ApiError(
-          409,
-          'mobile_ordering_closed',
-          'Mobile ordering closes 10 minutes before the outlet closing time.'
-        );
+      const shiftAccess = await resolveBaristaShiftAccess(connection, {
+        tenantId: store.tenant_id,
+        tenantCode: '',
+        storeId: store.id,
+      });
+      if (!shiftAccess.can_prepare_orders) {
+        throw new ApiError(409, 'store_closed', shiftAccess.message);
       }
 
       const bootstrap = await getBootstrapForUser(request.auth.userId, connection);

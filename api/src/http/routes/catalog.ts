@@ -8,11 +8,9 @@ import { ApiError } from "../errors.js";
 import { getBootstrapForUser } from "./auth.js";
 import { getUserResponse } from "./me.js";
 import {
-  getMobileOrderingStatus,
-  isStoreAcceptingMobileOrdersNow,
-  isStoreOpenNow,
   normalizeWeeklyHours,
 } from "../../services/store-availability.js";
+import { resolveBaristaShiftAccess } from "../../services/barista-shift-access.js";
 import { assertCustomerAccess, loadMaintenanceForUser } from "../../services/app-maintenance.js";
 import { loadRecipeAvailabilityIssues, summariseAvailability } from "../../services/inventory.js";
 import { autoReopenEmergencyClosures } from "../../services/outlet-emergency.js";
@@ -27,6 +25,7 @@ const menuQuerySchema = z.object({
 
 type StoreRow = RowDataPacket & {
   id: number;
+  tenant_id: number;
   code: string;
   name: string;
   status: "active" | "inactive";
@@ -1209,6 +1208,7 @@ async function listActiveStores(userId: number): Promise<
     `
       SELECT
         s.id,
+        s.tenant_id,
         s.code,
         s.name,
         s.status,
@@ -1242,10 +1242,13 @@ async function listActiveStores(userId: number): Promise<
     { userId },
   );
 
-  const now = new Date();
-  return rows.map((row) => {
-    const mobileOrdering = getMobileOrderingStatus(row, now);
-    return {
+  const connection = await mysqlPool.getConnection();
+  try {
+    return await Promise.all(rows.map(async (row) => {
+      const access = await resolveBaristaShiftAccess(connection, {
+        tenantId: Number(row.tenant_id), tenantCode: '', storeId: Number(row.id)
+      });
+      return {
       id: row.id,
       code: row.code,
       name: row.name,
@@ -1258,10 +1261,10 @@ async function listActiveStores(userId: number): Promise<
       postcode: row.postcode,
       latitude: row.latitude == null ? null : Number(row.latitude),
       longitude: row.longitude == null ? null : Number(row.longitude),
-      is_open_now: isStoreOpenNow(row, now),
-      accepts_mobile_orders_now: isStoreAcceptingMobileOrdersNow(row, now),
-      mobile_ordering_status: mobileOrdering.status,
-      mobile_order_cutoff_at: mobileOrdering.cutoffAt,
+      is_open_now: access.can_prepare_orders,
+      accepts_mobile_orders_now: access.can_prepare_orders && row.supports_pickup === 1,
+      mobile_ordering_status: access.can_prepare_orders && row.supports_pickup === 1 ? "open" : "closed",
+      mobile_order_cutoff_at: null,
       temporarily_closed: row.temporarily_closed === 1,
       emergency_closure_active: Number(row.emergency_closure_active ?? 0) === 1,
       emergency_expected_reopen_at: row.emergency_expected_reopen_at
@@ -1269,8 +1272,11 @@ async function listActiveStores(userId: number): Promise<
         : null,
       weekly_hours: normalizeWeeklyHours(row.weekly_hours_json),
       status: row.status,
-    };
-  });
+      };
+    }));
+  } finally {
+    connection.release();
+  }
 }
 
 async function listActiveHomeBanners(userId: number): Promise<

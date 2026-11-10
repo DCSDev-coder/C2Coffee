@@ -224,6 +224,7 @@ class RewardVoucherTemplate {
   final List<String> paymentModes;
   final String? minSpendRm;
   final bool requiresDrinkInCart;
+  final String description;
   final String howToUse;
   final Map<String, dynamic> eligibleScope;
   final Map<String, dynamic> excludeScope;
@@ -243,6 +244,7 @@ class RewardVoucherTemplate {
     required this.paymentModes,
     required this.minSpendRm,
     required this.requiresDrinkInCart,
+    this.description = '',
     required this.howToUse,
     required this.eligibleScope,
     required this.excludeScope,
@@ -269,6 +271,10 @@ class RewardVoucherTemplate {
           _stringListFromScope(scope, ['payment_modes', 'payment_mode']),
       minSpendRm: json['min_spend_rm'] as String?,
       requiresDrinkInCart: json['requires_drink_in_cart'] as bool? ?? false,
+      description: (json['description'] as String? ??
+              scope['description'] as String? ??
+              '')
+          .trim(),
       howToUse: rawHowToUse is String ? rawHowToUse.trim() : '',
       eligibleScope: scope,
       excludeScope: _parseScopeMap(json['exclude_scope_json']),
@@ -284,8 +290,14 @@ class RewardVoucherTemplate {
   }
 
   String get benefitLabel {
-    if (benefitType.trim().isNotEmpty) {
-      return benefitType;
+    final normalizedBenefit = benefitType.trim();
+    if (normalizedBenefit == 'Percentage Off' ||
+        normalizedBenefit == 'Cash Voucher' ||
+        normalizedBenefit == 'Token Discount') {
+      return 'Discount';
+    }
+    if (normalizedBenefit.isNotEmpty) {
+      return normalizedBenefit;
     }
 
     switch (discountMode) {
@@ -301,6 +313,27 @@ class RewardVoucherTemplate {
         return 'Free option / add-on';
       default:
         return 'Voucher';
+    }
+  }
+
+  String get benefitSummary {
+    final label = benefitLabel;
+    if (label != 'Discount') return label;
+
+    final value = double.tryParse(discountValue);
+    if (value == null) return label;
+    final formatted = value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(2);
+    switch (discountMode) {
+      case 'percent_rm':
+        return '$label · $formatted%';
+      case 'fixed_rm':
+        return '$label · RM$formatted';
+      case 'fixed_token':
+        return '$label · $formatted tokens';
+      default:
+        return label;
     }
   }
 
@@ -354,6 +387,58 @@ class RewardVoucherTemplate {
     }
 
     return 'All items';
+  }
+
+  String get eligibilitySummary {
+    final categories = _stringListFromScope(
+      eligibleScope,
+      ['category_codes', 'categories'],
+    ).map(_formatScopeValue).where((value) => value.isNotEmpty).toList();
+    final items = _stringListFromScope(
+      eligibleScope,
+      ['items', 'item_codes'],
+    )
+        .where((value) => value.trim().isNotEmpty && value != 'All Items')
+        .map(_formatScopeValue)
+        .toList();
+
+    String formatItems() {
+      if (items.length <= 3) return items.join(', ');
+      return items.take(3).join(', ');
+    }
+
+    if (categories.isEmpty && items.isEmpty) return 'All categories';
+    if (categories.isEmpty) return 'Selected: ${formatItems()}';
+    if (items.isEmpty) return categories.join(', ');
+    return '${categories.join(', ')} · Selected: ${formatItems()}';
+  }
+
+  String get eligibilityDetails {
+    final categories = _stringListFromScope(
+      eligibleScope,
+      ['category_codes', 'categories'],
+    ).map(_formatScopeValue).where((value) => value.isNotEmpty).toList();
+    final items = _stringListFromScope(
+      eligibleScope,
+      ['items', 'item_codes'],
+    )
+        .where((value) => value.trim().isNotEmpty && value != 'All Items')
+        .map(_formatScopeValue)
+        .toList();
+    if (categories.isEmpty && items.isEmpty) return 'All categories';
+    if (categories.isEmpty) return 'Selected: ${items.join(', ')}';
+    if (items.isEmpty) return categories.join(', ');
+    return '${categories.join(', ')} · Selected: ${items.join(', ')}';
+  }
+
+  bool get hasExpandedEligibility => eligibilityDetails != eligibilitySummary;
+
+  int get eligibilityMoreCount {
+    final items = _stringListFromScope(
+      eligibleScope,
+      ['items', 'item_codes'],
+    ).where((value) => value.trim().isNotEmpty && value != 'All Items').length;
+    return items > 3 ? items - 3 : 0;
   }
 
   String get usageInstructions {
@@ -559,7 +644,9 @@ class RewardVoucherTemplate {
       }
     }
     prices.sort((left, right) => right.compareTo(left));
-    return prices.take(rewardQuantity).fold<int>(0, (sum, price) => sum + price);
+    return prices
+        .take(rewardQuantity)
+        .fold<int>(0, (sum, price) => sum + price);
   }
 
   double freeOptionRmDiscount(CartSnapshot snapshot) {
@@ -574,7 +661,9 @@ class RewardVoucherTemplate {
       }
     }
     prices.sort((left, right) => right.compareTo(left));
-    return prices.take(rewardQuantity).fold<double>(0, (sum, price) => sum + price);
+    return prices
+        .take(rewardQuantity)
+        .fold<double>(0, (sum, price) => sum + price);
   }
 
   String get availabilityLabel {
@@ -740,8 +829,10 @@ class RewardVoucherTemplate {
     var count = 0;
     for (final item in snapshot.items) {
       if (!_itemMatchesScope(item, scope)) continue;
-      count += item.modifiers.where((modifier) =>
-          _modifierMatchesOptionScope(modifier, scope)).length * item.quantity;
+      count += item.modifiers
+              .where((modifier) => _modifierMatchesOptionScope(modifier, scope))
+              .length *
+          item.quantity;
     }
     return count;
   }
@@ -755,8 +846,13 @@ class RewardVoucherTemplate {
         .map(int.tryParse)
         .whereType<int>()
         .toSet();
-    if (groupId == null || modifier.optionGroupId != groupId || modifier.optionGroupOptionId == null) return false;
-    return optionIds.isEmpty || optionIds.contains(modifier.optionGroupOptionId);
+    if (groupId == null ||
+        modifier.optionGroupId != groupId ||
+        modifier.optionGroupOptionId == null) {
+      return false;
+    }
+    return optionIds.isEmpty ||
+        optionIds.contains(modifier.optionGroupOptionId);
   }
 
   static bool _itemMatchesScope(

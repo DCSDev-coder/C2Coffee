@@ -1179,7 +1179,7 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                           const SizedBox(width: 5),
                           Flexible(
                             child: Text(
-                              voucher.template.benefitLabel,
+                              voucher.template.benefitSummary,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -1212,6 +1212,56 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                               fontWeight: FontWeight.w600,
                               color: Colors.black54,
                             ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.restaurant_menu_rounded,
+                          size: 15,
+                          color: Colors.black45,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            children: [
+                              Text(
+                                'Applies to: ${voucher.template.eligibilitySummary}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              if (voucher.template.hasExpandedEligibility)
+                                InkWell(
+                                  onTap: () => setState(() =>
+                                      _expandedVoucherIds.add(voucher.id)),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 3, vertical: 2),
+                                    child: Text(
+                                      '+${voucher.template.eligibilityMoreCount} more',
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: cardAccentColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ],
@@ -1280,8 +1330,17 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                               ),
                               _buildInfoRow(
                                 'Benefit',
-                                voucher.template.benefitLabel,
+                                voucher.template.benefitSummary,
                               ),
+                              _buildInfoRow(
+                                'Applies to',
+                                voucher.template.eligibilityDetails,
+                              ),
+                              if (voucher.template.description.isNotEmpty)
+                                _buildInfoRow(
+                                  'Description',
+                                  voucher.template.description,
+                                ),
                               _buildInfoRow(
                                 'How to use',
                                 voucher.template.usageInstructions,

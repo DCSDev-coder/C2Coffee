@@ -15,6 +15,7 @@ class CurrentOrder {
   final String orderId;
   String timeDate;
   final DateTime orderDate;
+  final DateTime? statusStartedAt;
   final String customerDetails;
   final List<OrderItem> items;
   String? cancellationRequestStatus;
@@ -27,6 +28,7 @@ class CurrentOrder {
     required this.orderId,
     required this.timeDate,
     required this.orderDate,
+    this.statusStartedAt,
     required this.customerDetails,
     required this.items,
     this.cancellationRequestStatus,

@@ -14,7 +14,7 @@ import {
   verifyChipCallbackSignature
 } from '../../payments/chip-client.js';
 import { settleChipCounterPurchase } from '../../services/chip-counter-settlement.js';
-import { isStoreTradingNow } from '../../services/store-availability.js';
+import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 import { releaseInventoryForOrder, reserveInventoryForOrder } from '../../services/inventory.js';
 import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { ApiError } from '../errors.js';
@@ -242,8 +242,16 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         { storeId: request.counterAuth.storeId, tenantId: request.counterAuth.tenantId }
       );
       const store = stores[0];
-      if (!store || store.status !== 'active' || !isStoreTradingNow(store)) {
+      if (!store) {
         throw new ApiError(409, 'store_closed', 'This outlet is currently closed and cannot accept orders.');
+      }
+      const shiftAccess = await resolveBaristaShiftAccess(connection, {
+        tenantId: request.counterAuth.tenantId,
+        tenantCode: request.counterAuth.tenantCode,
+        storeId: request.counterAuth.storeId,
+      });
+      if (!shiftAccess.can_prepare_orders) {
+        throw new ApiError(409, 'store_closed', shiftAccess.message);
       }
 
       const bootstrap = session ? await getBootstrapForUser(session.user_id, connection) : null;

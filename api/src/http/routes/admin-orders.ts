@@ -227,6 +227,11 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           ocr.requested_at as cancellationRequestedAt,
           NULL as baristaName,
           o.ready_at,
+          (
+            SELECT MAX(osh.created_at)
+            FROM order_status_history osh
+            WHERE osh.order_id = o.id AND osh.to_status = 'preparing'
+          ) AS preparing_at,
           o.created_at,
           s.id as storeId,
           s.name as storeName,
@@ -384,6 +389,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           baristaName: o.baristaName || '',
           baristaUsername: '',
           createdAt: d.toISOString(),
+          statusStartedAt: o.preparing_at ? new Date(o.preparing_at).toISOString() : null,
           readyAt: o.ready_at ? new Date(o.ready_at).toISOString() : null,
           time: formatDisplayTime(d, String(o.storeTimezone || 'Asia/Kuala_Lumpur')),
           date: formatDisplayDate(d, String(o.storeTimezone || 'Asia/Kuala_Lumpur'))

@@ -13,6 +13,7 @@ import 'side_work_page.dart';
 import 'timetable_page.dart';
 import '../services/api_service.dart';
 import '../order_queue_partition.dart';
+import '../order_alert_timing.dart';
 import '../services/push_notification_service.dart';
 import '../services/barista_sound_service.dart';
 import '../widgets/blinking_online_indicator.dart';
@@ -38,6 +39,7 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isRefreshingSideWork = false;
   String? _lastShiftAlertKey;
   final Set<int> _alertedSideWorkTaskIds = <int>{};
+  final Set<String> _alertedOrderEvents = <String>{};
 
   @override
   void initState() {
@@ -176,10 +178,53 @@ class _MainLayoutState extends State<MainLayout> {
       globalHistoryOrders.value = partition.history;
       globalOrderSyncError.value = null;
       globalLastOrderSync.value = DateTime.now();
+      await _evaluateOrderAlerts(partition.active);
     } catch (e) {
       debugPrint('Failed to fetch initial orders: $e');
     } finally {
       _isRefreshingOrders = false;
+    }
+  }
+
+  Future<void> _evaluateOrderAlerts(List<CurrentOrder> orders) async {
+    final settings = BaristaSoundService.instance.settings;
+    final now = DateTime.now();
+    for (final order in orders) {
+      final cancellation = order.cancellationRequestStatus;
+      if ((cancellation == 'pending' || cancellation == 'refund_pending') &&
+          _alertedOrderEvents.add('cancel:${order.orderId}:$cancellation')) {
+        await BaristaSoundService.instance.play(BaristaSoundEvent.cancellation);
+        if (mounted) {
+          TopNotice.error(context, 'Cancellation request for ${order.orderId}. Review before preparing.');
+        }
+      }
+
+      final ageMinutes = orderAlertAgeMinutes(
+        now: now,
+        fallbackCreatedAt: order.orderDate,
+        statusStartedAt: order.status == OrderStatus.preparing
+            ? order.statusStartedAt
+            : null,
+      );
+      if (order.status == OrderStatus.newOrder && settings.waitingAlertEnabled && ageMinutes >= settings.waitingAlertAfterMinutes) {
+        final interval = settings.waitingAlertRepeatMinutes.clamp(1, 120);
+        final bucket = (ageMinutes - settings.waitingAlertAfterMinutes) ~/ interval;
+        if (_alertedOrderEvents.add('waiting:${order.orderId}:$bucket')) {
+          await BaristaSoundService.instance.play(BaristaSoundEvent.waitingOrder);
+          if (mounted) TopNotice.info(context, '${order.orderId} has been waiting $ageMinutes minutes.');
+        }
+      }
+      if (order.status == OrderStatus.preparing && settings.preparingAlertEnabled && ageMinutes >= settings.preparingAlertAfterMinutes) {
+        final interval = settings.preparingAlertRepeatMinutes.clamp(1, 120);
+        final bucket = (ageMinutes - settings.preparingAlertAfterMinutes) ~/ interval;
+        if (_alertedOrderEvents.add('preparing:${order.orderId}:$bucket')) {
+          await BaristaSoundService.instance.play(BaristaSoundEvent.preparingTooLong);
+          if (mounted) TopNotice.info(context, '${order.orderId} has been preparing $ageMinutes minutes.');
+        }
+      }
+    }
+    if (_alertedOrderEvents.length > 1000) {
+      _alertedOrderEvents.removeWhere((key) => !orders.any((order) => key.contains(order.orderId)));
     }
   }
 

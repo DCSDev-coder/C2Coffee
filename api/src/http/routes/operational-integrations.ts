@@ -13,6 +13,7 @@ import {
   parseCapabilities,
   printerDeliveryModes
 } from '../../services/operational-integrations.js';
+import { isCurrentAttendance, MAX_ACTIVE_SHIFT_MINUTES, summarizeMonthlyAttendance } from '../../services/attendance-duration.js';
 
 const integrationStatus = z.enum(['not_configured', 'pending', 'connected', 'disabled']);
 const printerConfigurationStatus = z.enum(['not_configured', 'pending', 'disabled']);
@@ -96,14 +97,28 @@ const baristaSoundSettingsSchema = z.object({
   side_work_beeps: z.coerce.number().int().min(1).max(5),
   side_work_style: baristaSoundStyle.optional().default('two_tone'),
   incoming_order_beeps: z.coerce.number().int().min(1).max(5),
-  incoming_order_style: baristaSoundStyle.optional().default('two_tone')
+  incoming_order_style: baristaSoundStyle.optional().default('two_tone'),
+  cancellation_alert_enabled: z.coerce.boolean().default(true),
+  cancellation_alert_beeps: z.coerce.number().int().min(1).max(5),
+  cancellation_alert_style: baristaSoundStyle.optional().default('two_tone'),
+  waiting_alert_enabled: z.coerce.boolean().default(true),
+  waiting_alert_after_minutes: z.coerce.number().int().min(1).max(120),
+  waiting_alert_repeat_minutes: z.coerce.number().int().min(1).max(120),
+  waiting_alert_beeps: z.coerce.number().int().min(1).max(5),
+  waiting_alert_style: baristaSoundStyle.optional().default('short'),
+  preparing_alert_enabled: z.coerce.boolean().default(true),
+  preparing_alert_after_minutes: z.coerce.number().int().min(1).max(240),
+  preparing_alert_repeat_minutes: z.coerce.number().int().min(1).max(120),
+  preparing_alert_beeps: z.coerce.number().int().min(1).max(5),
+  preparing_alert_style: baristaSoundStyle.optional().default('short')
 }).refine((value) => new Set([
   value.incoming_order_beeps,
   value.clock_in_beeps,
   value.clock_out_beeps,
-  value.side_work_beeps
-]).size === 3, {
-  message: 'Use a different beep count for incoming orders, clock-in, clock-out, and side work.'
+  value.side_work_beeps,
+  value.cancellation_alert_beeps
+]).size === 5, {
+  message: 'Use a different beep count for incoming orders, clock-in, clock-out, side work, and cancellation alerts.'
 });
 
 function workstationKey(request: { headers: Record<string, string | string[] | undefined> }): string {
@@ -223,6 +238,19 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
               COALESCE(bs.side_work_style, 'two_tone') AS side_work_style,
               COALESCE(bs.incoming_order_beeps, 4) AS incoming_order_beeps,
               COALESCE(bs.incoming_order_style, 'two_tone') AS incoming_order_style
+              ,COALESCE(bs.cancellation_alert_enabled, 1) AS cancellation_alert_enabled
+              ,COALESCE(bs.cancellation_alert_beeps, 5) AS cancellation_alert_beeps
+              ,COALESCE(bs.cancellation_alert_style, 'two_tone') AS cancellation_alert_style
+              ,COALESCE(bs.waiting_alert_enabled, 1) AS waiting_alert_enabled
+              ,COALESCE(bs.waiting_alert_after_minutes, 5) AS waiting_alert_after_minutes
+              ,COALESCE(bs.waiting_alert_repeat_minutes, 10) AS waiting_alert_repeat_minutes
+              ,COALESCE(bs.waiting_alert_beeps, 2) AS waiting_alert_beeps
+              ,COALESCE(bs.waiting_alert_style, 'short') AS waiting_alert_style
+              ,COALESCE(bs.preparing_alert_enabled, 1) AS preparing_alert_enabled
+              ,COALESCE(bs.preparing_alert_after_minutes, 10) AS preparing_alert_after_minutes
+              ,COALESCE(bs.preparing_alert_repeat_minutes, 10) AS preparing_alert_repeat_minutes
+              ,COALESCE(bs.preparing_alert_beeps, 1) AS preparing_alert_beeps
+              ,COALESCE(bs.preparing_alert_style, 'short') AS preparing_alert_style
        FROM stores s
        LEFT JOIN barista_sound_settings bs
          ON bs.tenant_id = s.tenant_id AND bs.store_id = s.id
@@ -244,6 +272,19 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         side_work_style: row.side_work_style,
         incoming_order_beeps: Number(row.incoming_order_beeps),
         incoming_order_style: row.incoming_order_style
+        ,cancellation_alert_enabled: Number(row.cancellation_alert_enabled)
+        ,cancellation_alert_beeps: Number(row.cancellation_alert_beeps)
+        ,cancellation_alert_style: row.cancellation_alert_style
+        ,waiting_alert_enabled: Number(row.waiting_alert_enabled)
+        ,waiting_alert_after_minutes: Number(row.waiting_alert_after_minutes)
+        ,waiting_alert_repeat_minutes: Number(row.waiting_alert_repeat_minutes)
+        ,waiting_alert_beeps: Number(row.waiting_alert_beeps)
+        ,waiting_alert_style: row.waiting_alert_style
+        ,preparing_alert_enabled: Number(row.preparing_alert_enabled)
+        ,preparing_alert_after_minutes: Number(row.preparing_alert_after_minutes)
+        ,preparing_alert_repeat_minutes: Number(row.preparing_alert_repeat_minutes)
+        ,preparing_alert_beeps: Number(row.preparing_alert_beeps)
+        ,preparing_alert_style: row.preparing_alert_style
       }))
     };
   });
@@ -258,11 +299,21 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
          tenant_id, store_id, volume_percent, incoming_order_enabled,
          clock_in_beeps, clock_in_style, clock_out_beeps, clock_out_style,
          side_work_beeps, side_work_style, incoming_order_beeps, incoming_order_style,
+         cancellation_alert_enabled, cancellation_alert_beeps, cancellation_alert_style,
+         waiting_alert_enabled, waiting_alert_after_minutes, waiting_alert_repeat_minutes,
+         waiting_alert_beeps, waiting_alert_style,
+         preparing_alert_enabled, preparing_alert_after_minutes, preparing_alert_repeat_minutes,
+         preparing_alert_beeps, preparing_alert_style,
          updated_by_admin_user_id
        ) VALUES (
          :tenantId, :storeId, :volumePercent, :incomingOrderEnabled,
          :clockInBeeps, :clockInStyle, :clockOutBeeps, :clockOutStyle,
          :sideWorkBeeps, :sideWorkStyle, :incomingOrderBeeps, :incomingOrderStyle,
+         :cancellationAlertEnabled, :cancellationAlertBeeps, :cancellationAlertStyle,
+         :waitingAlertEnabled, :waitingAlertAfterMinutes, :waitingAlertRepeatMinutes,
+         :waitingAlertBeeps, :waitingAlertStyle,
+         :preparingAlertEnabled, :preparingAlertAfterMinutes, :preparingAlertRepeatMinutes,
+         :preparingAlertBeeps, :preparingAlertStyle,
          :adminUserId
        )
        ON DUPLICATE KEY UPDATE
@@ -276,6 +327,19 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
          side_work_style = VALUES(side_work_style),
          incoming_order_beeps = VALUES(incoming_order_beeps),
          incoming_order_style = VALUES(incoming_order_style),
+         cancellation_alert_enabled = VALUES(cancellation_alert_enabled),
+         cancellation_alert_beeps = VALUES(cancellation_alert_beeps),
+         cancellation_alert_style = VALUES(cancellation_alert_style),
+         waiting_alert_enabled = VALUES(waiting_alert_enabled),
+         waiting_alert_after_minutes = VALUES(waiting_alert_after_minutes),
+         waiting_alert_repeat_minutes = VALUES(waiting_alert_repeat_minutes),
+         waiting_alert_beeps = VALUES(waiting_alert_beeps),
+         waiting_alert_style = VALUES(waiting_alert_style),
+         preparing_alert_enabled = VALUES(preparing_alert_enabled),
+         preparing_alert_after_minutes = VALUES(preparing_alert_after_minutes),
+         preparing_alert_repeat_minutes = VALUES(preparing_alert_repeat_minutes),
+         preparing_alert_beeps = VALUES(preparing_alert_beeps),
+         preparing_alert_style = VALUES(preparing_alert_style),
          updated_by_admin_user_id = VALUES(updated_by_admin_user_id)`,
       {
         tenantId: request.adminAuth.tenantId,
@@ -290,6 +354,19 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         sideWorkStyle: body.side_work_style,
         incomingOrderBeeps: body.incoming_order_beeps,
         incomingOrderStyle: body.incoming_order_style,
+        cancellationAlertEnabled: body.cancellation_alert_enabled ? 1 : 0,
+        cancellationAlertBeeps: body.cancellation_alert_beeps,
+        cancellationAlertStyle: body.cancellation_alert_style,
+        waitingAlertEnabled: body.waiting_alert_enabled ? 1 : 0,
+        waitingAlertAfterMinutes: body.waiting_alert_after_minutes,
+        waitingAlertRepeatMinutes: body.waiting_alert_repeat_minutes,
+        waitingAlertBeeps: body.waiting_alert_beeps,
+        waitingAlertStyle: body.waiting_alert_style,
+        preparingAlertEnabled: body.preparing_alert_enabled ? 1 : 0,
+        preparingAlertAfterMinutes: body.preparing_alert_after_minutes,
+        preparingAlertRepeatMinutes: body.preparing_alert_repeat_minutes,
+        preparingAlertBeeps: body.preparing_alert_beeps,
+        preparingAlertStyle: body.preparing_alert_style,
         adminUserId: request.adminAuth.adminUserId
       }
     );
@@ -303,7 +380,10 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
     const to = query.to ?? today;
     const from = query.from ?? malaysiaDate(new Date(new Date(`${to}T12:00:00+08:00`).getTime() - 29 * 86400000));
     if (from > to || datesBetween(from, to).length > 93) throw new ApiError(400, 'invalid_date_range', 'Choose a date range of up to 93 days.');
-    const [attendanceResult] = await Promise.all([
+    const currentMonthStart = `${today.slice(0, 7)}-01`;
+    const previousMonthStart = malaysiaDate(new Date(new Date(`${currentMonthStart}T12:00:00+08:00`).getTime() - 86400000)).slice(0, 7) + '-01';
+    const nextMonthStart = malaysiaDate(new Date(new Date(`${currentMonthStart}T12:00:00+08:00`).getTime() + 32 * 86400000)).slice(0, 7) + '-01';
+    const [attendanceResult, monthlyResult] = await Promise.all([
       mysqlPool.query<RowDataPacket[]>(
         `SELECT a.id, a.barista_id, b.name AS barista_name, a.clocked_in_at, a.clocked_out_at
          FROM barista_attendance a JOIN baristas b ON b.id = a.barista_id
@@ -313,6 +393,16 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
            AND (:baristaId IS NULL OR a.barista_id = :baristaId)
          ORDER BY a.clocked_in_at DESC`,
         { tenantId: request.adminAuth.tenantId, from, to, baristaId: query.barista_id ?? null }
+      ),
+      mysqlPool.query<RowDataPacket[]>(
+        `SELECT a.barista_id, b.name AS barista_name, a.clocked_in_at, a.clocked_out_at
+         FROM barista_attendance a JOIN baristas b ON b.id = a.barista_id
+         WHERE a.tenant_id = :tenantId AND a.barista_id IS NOT NULL
+           AND a.clocked_in_at < CONVERT_TZ(CONCAT(:monthEnd, ' 00:00:00'), '+08:00', '+00:00')
+           AND (a.clocked_out_at IS NULL OR a.clocked_out_at > CONVERT_TZ(CONCAT(:monthStart, ' 00:00:00'), '+08:00', '+00:00'))
+           AND (:baristaId IS NULL OR a.barista_id = :baristaId)
+         ORDER BY b.name ASC, a.clocked_in_at ASC`,
+        { tenantId: request.adminAuth.tenantId, monthStart: previousMonthStart, monthEnd: nextMonthStart, baristaId: query.barista_id ?? null }
       )
     ]);
     const records: Array<Record<string, unknown>> = attendanceResult[0].map((row) => {
@@ -320,18 +410,26 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
       const durationMinutes = row.clocked_out_at
         ? Math.round((new Date(row.clocked_out_at).getTime() - new Date(row.clocked_in_at).getTime()) / 60000)
         : null;
+      const currentAttendance = !row.clocked_out_at && isCurrentAttendance(row.clocked_in_at);
+      const needsReview = durationMinutes !== null && durationMinutes > MAX_ACTIVE_SHIFT_MINUTES;
       return {
         id: Number(row.id), barista_id: Number(row.barista_id), barista_name: row.barista_name, date: clockInDate,
         planned_start: null, planned_end: null, planned_ends_next_day: false,
         clocked_in_at: row.clocked_in_at, clocked_out_at: row.clocked_out_at,
         late_minutes: 0, duration_minutes: durationMinutes,
-        status: row.clocked_out_at ? 'completed' : clockInDate < today ? 'missing_clock_out' : 'clocked_in'
+        status: needsReview ? 'needs_review' : row.clocked_out_at ? 'completed' : currentAttendance ? 'clocked_in' : 'missing_clock_out'
       };
     });
-    return { from, to, attendance: records, summary: {
+    const monthlyHours = summarizeMonthlyAttendance(monthlyResult[0].map((row) => ({
+      barista_id: row.barista_id,
+      barista_name: String(row.barista_name),
+      clocked_in_at: row.clocked_in_at,
+      clocked_out_at: row.clocked_out_at
+    })), { monthKeys: [previousMonthStart.slice(0, 7), currentMonthStart.slice(0, 7)] });
+    return { from, to, attendance: records, monthly_hours: monthlyHours, summary: {
       active_now: records.filter((record) => record.status === 'clocked_in' || record.status === 'clocked_in_late').length,
       late_arrivals: 0,
-      missing_clock_out: records.filter((record) => record.status === 'missing_clock_out').length,
+      missing_clock_out: records.filter((record) => record.status === 'missing_clock_out' || record.status === 'needs_review').length,
       missed_clock_in: 0
     } };
   });

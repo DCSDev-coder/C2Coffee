@@ -12,7 +12,7 @@ import { ApiError } from '../errors.js';
 import { ensureSignupIdentityAvailable } from '../services/signup-identity.js';
 import { sendOtpEmail, sendSupportTicketEmail } from '../../services/otp-email.js';
 
-const profileUpsertSchema = z.object({
+export const profileUpsertSchema = z.object({
   display_name: z.string().trim().min(1).max(255),
   email: z.string().trim().email().max(255).optional().or(z.literal('')),
   birthday: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
