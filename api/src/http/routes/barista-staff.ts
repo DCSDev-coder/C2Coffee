@@ -222,6 +222,41 @@ async function nextPublishedShift(
 }
 
 export async function registerBaristaStaffRoutes(app: FastifyInstance) {
+  app.post('/v1/barista/orders/:orderRef/payment/confirm', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    assertStaffAccess(request);
+    const { orderRef } = z.object({ orderRef: z.string().trim().min(1).max(80) }).parse(request.params);
+    const { payment_method: paymentMethod } = z.object({ payment_method: z.enum(['manual_terminal', 'manual_cash']) }).parse(request.body);
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(`SELECT o.id, o.store_id, o.status, p.id AS payment_id, p.status AS payment_status, p.payment_method FROM orders o JOIN payments p ON p.order_id = o.id JOIN stores s ON s.id = o.store_id JOIN admin_tenants t ON t.id = s.tenant_id WHERE o.order_ref = :orderRef AND o.order_channel = 'counter' AND t.code = :tenantCode LIMIT 1 FOR UPDATE`, { orderRef, tenantCode: request.adminAuth.tenantCode });
+      const order = rows[0];
+      if (!order) throw new ApiError(404, 'order_not_found', 'Order was not found.');
+      const workstationStoreId = await resolveAttendanceStoreId(request);
+      if (Number(order.store_id) !== workstationStoreId) throw new ApiError(403, 'store_access_denied', 'This order belongs to another outlet.');
+      if (order.status === 'paid' && order.payment_status === 'paid') { await connection.rollback(); return reply.send({ order_ref: orderRef, status: 'paid', already_confirmed: true }); }
+      if (order.status !== 'pending_payment' || order.payment_status !== 'pending' || !String(order.payment_method).startsWith('manual_')) throw new ApiError(409, 'manual_payment_not_pending', 'This order is not awaiting manual payment.');
+      if (order.payment_method !== paymentMethod) throw new ApiError(409, 'manual_payment_method_mismatch', 'Confirm the payment method selected by the customer.');
+      await connection.execute(`UPDATE payments SET payment_method = :method, provider_payment_ref = :reference, status = 'paid', paid_at = UTC_TIMESTAMP() WHERE id = :paymentId AND status = 'pending'`, { paymentId: order.payment_id, method: paymentMethod, reference: `MANUAL-${randomUUID()}` });
+      await connection.execute(`UPDATE orders SET status = 'paid', paid_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'pending_payment'`, { orderId: order.id });
+      await connection.execute(`INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at) VALUES (:orderId, 'pending_payment', 'paid', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`, { orderId: order.id, adminUserId: request.adminAuth.adminUserId, reason: paymentMethod === 'manual_terminal' ? 'Manual terminal payment confirmed by barista.' : 'Manual cashier payment confirmed by barista.' });
+      await connection.execute(
+        `INSERT INTO print_jobs
+           (job_ref, tenant_code, order_id, printer_target_id, requested_by_admin_user_id, request_type)
+         SELECT :jobRef, t.code, o.id, pt.id, :adminUserId, 'original'
+           FROM orders o
+           JOIN stores s ON s.id = o.store_id
+           JOIN admin_tenants t ON t.id = s.tenant_id
+           JOIN printer_targets pt ON pt.store_id = o.store_id AND pt.tenant_code = t.code
+          WHERE o.id = :orderId AND pt.delivery_mode = 'android_direct'
+            AND pt.status = 'connected' AND pt.is_default = 1
+            AND pt.network_host IS NOT NULL AND pt.network_port IS NOT NULL
+            AND pt.direct_print_device_key IS NOT NULL
+          LIMIT 1`, { jobRef: randomUUID(), adminUserId: request.adminAuth.adminUserId, orderId: order.id });
+      await connection.commit();
+      return reply.send({ order_ref: orderRef, status: 'paid', payment_status: 'paid', payment_method: paymentMethod });
+    } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
+  });
   app.get('/v1/admin/side-work', { preHandler: authenticateAdminRequest }, async (request) => {
     requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const query = z.object({

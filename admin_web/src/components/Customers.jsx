@@ -67,6 +67,8 @@ export const calculateTierProgress = (cupsStr, tiers = []) => {
 // oxlint-disable-next-line react/only-export-components
 export const resolveTierProgress = (customer, tiers = []) => customer?.tierProgress ?? calculateTierProgress(customer?.cupsLast180d ?? customer?.orders, tiers);
 
+const hasPurchaseHistory = (customer) => Number(customer?.orderCount ?? customer?.orders ?? 0) > 0;
+
 const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
     <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
@@ -592,7 +594,7 @@ const Customers = ({ currentUser }) => {
   const baseTierName = activeTiers[0]?.name || 'Sipper';
   const activeTierMembers = customers.filter((customer) => !resolveTierProgress(customer, tiers).isBaseTier).length;
   const totalSpendRm = customers.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
-  const totalSpendTokens = customers.reduce((sum, customer) => sum + Number(customer.totalSpentTokens || 0), 0);
+  const totalSpendTokens = customers.reduce((sum, customer) => sum + Number(customer.totalPersonalTokens || 0), 0);
   const averageSpendRm = totalCustomers > 0 ? totalSpendRm / totalCustomers : 0;
   const averageSpendTokens = totalCustomers > 0 ? totalSpendTokens / totalCustomers : 0;
 
@@ -614,7 +616,7 @@ const Customers = ({ currentUser }) => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
         <KPICard title="Total Customers" value={totalCustomers.toLocaleString('en-US')} change="Live from admin API" icon={Wallet} iconBg="bg-[#1F3A34]" iconColor="text-white" />
         <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} change={`Customers above ${baseTierName} tier`} icon={Users} iconBg="bg-[#6F9F96]" iconColor="text-white" />
-        <KPICard title="Order Tokens Spent" value={formatTokens(totalSpendTokens)} change={`RM equivalent: ${formatRm(totalSpendRm)}`} icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
+        <KPICard title="Personal order tokens" value={formatTokens(customers.reduce((sum, customer) => sum + Number(customer.totalPersonalTokens || 0), 0))} change={`Company subsidy: ${formatTokens(customers.reduce((sum, customer) => sum + Number(customer.totalSubsidyTokens || 0), 0))}`} icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
         <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} change={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-[#D9C4A9]" iconColor="text-white" />
       </div>
 
@@ -775,9 +777,13 @@ const Customers = ({ currentUser }) => {
                       </div>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md ${getTierColor(customer.tier)}`}>
-                        {customer.tier}
-                      </span>
+                      {hasPurchaseHistory(customer) ? (
+                        <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md ${getTierColor(customer.tier)}`}>
+                          {customer.tier}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-gray-400">No tier yet</span>
+                      )}
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.tokens}</td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.orders}</td>
@@ -877,7 +883,9 @@ const Customers = ({ currentUser }) => {
               <div>
                 <div className="flex items-center space-x-2">
                   <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.username}</h3>
-                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(selectedCustomer.tier)}`}>{selectedCustomer.tier}</span>
+                  {hasPurchaseHistory(selectedCustomer) && (
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(selectedCustomer.tier)}`}>{selectedCustomer.tier}</span>
+                  )}
                   {subsidyRoleForCustomer(selectedCustomer) !== 'none' && (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{subsidyRoleLabel(subsidyRoleForCustomer(selectedCustomer))}</span>
                   )}
@@ -908,6 +916,19 @@ const Customers = ({ currentUser }) => {
 
             {(() => {
               const progress = calculateTierProgress(selectedCustomer.cupsLast180d ?? selectedCustomer.orders);
+              if (!hasPurchaseHistory(selectedCustomer)) {
+                return (
+                  <div className="bg-[#1F3A34] rounded-xl p-5 mb-8 text-white relative overflow-hidden">
+                    <div className="flex items-center space-x-3 relative z-10">
+                      <Crown size={24} className="text-white/60" />
+                      <div>
+                        <p className="font-bold">No tier yet</p>
+                        <p className="text-xs text-white/70">Complete your first eligible purchase to enter Sipper.</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div className="bg-[#1F3A34] rounded-xl p-5 mb-8 text-white relative overflow-hidden">
                   <div className="flex items-center justify-between mb-4 relative z-10">

@@ -345,13 +345,6 @@ class _HomePageState extends State<HomePage> {
     final legacyTokenPrice = item['tokenPrice'];
     if (legacyTokenPrice is num) return legacyTokenPrice.toInt();
 
-    final tokenPrices = item['tokenPrices'];
-    if (tokenPrices is Map) {
-      final tierTokenPrice = tokenPrices[_session.tier];
-      if (tierTokenPrice is num) return tierTokenPrice.toInt();
-      if (tierTokenPrice is String) return int.tryParse(tierTokenPrice);
-    }
-
     return null;
   }
 

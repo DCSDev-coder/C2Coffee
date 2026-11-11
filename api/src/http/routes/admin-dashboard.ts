@@ -181,6 +181,34 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       end: toMysqlDateTime(end)
     };
 
+    const [coverageRows] = await mysqlPool.query<Array<RowDataPacket & {
+      active_customers: number;
+      pending_customers: number;
+      active_vouchers: number;
+      voucher_redemptions: number;
+      active_gift_cards: number;
+      gift_card_value_rm: string | number;
+      gift_card_value_tokens: string | number;
+      active_menu_items: number;
+      low_stock_items: number;
+      subsidy_issued_tokens: string | number;
+      subsidy_consumed_tokens: string | number;
+    }>>(
+      `SELECT
+         (SELECT COUNT(*) FROM users u JOIN customer_tenant_memberships ctm ON ctm.user_id = u.id JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND u.status = 'active') AS active_customers,
+         (SELECT COUNT(*) FROM users u JOIN customer_tenant_memberships ctm ON ctm.user_id = u.id JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND u.status <> 'active') AS pending_customers,
+         (SELECT COUNT(*) FROM voucher_templates vt JOIN admin_tenants t ON t.code = :tenantCode WHERE vt.is_active = 1) AS active_vouchers,
+         (SELECT COUNT(*) FROM voucher_redemptions vr JOIN user_vouchers uv ON uv.id = vr.user_voucher_id JOIN voucher_templates vt ON vt.id = uv.voucher_template_id JOIN admin_tenants t ON t.code = :tenantCode WHERE vr.created_at >= :start AND vr.created_at < :end) AS voucher_redemptions,
+         (SELECT COUNT(*) FROM gift_cards gc JOIN admin_tenants t ON t.id = gc.tenant_id WHERE t.code = :tenantCode AND gc.status = 'active') AS active_gift_cards,
+         (SELECT COALESCE(SUM(CASE WHEN gc.currency = 'rm' THEN gc.remaining_amount ELSE 0 END), 0) FROM gift_cards gc JOIN admin_tenants t ON t.id = gc.tenant_id WHERE t.code = :tenantCode AND gc.status = 'active') AS gift_card_value_rm,
+         (SELECT COALESCE(SUM(CASE WHEN gc.currency = 'token' THEN gc.remaining_amount ELSE 0 END), 0) FROM gift_cards gc JOIN admin_tenants t ON t.id = gc.tenant_id WHERE t.code = :tenantCode AND gc.status = 'active') AS gift_card_value_tokens,
+         (SELECT COUNT(*) FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id JOIN admin_tenants t ON t.code = :tenantCode WHERE mi.is_active = 1 AND mc.is_active = 1) AS active_menu_items,
+         (SELECT COUNT(DISTINCT iss.inventory_item_id) FROM inventory_store_stocks iss JOIN admin_tenants t ON t.id = iss.tenant_id WHERE t.code = :tenantCode AND (:storeId IS NULL OR iss.store_id = :storeId) AND iss.on_hand_quantity - iss.reserved_quantity <= iss.reorder_level) AS low_stock_items,
+         (SELECT COALESCE(SUM(CASE WHEN tl.direction = 'credit' AND tl.source_type LIKE 'employee_allowance%' THEN tl.amount ELSE 0 END), 0) FROM token_ledger tl JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND tl.created_at >= :start AND tl.created_at < :end) AS subsidy_issued_tokens,
+         (SELECT COALESCE(SUM(CASE WHEN tl.direction = 'debit' AND tl.source_type = 'order_spend' THEN tl.amount ELSE 0 END), 0) FROM token_ledger tl JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND tl.created_at >= :start AND tl.created_at < :end AND tl.remarks LIKE '%allowance%') AS subsidy_consumed_tokens`,
+      queryParams
+    );
+
     const [rangeOrders] = await mysqlPool.query<DashboardOrderRow[]>(
       `
         SELECT
@@ -379,7 +407,20 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         awaitingPreparation,
         preparing,
         customersServed: Number(customerRows[0]?.customer_count || 0),
-        pendingRefunds: Number(refundRows[0]?.pending_refunds || 0)
+        pendingRefunds: Number(refundRows[0]?.pending_refunds || 0),
+        coverage: {
+          activeCustomers: Number(coverageRows[0]?.active_customers || 0),
+          pendingCustomers: Number(coverageRows[0]?.pending_customers || 0),
+          activeVouchers: Number(coverageRows[0]?.active_vouchers || 0),
+          voucherRedemptions: Number(coverageRows[0]?.voucher_redemptions || 0),
+          activeGiftCards: Number(coverageRows[0]?.active_gift_cards || 0),
+          giftCardValueRm: Number(coverageRows[0]?.gift_card_value_rm || 0),
+          giftCardValueTokens: Number(coverageRows[0]?.gift_card_value_tokens || 0),
+          activeMenuItems: Number(coverageRows[0]?.active_menu_items || 0),
+          lowStockItems: Number(coverageRows[0]?.low_stock_items || 0),
+          subsidyIssuedTokens: Number(coverageRows[0]?.subsidy_issued_tokens || 0),
+          subsidyConsumedTokens: Number(coverageRows[0]?.subsidy_consumed_tokens || 0)
+        }
       },
       trends: (isSingleDay ? hourly : Array.from(daily.entries())
         .sort(([left], [right]) => left.localeCompare(right))

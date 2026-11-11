@@ -239,7 +239,8 @@ async function requireLatestSchema(): Promise<void> {
     '140_create_subsidy_policy_history.sql',
     '141_add_subsidy_role_change_ledger_sources.sql',
     '142_create_store_customization_availability.sql',
-    '143_add_free_option_voucher_mode.sql'
+    '143_add_free_option_voucher_mode.sql',
+    '144_backfill_active_customer_token_accounts.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,

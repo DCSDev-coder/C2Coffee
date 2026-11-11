@@ -9,7 +9,7 @@ async function source(relativePath) {
 test('barista workspace order feed contains only today operational and history orders', async () => {
   const orders = await source('src/http/routes/admin-orders.ts');
   assert.match(orders, /view: z\.enum\(\['all', 'barista_workspace'\]\)/);
-  assert.match(orders, /o\.status IN \('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected'\)/);
+  assert.match(orders, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected'\)/);
   assert.match(orders, /DATE_ADD\(o\.created_at, INTERVAL 8 HOUR\)/);
 });
 

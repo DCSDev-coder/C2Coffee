@@ -12,6 +12,7 @@ import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
 import ViewProfile from "./ViewProfile";
 import { adminRequest } from '../lib/adminApi';
+import { createOrderPriceCorrection, loadOrderPriceCorrectionPreview } from '../lib/adminApi';
 import { formatPaymentLabel } from '../utils/reporting';
 import OutletFilter from './OutletFilter';
 
@@ -251,7 +252,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 ));
 
 // Order Detail Panel with Animated Timeline
-const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
+const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice }) => {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
   const total = Number(order.total ?? (subtotal - Number(order.discount || 0)));
   const tokenTotal = order.tokenAmountCharged ?? total;
@@ -472,6 +473,20 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile }) => {
         <p className="text-[11px] text-gray-400 mt-1">
           Reference: <span className="text-gray-700 font-medium">{order.txnId}</span>
         </p>
+        {Number(order.priceCorrectionAmount || 0) > 0 ? (
+          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+            Original charge: <strong>{formatTokens(order.originalTokenAmount)}</strong><br />
+            Price correction returned: <strong>{formatTokens(order.priceCorrectionAmount)}</strong>
+          </div>
+        ) : String(order.paymentMode || '').toLowerCase() === 'token' ? (
+          <button
+            type="button"
+            onClick={() => onCorrectPrice(order)}
+            className="mt-3 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+          >
+            Review historical token price
+          </button>
+        ) : null}
       </div>
 
       {/* Order Status Timeline */}
@@ -553,6 +568,80 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [sortKey, setSortKey] = useState("time");
   const [sortDirection, setSortDirection] = useState("desc");
+  const [correctionOrder, setCorrectionOrder] = useState(null);
+  const [correctionPreview, setCorrectionPreview] = useState(null);
+  const [correctionAmount, setCorrectionAmount] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [correctionPassword, setCorrectionPassword] = useState('');
+  const [correctionError, setCorrectionError] = useState('');
+  const [correctionLoading, setCorrectionLoading] = useState(false);
+
+  const openPriceCorrection = async (order) => {
+    setCorrectionOrder(order);
+    setCorrectionPreview(null);
+    setCorrectionError('');
+    setCorrectionAmount('');
+    setCorrectionReason('');
+    setCorrectionPassword('');
+    setCorrectionLoading(true);
+    try {
+      const response = await loadOrderPriceCorrectionPreview(order.id);
+      const preview = response?.preview;
+      setCorrectionPreview(preview);
+      setCorrectionAmount(String(preview?.suggestedCorrectedTokenAmount ?? ''));
+    } catch (error) {
+      setCorrectionError(error?.message || 'Unable to calculate this order correction.');
+    } finally {
+      setCorrectionLoading(false);
+    }
+  };
+
+  const closePriceCorrection = () => {
+    if (correctionLoading) return;
+    setCorrectionOrder(null);
+    setCorrectionPreview(null);
+    setCorrectionError('');
+  };
+
+  const submitPriceCorrection = async (event) => {
+    event.preventDefault();
+    if (!correctionOrder || !correctionPreview) return;
+    setCorrectionError('');
+    setCorrectionLoading(true);
+    try {
+      const response = await createOrderPriceCorrection(
+        correctionOrder.id,
+        Number(correctionAmount),
+        correctionReason,
+        correctionPassword,
+      );
+      const correction = response?.correction;
+      setOrdersList((current) => current.map((order) => order.id === correctionOrder.id ? {
+        ...order,
+        originalTokenAmount: correction.original_token_amount,
+        tokenAmountCharged: correction.corrected_token_amount,
+        priceCorrectionAmount: correction.original_token_amount - correction.corrected_token_amount,
+        priceCorrectionSubsidyAmount: correction.subsidy_token_amount,
+        priceCorrectionPersonalAmount: correction.personal_token_amount,
+        priceCorrectedAt: new Date().toISOString(),
+      } : order));
+      setSelectedOrder((order) => order?.id === correctionOrder.id ? {
+        ...order,
+        originalTokenAmount: correction.original_token_amount,
+        tokenAmountCharged: correction.corrected_token_amount,
+        priceCorrectionAmount: correction.original_token_amount - correction.corrected_token_amount,
+        priceCorrectionSubsidyAmount: correction.subsidy_token_amount,
+        priceCorrectionPersonalAmount: correction.personal_token_amount,
+        priceCorrectedAt: new Date().toISOString(),
+      } : order);
+      setCorrectionOrder(null);
+      setCorrectionPreview(null);
+    } catch (error) {
+      setCorrectionError(error?.message || 'Unable to apply this order correction.');
+    } finally {
+      setCorrectionLoading(false);
+    }
+  };
 
   useEffect(() => {
     setShowRefundsView(initialShowRefunds);
@@ -1030,9 +1119,62 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             order={selectedOrder}
             onClose={() => setSelectedOrder(null)}
             onViewProfile={setViewingProfileFor}
+            onCorrectPrice={openPriceCorrection}
           />
         )}
       </div>
+
+      {correctionOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <form onSubmit={submitPriceCorrection} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Correct historical token price</h2>
+                <p className="mt-1 text-xs text-gray-500">{correctionOrder.id} · Review every item before returning tokens.</p>
+              </div>
+              <button type="button" onClick={closePriceCorrection} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={18} /></button>
+            </div>
+
+            {correctionError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">{correctionError}</div>}
+            {correctionLoading && !correctionPreview ? <p className="mt-6 text-sm text-gray-500">Calculating from saved order items…</p> : correctionPreview && (
+              <>
+                <div className="mt-5 overflow-hidden rounded-xl border border-gray-200">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 text-gray-500"><tr><th className="px-3 py-2">Item</th><th className="px-3 py-2 text-right">Old</th><th className="px-3 py-2 text-right">Base</th><th className="px-3 py-2 text-right">Options</th><th className="px-3 py-2 text-right">Correct line</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {correctionPreview.items.map((item, index) => <tr key={`${item.name}-${index}`}><td className="px-3 py-2 font-medium">{item.quantity}× {item.name}</td><td className="px-3 py-2 text-right">{item.historicalLineTokens}</td><td className="px-3 py-2 text-right">{item.configuredBaseUnitTokens}</td><td className="px-3 py-2 text-right">{item.modifierUnitTokens}</td><td className="px-3 py-2 text-right font-bold">{item.correctedLineTokens}</td></tr>)}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-[10px] uppercase text-gray-500">Original charge</p><p className="font-bold">{formatTokens(correctionPreview.originalTokenAmount)}</p></div>
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-[10px] uppercase text-gray-500">Base-price gross</p><p className="font-bold">{formatTokens(correctionPreview.correctedGrossTokenAmount)}</p></div>
+                  <div className="rounded-xl bg-gray-50 p-3"><p className="text-[10px] uppercase text-gray-500">Preserved deductions</p><p className="font-bold">{formatTokens(correctionPreview.preservedDeductionTokenAmount)}</p></div>
+                  <div className="rounded-xl bg-emerald-50 p-3"><p className="text-[10px] uppercase text-emerald-700">Suggested net</p><p className="font-bold text-emerald-900">{formatTokens(correctionPreview.suggestedCorrectedTokenAmount)}</p></div>
+                </div>
+
+                <p className="mt-3 text-xs text-gray-600">Original funding: {formatTokens(correctionPreview.originalSubsidyTokenAmount)} company subsidy and {formatTokens(correctionPreview.originalPersonalTokenAmount)} personal C2 Credit.</p>
+
+                <label className="mt-5 block text-xs font-bold text-gray-700">Corrected token charge</label>
+                <input type="number" min="0" max={Math.max(0, correctionPreview.originalTokenAmount - 1)} required value={correctionAmount} onChange={(event) => setCorrectionAmount(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#2E5E58]" />
+                <p className="mt-1 text-[11px] text-amber-700">Confirm this amount against the menu price that applied when the order was placed. The suggestion uses the menu’s currently configured base token prices.</p>
+
+                <label className="mt-4 block text-xs font-bold text-gray-700">Reason</label>
+                <textarea required minLength={10} maxLength={500} value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="Example: Historical tier price was used instead of the configured base token price." className="mt-1 min-h-20 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#2E5E58]" />
+
+                <label className="mt-4 block text-xs font-bold text-gray-700">Confirm with current password</label>
+                <input type="password" required minLength={8} value={correctionPassword} onChange={(event) => setCorrectionPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#2E5E58]" />
+
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={closePriceCorrection} className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-700">Cancel</button>
+                  <button type="submit" disabled={correctionLoading} className="rounded-xl bg-[#1F3A34] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{correctionLoading ? 'Applying…' : 'Apply audited correction'}</button>
+                </div>
+              </>
+            )}
+          </form>
+        </div>
+      )}
 
     </div>
   );

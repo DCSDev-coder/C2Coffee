@@ -2288,6 +2288,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 subtitle: 'Continue to an available supported payment method',
                 onTap: () => Navigator.pop(dialogContext, 'ewallet'),
               ),
+            _paymentChoiceCard(icon: Icons.credit_card, title: 'Pay at terminal', subtitle: 'Customer pays by card; barista confirms payment.', onTap: () => Navigator.pop(dialogContext, 'manual_terminal')),
+            const SizedBox(height: 12),
+            _paymentChoiceCard(icon: Icons.payments_outlined, title: 'Pay at cashier', subtitle: 'Customer pays cash; barista confirms payment.', onTap: () => Navigator.pop(dialogContext, 'manual_cash')),
             const SizedBox(height: 16),
             const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -2562,6 +2565,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           payment['payment_status'] == 'paid' ||
           payment['status'] == 'paid' ||
           payment['requires_payment'] == false;
+      if (!paid && payment['manual_payment'] == true) {
+        if (mounted) {
+          TopNotice.info(context, 'Order created. Barista must confirm payment before preparation.');
+          await _resetCounterOrder();
+        }
+        return;
+      }
       if (!paid) {
         if (!mounted) return;
         final checkoutUri = _paymentService.checkoutUri(

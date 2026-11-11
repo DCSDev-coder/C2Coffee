@@ -89,10 +89,9 @@ class OrderReorderService {
           orderItem.modifiers,
         );
 
-        final currentTokenPrice = currentMenuItem.tokenPrices[session.tier] ??
-            (currentMenuItem.basePriceToken > 0
-                ? currentMenuItem.basePriceToken
-                : orderItem.tokenPrice ?? 0);
+        final currentTokenPrice = currentMenuItem.basePriceToken > 0
+            ? currentMenuItem.basePriceToken
+            : orderItem.tokenPrice ?? 0;
         final currentMenuMeta =
             menuItemMetaById[currentMenuItem.id] ?? const <String, String?>{};
 

@@ -11,7 +11,8 @@ import { getKualaLumpurDateParts } from '../../lib/kuala-lumpur-time.js';
 import {
   createChipPurchase,
   getChipPurchase,
-  verifyChipCallbackSignature
+  verifyChipCallbackSignature,
+  type ChipPaymentMethod
 } from '../../payments/chip-client.js';
 import { settleChipCounterPurchase } from '../../services/chip-counter-settlement.js';
 import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
@@ -46,7 +47,7 @@ const itemSchema = z.object({
 });
 
 const createPaymentSchema = z.object({
-  payment_method: z.enum(['duitnow_qr', 'ewallet']).nullish(),
+  payment_method: z.enum(['duitnow_qr', 'ewallet', 'manual_terminal', 'manual_cash']).nullish(),
   fulfillment_type: z.enum(['dine_in', 'take_away']),
   applied_voucher_id: z.coerce.number().int().positive().nullish(),
   voucher_authorization_token: z.string().trim().min(20).max(500).nullish(),
@@ -234,6 +235,19 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           requires_payment: false
         };
       }
+      if (existing[0]?.status === 'pending_payment' && existing[0]?.payment_status === 'pending') {
+        await connection.commit();
+        return {
+          order_ref: existing[0].order_ref,
+          status: existing[0].status,
+          payment_status: existing[0].payment_status,
+          amount_rm: existing[0].final_total_rm,
+          checkout_url: null,
+          payment_method: existing[0].payment_method,
+          requires_payment: true,
+          manual_payment: String(existing[0].payment_method || '').startsWith('manual_')
+        };
+      }
 
       const [stores] = await connection.query<CounterStore[]>(
         `SELECT id, tenant_id, status, pickup_lead_minutes, temporarily_closed,
@@ -293,7 +307,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           payload: { ...item, modifiers },
           menuItem,
           basePriceRm: basePrice,
-          tokenPrice: menuItem.token_price ?? menuItem.base_price_token,
+          tokenPrice: menuItem.base_price_token,
           modifierRm: modifierTotal,
           modifierTokens: modifiers.reduce((sum, modifier) => sum + modifier.token_price_delta, 0),
           modifiers
@@ -518,7 +532,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
          VALUES (:orderId, :provider, :method, :reference, :amount, :paymentStatus, :paidAt, UTC_TIMESTAMP())`,
         {
           orderId,
-          provider: isComplimentary ? 'complimentary' : 'chip',
+          provider: isComplimentary ? 'complimentary' : (payload.payment_method?.startsWith('manual_') ? 'manual' : 'chip'),
           method: isComplimentary ? null : payload.payment_method ?? null,
           reference: `CP-${newOrderRef}`,
           amount: totalRm.toFixed(2),
@@ -577,6 +591,9 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
       };
     }
 
+    if (payload.payment_method?.startsWith('manual_')) {
+      return { order_ref: newOrderRef, status: 'pending_payment', payment_status: 'pending', amount_rm: totalRm.toFixed(2), checkout_url: null, payment_method: payload.payment_method, requires_payment: true, manual_payment: true };
+    }
     let purchase: { id: string; checkoutUrl: string };
     try {
       purchase = await createChipPurchase({
@@ -585,7 +602,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         customerEmail: customerEmail || `walkin+${newOrderRef.toLowerCase()}@c2coffeeandcandle.com`,
         amountCents: Math.round(totalRm * 100),
         description: `C2 Coffee counter order ${newOrderRef}`,
-        method: payload.payment_method!,
+        method: payload.payment_method as ChipPaymentMethod,
         callbackUrl: callbackUrl()
       });
     } catch (error) {

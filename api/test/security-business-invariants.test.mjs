@@ -115,7 +115,7 @@ test('direct printer jobs can be claimed only by the activated outlet device', a
 test('counter checkout settles fully discounted vouchers without trusting a manual paid action', async () => {
   const counterPayments = await source('src/http/routes/counter-payments.ts');
   assert.match(counterPayments, /isComplimentary = totalRm === 0 && payload\.applied_voucher_id != null/);
-  assert.match(counterPayments, /provider: isComplimentary \? 'complimentary' : 'chip'/);
+  assert.match(counterPayments, /provider: isComplimentary \? 'complimentary' : \(payload\.payment_method\?\.startsWith\('manual_'\) \? 'manual' : 'chip'\)/);
   assert.match(counterPayments, /UPDATE user_vouchers SET status = 'redeemed'/);
   assert.match(counterPayments, /await queueDefaultPrintJob\(connection, request\.counterAuth\.storeId, orderId\)/);
   assert.match(counterPayments, /requires_payment: false/);

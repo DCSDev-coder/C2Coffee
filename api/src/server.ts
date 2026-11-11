@@ -7,6 +7,7 @@ import { runVoucherScheduleReminderSweep } from './services/voucher-expiry-remin
 import { runReferralRewardRetrySweep } from './services/referrals.js';
 import { runLoyaltyTierMaintenanceSweep } from './services/loyalty-tier-maintenance.js';
 import { runAutoCollectSweep } from './services/auto-collect-orders.js';
+import { runEmployeeAllowanceSweep } from './services/employee-token-allowance.js';
 
 const app = await buildApp();
 
@@ -56,6 +57,24 @@ async function runScheduledVoucherScheduleReminders(): Promise<void> {
   }
 }
 void runScheduledVoucherScheduleReminders();
+async function runScheduledEmployeeAllowances(): Promise<void> {
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runEmployeeAllowanceSweep();
+    if (result.eligible > 0 || result.failed > 0) {
+      app.log.info(result, 'completed employee allowance sweep');
+    }
+  } catch (error) {
+    app.log.error(error, 'employee allowance sweep failed');
+  }
+}
+// Run at startup and hourly so a restart on the first day still reconciles the
+// month, while the unique period key makes repeated runs idempotent.
+void runScheduledEmployeeAllowances();
+const employeeAllowanceTimer = setInterval(() => {
+  void runScheduledEmployeeAllowances();
+}, 60 * 60 * 1000);
+employeeAllowanceTimer.unref();
 const pickupReminderTimer = setInterval(() => {
   void runScheduledPickupReminders();
 }, 60_000);

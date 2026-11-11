@@ -58,6 +58,19 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
     );
   }
 
+  Future<void> _confirmPayment(CurrentOrder order) async {
+    if (_updatingOrderIds.contains(order.orderId)) return;
+    setState(() => _updatingOrderIds.add(order.orderId));
+    final method = order.paymentMethod == 'manual_terminal' ? 'manual_terminal' : 'manual_cash';
+    final result = await ApiService.confirmManualPayment(order.orderId, method);
+    if (!mounted) return;
+    setState(() => _updatingOrderIds.remove(order.orderId));
+    if (!result.isSuccess) { TopNotice.error(context, result.errorMessage!); return; }
+    await _refreshOrders();
+    if (!mounted) return;
+    TopNotice.success(context, 'Payment received. Order is ready to prepare.');
+  }
+
   Future<void> _printReceipt(CurrentOrder order) async {
     if (_printingOrderIds.contains(order.orderId)) return;
     setState(() => _printingOrderIds.add(order.orderId));
@@ -279,6 +292,8 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                       voucherName: order.voucherName,
                                       voucherType: order.voucherType,
                                       discount: order.discount,
+                                      paymentMethod: order.paymentMethod,
+                                      paymentStatus: order.paymentStatus,
                                       cancellationRequestStatus:
                                           order.cancellationRequestStatus,
                                       isActionLoading: _updatingOrderIds
@@ -288,7 +303,10 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                       onPrintPressed: () =>
                                           _printReceipt(order),
                                       onActionPressed: () {
-                                        if (order.status ==
+                                        if (order.paymentStatus == 'pending' &&
+                                            (order.paymentMethod == 'manual_terminal' || order.paymentMethod == 'manual_cash')) {
+                                          _confirmPayment(order);
+                                        } else if (order.status ==
                                                 OrderStatus.newOrder &&
                                             order.cancellationRequestStatus ==
                                                 null) {

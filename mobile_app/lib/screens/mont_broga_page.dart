@@ -594,8 +594,6 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
     if (catalogItem == null) return _itemBasePrice.round();
     final baseTokenPrice = catalogItem.basePriceToken as int?;
     if (baseTokenPrice != null && baseTokenPrice > 0) return baseTokenPrice;
-    final tierPrice = catalogItem.tokenPrices[_session.tier];
-    if (tierPrice != null) return tierPrice;
     return _itemBasePrice.round();
   }
 

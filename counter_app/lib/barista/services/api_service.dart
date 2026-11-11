@@ -63,6 +63,14 @@ class ApiService {
     }
   }
 
+  static Future<ApiRequestResult> confirmManualPayment(String orderId, String method) async {
+    try {
+      final response = await _authenticatedRequest((headers) => http.post(Uri.parse('$baseUrl/barista/orders/$orderId/payment/confirm'), headers: headers, body: json.encode({'payment_method': method})));
+      if (response.statusCode == 200) return const ApiRequestResult.success();
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (_) { return const ApiRequestResult.failure('Unable to confirm payment. Check the connection and try again.'); }
+  }
+
   static Future<ApiRequestResult> reviewCancellationRequest(
     String orderId,
     String decision,
@@ -190,7 +198,7 @@ class ApiService {
               OrderStatus? parsedStatus;
               final statusStr =
                   (json['status'] as String?)?.toLowerCase() ?? '';
-              if (statusStr == 'paid' || statusStr == 'accepted') {
+              if (statusStr == 'pending_payment' || statusStr == 'paid' || statusStr == 'accepted') {
                 parsedStatus = OrderStatus.newOrder;
               } else if (statusStr.contains('preparing')) {
                 parsedStatus = OrderStatus.preparing;
@@ -273,6 +281,8 @@ class ApiService {
                 voucherName: json['voucherName']?.toString(),
                 voucherType: json['voucherType']?.toString(),
                 discount: (json['discount'] as num?)?.toDouble() ?? 0,
+                paymentMethod: json['paymentMethod']?.toString(),
+                paymentStatus: json['paymentStatus']?.toString(),
                 cancellationRequestStatus: json['cancellationRequestStatus']
                     ?.toString(),
               );

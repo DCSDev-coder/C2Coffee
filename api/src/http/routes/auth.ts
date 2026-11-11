@@ -12,6 +12,7 @@ import { loadLoyaltyTiers, type LoyaltyTierConfig } from '../../services/loyalty
 import { refreshUserLoyaltyTier } from '../../services/loyalty-tier-maintenance.js';
 import { issueCurrentEmployeeAllowancesForUser } from '../../services/employee-token-allowance.js';
 import { sendOtpEmail } from '../../services/otp-email.js';
+import { getUserResponse } from './me.js';
 import { ensureSignupIdentityAvailable } from '../services/signup-identity.js';
 
 const requestOtpSchema = z.object({
@@ -630,12 +631,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       return {
         access_token: accessToken,
         refresh_token: refreshToken,
-        user: {
-          id: user.id,
-          phone: user.phone,
-          display_name: user.display_name,
-          status: user.status
-        },
+        // Return the complete profile on login so the mobile app does not
+        // briefly fall back to stale local profile data after logout/login.
+        user: await getUserResponse(user.id),
         bootstrap
       };
     } catch (error) {

@@ -132,7 +132,6 @@ export type MenuItemRow = RowDataPacket & {
   base_price_token: number;
   base_calories_kcal: number;
   is_available: number;
-  token_price: number | null;
   is_handcrafted_drink: number;
   is_qualifying_cup: number;
   category_code: string;
@@ -638,9 +637,7 @@ export async function registerCheckoutRoutes(
         }
 
         const basePriceRm = Number(menuItem.base_price_rm);
-        // Tier pricing is an optional override. Keep the base token price as
-        // the safe checkout fallback when a tier was renamed or has no row.
-        const tokenPrice = menuItem.token_price ?? menuItem.base_price_token;
+        const tokenPrice = menuItem.base_price_token;
         if (!Number.isInteger(tokenPrice) || tokenPrice < 0) {
           throw new ApiError(
             400,
@@ -1927,7 +1924,7 @@ export async function loadCheckoutMenuItems(
   connection: PoolConnection,
   storeId: number,
   menuItemIds: number[],
-  tierCode: string
+  _tierCode?: string
 ): Promise<Array<MenuItemRow>> {
   const [rows] = await connection.query<Array<MenuItemRow>>(
     `
@@ -1939,7 +1936,6 @@ export async function loadCheckoutMenuItems(
         i.base_price_token,
         CAST(COALESCE(recipe.calculated_base_calories_kcal, i.base_calories_kcal) AS UNSIGNED) AS base_calories_kcal,
         COALESCE(a.is_available, 1) AS is_available,
-        tp.token_price,
         i.is_handcrafted_drink,
         i.is_qualifying_cup,
         c.code AS category_code,
@@ -1968,18 +1964,11 @@ export async function loadCheckoutMenuItems(
       LEFT JOIN menu_item_store_availability a
         ON a.store_id = :storeId
        AND a.menu_item_id = i.id
-      LEFT JOIN menu_item_token_prices tp
-        ON tp.menu_item_id = i.id
-       AND tp.tier_code = :tierCode
-       AND tp.is_enabled = 1
-       AND tp.effective_from <= UTC_TIMESTAMP()
-       AND (tp.effective_to IS NULL OR tp.effective_to > UTC_TIMESTAMP())
       WHERE i.id IN (:menuItemIds)
         AND i.is_active = 1
     `,
     {
       storeId,
-      tierCode,
       menuItemIds
     }
   );

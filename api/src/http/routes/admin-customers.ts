@@ -84,6 +84,8 @@ const customerListQueryRowSchema = z.object({
   order_count: z.number().nullable(),
   total_spent_rm: z.union([z.string(), z.number()]).nullable(),
   total_spent_tokens: z.union([z.string(), z.number()]).nullable(),
+  total_subsidy_tokens: z.union([z.string(), z.number()]).nullable(),
+  total_personal_tokens: z.union([z.string(), z.number()]).nullable(),
   last_order_at: z.union([z.string(), z.date()]).nullable(),
   refund_count: z.number().nullable(),
   tier_code: z.string().nullable(),
@@ -115,6 +117,8 @@ function isActivePhoneConflict(error: unknown): boolean {
 function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof loadLoyaltyTiers>>) {
   const totalSpent = Number(row.total_spent_rm ?? 0);
   const totalSpentTokens = Number(row.total_spent_tokens ?? 0);
+  const totalSubsidyTokens = Number(row.total_subsidy_tokens ?? 0);
+  const totalPersonalTokens = Number(row.total_personal_tokens ?? Math.max(0, totalSpentTokens - totalSubsidyTokens));
   const tokenBalance = Number(row.token_balance ?? 0);
   const orderCount = Number(row.order_count ?? 0);
   const refundCount = Number(row.refund_count ?? 0);
@@ -143,6 +147,8 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     spent: `RM ${totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     spentTokens: `${totalSpentTokens.toLocaleString('en-US')} tokens`,
     totalSpentTokens,
+    totalSubsidyTokens,
+    totalPersonalTokens,
     totalSpentRm: totalSpent,
     cupsLast180d,
     lastOrder: formatDisplayDate(lastOrderAt),
@@ -249,8 +255,10 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             SELECT
               o.user_id,
               COUNT(*) AS order_count,
-              COALESCE(SUM(GREATEST(0, o.subtotal_rm + o.modifier_total_rm - o.discount_total_rm)), 0) AS total_spent_rm,
+              COALESCE(SUM(GREATEST(0, o.final_total_rm)), 0) AS total_spent_rm,
               COALESCE(SUM(o.token_amount_charged), 0) AS total_spent_tokens,
+              COALESCE(SUM(o.employee_allowance_tokens_used), 0) AS total_subsidy_tokens,
+              COALESCE(SUM(GREATEST(0, o.token_amount_charged - o.employee_allowance_tokens_used)), 0) AS total_personal_tokens,
               MAX(o.created_at) AS last_order_at,
               SUM(CASE WHEN o.status = 'refunded' THEN 1 ELSE 0 END) AS refund_count
             FROM orders o

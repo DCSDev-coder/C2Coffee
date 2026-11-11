@@ -179,10 +179,10 @@ const RevenueReport = ({ onBack }) => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-gray-900">Revenue Report</h1>
-              <InfoTooltip content="Monthly financial performance summarizing gross sales, refunds, net profit, and token volume." title="Revenue Report" />
+              <InfoTooltip content="Monthly settled order value, refunds, and token volume. Token-funded RM figures are equivalents, not cash revenue." title="Revenue Report" />
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              Live monthly revenue from completed orders and refunds.
+              Live monthly settled order values and refunds.
             </p>
             <p className="text-xs text-gray-400 mt-1">
               {loading ? 'Refreshing live data...' : error ? `Showing last successful data. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
@@ -208,9 +208,9 @@ const RevenueReport = ({ onBack }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">Gross Revenue</p>
-              <InfoTooltip content="Total gross income before subtracting refunds and cancellations." title="Gross Revenue" />
+              <InfoTooltip content="Settled order value before refunds. Token-funded orders are shown at their RM equivalent." title="Order Value" />
             </div>
-            <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{formatReportMoney(summary.totalRevenueRm)}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{formatReportMoney(summary.totalRevenueRm)}</p>
           </div>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
@@ -220,7 +220,7 @@ const RevenueReport = ({ onBack }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">Net Revenue</p>
-              <InfoTooltip content="Realized revenue retained after full and partial customer refunds." title="Net Revenue" />
+              <InfoTooltip content="Settled order value after refunds. This is not a bank settlement total." title="Order Value After Refunds" />
             </div>
             <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{formatReportMoney(summary.netRevenueRm)}</p>
           </div>
@@ -232,7 +232,7 @@ const RevenueReport = ({ onBack }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">Refunds</p>
-              <InfoTooltip content="Total monetary value of refunded orders across all channels." title="Refunds" />
+              <InfoTooltip content="Completed refunds across direct and token-funded orders." title="Refunds" />
             </div>
             <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{formatReportMoney(summary.totalRefundAmountRm)}</p>
           </div>
@@ -244,7 +244,7 @@ const RevenueReport = ({ onBack }) => {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">Tokens Charged</p>
-              <InfoTooltip content="Total loyalty token points charged for orders in this period." title="Tokens Charged" />
+              <InfoTooltip content="Tokens charged for settled orders, including the company-subsidy portion where applicable." title="Tokens Charged" />
             </div>
             <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{formatReportTokens(summary.totalTokensCharged)}</p>
           </div>
@@ -258,7 +258,7 @@ const RevenueReport = ({ onBack }) => {
               <h3 className="text-lg font-bold text-gray-900">Revenue by Month</h3>
               <InfoTooltip content="Monthly trajectory comparison of gross sales, refunds, and final net earnings." title="Revenue by Month" />
             </div>
-            <p className="text-sm text-gray-500">Gross revenue, refunds, and net revenue.</p>
+            <p className="text-sm text-gray-500">Settled order value, refunds, and order value after refunds.</p>
           </div>
         </div>
         <div className="flex-1 w-full relative">
@@ -273,9 +273,9 @@ const RevenueReport = ({ onBack }) => {
                 itemStyle={{ color: '#fff' }}
                 formatter={(value, name) => [`RM ${Number(value).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]}
               />
-              <Bar dataKey="revenueRm" name="Gross revenue" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={36} />
+              <Bar dataKey="revenueRm" name="Order value (RM eq.)" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={36} />
               <Bar dataKey="refundRm" name="Refunds" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={36} />
-              <Bar dataKey="netRm" name="Net revenue" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={36} />
+              <Bar dataKey="netRm" name="After refunds (RM eq.)" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={36} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -298,9 +298,9 @@ const RevenueReport = ({ onBack }) => {
             <thead className="bg-gray-50/80 backdrop-blur-xs border-b border-gray-200 sticky top-0 z-10">
               <tr>
                 <SortableHeader label="Month" columnKey="month" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Calendar month identifier." />
-                <SortableHeader label="Gross Revenue" columnKey="gross" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Gross sales revenue collected." className="text-right" />
+                <SortableHeader label="Order Value (RM eq.)" columnKey="gross" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Settled order value; token-funded orders are RM equivalents." className="text-right" />
                 <SortableHeader label="Refunds" columnKey="refund" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Total refunded value." className="text-right" />
-                <SortableHeader label="Net Revenue" columnKey="net" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Net retained sales revenue." className="text-right" />
+                <SortableHeader label="After Refunds (RM eq.)" columnKey="net" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Settled order value after completed refunds." className="text-right" />
                 <SortableHeader label="Orders" columnKey="orders" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Total order tickets processed." className="text-right" />
                 <SortableHeader label="Tokens Charged" columnKey="tokens" currentKey={revenueSortKey} direction={revenueSortDirection} onSort={handleRevenueSort} info="Tokens charged in order fulfillment." className="text-right" />
               </tr>

@@ -10,16 +10,7 @@ import { ApiError } from '../errors.js';
 import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard.js';
 import { saveMediaAsset } from '../../lib/media-assets.js';
 
-const tierCodes = ['kawan', 'dilamun', 'ketagih', 'legend'] as const;
-
 const modifierSelectionTypes = ['single', 'multi'] as const;
-
-const tokenPricesSchema = z.object({
-  kawan: z.coerce.number().int().min(0).optional(),
-  dilamun: z.coerce.number().int().min(0).optional(),
-  ketagih: z.coerce.number().int().min(0).optional(),
-  legend: z.coerce.number().int().min(0).optional()
-});
 
 const adminMenuModifierOptionSchema = z.object({
   name: z.string().trim().min(1).max(255),
@@ -60,7 +51,6 @@ const adminMenuUpsertSchema = z.object({
   allow_order_type: z.coerce.boolean().optional(),
   allow_remarks: z.coerce.boolean().optional(),
   sort_order: z.coerce.number().int().min(0).optional(),
-  token_prices: tokenPricesSchema.partial().optional(),
   modifier_groups: z.array(adminMenuModifierGroupSchema).optional()
 });
 
@@ -170,8 +160,6 @@ type AdminMenuRow = RowDataPacket & {
   item_created_at: Date;
   item_updated_at: Date;
   item_archived_at: Date | null;
-  tier_code: string | null;
-  token_price: number | null;
   total_units_sold: number | null;
   total_revenue_rm: string | null;
   last_ordered_at: Date | null;
@@ -245,7 +233,6 @@ type AdminMenuItem = {
   sales_count: number;
   total_revenue_rm: string;
   last_ordered_at: string | null;
-  token_prices: Record<string, number>;
   modifier_groups: Array<AdminMenuModifierGroup>;
   subcategory_id: number | null;
   subcategory_code: string | null;
@@ -380,8 +367,6 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.created_at AS item_created_at,
           i.updated_at AS item_updated_at,
           i.archived_at AS item_archived_at,
-          tp.tier_code,
-          tp.token_price,
           sales.total_units_sold,
           sales.total_revenue_rm,
           sales.last_ordered_at,
@@ -423,16 +408,11 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           GROUP BY oi.menu_item_id
         ) sales
           ON sales.menu_item_id = i.id
-        LEFT JOIN menu_item_token_prices tp
-          ON tp.menu_item_id = i.id
-         AND tp.is_enabled = 1
-         AND tp.effective_from <= UTC_TIMESTAMP()
-         AND (tp.effective_to IS NULL OR tp.effective_to > UTC_TIMESTAMP())
         LEFT JOIN item_modifier_groups img
           ON img.menu_item_id = i.id
         LEFT JOIN item_modifier_options imo
           ON imo.modifier_group_id = img.id
-        ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC, tp.tier_code ASC
+        ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC
       `,
       { tenantId: request.adminAuth.tenantId }
     );
@@ -495,8 +475,6 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.created_at AS item_created_at,
           i.updated_at AS item_updated_at,
           i.archived_at AS item_archived_at,
-          tp.tier_code,
-          tp.token_price,
           sales.total_units_sold,
           sales.total_revenue_rm,
           sales.last_ordered_at,
@@ -543,16 +521,11 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           GROUP BY oi.menu_item_id
         ) sales
           ON sales.menu_item_id = i.id
-        LEFT JOIN menu_item_token_prices tp
-          ON tp.menu_item_id = i.id
-         AND tp.is_enabled = 1
-         AND tp.effective_from <= UTC_TIMESTAMP()
-         AND (tp.effective_to IS NULL OR tp.effective_to > UTC_TIMESTAMP())
         LEFT JOIN item_modifier_groups img
           ON img.menu_item_id = i.id
         LEFT JOIN item_modifier_options imo
           ON imo.modifier_group_id = img.id
-        ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC, tp.tier_code ASC
+        ORDER BY c.sort_order ASC, c.id ASC, i.name ASC, i.id ASC
       `,
       {
         tenantId: request.adminAuth.tenantId,
@@ -665,7 +638,6 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
          VALUES (:tenantId, :menuItemId)`,
         { tenantId: request.adminAuth.tenantId, menuItemId }
       );
-      await upsertMenuTokenPrices(connection, menuItemId, payload.token_prices);
       await replaceMenuModifiers(connection, menuItemId, payload.modifier_groups);
 
       if (payload.is_active === false) {
@@ -879,7 +851,6 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         );
       }
 
-      await upsertMenuTokenPrices(connection, menuItemId, payload.token_prices);
       await replaceMenuModifiers(connection, menuItemId, payload.modifier_groups);
 
       if (payload.is_active === false) {
@@ -1412,7 +1383,6 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
         sales_count: row.total_units_sold ?? 0,
         total_revenue_rm: row.total_revenue_rm ?? '0.00',
         last_ordered_at: row.last_ordered_at ? new Date(row.last_ordered_at).toISOString() : null,
-        token_prices: {},
         modifier_groups: [],
         subcategory_id: row.subcategory_id,
         subcategory_code: row.subcategory_code,
@@ -1421,10 +1391,6 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
         product_kind_name: productKind.name
       };
       category.items.push(item);
-    }
-
-    if (row.tier_code && row.token_price !== null) {
-      item.token_prices[row.tier_code] = row.token_price;
     }
 
     if (row.modifier_group_id !== null) {
@@ -1606,8 +1572,6 @@ async function loadMenuItemById(menuItemId: number, tenantId: number): Promise<A
         i.created_at AS item_created_at,
         i.updated_at AS item_updated_at,
         i.archived_at AS item_archived_at,
-        tp.tier_code,
-        tp.token_price,
         sales.total_units_sold,
         sales.total_revenue_rm,
         sales.last_ordered_at,
@@ -1644,17 +1608,12 @@ async function loadMenuItemById(menuItemId: number, tenantId: number): Promise<A
         GROUP BY oi.menu_item_id
       ) sales
         ON sales.menu_item_id = i.id
-      LEFT JOIN menu_item_token_prices tp
-        ON tp.menu_item_id = i.id
-       AND tp.is_enabled = 1
-       AND tp.effective_from <= UTC_TIMESTAMP()
-       AND (tp.effective_to IS NULL OR tp.effective_to > UTC_TIMESTAMP())
       LEFT JOIN item_modifier_groups img
         ON img.menu_item_id = i.id
       LEFT JOIN item_modifier_options imo
         ON imo.modifier_group_id = img.id
       WHERE i.id = :menuItemId
-      ORDER BY tp.tier_code ASC
+      ORDER BY i.name ASC, i.id ASC
     `,
     { menuItemId, tenantId }
   );
@@ -1818,65 +1777,6 @@ async function loadMenuSubcategoryById(subcategoryId: number): Promise<AdminMenu
     product_kind_code: productKind.code,
     product_kind_name: productKind.name
   };
-}
-
-async function upsertMenuTokenPrices(
-  connection: Awaited<ReturnType<typeof mysqlPool.getConnection>>,
-  menuItemId: number,
-  tokenPrices?: Partial<Record<(typeof tierCodes)[number], number>>
-): Promise<void> {
-  if (!tokenPrices) {
-    return;
-  }
-
-  for (const tierCode of tierCodes) {
-    const price = tokenPrices[tierCode];
-    if (price === undefined) {
-      continue;
-    }
-
-    await connection.execute(
-      `
-        UPDATE menu_item_token_prices
-        SET is_enabled = 0,
-            effective_to = UTC_TIMESTAMP()
-        WHERE menu_item_id = :menuItemId
-          AND tier_code = :tierCode
-          AND is_enabled = 1
-          AND effective_to IS NULL
-      `,
-      {
-        menuItemId,
-        tierCode
-      }
-    );
-
-    await connection.execute(
-      `
-        INSERT INTO menu_item_token_prices (
-          menu_item_id,
-          tier_code,
-          token_price,
-          is_enabled,
-          effective_from,
-          effective_to
-        )
-        VALUES (
-          :menuItemId,
-          :tierCode,
-          :tokenPrice,
-          1,
-          UTC_TIMESTAMP(),
-          NULL
-        )
-      `,
-      {
-        menuItemId,
-        tierCode,
-        tokenPrice: price
-      }
-    );
-  }
 }
 
 async function replaceMenuModifiers(

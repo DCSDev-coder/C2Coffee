@@ -130,6 +130,8 @@ function sourceLabel(sourceType: string, remarks: string | null, orderRef: strin
       return 'Promotion credit';
     case 'voucher_subsidy':
       return 'Voucher subsidy';
+    case 'order_price_correction':
+      return orderRef ? `Token price correction for order ${orderRef}` : 'Token price correction';
     default:
       return 'Token activity';
   }
@@ -151,6 +153,8 @@ function sourceDisplayLabel(sourceType: string): string {
       return 'Promotions';
     case 'voucher_subsidy':
       return 'Voucher subsidies';
+    case 'order_price_correction':
+      return 'Price corrections';
     default:
       return 'Other';
   }

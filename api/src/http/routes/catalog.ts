@@ -149,7 +149,6 @@ type MenuItemResponse = {
   available_beans?: string[];
   available_milks?: string[];
   available_sparkling?: string[];
-  token_prices: Record<string, number>;
   modifier_groups: Array<MenuModifierGroup>;
 };
 
@@ -777,8 +776,6 @@ export async function loadCatalogMenu(storeId: number) {
           i.allow_sparkling_mixer,
           i.allow_order_type,
           i.allow_remarks,
-          tp.tier_code,
-          tp.token_price,
           img.id AS modifier_group_id,
           img.code AS modifier_group_code,
           img.name AS modifier_group_name,
@@ -810,11 +807,6 @@ export async function loadCatalogMenu(storeId: number) {
           WHERE r.status = 'active'
           GROUP BY r.menu_item_id
         ) recipe ON recipe.menu_item_id = i.id
-        LEFT JOIN menu_item_token_prices tp
-          ON tp.menu_item_id = i.id
-         AND tp.is_enabled = 1
-         AND tp.effective_from <= UTC_TIMESTAMP()
-         AND (tp.effective_to IS NULL OR tp.effective_to > UTC_TIMESTAMP())
         LEFT JOIN item_modifier_groups img
           ON img.menu_item_id = i.id
         LEFT JOIN item_modifier_options imo
@@ -826,7 +818,6 @@ export async function loadCatalogMenu(storeId: number) {
           c.id,
           i.name ASC,
           i.id,
-          tp.tier_code,
           img.sort_order,
           img.id,
           imo.sort_order,
@@ -900,7 +891,6 @@ export async function loadCatalogMenu(storeId: number) {
         available_beans: row.allow_choice_of_beans === 1 ? availableBeans : undefined,
         available_milks: row.allow_choice_of_milk === 1 ? availableMilks : undefined,
         available_sparkling: row.allow_sparkling_mixer === 1 ? availableSparkling : undefined,
-        token_prices: {},
         modifier_groups: [],
       });
       itemIndex = category.items.length - 1;
@@ -909,9 +899,6 @@ export async function loadCatalogMenu(storeId: number) {
 
     const item = category.items[itemIndex];
 
-    if (row.tier_code && row.token_price !== null) {
-      item.token_prices[row.tier_code] = row.token_price;
-    }
 
     if (row.modifier_group_id !== null) {
       let modifierGroup = item.modifier_groups.find(

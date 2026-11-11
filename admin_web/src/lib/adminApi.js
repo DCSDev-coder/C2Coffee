@@ -386,6 +386,31 @@ export async function loadAdminOrders(params = {}) {
   return adminRequest(`/v1/admin/orders${query.size ? `?${query}` : ""}`);
 }
 
+export async function loadOrderPriceCorrectionPreview(orderRef) {
+  return adminRequest(
+    `/v1/admin/orders/${encodeURIComponent(orderRef)}/price-correction-preview`,
+  );
+}
+
+export async function createOrderPriceCorrection(
+  orderRef,
+  correctedTokenAmount,
+  reason,
+  confirmationPassword,
+) {
+  return adminRequest(
+    `/v1/admin/orders/${encodeURIComponent(orderRef)}/price-correction`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        corrected_token_amount: correctedTokenAmount,
+        reason,
+        confirmation_password: confirmationPassword,
+      }),
+    },
+  );
+}
+
 export async function loadAdminDashboard({
   startDate = null,
   endDate = null,
@@ -626,6 +651,12 @@ export async function loadAdminFinanceOverview({ storeId = null } = {}) {
   return adminRequest(
     `/v1/admin/finance/overview${storeId ? `?store_id=${encodeURIComponent(storeId)}` : ""}`,
   );
+}
+
+export async function loadAdminFinanceAuditLedger({ storeId = null, limit = 100 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (storeId) params.set('store_id', String(storeId));
+  return adminRequest(`/v1/admin/finance/audit-ledger?${params.toString()}`);
 }
 
 export async function loadAdminTierConfigs() {

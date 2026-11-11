@@ -20,7 +20,7 @@ import {
   YAxis
 } from 'recharts';
 import { exportToCSV } from '../utils/exportToCSV';
-import { loadAdminFinanceOverview } from '../lib/adminApi';
+import { loadAdminFinanceAuditLedger, loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatPaymentLabel, formatReportMoney, formatReportTokens } from '../utils/reporting';
 import OutletFilter from './OutletFilter';
 import InfoTooltip from './InfoTooltip';
@@ -43,6 +43,9 @@ const EMPTY_OVERVIEW = {
   monthlyRevenue: [],
   statusBreakdown: [],
   topUpMethodBreakdown: [],
+  paymentMethodBreakdown: [],
+  tokenMovementBreakdown: [],
+  subsidySummary: { issuedTokens: 0, consumedTokens: 0, remainingIssuedTokens: 0, movementCount: 0 },
   recentTransactions: []
 };
 
@@ -129,6 +132,7 @@ const Finance = ({ setCurrentPage }) => {
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [transactionSortKey, setTransactionSortKey] = useState('dateTime');
   const [transactionSortDirection, setTransactionSortDirection] = useState('desc');
+  const [auditEntries, setAuditEntries] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -161,17 +165,28 @@ const Finance = ({ setCurrentPage }) => {
     };
   }, [selectedStoreId]);
 
+  useEffect(() => {
+    let active = true;
+    void loadAdminFinanceAuditLedger({ storeId: selectedStoreId, limit: 100 })
+      .then((response) => {
+        if (active) setAuditEntries(Array.isArray(response?.entries) ? response.entries : []);
+      })
+      .catch(() => {
+        if (active) setAuditEntries([]);
+      });
+    return () => { active = false; };
+  }, [selectedStoreId]);
+
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
   const topUpMethodBreakdown = Array.isArray(overview.topUpMethodBreakdown) ? overview.topUpMethodBreakdown : [];
+  const paymentMethodBreakdown = Array.isArray(overview.paymentMethodBreakdown) ? overview.paymentMethodBreakdown : [];
+  const tokenMovementBreakdown = Array.isArray(overview.tokenMovementBreakdown) ? overview.tokenMovementBreakdown : [];
+  const subsidySummary = overview.subsidySummary || EMPTY_OVERVIEW.subsidySummary;
   const recentTransactions = useMemo(
     () => (Array.isArray(overview.recentTransactions) ? overview.recentTransactions : []),
     [overview.recentTransactions]
   );
-  const netTokens = Number(summary.netTokens ?? Math.max(0, Number(summary.totalTokensCharged || 0) - Number(summary.totalRefundTokens || 0)));
-  const tokenRefundRate = Number(summary.totalTokensCharged || 0) > 0
-    ? (Number(summary.totalRefundTokens || 0) / Number(summary.totalTokensCharged || 0)) * 100
-    : 0;
   const peakTokenMonth = monthlyRevenue.reduce((best, entry) => {
     if (!best) return entry;
     return Number(entry.tokensCharged || 0) > Number(best.tokensCharged || 0) ? entry : best;
@@ -304,31 +319,31 @@ const Finance = ({ setCurrentPage }) => {
           <div className="min-w-[1180px]">
             <div className="grid grid-cols-4 gap-4 shrink-0">
               <StatCard
-                title="Tokens Charged"
+                title="Token orders"
                 value={formatReportTokens(summary.totalTokensCharged)}
-                subtitle={`${formatReportMoney(summary.totalRevenueRm)} gross RM`}
+                subtitle={`${formatReportMoney(summary.tokenOrderValueRm)} RM equivalent`}
                 icon={Wallet}
                 iconBg="bg-[#1F3A34]"
-                info="Total tokens charged across all completed orders in the selected period."
+                info="Tokens spent on completed orders. The RM figure is an equivalent order value, not a card or bank settlement."
               />
               <StatCard
-                title="Net Tokens Kept"
-                value={formatReportTokens(netTokens)}
-                subtitle={`${formatReportTokens(summary.totalRefundTokens)} refunded`}
+                title="Direct order value"
+                value={formatReportMoney(summary.directPaymentOrderValueRm)}
+                subtitle={`${summary.totalOrders.toLocaleString('en-US')} orders in scope`}
                 icon={BarChart3}
                 iconBg="bg-[#2E5E58]"
-                info="Net token revenue retained after deducting customer refunds and cancellations."
+                info="Order value for direct-payment orders only. Actual gateway settlement is shown below from paid payment records."
               />
               <StatCard
-                title="Refund Tokens"
-                value={formatReportTokens(summary.totalRefundTokens)}
-                subtitle={`${tokenRefundRate.toFixed(1)}% of token volume`}
+                title="Refunds"
+                value={formatReportMoney(summary.totalRefundAmountRm)}
+                subtitle={`${formatReportTokens(summary.totalRefundTokens)} returned`}
                 icon={ReceiptText}
                 iconBg="bg-[#E07A5F]"
-                info="Total tokens refunded back to customer C2 Credit from cancelled or returned orders."
+                info="Completed refunds only. Token returns and RM refunds are shown separately from sales."
               />
               <StatCard
-                title="Orders Processed"
+                title="Orders in scope"
                 value={summary.totalOrders.toLocaleString('en-US')}
                 subtitle={`${summary.activeOrders.toLocaleString('en-US')} active · ${summary.completedOrders.toLocaleString('en-US')} completed`}
                 icon={ShoppingCart}
@@ -336,6 +351,104 @@ const Finance = ({ setCurrentPage }) => {
                 info="Total order count handled by the counter and app fulfillment system."
               />
             </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Payment reconciliation</h3>
+                <p className="mt-1 text-sm text-gray-500">Paid order settlements by channel. This is the cash/payment view.</p>
+              </div>
+              <InfoTooltip content="Only paid payment records are included. Token-funded orders are not counted as direct cash settlement." title="Payment reconciliation" />
+            </div>
+            {paymentMethodBreakdown.length > 0 ? (
+              <div className="mt-5 space-y-3">
+                {paymentMethodBreakdown.map((entry) => (
+                  <div key={`${entry.paymentMode}-${entry.method}`} className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">{topUpMethodLabel(entry.method)}</p>
+                      <p className="text-xs text-gray-500">{formatPaymentLabel(entry.paymentMode)} · {Number(entry.count || 0).toLocaleString('en-US')} paid</p>
+                    </div>
+                    <p className="font-bold text-gray-900">{formatReportMoney(entry.amountRm)}</p>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="mt-5 rounded-xl bg-gray-50 px-4 py-5 text-sm text-gray-500">No paid order settlements recorded yet.</p>}
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Company subsidy</h3>
+                <p className="mt-1 text-sm text-gray-500">Employee and intern allowance movements from the immutable token ledger.</p>
+              </div>
+              <InfoTooltip content="Issuance, expiry, role changes, spending, and refund returns remain ledger movements and are not treated as customer payments." title="Company subsidy" />
+            </div>
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-emerald-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-emerald-700">Issued</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.issuedTokens)}</p></div>
+              <div className="rounded-xl bg-amber-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-amber-700">Consumed</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.consumedTokens)}</p></div>
+              <div className="rounded-xl bg-gray-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-gray-600">Remaining</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.remainingIssuedTokens)}</p></div>
+            </div>
+            <div className="mt-5 space-y-2">
+              {tokenMovementBreakdown.filter((entry) => String(entry.sourceType || '').startsWith('employee_allowance')).map((entry) => (
+                <div key={`${entry.sourceType}-${entry.direction}`} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">{formatPaymentLabel(entry.sourceType)} · {entry.direction}</span>
+                  <span className="font-semibold text-gray-900">{formatReportTokens(entry.tokenAmount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900">Audit ledger</h3>
+                <InfoTooltip content="Append-only operational evidence across token movements, payments, and refunds." title="Audit ledger" />
+              </div>
+              <p className="mt-1 text-sm text-gray-500">Latest movements with customer, source, reference, outlet, payment channel, and status.</p>
+            </div>
+            <button type="button" onClick={() => exportToCSV(auditEntries.map((entry) => ({
+              dateTime: entry.createdAt,
+              type: entry.type,
+              source: entry.source,
+              description: entry.description,
+              customer: entry.customer,
+              reference: entry.reference,
+              outlet: entry.storeName,
+              paymentMethod: entry.paymentMethod,
+              paymentMode: entry.paymentMode,
+              amountRm: entry.amountRm,
+              amountTokens: entry.amountTokens,
+              status: entry.status
+            })), 'finance_audit_ledger.csv')} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+              <Download size={14} /> Export
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-gray-50 border-b border-gray-200"><tr>
+                {['Date & time', 'Type / source', 'Customer', 'Reference', 'Outlet', 'RM', 'Tokens', 'Status'].map((label) => <th key={label} className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">{label}</th>)}
+              </tr></thead>
+              <tbody className="divide-y divide-gray-50">
+                {auditEntries.map((entry) => (
+                  <tr key={entry.id} className="hover:bg-gray-50/50">
+                    <td className="px-5 py-3 text-gray-600">{new Date(entry.createdAt).toLocaleString('en-MY')}</td>
+                    <td className="px-5 py-3"><p className="font-semibold text-gray-900">{entry.type}</p><p className="text-xs text-gray-500">{formatPaymentLabel(entry.source)}</p></td>
+                    <td className="px-5 py-3 text-gray-700">{entry.customer}</td>
+                    <td className="px-5 py-3 text-gray-600">{entry.reference || '—'}</td>
+                    <td className="px-5 py-3 text-gray-600">{entry.storeName || 'Tenant-wide'}</td>
+                    <td className={`px-5 py-3 font-semibold ${Number(entry.amountRm) < 0 ? 'text-red-700' : 'text-gray-900'}`}>{Number(entry.amountRm) ? formatReportMoney(entry.amountRm) : '—'}</td>
+                    <td className={`px-5 py-3 font-semibold ${Number(entry.amountTokens) < 0 ? 'text-red-700' : 'text-gray-900'}`}>{Number(entry.amountTokens) ? formatReportTokens(entry.amountTokens) : '—'}</td>
+                    <td className="px-5 py-3 text-gray-600 capitalize">{String(entry.status || '').replaceAll('_', ' ')}</td>
+                  </tr>
+                ))}
+                {!auditEntries.length && <tr><td colSpan="8" className="px-5 py-10 text-center text-gray-500">No audit movements available.</td></tr>}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -392,7 +505,7 @@ const Finance = ({ setCurrentPage }) => {
                 <h3 className="text-lg font-bold text-gray-900">Token Flow by Month</h3>
                 <InfoTooltip content="Monthly breakdown comparing tokens charged, refunded, and retained net balance." title="Token Flow" />
               </div>
-              <p className="text-sm text-gray-500">Token volume is the primary operating signal. RM stays visible only for reconciliation.</p>
+              <p className="text-sm text-gray-500">Token volume is shown separately from direct-payment settlement. RM values here are order-value equivalents.</p>
             </div>
             <div className="flex shrink-0 items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               Token first
@@ -432,11 +545,11 @@ const Finance = ({ setCurrentPage }) => {
 
           <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
             <div className="rounded-xl border border-gray-200 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Gross RM</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Order value (RM eq.)</p>
               <p className="mt-1 font-semibold text-gray-900">{formatReportMoney(summary.totalRevenueRm)}</p>
             </div>
             <div className="rounded-xl border border-gray-200 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Net RM</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">After refunds (RM eq.)</p>
               <p className="mt-1 font-semibold text-gray-900">{formatReportMoney(summary.netRevenueRm)}</p>
             </div>
             <div className="rounded-xl border border-gray-200 px-4 py-3">

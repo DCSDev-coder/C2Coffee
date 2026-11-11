@@ -397,14 +397,6 @@ class _MenuPageState extends State<MenuPage> {
       return legacyTokenPrice.toInt();
     }
 
-    final tokenPrices = item['tokenPrices'];
-    if (tokenPrices is Map) {
-      final tierKey = _session.tier;
-      final tierTokenPrice = tokenPrices[tierKey];
-      if (tierTokenPrice is num) return tierTokenPrice.toInt();
-      if (tierTokenPrice is String) return int.tryParse(tierTokenPrice);
-    }
-
     return null;
   }
 

@@ -22,6 +22,8 @@ class CurrentOrder {
   final String? voucherName;
   final String? voucherType;
   final double discount;
+  final String? paymentMethod;
+  final String? paymentStatus;
 
   CurrentOrder({
     required this.status,
@@ -35,6 +37,8 @@ class CurrentOrder {
     this.voucherName,
     this.voucherType,
     this.discount = 0,
+    this.paymentMethod,
+    this.paymentStatus,
   });
 }
 
@@ -53,6 +57,8 @@ class OrderCard extends StatelessWidget {
   final String? voucherName;
   final String? voucherType;
   final double discount;
+  final String? paymentMethod;
+  final String? paymentStatus;
 
   const OrderCard({
     super.key,
@@ -70,6 +76,8 @@ class OrderCard extends StatelessWidget {
     this.voucherName,
     this.voucherType,
     this.discount = 0,
+    this.paymentMethod,
+    this.paymentStatus,
   });
 
   @override
@@ -79,6 +87,8 @@ class OrderCard extends StatelessWidget {
     final bool isPreparing = status == OrderStatus.preparing;
     final bool isReadyForPickup = status == OrderStatus.readyForPickup;
     final bool isHistory = status == OrderStatus.completed;
+    final bool isManualPaymentPending = paymentStatus == 'pending' &&
+        (paymentMethod == 'manual_terminal' || paymentMethod == 'manual_cash');
 
     return GestureDetector(
       onTap: onTap,
@@ -299,7 +309,9 @@ class OrderCard extends StatelessWidget {
                             ),
                           )
                         : Text(
-                            isPreparing ? 'Mark as Ready' : 'Start Preparing',
+                            isManualPaymentPending
+                                ? 'Payment Received'
+                                : (isPreparing ? 'Mark as Ready' : 'Start Preparing'),
                             style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,

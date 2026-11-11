@@ -185,9 +185,10 @@ test('ensureEmployeeAllowance reconciles desynchronized wallet balance when bala
 
   await ensureEmployeeAllowance(connection, 21, 1);
 
-  assert.equal(executions.length, 2);
-  assert.match(executions[0].sql, /UPDATE token_accounts/);
-  assert.equal(executions[0].params.reconciledBalance, 200);
-  assert.match(executions[1].sql, /INSERT INTO token_ledger/);
-  assert.equal(executions[1].params.amount, 15);
+  assert.equal(executions.length, 3);
+  assert.match(executions[0].sql, /INSERT IGNORE INTO token_accounts/);
+  assert.match(executions[1].sql, /UPDATE token_accounts/);
+  assert.equal(executions[1].params.reconciledBalance, 200);
+  assert.match(executions[2].sql, /INSERT INTO token_ledger/);
+  assert.equal(executions[2].params.amount, 15);
 });

@@ -709,11 +709,11 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
 
   app.get('/v1/counter/payment-methods', { preHandler: authenticateCounterDevice }, async () => {
     if (!env.TOPUP_GATEWAY_ENABLED || env.TOPUP_GATEWAY_PROVIDER !== 'chip') {
-      return { methods: [] };
+      return { methods: ['manual_terminal', 'manual_cash'] };
     }
     const active = await getActiveChipMethods();
     const allowed: ChipPaymentMethod[] = ['duitnow_qr', 'ewallet'];
-    return { methods: allowed.filter((method) => active.has(method)) };
+    return { methods: [...allowed.filter((method) => active.has(method)), 'manual_terminal', 'manual_cash'] };
   });
 
   app.post('/v1/counter/orders/quote', { preHandler: authenticateCounterDevice }, async (request) => {
@@ -787,7 +787,7 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           payload: { ...item, modifiers },
           menuItem,
           basePriceRm,
-          tokenPrice: menuItem.token_price ?? menuItem.base_price_token,
+          tokenPrice: menuItem.base_price_token,
           modifierRm,
           modifierTokens: modifiers.reduce((sum, modifier) => sum + modifier.token_price_delta, 0)
         });

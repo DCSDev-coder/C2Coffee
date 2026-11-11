@@ -12,6 +12,17 @@ type SubsidyPolicy = {
   monthlyAmount: number | null;
 };
 
+async function ensureTokenAccount(connection: PoolConnection, userId: number): Promise<void> {
+  await connection.execute(
+    `INSERT IGNORE INTO token_accounts
+      (user_id, balance_available, balance_reserved, balance_cap, created_at, updated_at)
+     SELECT id, 0, 0, 500, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+       FROM users
+      WHERE id = :userId AND status = 'active' AND deleted_at IS NULL`,
+    { userId }
+  );
+}
+
 function defaultMonthlyAllowance(role: SubsidyRole): number | null {
   if (role === 'employee') return MONTHLY_EMPLOYEE_ALLOWANCE;
   if (role === 'intern') return MONTHLY_INTERN_ALLOWANCE;
@@ -179,6 +190,10 @@ export async function ensureEmployeeAllowance(
   if (!membershipRows[0]) return;
   const policy = await getSubsidyPolicy(connection, tenantId, membershipRows[0].subsidy_role, period.start);
   if (policy.allowanceMode !== 'monthly' || policy.monthlyAmount === null) return;
+  // A pre-launch data reset may retain active customers while clearing their
+  // wallet rows. Recreate an empty wallet before reconciling the allowance so
+  // bootstrap and subsidy checks remain self-healing.
+  await ensureTokenAccount(connection, userId);
   await restoreCurrentAllowanceForRoleChange(
     connection,
     userId,
@@ -320,6 +335,43 @@ export async function issueCurrentEmployeeAllowancesForUser(userId: number): Pro
   } finally {
     connection.release();
   }
+}
+
+/**
+ * Reconciles the current calendar month's allowance for every eligible,
+ * registered employee and intern. The operation is safe to repeat: the
+ * allowance period has a unique key and ensureEmployeeAllowance locks the
+ * membership/account before issuing only the shortfall.
+ */
+export async function runEmployeeAllowanceSweep(): Promise<{
+  eligible: number;
+  processed: number;
+  failed: number;
+}> {
+  const [rows] = await mysqlPool.query<Array<RowDataPacket & { user_id: number }>>(
+    `SELECT DISTINCT ctm.user_id
+       FROM customer_tenant_memberships ctm
+       JOIN users u ON u.id = ctm.user_id
+      WHERE ctm.registration_status = 'registered'
+        AND ctm.subsidy_enabled = 1
+        AND ctm.subsidy_role IN ('employee', 'intern')
+        AND u.status = 'active'
+        AND u.deleted_at IS NULL
+      ORDER BY ctm.user_id`
+  );
+  let processed = 0;
+  let failed = 0;
+  for (const row of rows) {
+    try {
+      await issueCurrentEmployeeAllowancesForUser(Number(row.user_id));
+      processed += 1;
+    } catch {
+      // One inconsistent wallet must not prevent other employees from
+      // receiving their monthly allowance; the scheduler logs the count.
+      failed += 1;
+    }
+  }
+  return { eligible: rows.length, processed, failed };
 }
 
 /** Removes only the unused finite allowance when moving to Boss or no subsidy. */

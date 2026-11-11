@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { authenticateAdminRequest } from '../../admin/guard.js';
 import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
+import { splitOrderPriceCorrection } from '../../services/order-price-correction.js';
 import { processOrderLoyalty, reverseOrderLoyalty } from '../../services/loyalty.js';
 import { calculatePersonalTokenRefund, restoreEmployeeAllowanceForRefund } from '../../services/employee-token-allowance.js';
 import { awardReferralForCollectedOrder, reverseReferralForRefundedOrder } from '../../services/referrals.js';
@@ -70,6 +71,12 @@ function requireFinanceAccess(request: { adminAuth?: { roles?: string[] } }): vo
   }
 }
 
+function requirePriceCorrectionAccess(request: { adminAuth?: { roles?: string[] } }): void {
+  if (!(request.adminAuth?.roles ?? []).includes('super_admin')) {
+    throw new ApiError(403, 'admin_forbidden', 'Only a Super Admin can correct historical order pricing.');
+  }
+}
+
 const createRefundSchema = z.object({
   order_id: z.string().trim().min(1).max(80),
   reason: z.string().trim().min(10).max(500),
@@ -86,7 +93,349 @@ const financeQuerySchema = z.object({
   store_id: z.coerce.number().int().positive().optional()
 });
 
+const financeAuditQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional().default(100),
+  store_id: z.coerce.number().int().positive().optional()
+});
+
+const priceCorrectionSchema = z.object({
+  corrected_token_amount: z.coerce.number().int().min(0),
+  reason: z.string().trim().min(10).max(500),
+  confirmation_password: z.string().trim().min(8).max(200)
+});
+
+type PriceCorrectionPreview = {
+  orderId: number;
+  orderRef: string;
+  userId: number;
+  tenantId: number;
+  status: string;
+  originalTokenAmount: number;
+  historicalGrossTokenAmount: number;
+  correctedGrossTokenAmount: number;
+  preservedDeductionTokenAmount: number;
+  suggestedCorrectedTokenAmount: number;
+  originalSubsidyTokenAmount: number;
+  originalPersonalTokenAmount: number;
+  allowanceWasUnlimited: boolean;
+  existingCorrectionId: number | null;
+  items: Array<{
+    name: string;
+    quantity: number;
+    historicalUnitTokens: number;
+    configuredBaseUnitTokens: number;
+    modifierUnitTokens: number;
+    historicalLineTokens: number;
+    correctedLineTokens: number;
+  }>;
+};
+
+async function loadPriceCorrectionPreview(
+  connection: Awaited<ReturnType<typeof mysqlPool.getConnection>>,
+  tenantCode: string,
+  orderRef: string,
+  lock = false
+): Promise<PriceCorrectionPreview> {
+  const [orders] = await connection.query<Array<RowDataPacket & {
+    id: number;
+    order_ref: string;
+    user_id: number;
+    tenant_id: number;
+    status: string;
+    payment_mode: string;
+    token_amount_charged: number;
+    employee_allowance_tokens_used: number;
+    employee_allowance_was_unlimited: number;
+  }>>(
+    `SELECT o.id, o.order_ref, o.user_id, s.tenant_id, o.status, o.payment_mode,
+            o.token_amount_charged, o.employee_allowance_tokens_used,
+            o.employee_allowance_was_unlimited
+       FROM orders o
+       JOIN stores s ON s.id = o.store_id
+       JOIN admin_tenants t ON t.id = s.tenant_id
+      WHERE o.order_ref = :orderRef AND t.code = :tenantCode
+      LIMIT 1${lock ? ' FOR UPDATE' : ''}`,
+    { orderRef, tenantCode }
+  );
+  const order = orders[0];
+  if (!order) throw new ApiError(404, 'order_not_found', 'Order not found for this tenant.');
+  if (order.payment_mode !== 'token') {
+    throw new ApiError(409, 'price_correction_not_supported', 'Only token-paid orders can use token price correction.');
+  }
+  if (['draft', 'pending_payment', 'payment_failed', 'cancelled', 'refunded'].includes(order.status)) {
+    throw new ApiError(409, 'price_correction_not_eligible', 'This order is not eligible for a token price correction.');
+  }
+
+  const [correctionRows] = await connection.query<Array<RowDataPacket & { id: number }>>(
+    `SELECT id FROM order_price_corrections WHERE order_id = :orderId LIMIT 1`,
+    { orderId: order.id }
+  );
+
+  const [itemRows] = await connection.query<Array<RowDataPacket & {
+    id: number;
+    name: string;
+    quantity: number;
+    historical_unit_tokens: number;
+    historical_line_tokens: number;
+    configured_base_tokens: number;
+    modifier_tokens: number;
+  }>>(
+    `SELECT oi.id, oi.item_name_snapshot AS name, oi.quantity,
+            COALESCE(oi.token_price_snapshot, 0) AS historical_unit_tokens,
+            COALESCE(oi.line_token_amount, 0) AS historical_line_tokens,
+            mi.base_price_token AS configured_base_tokens,
+            COALESCE(SUM(oim.token_price_delta_snapshot), 0) AS modifier_tokens
+       FROM order_items oi
+       LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+       LEFT JOIN order_item_modifiers oim ON oim.order_item_id = oi.id
+      WHERE oi.order_id = :orderId
+      GROUP BY oi.id, oi.item_name_snapshot, oi.quantity, oi.token_price_snapshot,
+               oi.line_token_amount, mi.base_price_token
+      ORDER BY oi.id`,
+    { orderId: order.id }
+  );
+  if (itemRows.length === 0 || itemRows.some((row) => row.configured_base_tokens == null)) {
+    throw new ApiError(409, 'price_correction_requires_manual_review', 'One or more original menu items no longer has a configured base token price.');
+  }
+
+  const items = itemRows.map((row) => {
+    const quantity = Number(row.quantity);
+    const configuredBaseUnitTokens = Number(row.configured_base_tokens);
+    const modifierUnitTokens = Number(row.modifier_tokens);
+    return {
+      name: String(row.name),
+      quantity,
+      historicalUnitTokens: Number(row.historical_unit_tokens),
+      configuredBaseUnitTokens,
+      modifierUnitTokens,
+      historicalLineTokens: Number(row.historical_line_tokens),
+      correctedLineTokens: Math.max(0, configuredBaseUnitTokens + modifierUnitTokens) * quantity
+    };
+  });
+  const historicalGrossTokenAmount = items.reduce((sum, item) => sum + item.historicalLineTokens, 0);
+  const correctedGrossTokenAmount = items.reduce((sum, item) => sum + item.correctedLineTokens, 0);
+  const originalTokenAmount = Number(order.token_amount_charged);
+  const preservedDeductionTokenAmount = Math.max(0, historicalGrossTokenAmount - originalTokenAmount);
+  const suggestedCorrectedTokenAmount = Math.max(0, correctedGrossTokenAmount - preservedDeductionTokenAmount);
+  const originalSubsidyTokenAmount = Math.min(originalTokenAmount, Number(order.employee_allowance_tokens_used));
+
+  return {
+    orderId: Number(order.id),
+    orderRef: order.order_ref,
+    userId: Number(order.user_id),
+    tenantId: Number(order.tenant_id),
+    status: order.status,
+    originalTokenAmount,
+    historicalGrossTokenAmount,
+    correctedGrossTokenAmount,
+    preservedDeductionTokenAmount,
+    suggestedCorrectedTokenAmount,
+    originalSubsidyTokenAmount,
+    originalPersonalTokenAmount: Math.max(0, originalTokenAmount - originalSubsidyTokenAmount),
+    allowanceWasUnlimited: Number(order.employee_allowance_was_unlimited) === 1,
+    existingCorrectionId: correctionRows[0]?.id == null ? null : Number(correctionRows[0].id),
+    items
+  };
+}
+
 export async function registerAdminOrdersRoutes(app: FastifyInstance) {
+  app.get('/v1/admin/orders/:orderRef/price-correction-preview', { preHandler: authenticateAdminRequest }, async (request) => {
+    requirePriceCorrectionAccess(request);
+    const orderRef = z.string().trim().min(1).max(80).parse((request.params as { orderRef?: string }).orderRef);
+    const connection = await mysqlPool.getConnection();
+    try {
+      const preview = await loadPriceCorrectionPreview(connection, request.adminAuth.tenantCode, orderRef);
+      return { preview };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.post('/v1/admin/orders/:orderRef/price-correction', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    requirePriceCorrectionAccess(request);
+    const orderRef = z.string().trim().min(1).max(80).parse((request.params as { orderRef?: string }).orderRef);
+    const payload = priceCorrectionSchema.parse(request.body);
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await requireAdminActionConfirmation(connection, request.adminAuth.adminUserId, payload.confirmation_password);
+      const preview = await loadPriceCorrectionPreview(connection, request.adminAuth.tenantCode, orderRef, true);
+      if (preview.existingCorrectionId) {
+        throw new ApiError(409, 'price_correction_already_applied', 'This order already has a price correction.');
+      }
+      if (payload.corrected_token_amount >= preview.originalTokenAmount) {
+        throw new ApiError(409, 'price_correction_invalid', 'The corrected amount must be lower than the original token charge.');
+      }
+      if (payload.corrected_token_amount > preview.correctedGrossTokenAmount) {
+        throw new ApiError(409, 'price_correction_invalid', 'The corrected amount cannot exceed the configured base-price total.');
+      }
+
+      const split = splitOrderPriceCorrection({
+        originalTokenAmount: preview.originalTokenAmount,
+        correctedTokenAmount: payload.corrected_token_amount,
+        originalSubsidyTokenAmount: preview.originalSubsidyTokenAmount
+      });
+      const correctionTokenAmount = split.correctionTokenAmount;
+      const subsidyTokenAmount = split.subsidyCorrectionTokenAmount;
+      const personalTokenAmount = split.personalCorrectionTokenAmount;
+      let subsidyRestored = 0;
+
+      if (subsidyTokenAmount > 0 && !preview.allowanceWasUnlimited) {
+        const [allowanceRows] = await connection.query<Array<RowDataPacket & {
+          id: number;
+          remaining_amount: number;
+          granted_amount: number;
+          carried_forward_amount: number;
+          status: string;
+          period_end: Date | string;
+        }>>(
+          `SELECT eta.id, eta.remaining_amount, eta.granted_amount, eta.carried_forward_amount,
+                  eta.status, eta.period_end
+             FROM employee_token_allowances eta
+             JOIN orders o ON o.user_id = eta.user_id
+            WHERE o.id = :orderId
+              AND DATE(o.created_at) BETWEEN eta.period_start AND eta.period_end
+            LIMIT 1 FOR UPDATE`,
+          { orderId: preview.orderId }
+        );
+        const allowance = allowanceRows[0];
+        if (!allowance) {
+          throw new ApiError(409, 'price_correction_allowance_missing', 'The original company allowance record could not be found.');
+        }
+        const periodEnd = allowance.period_end instanceof Date
+          ? allowance.period_end
+          : new Date(`${allowance.period_end}T23:59:59Z`);
+        if (allowance.status === 'revoked' || periodEnd.getTime() < Date.now()) {
+          throw new ApiError(409, 'price_correction_allowance_closed', 'The original company allowance period is closed. Finance must review this order before credit is returned.');
+        }
+        const allowanceCap = Number(allowance.granted_amount) + Number(allowance.carried_forward_amount);
+        subsidyRestored = Math.min(subsidyTokenAmount, Math.max(0, allowanceCap - Number(allowance.remaining_amount)));
+        if (subsidyRestored !== subsidyTokenAmount) {
+          throw new ApiError(409, 'price_correction_allowance_mismatch', 'The company allowance no longer has enough capacity for this correction. Review the allowance before continuing.');
+        }
+        await connection.execute(
+          `UPDATE employee_token_allowances
+              SET remaining_amount = remaining_amount + :amount,
+                  updated_at = UTC_TIMESTAMP()
+            WHERE id = :allowanceId`,
+          { amount: subsidyRestored, allowanceId: allowance.id }
+        );
+      }
+
+      const walletCreditAmount = personalTokenAmount + (preview.allowanceWasUnlimited ? 0 : subsidyRestored);
+      let balanceAfter = 0;
+      if (walletCreditAmount > 0) {
+        const [accounts] = await connection.query<Array<RowDataPacket & { balance_available: number }>>(
+          `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+          { userId: preview.userId }
+        );
+        if (!accounts[0]) throw new ApiError(409, 'token_account_missing', 'The customer token account was not found.');
+        balanceAfter = Number(accounts[0].balance_available) + walletCreditAmount;
+        await connection.execute(
+          `UPDATE token_accounts
+              SET balance_available = :balanceAfter,
+                  balance_cap = GREATEST(balance_cap, :balanceAfter),
+                  updated_at = UTC_TIMESTAMP()
+            WHERE user_id = :userId`,
+          { balanceAfter, userId: preview.userId }
+        );
+      }
+
+      const [correctionResult] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO order_price_corrections
+          (tenant_id, order_id, original_token_amount, corrected_token_amount,
+           correction_token_amount, subsidy_token_amount, personal_token_amount,
+           wallet_credit_amount, historical_gross_token_amount, corrected_gross_token_amount,
+           preserved_deduction_token_amount, calculation_json, reason, created_by_admin_id, created_at)
+         VALUES
+          (:tenantId, :orderId, :originalAmount, :correctedAmount, :correctionAmount,
+           :subsidyAmount, :personalAmount, :walletCreditAmount, :historicalGross,
+           :correctedGross, :preservedDeduction, :calculationJson, :reason, :adminId, UTC_TIMESTAMP())`,
+        {
+          tenantId: preview.tenantId,
+          orderId: preview.orderId,
+          originalAmount: preview.originalTokenAmount,
+          correctedAmount: payload.corrected_token_amount,
+          correctionAmount: correctionTokenAmount,
+          subsidyAmount: subsidyTokenAmount,
+          personalAmount: personalTokenAmount,
+          walletCreditAmount,
+          historicalGross: preview.historicalGrossTokenAmount,
+          correctedGross: preview.correctedGrossTokenAmount,
+          preservedDeduction: preview.preservedDeductionTokenAmount,
+          calculationJson: JSON.stringify({ ...preview, fundingSplit: split }),
+          reason: payload.reason,
+          adminId: request.adminAuth.adminUserId
+        }
+      );
+
+      await connection.execute(
+        `UPDATE orders
+            SET token_amount_charged = :correctedAmount,
+                employee_allowance_tokens_used = GREATEST(0, employee_allowance_tokens_used - :subsidyAmount)
+          WHERE id = :orderId`,
+        {
+          correctedAmount: payload.corrected_token_amount,
+          subsidyAmount: subsidyTokenAmount,
+          orderId: preview.orderId
+        }
+      );
+
+      if (walletCreditAmount > 0) {
+        await connection.execute(
+          `INSERT INTO token_ledger
+            (user_id, token_lot_id, direction, source_type, source_id, amount,
+             balance_after, remarks, created_by_admin_id, created_at)
+           VALUES
+            (:userId, NULL, 'credit', 'order_price_correction', :correctionId, :amount,
+             :balanceAfter, :remarks, :adminId, UTC_TIMESTAMP())`,
+          {
+            userId: preview.userId,
+            correctionId: correctionResult.insertId,
+            amount: walletCreditAmount,
+            balanceAfter,
+            remarks: `Token price correction for order ${preview.orderRef}`,
+            adminId: request.adminAuth.adminUserId
+          }
+        );
+      }
+
+      await connection.execute(
+        `INSERT INTO admin_audit_logs
+          (admin_user_id, effective_roles_json, action_code, target_type, target_id,
+           ip_address, user_agent, created_at)
+         VALUES
+          (:adminId, :roles, 'order_token_price_corrected', 'order_price_correction', :correctionId,
+           :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        {
+          adminId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          correctionId: correctionResult.insertId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null
+        }
+      );
+
+      await connection.commit();
+      return reply.code(201).send({
+        correction: {
+          id: correctionResult.insertId,
+          order_ref: preview.orderRef,
+          original_token_amount: preview.originalTokenAmount,
+          corrected_token_amount: payload.corrected_token_amount,
+          credited_token_amount: walletCreditAmount,
+          subsidy_token_amount: subsidyTokenAmount,
+          personal_token_amount: personalTokenAmount
+        }
+      });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.post('/v1/admin/refunds', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireRefundRequestAccess(request);
     const payload = createRefundSchema.parse(request.body);
@@ -210,6 +559,11 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           vt.code as voucherCode,
           o.final_total_rm as total,
           o.token_amount_charged as tokenAmountCharged,
+          opc.original_token_amount as originalTokenAmount,
+          opc.correction_token_amount as priceCorrectionAmount,
+          opc.subsidy_token_amount as priceCorrectionSubsidyAmount,
+          opc.personal_token_amount as priceCorrectionPersonalAmount,
+          opc.created_at as priceCorrectedAt,
           o.payment_mode as paymentMode,
           o.status as status,
           COALESCE((
@@ -220,6 +574,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             LIMIT 1
           ), 'kawan') AS tier_code,
           p.provider as paymentProvider,
+          p.payment_method as paymentMethod,
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
           ocr.status as cancellationRequestStatus,
@@ -245,12 +600,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         LEFT JOIN user_vouchers uv ON uv.id = o.voucher_id
         LEFT JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
         LEFT JOIN order_cancellation_requests ocr ON ocr.order_id = o.id
+        LEFT JOIN order_price_corrections opc ON opc.order_id = o.id
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
           AND (
             :view = 'all'
             OR (
-              o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+              o.status IN ('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
               AND DATE(DATE_ADD(o.created_at, INTERVAL 8 HOUR)) =
                   DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))
             )
@@ -378,9 +734,15 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           voucherCode: o.voucherCode || null,
           total: Number(o.total || 0),
           tokenAmountCharged: Number(o.tokenAmountCharged || 0),
+          originalTokenAmount: o.originalTokenAmount == null ? null : Number(o.originalTokenAmount),
+          priceCorrectionAmount: Number(o.priceCorrectionAmount || 0),
+          priceCorrectionSubsidyAmount: Number(o.priceCorrectionSubsidyAmount || 0),
+          priceCorrectionPersonalAmount: Number(o.priceCorrectionPersonalAmount || 0),
+          priceCorrectedAt: o.priceCorrectedAt ? new Date(o.priceCorrectedAt).toISOString() : null,
           paymentMode: o.paymentMode || '',
           status: capitalizeWords(o.status),
           payment: o.paymentMode || '',
+          paymentMethod: o.paymentMethod || '',
           paymentStatus: capitalizeWords(o.paymentStatus || ''),
           cancellationRequestStatus: o.cancellationRequestStatus || null,
           cancellationRequestReason: o.cancellationRequestReason || null,
@@ -526,6 +888,43 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          ORDER BY topup_count DESC, amount_rm DESC, payment_method ASC`,
         { tenantCode }
       );
+      const [tokenMovementRows] = await connection.query<Array<RowDataPacket & {
+        source_type: string;
+        direction: 'credit' | 'debit';
+        movement_count: number;
+        token_amount: string | number;
+      }>>(
+        `SELECT tl.source_type, tl.direction, COUNT(*) AS movement_count,
+                COALESCE(SUM(tl.amount), 0) AS token_amount
+           FROM token_ledger tl
+           JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id
+           JOIN admin_tenants t ON t.id = ctm.tenant_id
+          WHERE t.code = :tenantCode
+          GROUP BY tl.source_type, tl.direction
+          ORDER BY tl.source_type ASC, tl.direction ASC`,
+        { tenantCode }
+      );
+      const [paymentMethodRows] = await connection.query<Array<RowDataPacket & {
+        payment_method: string | null;
+        payment_mode: string | null;
+        payment_count: number;
+        amount_rm: string | number;
+      }>>(
+        `SELECT NULLIF(p.payment_method, '') AS payment_method,
+                o.payment_mode,
+                COUNT(*) AS payment_count,
+                COALESCE(SUM(p.amount_rm), 0) AS amount_rm
+           FROM payments p
+           JOIN orders o ON o.id = p.order_id
+           JOIN stores s ON s.id = o.store_id
+           JOIN admin_tenants t ON t.id = s.tenant_id
+          WHERE t.code = :tenantCode
+            AND (:storeId IS NULL OR s.id = :storeId)
+            AND p.status = 'paid'
+          GROUP BY NULLIF(p.payment_method, ''), o.payment_mode
+          ORDER BY payment_count DESC, amount_rm DESC`,
+        queryParams
+      );
       const [transactionRows] = await connection.query<Array<RowDataPacket & {
         id: string;
         created_at: Date;
@@ -625,12 +1024,29 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       const totalTokensCharged = Number(orders.total_tokens_charged || 0);
       const totalRefundAmountRm = Number(refunds.total_refund_rm || 0);
       const totalRefundTokens = Number(refunds.total_refund_tokens || 0);
+      const directPaymentOrderValueRm = Number((await connection.query<Array<RowDataPacket & { total: string | number }>>(
+        `SELECT COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'direct' THEN o.final_total_rm ELSE 0 END), 0) AS total
+           FROM orders o JOIN stores s ON s.id = o.store_id JOIN admin_tenants t ON t.id = s.tenant_id
+          WHERE t.code = :tenantCode AND (:storeId IS NULL OR s.id = :storeId)`,
+        queryParams
+      ))[0][0]?.total || 0);
+      const subsidyMovement = tokenMovementRows
+        .filter((row) => ['employee_allowance_issue', 'employee_allowance_spend', 'employee_allowance_expiry', 'employee_allowance_role_revoke'].includes(row.source_type))
+        .reduce((acc, row) => {
+          const amount = Number(row.token_amount || 0);
+          if (row.direction === 'credit') acc.issued += amount;
+          else acc.consumed += amount;
+          acc.movements += Number(row.movement_count || 0);
+          return acc;
+        }, { issued: 0, consumed: 0, movements: 0 });
 
       return {
         selectedStoreId: storeId ?? null,
         topUpScope: 'tenant',
         summary: {
           totalRevenueRm,
+          directPaymentOrderValueRm,
+          tokenOrderValueRm: Math.max(0, totalRevenueRm - directPaymentOrderValueRm),
           totalTokensCharged,
           totalRefundAmountRm,
           totalRefundTokens,
@@ -640,7 +1056,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           activeOrders: Number(orders.active_orders || 0),
           completedOrders: Number(orders.completed_orders || 0),
           refundedOrders: Number(refunds.refunded_orders || 0),
-          averageOrderValueRm: Number(orders.total_orders || 0) > 0 ? totalRevenueRm / Number(orders.total_orders) : 0
+          averageOrderValueRm: Number(orders.total_orders || 0) > 0 ? totalRevenueRm / Number(orders.total_orders) : 0,
+          accountingNote: 'RM order value is not cash revenue for token-funded orders.'
         },
         monthlyRevenue: Array.from(monthMap.entries())
           .sort(([left], [right]) => left.localeCompare(right))
@@ -666,6 +1083,24 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           amountRm: Number(row.amount_rm || 0),
           tokenAmount: Number(row.token_amount || 0)
         })),
+        paymentMethodBreakdown: paymentMethodRows.map((row) => ({
+          method: row.payment_method || 'not_recorded',
+          paymentMode: row.payment_mode || 'unknown',
+          count: Number(row.payment_count || 0),
+          amountRm: Number(row.amount_rm || 0)
+        })),
+        tokenMovementBreakdown: tokenMovementRows.map((row) => ({
+          sourceType: row.source_type,
+          direction: row.direction,
+          count: Number(row.movement_count || 0),
+          tokenAmount: Number(row.token_amount || 0)
+        })),
+        subsidySummary: {
+          issuedTokens: subsidyMovement.issued,
+          consumedTokens: subsidyMovement.consumed,
+          movementCount: subsidyMovement.movements,
+          remainingIssuedTokens: Math.max(0, subsidyMovement.issued - subsidyMovement.consumed)
+        },
         recentTransactions: transactionRows.map((row) => ({
           id: row.id,
           date: formatDisplayDate(new Date(row.created_at)),
@@ -679,6 +1114,87 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           paymentMode: row.payment_mode || '',
           reference: row.reference_id
           ,storeName: row.store_name
+        }))
+      };
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.get('/v1/admin/finance/audit-ledger', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireFinanceAccess(request);
+    const { limit, store_id: storeId } = financeAuditQuerySchema.parse(request.query);
+    const connection = await mysqlPool.getConnection();
+    try {
+      const [rows] = await connection.query<Array<RowDataPacket & {
+        id: string; created_at: Date; entry_type: string; source_type: string;
+        description: string; customer: string | null; reference_id: string | null;
+        store_name: string | null; payment_method: string | null; payment_mode: string | null;
+        amount_rm: string | number; amount_tokens: string | number; status: string;
+      }>>(
+        `SELECT * FROM (
+           SELECT CONCAT('TOKEN-', tl.id) AS id, tl.created_at,
+                  'Token movement' AS entry_type, tl.source_type,
+                  COALESCE(tl.remarks, tl.source_type) AS description,
+                  COALESCE(up.display_name, u.phone_e164) AS customer,
+                  CAST(tl.source_id AS CHAR) AS reference_id,
+                  NULL AS store_name, NULL AS payment_method, NULL AS payment_mode,
+                  0 AS amount_rm,
+                  CASE WHEN tl.direction = 'credit' THEN tl.amount ELSE -tl.amount END AS amount_tokens,
+                  tl.direction AS status
+             FROM token_ledger tl
+             JOIN users u ON u.id = tl.user_id
+             LEFT JOIN user_profiles up ON up.user_id = u.id
+             JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id
+             JOIN admin_tenants t ON t.id = ctm.tenant_id
+            WHERE t.code = :tenantCode
+           UNION ALL
+           SELECT CONCAT('PAYMENT-', p.id), p.created_at,
+                'Payment', COALESCE(p.payment_method, o.payment_mode, 'not_recorded'),
+                  CONCAT('Paid order ', o.order_ref),
+                  COALESCE(up.display_name, u.phone_e164), o.order_ref, s.name,
+                  p.payment_method, o.payment_mode, p.amount_rm, 0, p.status
+             FROM payments p
+             JOIN orders o ON o.id = p.order_id
+             JOIN users u ON u.id = o.user_id
+             LEFT JOIN user_profiles up ON up.user_id = u.id
+             JOIN stores s ON s.id = o.store_id
+             JOIN admin_tenants t ON t.id = s.tenant_id
+            WHERE t.code = :tenantCode AND (:storeId IS NULL OR s.id = :storeId)
+           UNION ALL
+           SELECT CONCAT('REFUND-', r.id), r.created_at,
+                  'Refund', r.payment_mode,
+                  CONCAT('Refund ', o.order_ref, CASE WHEN r.reason IS NULL OR r.reason = '' THEN '' ELSE CONCAT(' · ', r.reason) END),
+                  COALESCE(up.display_name, u.phone_e164), r.refund_ref, s.name,
+                  r.payment_mode, r.payment_mode, -r.refund_amount_rm, -r.refund_token_amount, r.status
+             FROM refunds r
+             JOIN orders o ON o.id = r.order_id
+             JOIN users u ON u.id = o.user_id
+             LEFT JOIN user_profiles up ON up.user_id = u.id
+             JOIN stores s ON s.id = o.store_id
+             JOIN admin_tenants t ON t.id = s.tenant_id
+            WHERE t.code = :tenantCode AND (:storeId IS NULL OR s.id = :storeId)
+         ) audit_entries
+         ORDER BY created_at DESC
+         LIMIT :limit`,
+        { tenantCode: request.adminAuth.tenantCode, storeId: storeId ?? null, limit }
+      );
+      return {
+        selectedStoreId: storeId ?? null,
+        entries: rows.map((row) => ({
+          id: row.id,
+          createdAt: row.created_at,
+          type: row.entry_type,
+          source: row.source_type,
+          description: row.description,
+          customer: row.customer || 'Unknown',
+          reference: row.reference_id || '',
+          storeName: row.store_name || '',
+          paymentMethod: row.payment_method || '',
+          paymentMode: row.payment_mode || '',
+          amountRm: Number(row.amount_rm || 0),
+          amountTokens: Number(row.amount_tokens || 0),
+          status: row.status || ''
         }))
       };
     } finally {

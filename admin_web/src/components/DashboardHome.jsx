@@ -194,8 +194,10 @@ const DashboardHome = ({ setCurrentPage }) => {
     awaitingPreparation: 0,
     preparing: 0,
     customersServed: 0,
-    pendingRefunds: 0
+    pendingRefunds: 0,
+    coverage: {}
   };
+  const coverage = summary.coverage || {};
   const trends = dashboard?.trends || [];
   const recentOrders = dashboard?.recentOrders || [];
   const recentActivity = dashboard?.recentActivity || [];
@@ -305,6 +307,32 @@ const DashboardHome = ({ setCurrentPage }) => {
           badge={periodLabel}
         />
       </div>
+
+      <section className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-base font-bold text-gray-900 tracking-tight">Operational control tower</h2>
+            <InfoTooltip content="Cross-page live indicators for customers, vouchers, gift cards, menu, inventory, and company subsidy. Financial values remain RM-equivalent and token movements remain separate." title="Operational control tower" />
+          </div>
+          <span className="text-xs font-semibold text-gray-400">Live configuration and selected period</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {[
+            ['Customers', formatNumber(coverage.activeCustomers), `${formatNumber(coverage.pendingCustomers)} pending`, Users, 'bg-[#6F9F96]/15 text-[#2E5E58]'],
+            ['Vouchers', formatNumber(coverage.activeVouchers), `${formatNumber(coverage.voucherRedemptions)} redeemed`, PackageCheck, 'bg-violet-50 text-violet-700'],
+            ['Gift cards', formatNumber(coverage.activeGiftCards), `${formatRm(coverage.giftCardValueRm)} RM value`, Wallet, 'bg-amber-50 text-amber-700'],
+            ['Active menu', formatNumber(coverage.activeMenuItems), 'published items', Coffee, 'bg-emerald-50 text-emerald-700'],
+            ['Low stock', formatNumber(coverage.lowStockItems), 'needs review', ShoppingBag, coverage.lowStockItems > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'],
+            ['Subsidy used', formatNumber(coverage.subsidyConsumedTokens), `${formatNumber(coverage.subsidyIssuedTokens)} issued`, CircleDollarSign, 'bg-sky-50 text-sky-700']
+          ].map(([title, value, subtitle, Icon, iconBg]) => (
+            <div key={title} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <div className="flex items-center gap-2"><div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}><Icon size={15} /></div><p className="text-xs font-bold text-gray-600">{title}</p></div>
+              <p className="mt-3 text-xl font-extrabold tabular-nums text-gray-900">{value}</p>
+              <p className="mt-1 text-[11px] text-gray-500">{subtitle}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
