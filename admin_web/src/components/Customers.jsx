@@ -5,6 +5,8 @@ import {
   X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3
 } from 'lucide-react';
 import Pagination from './Pagination';
+import InfoTooltip from './InfoTooltip';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { exportToCSV } from '../utils/exportToCSV';
@@ -69,26 +71,33 @@ export const resolveTierProgress = (customer, tiers = []) => customer?.tierProgr
 
 const hasPurchaseHistory = (customer) => Number(customer?.orderCount ?? customer?.orders ?? 0) > 0;
 
-const KPICard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
+const KPICard = ({ title, value, change, badge, icon: Icon, iconBg, info }) => {
+  const displayBadge = badge || change;
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-      )}
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
+      </div>
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {displayBadge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {displayBadge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const getTierColor = (tier, tierCode) => {
   const normalized = String(tierCode || tier || '').trim().toLowerCase();
@@ -354,7 +363,8 @@ const Customers = ({ currentUser }) => {
   const [importIssues, setImportIssues] = useState([]);
   const [importResult, setImportResult] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
-  const itemsPerPage = 10;
+  const [showAllCustomers, setShowAllCustomers] = useState(false);
+  const itemsPerPage = useResponsivePageSize(5, 10);
 
   useEffect(() => {
     let isMounted = true;
@@ -474,7 +484,7 @@ const Customers = ({ currentUser }) => {
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedData = showAllCustomers ? filteredData : filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleExport = () => {
     const rows = [
@@ -650,11 +660,11 @@ const Customers = ({ currentUser }) => {
   const averageSpendTokens = totalCustomers > 0 ? totalSpendTokens / totalCustomers : 0;
 
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
       {/* Header section */}
       <div className="mb-6 flex-shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-        <p className="text-gray-500">Customer accounts, profiles, and order activity.</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Customers</h1>
+        <p className="text-gray-500 text-xs sm:text-sm">Customer accounts, profiles, and order activity.</p>
       </div>
 
       {loadError && (
@@ -665,10 +675,10 @@ const Customers = ({ currentUser }) => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
-        <KPICard title="Customers" value={totalCustomers.toLocaleString('en-US')} change={`${employeeCustomers} employees · ${nonEmployeeCustomers} non-employees`} icon={Wallet} iconBg="bg-[#1F3A34]" iconColor="text-white" />
-        <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} change={`Customers above ${baseTierName} tier`} icon={Users} iconBg="bg-[#6F9F96]" iconColor="text-white" />
-        <KPICard title="Token Usage" value={formatTokens(totalSpendTokens)} change={`Subsidy: ${formatTokens(totalSubsidyTokens)}`} icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
-        <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} change={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-[#D9C4A9]" iconColor="text-white" />
+        <KPICard title="Customers" value={totalCustomers.toLocaleString('en-US')} badge={`${employeeCustomers} employees · ${nonEmployeeCustomers} non-employees`} icon={Wallet} iconBg="bg-[#1F3A34]/10 text-[#1F3A34]" />
+        <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} badge={`Customers above ${baseTierName} tier`} icon={Users} iconBg="bg-[#6F9F96]/20 text-[#2E5E58]" />
+        <KPICard title="Token Usage" value={formatTokens(totalSpendTokens)} badge={`Subsidy: ${formatTokens(totalSubsidyTokens)}`} icon={Megaphone} iconBg="bg-[#E07A5F]/15 text-[#E07A5F]" />
+        <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} badge={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-amber-500/15 text-amber-700" />
       </div>
 
       {/* Filters and Actions */}
@@ -882,7 +892,7 @@ const Customers = ({ currentUser }) => {
               </tbody>
             </table>
           </div>
-          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-4 shrink-0 bg-white">
+          <div className="px-4 sm:px-6 py-3.5 border-t border-gray-200 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -890,16 +900,20 @@ const Customers = ({ currentUser }) => {
               itemsPerPage={itemsPerPage}
               totalItems={filteredData.length}
               itemName="customers"
+              showAll={showAllCustomers}
+              onToggleShowAll={() => setShowAllCustomers(!showAllCustomers)}
+              action={(
+                <button onClick={handleExport} className="flex items-center gap-1.5 px-3.5 py-1.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-2xs">
+                  <Download size={14} /> Export
+                </button>
+              )}
             />
-            <button onClick={handleExport} className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
-              <Download size={16} className="mr-2" /> Export
-            </button>
           </div>
         </div>
 
         {/* Customer Overview Sidebar */}
         {selectedCustomer && (
-          <div className="w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col relative shrink-0">
+          <div className="w-full xl:w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 flex flex-col relative shrink-0">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-gray-900">Customer Overview</h2>
               <button className="text-gray-400 hover:text-gray-900" onClick={() => setSelectedCustomer(null)}>
