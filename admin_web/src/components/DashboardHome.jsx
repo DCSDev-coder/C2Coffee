@@ -2,7 +2,6 @@ import React, { forwardRef, useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
-  ChefHat,
   ChevronDown,
   ChevronUp,
   Clock3,
@@ -14,9 +13,9 @@ import {
   Users,
   Wallet
 } from 'lucide-react';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import { Area, AreaChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { loadAdminDashboard } from '../lib/adminApi';
 import OutletFilter from './OutletFilter';
 import InfoTooltip from './InfoTooltip';
@@ -47,30 +46,33 @@ const statusTone = (status) => {
   return 'bg-slate-100 text-slate-700 border border-slate-200/60';
 };
 
-const StatCard = ({ title, value, info, icon: Icon, iconBg, badge, highlight = false }) => (
-  <div className={`bg-white p-3.5 sm:p-5 rounded-2xl border ${highlight ? 'border-[#2E5E58]/40 ring-1 ring-[#2E5E58]/15' : 'border-gray-200/80'} shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all`}>
+const StatCard = ({ title, value, detail, info, icon: Icon, iconBg, badge, highlight = false, onClick }) => (
+  <button type="button" onClick={onClick} disabled={!onClick} className={`text-left bg-white p-3.5 sm:p-5 rounded-2xl border ${highlight ? 'border-[#2E5E58]/40 ring-1 ring-[#2E5E58]/15' : 'border-gray-200/80'} shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift ${onClick ? 'cursor-pointer hover:border-[#2E5E58]/40' : 'cursor-default'} transition-all`}>
     <div className="flex items-center justify-between gap-1.5 sm:gap-2">
       <div className="flex items-center gap-1 min-w-0">
-        <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+        <h2 className="text-gray-500 text-[9px] sm:text-[11px] font-bold uppercase tracking-wider leading-tight">{title}</h2>
         {info && <InfoTooltip content={info} title={title} placement="top" />}
       </div>
       <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]'}`}>
         <Icon size={15} strokeWidth={2.2} />
       </div>
     </div>
-    <div className="mt-2.5 sm:mt-3 flex flex-wrap items-baseline justify-between gap-1 sm:gap-2">
-      <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
-      {badge && (
-        <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-[85px] sm:max-w-[100px]">
-          {badge}
-        </span>
-      )}
+    <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-1 sm:gap-2">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {badge && (
+          <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-[85px] sm:max-w-[100px]">
+            {badge}
+          </span>
+        )}
+      </div>
+      {detail && <div className="text-[10px] sm:text-[11px] font-medium text-gray-500 leading-tight">{detail}</div>}
     </div>
-  </div>
+  </button>
 );
 
-const ChartCard = ({ title, value, subtitle, data, dataKey, color, gradientId, formatter, info }) => (
-  <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col h-72 sm:h-80 card-reveal hover-lift">
+const CombinedTrendCard = ({ title, value, subtitle, data, info }) => (
+  <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col h-80 sm:h-96 card-reveal hover-lift">
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-1.5 min-w-0">
         <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight truncate">{title}</h2>
@@ -84,21 +86,24 @@ const ChartCard = ({ title, value, subtitle, data, dataKey, color, gradientId, f
     <div className="flex-1 mt-3 min-h-0 overflow-x-auto overflow-y-hidden touch-pan-x pb-1">
       <div className="h-full min-w-[520px] sm:min-w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 12, left: -24, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
             <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={color} stopOpacity={0.25} />
-                <stop offset="95%" stopColor={color} stopOpacity={0} />
+              <linearGradient id="dashboardCombinedRevenue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.22} />
+                <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis dataKey="time" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={10} />
-            <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+            <YAxis yAxisId="value" axisLine={false} tick={false} width={8} />
+            <YAxis yAxisId="orders" orientation="right" axisLine={false} tick={false} width={8} allowDecimals={false} />
             <Tooltip
-              formatter={(amount) => formatter(amount)}
+              formatter={(amount, name) => [name === 'Order value' ? formatRm(amount) : formatNumber(amount), name]}
               contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
               itemStyle={{ color: '#fff' }}
             />
-            <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} fillOpacity={1} fill={`url(#${gradientId})`} />
+            <Legend verticalAlign="top" align="right" height={28} iconType="line" wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+            <Area yAxisId="value" type="monotone" name="Order value" dataKey="revenue" stroke="#2E5E58" strokeWidth={2} fillOpacity={1} fill="url(#dashboardCombinedRevenue)" />
+            <Line yAxisId="orders" type="monotone" name="Orders" dataKey="orders" stroke="#D4AF7A" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -111,8 +116,8 @@ const EmptyState = ({ children }) => (
 );
 
 const DashboardHome = ({ setCurrentPage }) => {
+  const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [selectedRange, setSelectedRange] = useState([null, null]);
-  const [selectedPeriod, setSelectedPeriod] = useState('this_month');
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -120,7 +125,6 @@ const DashboardHome = ({ setCurrentPage }) => {
   const [rangeStart, rangeEnd] = selectedRange;
   const rangeStartDate = toDateKey(rangeStart);
   const rangeEndDate = toDateKey(rangeEnd);
-
   const fetchDashboard = useCallback(async ({ showLoading = false } = {}) => {
     if (selectedPeriod === 'custom' && !rangeStartDate) return;
     if (showLoading) setLoading(true);
@@ -148,36 +152,29 @@ const DashboardHome = ({ setCurrentPage }) => {
 
   const periodLabel = selectedPeriod === 'this_month'
     ? 'This month'
-    : selectedPeriod === 'last_month'
-      ? 'Last month'
-    : selectedPeriod === '3m'
-      ? 'Last 3 months'
-    : selectedPeriod === '6m'
-      ? 'Last 6 months'
-      : selectedPeriod === '1y'
-        ? 'Last 1 year'
-        : rangeStartDate === rangeEndDate
-          ? 'Selected day'
-          : rangeStartDate && rangeEndDate
-            ? `${rangeStartDate} to ${rangeEndDate}`
-            : 'Custom range';
+    : selectedPeriod === 'this_week'
+      ? 'This week'
+    : selectedPeriod === 'this_year'
+      ? 'This year'
+      : selectedPeriod === 'today'
+        ? 'Today'
+      : rangeStartDate === rangeEndDate
+        ? 'Selected day'
+        : rangeStartDate && rangeEndDate
+          ? `${rangeStartDate} to ${rangeEndDate}`
+          : 'Custom range';
   const chartTimeLabel = dashboard?.isSingleDay ? 'Hour' : 'Date';
   const chartSubtitle = dashboard?.isSingleDay ? 'Hourly Breakdown' : periodLabel;
 
   const handlePeriodChange = (event) => {
     const nextPeriod = event.target.value;
     setSelectedPeriod(nextPeriod);
-    if (nextPeriod !== 'custom') {
-      setSelectedRange([null, null]);
-    }
   };
 
   const handleRangeChange = (dates) => {
     const [start, end] = dates;
     setSelectedRange([start, end]);
-    if (start) {
-      setSelectedPeriod('custom');
-    }
+    if (start) setSelectedPeriod('custom');
   };
 
   const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
@@ -188,15 +185,18 @@ const DashboardHome = ({ setCurrentPage }) => {
       className="flex items-center gap-2 border border-gray-200 px-3 py-2 rounded-lg bg-white shadow-xs text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
     >
       <CalendarDays size={14} className="text-[#2E5E58]" />
-      <span>{value || 'Today'}</span>
+      <span>{value || 'Choose dates'}</span>
     </button>
   ));
 
   const summary = dashboard?.summary || {
     salesToday: 0,
     ordersToday: 0,
-    awaitingPreparation: 0,
-    preparing: 0,
+    cashCollectedRm: 0,
+    tokenOrderValueRm: 0,
+    subsidyUsedTokens: 0,
+    personalTokensUsed: 0,
+    pendingPaymentValueRm: 0,
     customersServed: 0,
     pendingRefunds: 0,
     coverage: {}
@@ -233,12 +233,10 @@ const DashboardHome = ({ setCurrentPage }) => {
             className="border border-gray-200 px-3 py-2 rounded-lg bg-white shadow-xs text-xs font-semibold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors focus:outline-none flex-1 sm:flex-initial"
             aria-label="Dashboard period"
           >
+            <option value="today">Today</option>
+            <option value="this_week">This week</option>
             <option value="this_month">This month</option>
-            <option value="last_month">Last month</option>
-            <option value="3m">Last 3 months</option>
-            <option value="6m">Last 6 months</option>
-            <option value="1y">Last 1 year</option>
-            <option value="custom">Custom date range</option>
+            <option value="this_year">This year</option>
           </select>
           <DatePicker
             portalId="root-portal"
@@ -272,12 +270,23 @@ const DashboardHome = ({ setCurrentPage }) => {
       {/* Modern, high-density KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3 sm:gap-4 mb-6">
         <StatCard
-          title="Sales"
-          value={formatRm(summary.salesToday)}
-          info="Total revenue from all paid, active, and collected orders within the selected timeframe."
+          title="Direct Payments"
+          value={formatRm(summary.cashCollectedRm)}
+          info="Direct RM payments collected during the selected timeframe."
           icon={Wallet}
           iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
           badge={periodLabel}
+          onClick={() => setCurrentPage?.('Finance')}
+        />
+        <StatCard
+          title="Token Order Value"
+          value={formatRm(summary.tokenOrderValueRm)}
+          detail={<div className="grid grid-cols-2 gap-x-2 gap-y-0.5"><span>Personal: <strong className="text-gray-700">{formatNumber(summary.personalTokensUsed)}</strong></span><span>Subsidy: <strong className="text-gray-700">{formatNumber(summary.subsidyUsedTokens)}</strong></span></div>}
+          info="RM-equivalent menu value of token-funded orders. The detail below shows how many tokens came from the customer and how many came from company subsidy. This is not cash revenue."
+          icon={CircleDollarSign}
+          iconBg="bg-sky-50 text-sky-700"
+          badge={periodLabel}
+          onClick={() => setCurrentPage?.('Finance')}
         />
         <StatCard
           title="Orders"
@@ -286,22 +295,16 @@ const DashboardHome = ({ setCurrentPage }) => {
           icon={ShoppingBag}
           iconBg="bg-[#2E5E58]/10 text-[#2E5E58]"
           badge={periodLabel}
+          onClick={() => setCurrentPage?.('Orders')}
         />
         <StatCard
-          title="Awaiting Prep"
-          value={formatNumber(summary.awaitingPreparation)}
-          info="Accepted customer orders currently waiting in line for a barista."
+          title="Pending Payments"
+          value={formatRm(summary.pendingPaymentValueRm)}
+          info="RM value of orders waiting for payment confirmation."
           icon={Clock3}
           iconBg="bg-amber-50 text-amber-700"
-          badge={summary.awaitingPreparation > 0 ? "Queued" : "None"}
-        />
-        <StatCard
-          title="In Preparation"
-          value={formatNumber(summary.preparing)}
-          info="Orders currently being prepared at the bar."
-          icon={ChefHat}
-          iconBg="bg-[#E07A5F]/10 text-[#E07A5F]"
-          badge={summary.preparing > 0 ? "Active" : "Idle"}
+          badge={periodLabel}
+          onClick={() => setCurrentPage?.('Orders')}
         />
         <StatCard
           title="Refund Reviews"
@@ -311,24 +314,26 @@ const DashboardHome = ({ setCurrentPage }) => {
           iconBg={summary.pendingRefunds > 0 ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500"}
           badge={summary.pendingRefunds > 0 ? "Pending action" : "Zero pending"}
           highlight={summary.pendingRefunds > 0}
+          onClick={() => setCurrentPage?.('Refunds')}
         />
         <StatCard
           title="Customers"
           value={formatNumber(summary.customersServed)}
-          info="Count of distinct customers who placed eligible orders during this period."
+          detail={<div className="grid grid-cols-2 gap-x-2 gap-y-0.5"><span>Employees: <strong className="text-gray-700">{formatNumber(summary.employeeCustomersServed)}</strong></span><span>Non-employees: <strong className="text-gray-700">{formatNumber(summary.nonEmployeeCustomersServed)}</strong></span></div>}
+          info="Distinct customers who placed eligible orders during this period, split between employee/intern accounts and non-employee customers."
           icon={Users}
           iconBg="bg-[#6F9F96]/15 text-[#2E5E58]"
           badge={periodLabel}
+          onClick={() => setCurrentPage?.('Customers')}
         />
       </div>
 
       <section className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-1.5">
-            <h2 className="text-base font-bold text-gray-900 tracking-tight">Operational control tower</h2>
-            <InfoTooltip content="Cross-page live indicators for customers, vouchers, gift cards, menu, inventory, and company subsidy. Financial values remain RM-equivalent and token movements remain separate." title="Operational control tower" />
+            <h2 className="text-base font-bold text-gray-900 tracking-tight">Business Overview</h2>
+            <InfoTooltip content="Quick links into the customer, voucher, gift-card, menu, inventory, and subsidy records used for management review." title="Business Overview" />
           </div>
-          <span className="text-xs font-semibold text-gray-400">Live configuration and selected period</span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {[
@@ -337,7 +342,7 @@ const DashboardHome = ({ setCurrentPage }) => {
             ['Gift cards', formatNumber(coverage.activeGiftCards), `${formatRm(coverage.giftCardValueRm)} RM value`, Wallet, 'bg-amber-50 text-amber-700'],
             ['Active menu', formatNumber(coverage.activeMenuItems), 'published items', Coffee, 'bg-emerald-50 text-emerald-700'],
             ['Low stock', formatNumber(coverage.lowStockItems), 'needs review', ShoppingBag, coverage.lowStockItems > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'],
-            ['Subsidy used', formatNumber(coverage.subsidyConsumedTokens), `${formatNumber(coverage.subsidyIssuedTokens)} issued`, CircleDollarSign, 'bg-sky-50 text-sky-700']
+            ['Subsidy issued', formatNumber(coverage.subsidyIssuedTokens), `${formatNumber(coverage.subsidyConsumedTokens)} consumed`, CircleDollarSign, 'bg-sky-50 text-sky-700']
           ].map(([title, value, subtitle, Icon, iconBg]) => (
             <div key={title} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
               <div className="flex items-center gap-2"><div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}><Icon size={15} /></div><p className="text-xs font-bold text-gray-600">{title}</p></div>
@@ -348,34 +353,15 @@ const DashboardHome = ({ setCurrentPage }) => {
         </div>
       </section>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-6">
-        <div className="xl:col-span-6">
-          <ChartCard
-            title={`Sales by ${chartTimeLabel}`}
-            value={formatRm(summary.salesToday)}
-            subtitle={chartSubtitle}
-            data={trends}
-            dataKey="revenue"
-            color="#2E5E58"
-            gradientId="dashboardRevenue"
-            formatter={formatRm}
-            info="Gross sales trend over time for the selected period."
-          />
-        </div>
-        <div className="xl:col-span-6">
-          <ChartCard
-            title={`Orders by ${chartTimeLabel}`}
-            value={formatNumber(summary.ordersToday)}
-            subtitle={chartSubtitle}
-            data={trends}
-            dataKey="orders"
-            color="#D4AF7A"
-            gradientId="dashboardOrders"
-            formatter={formatNumber}
-            info="Order volume distribution across the selected time period."
-          />
-        </div>
+      {/* Combined finance and volume trend */}
+      <div className="mb-6">
+        <CombinedTrendCard
+          title={`Order value and volume by ${chartTimeLabel}`}
+          value={`${formatRm(summary.salesToday)} · ${formatNumber(summary.ordersToday)} orders`}
+          subtitle={chartSubtitle}
+          data={trends}
+          info="Compare combined RM-equivalent order value and order volume across the selected period. Direct cash and token-funded value are separated in the KPI cards above."
+        />
       </div>
 
       {/* Outlet Performance */}
@@ -454,8 +440,8 @@ const DashboardHome = ({ setCurrentPage }) => {
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Order ID</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Customer</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Outlet</th>
-                      <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">City</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Total</th>
+                      <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Payment</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Status</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Time</th>
                     </tr>
@@ -466,8 +452,19 @@ const DashboardHome = ({ setCurrentPage }) => {
                         <td className="py-3 text-[#2E5E58] font-bold">{order.id}</td>
                         <td className="py-3 font-medium text-gray-900">{order.customer}</td>
                         <td className="py-3 text-gray-600">{order.storeName || '-'}</td>
-                        <td className="py-3 text-gray-500">{order.city}</td>
                         <td className="py-3 font-bold text-gray-900 tabular-nums">{formatRm(order.total)}</td>
+                        <td className="py-3 text-gray-600">
+                          {String(order.paymentMode).toLowerCase() === 'direct' ? (
+                            <span className="font-semibold">Direct (RM)</span>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold">{order.subsidyTokenAmount > 0 ? 'Company subsidy + personal tokens' : 'Personal tokens'}</span>
+                              <span className="text-[11px] text-gray-500 tabular-nums">
+                                {order.subsidyTokenAmount > 0 ? `${formatNumber(order.subsidyTokenAmount)} subsidy · ${formatNumber(order.personalTokenAmount)} personal` : `${formatNumber(order.tokenAmount)} tokens`}
+                              </span>
+                            </div>
+                          )}
+                        </td>
                         <td className="py-3"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${statusTone(order.status)}`}>{order.status}</span></td>
                         <td className="py-3 font-medium text-gray-400 tabular-nums">{order.time}</td>
                       </tr>

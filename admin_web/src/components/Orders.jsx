@@ -111,6 +111,9 @@ const getTierColor = (tier, tierCode) => {
 
 const normalizeOrderStatus = (rawStatus) => {
   const s = String(rawStatus || '').trim().toLowerCase().replace(/_/g, ' ');
+  if (s === 'pending payment' || s === 'pending') {
+    return 'Pending Payment';
+  }
   if (s === 'paid' || s === 'accepted' || s === 'new' || s === 'order received') {
     return 'Order Received';
   }
@@ -146,6 +149,8 @@ const getStatusBadge = (s) => {
       return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-blue-100 text-blue-800">Ready for Pickup</span>;
     case "Order Received":
       return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-amber-100 text-amber-800">Order Received</span>;
+    case "Pending Payment":
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-yellow-100 text-yellow-800">Pending Payment</span>;
     case "Cancelled":
       return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-700">Cancelled</span>;
     case "Refund Requested":
@@ -159,15 +164,20 @@ const getStatusBadge = (s) => {
 
 const getPaymentTypeBadge = (order) => {
   const mode = String(order?.paymentMode || order?.payment || '').toLowerCase();
-  const isRefunded = String(order?.status || '').toLowerCase() === 'refunded' ||
-                     String(order?.paymentStatus || '').toLowerCase() === 'refunded';
+  const tokenTotal = Number(order?.tokenAmountCharged || 0);
+  const subsidyTokens = Math.min(tokenTotal, Number(order?.subsidyTokenAmount || 0));
+  const personalTokens = Math.max(0, tokenTotal - subsidyTokens);
 
   if (mode === 'token' || mode === 'tokens') {
+    const label = subsidyTokens > 0 && personalTokens > 0
+      ? `Company subsidy · ${subsidyTokens} tokens | Personal · ${personalTokens} tokens`
+      : subsidyTokens > 0
+        ? `Company subsidy · ${subsidyTokens} tokens`
+        : `Personal · ${personalTokens} tokens`;
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-[#E8F3F0] text-[#1E433A] border border-[#2E5E58]/20">
         <Coins size={12} className="text-[#2E5E58]" strokeWidth={2.3} />
-        <span>Tokens</span>
-        {isRefunded && <span className="text-[10px] text-rose-600 font-semibold">(Refunded)</span>}
+        <span>{label}</span>
       </span>
     );
   }
@@ -178,7 +188,6 @@ const getPaymentTypeBadge = (order) => {
   return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
       <span>{label}</span>
-      {isRefunded && <span className="text-[10px] text-rose-600 font-semibold">(Refunded)</span>}
     </span>
   );
 };
@@ -199,10 +208,8 @@ const OrderValueStack = ({ tokenValue, rmValue, align = 'items-start' }) => (
     <span className="text-[11px] text-gray-500">{formatRm(rmValue)}</span>
   </div>
 );
-const ITEMS_PER_PAGE = 10;
-
-const STATUSES = ["All Status", "Order Received", "Preparing", "Ready for Pickup", "Collected", "Cancelled", "Refunded"];
-const PAYMENT_TYPES = ["All Payment Types", "Tokens", "Direct (RM)", "Refunded"];
+const STATUSES = ["All Status", "Order Received", "Pending Payment", "Preparing", "Ready for Pickup", "Collected", "Cancelled"];
+const PAYMENT_TYPES = ["All Payment Types", "Personal Tokens", "Company Subsidy", "Mixed Tokens", "Direct (RM)"];
 
 // Sleek KPI Card matching DashboardHome & Menu standard
 const KPICard = ({ title, value, badge, info, icon: Icon, iconBg, iconColor = "text-white" }) => (
@@ -559,11 +566,13 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [paymentFilter, setPaymentFilter] = useState("All Payment Types");
   const [selectedStoreId, setSelectedStoreId] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState("today");
+  const [selectedDateRange, setSelectedDateRange] = useState([null, null]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showRefundsView, setShowRefundsView] = useState(initialShowRefunds);
   const [viewingProfileFor, setViewingProfileFor] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [statusOpen, setStatusOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [sortKey, setSortKey] = useState("time");
@@ -718,38 +727,42 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
       const normStatus = normalizeOrderStatus(o.status);
       const matchStatus = statusFilter === "All Status" || normStatus === statusFilter;
 
-      const isToken = (o.paymentMode || o.payment || '').toLowerCase() === 'token';
+      const isToken = ['token', 'tokens'].includes((o.paymentMode || o.payment || '').toLowerCase());
+      const tokenTotal = Number(o.tokenAmountCharged || 0);
+      const subsidyTokens = Math.min(tokenTotal, Number(o.subsidyTokenAmount || 0));
+      const personalTokens = Math.max(0, tokenTotal - subsidyTokens);
       const isDirect = (o.paymentMode || o.payment || '').toLowerCase() === 'direct';
-      const isRefund = o.paymentStatus === 'Refunded' || o.paymentStatus === 'Refund' || normStatus === 'Refunded';
 
       const matchPayment = (() => {
         if (paymentFilter === "All Payment Types" || paymentFilter === "All Payment Status") return true;
-        if (paymentFilter === "Tokens") return isToken;
+        if (paymentFilter === "Personal Tokens") return isToken && subsidyTokens === 0;
+        if (paymentFilter === "Company Subsidy") return isToken && subsidyTokens > 0 && personalTokens === 0;
+        if (paymentFilter === "Mixed Tokens") return isToken && subsidyTokens > 0 && personalTokens > 0;
         if (paymentFilter === "Direct (RM)") return isDirect;
-        if (paymentFilter === "Refunded") return isRefund;
         return true;
       })();
 
-      let matchDate = true;
-      if (selectedDate) {
-        const fmt = selectedDate.toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        });
-        matchDate =
-          o.date === fmt ||
-          o.date.includes(
-            selectedDate.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })
-          );
+      const orderDate = o.createdAt ? new Date(o.createdAt) : null;
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfWeek = new Date(startOfToday);
+      startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      let rangeStart = null;
+      let rangeEnd = null;
+      if (selectedPeriod === "today") rangeStart = startOfToday;
+      if (selectedPeriod === "this_week") rangeStart = startOfWeek;
+      if (selectedPeriod === "this_month") rangeStart = startOfMonth;
+      if (selectedPeriod === "this_year") rangeStart = startOfYear;
+      if (selectedPeriod === "custom") {
+        rangeStart = selectedDateRange[0] ? new Date(selectedDateRange[0].setHours(0, 0, 0, 0)) : null;
+        rangeEnd = selectedDateRange[1] ? new Date(selectedDateRange[1].setHours(23, 59, 59, 999)) : rangeStart;
       }
+      const matchDate = !orderDate || !rangeStart || (orderDate >= rangeStart && (!rangeEnd ? orderDate <= now : orderDate <= rangeEnd));
       return matchSearch && matchStatus && matchPayment && matchDate;
     });
-  }, [ordersList, search, statusFilter, paymentFilter, selectedDate]);
+  }, [ordersList, search, statusFilter, paymentFilter, selectedPeriod, selectedDateRange]);
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -828,8 +841,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
     );
   }
 
-  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / ITEMS_PER_PAGE));
-  const paginated = sortedOrders.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / itemsPerPage));
+  const paginated = sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // KPI counts based on active list
   const totalCount = ordersList.length;
@@ -988,20 +1001,32 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
 
           {/* Date Picker */}
           <div className="relative">
-            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
-              selected={selectedDate}
-              onChange={(d) => { setSelectedDate(d); resetPage(); }}
-              customInput={<CustomDateInput onClear={() => { setSelectedDate(null); resetPage(); }} />}
-              dateFormat="MMM d, yyyy"
-            />
+            <select
+              value={selectedPeriod}
+              onChange={(e) => { setSelectedPeriod(e.target.value); if (e.target.value !== "custom") setSelectedDateRange([null, null]); resetPage(); }}
+              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
+            >
+              <option value="today">Today</option>
+              <option value="this_week">This week</option>
+              <option value="this_month">This month</option>
+              <option value="this_year">This year</option>
+              <option value="custom">Choose dates</option>
+            </select>
           </div>
-
-          <button
-            onClick={() => setShowRefundsView(true)}
-            className="flex items-center px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all whitespace-nowrap cursor-pointer"
-          >
-            View Refunds
-          </button>
+          {selectedPeriod === "custom" && (
+            <div className="relative">
+              <DatePicker
+                portalId="root-portal"
+                popperPlacement="bottom-end"
+                selectsRange
+                startDate={selectedDateRange[0]}
+                endDate={selectedDateRange[1]}
+                onChange={(range) => { setSelectedDateRange(range); resetPage(); }}
+                customInput={<CustomDateInput onClear={() => { setSelectedDateRange([null, null]); resetPage(); }} />}
+                dateFormat="MMM d, yyyy"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -1084,11 +1109,21 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
 
           {/* Table Bottom: Pagination */}
           <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0 bg-white">
+            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 whitespace-nowrap">
+              Rows per page
+              <select
+                value={itemsPerPage}
+                onChange={(event) => { setItemsPerPage(Number(event.target.value)); setCurrentPage(1); }}
+                className="px-2.5 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#2E5E58]"
+              >
+                {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
+              itemsPerPage={itemsPerPage}
               totalItems={sortedOrders.length}
               itemName="orders"
             />

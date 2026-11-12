@@ -9,7 +9,7 @@ const dashboardQuerySchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   store_id: z.coerce.number().int().positive().optional(),
-  period: z.enum(['today', 'this_month', 'last_month', '3m', '6m', '1y', 'custom']).optional().default('this_month')
+  period: z.enum(['today', 'this_week', 'this_month', 'this_year', 'custom']).optional().default('this_month')
 }).superRefine((value, context) => {
   if (value.start_date && value.end_date && value.start_date > value.end_date) {
     context.addIssue({
@@ -32,6 +32,7 @@ type DashboardOrderRow = RowDataPacket & {
   payment_mode: string;
   final_total_rm: string | number;
   token_amount_charged: number;
+  employee_allowance_tokens_used: number;
   created_at: Date;
   store_id: number;
   store_name: string;
@@ -101,6 +102,18 @@ function startOfMonthDateKey(dateKey: string): string {
   return `${dateKey.slice(0, 7)}-01`;
 }
 
+function startOfWeekDateKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayOfWeek = date.getUTCDay();
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  return new Date(Date.UTC(year, month - 1, day - daysSinceMonday)).toISOString().slice(0, 10);
+}
+
+function startOfYearDateKey(dateKey: string): string {
+  return `${dateKey.slice(0, 4)}-01-01`;
+}
+
 function previousDateKey(dateKey: string): string {
   const [year, month, day] = dateKey.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
@@ -166,10 +179,9 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     const timeZone = getSafeTimeZone(storeRows[0]?.timezone);
     const businessDate = endDate || startDate || date || formatDateInTimeZone(new Date(), timeZone);
     const currentMonthStart = startOfMonthDateKey(businessDate);
-    const periodMonths = period === '3m' ? 3 : period === '6m' ? 6 : period === '1y' ? 12 : 0;
     const rangeStartDate = startDate
-      || (period === 'last_month' ? shiftDateKey(currentMonthStart, -1) : period === 'this_month' ? currentMonthStart : period === 'today' ? businessDate : shiftDateKey(businessDate, -periodMonths));
-    const rangeEndDate = endDate || startDate || (period === 'last_month' ? previousDateKey(currentMonthStart) : businessDate);
+      || (period === 'this_week' ? startOfWeekDateKey(businessDate) : period === 'this_month' ? currentMonthStart : period === 'this_year' ? startOfYearDateKey(businessDate) : businessDate);
+    const rangeEndDate = endDate || startDate || businessDate;
     const { start } = businessDayBounds(rangeStartDate, timeZone);
     const { end } = businessDayBounds(rangeEndDate, timeZone);
     const isSingleDay = rangeStartDate === rangeEndDate;
@@ -221,6 +233,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
           o.payment_mode,
           o.final_total_rm,
           o.token_amount_charged,
+          o.employee_allowance_tokens_used,
           o.created_at,
           s.id AS store_id,
           s.name AS store_name
@@ -237,12 +250,20 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       queryParams
     );
 
-    const [customerRows] = await mysqlPool.query<Array<RowDataPacket & { customer_count: number }>>(
+    const [customerRows] = await mysqlPool.query<Array<RowDataPacket & {
+      customer_count: number;
+      employee_customer_count: number;
+      non_employee_customer_count: number;
+    }>>(
       `
-        SELECT COUNT(DISTINCT o.user_id) AS customer_count
+        SELECT
+          COUNT(DISTINCT o.user_id) AS customer_count,
+          COUNT(DISTINCT CASE WHEN COALESCE(ctm.is_employee, 0) = 1 THEN o.user_id END) AS employee_customer_count,
+          COUNT(DISTINCT CASE WHEN COALESCE(ctm.is_employee, 0) = 0 THEN o.user_id END) AS non_employee_customer_count
         FROM orders o
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
+        LEFT JOIN customer_tenant_memberships ctm ON ctm.user_id = o.user_id AND ctm.tenant_id = t.id
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
           AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
@@ -329,6 +350,11 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
 
     let salesToday = 0;
     let ordersToday = 0;
+    let cashCollectedRm = 0;
+    let tokenOrderValueRm = 0;
+    let subsidyUsedTokens = 0;
+    let personalTokensUsed = 0;
+    let pendingPaymentValueRm = 0;
     let awaitingPreparation = 0;
     let preparing = 0;
     const outletBreakdown = new Map<number, {
@@ -351,10 +377,19 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
 
     for (const order of rangeOrders) {
       const status = String(order.status || '').toLowerCase();
+      if (status === 'pending_payment') pendingPaymentValueRm += Number(order.final_total_rm || 0);
       const isRevenueOrder = revenueStatuses.has(status);
       if (isRevenueOrder) {
         salesToday += Number(order.final_total_rm || 0);
         ordersToday += 1;
+        if (String(order.payment_mode).toLowerCase() === 'direct') {
+          cashCollectedRm += Number(order.final_total_rm || 0);
+        } else {
+          tokenOrderValueRm += Number(order.final_total_rm || 0);
+          const subsidyTokens = Math.min(Number(order.token_amount_charged || 0), Number(order.employee_allowance_tokens_used || 0));
+          subsidyUsedTokens += subsidyTokens;
+          personalTokensUsed += Math.max(0, Number(order.token_amount_charged || 0) - subsidyTokens);
+        }
         const outlet = outletBreakdown.get(order.store_id) ?? {
           storeId: order.store_id,
           storeName: order.store_name,
@@ -404,9 +439,16 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       summary: {
         salesToday,
         ordersToday,
+        cashCollectedRm,
+        tokenOrderValueRm,
+        subsidyUsedTokens,
+        personalTokensUsed,
+        pendingPaymentValueRm,
         awaitingPreparation,
         preparing,
         customersServed: Number(customerRows[0]?.customer_count || 0),
+        employeeCustomersServed: Number(customerRows[0]?.employee_customer_count || 0),
+        nonEmployeeCustomersServed: Number(customerRows[0]?.non_employee_customer_count || 0),
         pendingRefunds: Number(refundRows[0]?.pending_refunds || 0),
         coverage: {
           activeCustomers: Number(coverageRows[0]?.active_customers || 0),
@@ -445,6 +487,8 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         city: order.city || '-',
         total: Number(order.final_total_rm || 0),
         tokenAmount: Number(order.token_amount_charged || 0),
+        subsidyTokenAmount: Number(order.employee_allowance_tokens_used || 0),
+        personalTokenAmount: Math.max(0, Number(order.token_amount_charged || 0) - Number(order.employee_allowance_tokens_used || 0)),
         status: titleCase(String(order.status || '')),
         paymentMode: titleCase(String(order.payment_mode || '')),
         time: formatDisplayTime(new Date(order.created_at), timeZone),
