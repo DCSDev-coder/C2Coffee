@@ -1,4 +1,5 @@
 import React, { useState, forwardRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Search, ChevronDown, Download, Clock, Printer,
   X, ShoppingBag, Ban, RotateCcw, Coins,
@@ -287,7 +288,7 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 ));
 
 // Order Detail Panel with Animated Timeline
-const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice }) => {
+const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isModal = false }) => {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
   const total = Number(order.total ?? (subtotal - Number(order.discount || 0)));
   const tokenTotal = order.tokenAmountCharged ?? total;
@@ -346,15 +347,15 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice }) => 
   ];
 
   return (
-    <div className="print-section w-full xl:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-4 sm:p-5 space-y-4 print:overflow-visible print:w-full">
+    <div className={`print-section w-full ${isModal ? 'max-h-[85vh] border-0 shadow-none' : 'xl:w-[380px] border border-gray-200 shadow-sm'} bg-white rounded-2xl flex flex-col shrink-0 overflow-y-auto p-4 sm:p-5 space-y-4 print:overflow-visible print:w-full`}>
       {/* Header */}
       <div className="border-b border-gray-100 pb-3">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-1.5">
-            <h2 className="text-base font-bold text-gray-900">Order Details</h2>
+            <h2 id="order-detail-title" className="text-base font-bold text-gray-900">Order Details</h2>
             <InfoTooltip content="Complete order summary, fulfillment lifecycle, and customer profile details." title="Order Details" />
           </div>
-          <button onClick={onClose} className="no-print p-1 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+          <button onClick={onClose} className="no-print p-1 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer" aria-label="Close details">
             <X size={18} strokeWidth={2.5} />
           </button>
         </div>
@@ -1159,17 +1160,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           </div>
 
           {/* Table Bottom: Pagination */}
-          <div className="px-4 sm:px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 bg-white">
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 whitespace-nowrap">
-              Rows per page
-              <select
-                value={itemsPerPage}
-                onChange={(event) => { setItemsPerPage(Number(event.target.value)); setCurrentPage(1); }}
-                className="px-2.5 py-2 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#2E5E58]"
-              >
-                {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
-              </select>
-            </label>
+          <div className="px-4 sm:px-6 py-3.5 border-t border-gray-100 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -1179,38 +1170,79 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
               itemName="orders"
               showAll={showAllOrders}
               onToggleShowAll={() => setShowAllOrders(!showAllOrders)}
+              rowsPerPageSelect={(
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 whitespace-nowrap">
+                  <span>Rows</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(event) => { setItemsPerPage(Number(event.target.value)); setCurrentPage(1); }}
+                    className="px-2 py-1 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#1F3A34] cursor-pointer"
+                  >
+                    {[10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                  </select>
+                </label>
+              )}
+              action={(
+                <button
+                  onClick={() => {
+                    const rows = [
+                      ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Type", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                      ...sortedOrders.map(o => {
+                        const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+                        const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
+                        const tokenTotal = o.tokenAmountCharged ?? rmTotal;
+                        const paymentLabel = (o.paymentMode || '').toLowerCase() === 'token' ? 'Tokens' : 'Direct (RM)';
+                        return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${normalizeOrderStatus(o.status)}"`, `"${paymentLabel}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
+                      })
+                    ];
+                    exportToCSV(rows, "orders.csv");
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-all"
+                >
+                  <Download size={13} /> Export
+                </button>
+              )}
             />
-            <button
-              onClick={() => {
-                const rows = [
-                  ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Type", "Date", "Time", "Total (Tokens)", "Total (RM)"],
-                  ...sortedOrders.map(o => {
-                    const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-                    const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
-                    const tokenTotal = o.tokenAmountCharged ?? rmTotal;
-                    const paymentLabel = (o.paymentMode || '').toLowerCase() === 'token' ? 'Tokens' : 'Direct (RM)';
-                    return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${normalizeOrderStatus(o.status)}"`, `"${paymentLabel}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
-                  })
-                ];
-                exportToCSV(rows, "orders.csv");
-              }}
-              className="flex items-center px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-all"
-            >
-              <Download size={14} className="mr-1.5" /> Export
-            </button>
           </div>
         </div>
 
-        {/* Right Side: Order Detail Panel */}
+        {/* Desktop Side Panel (>= xl) */}
         {selectedOrder && (
-          <OrderDetailPanel
-            order={selectedOrder}
-            onClose={() => setSelectedOrder(null)}
-            onViewProfile={setViewingProfileFor}
-            onCorrectPrice={openPriceCorrection}
-          />
+          <div className="hidden xl:flex flex-col shrink-0">
+            <OrderDetailPanel
+              order={selectedOrder}
+              onClose={() => setSelectedOrder(null)}
+              onViewProfile={setViewingProfileFor}
+              onCorrectPrice={openPriceCorrection}
+            />
+          </div>
         )}
       </div>
+
+      {/* Mobile/Tablet Popup Modal (< xl) */}
+      {selectedOrder && typeof document !== 'undefined' && createPortal(
+        <div
+          className="xl:hidden fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSelectedOrder(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-detail-title"
+        >
+          <div
+            className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl bg-white overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <OrderDetailPanel
+              order={selectedOrder}
+              onClose={() => setSelectedOrder(null)}
+              onViewProfile={setViewingProfileFor}
+              onCorrectPrice={openPriceCorrection}
+              isModal={true}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
 
       {correctionOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
