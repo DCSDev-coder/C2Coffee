@@ -8,6 +8,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Pagination from './Pagination';
 import InfoTooltip from './InfoTooltip';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
 import ViewProfile from "./ViewProfile";
@@ -212,27 +213,30 @@ const STATUSES = ["All Status", "Order Received", "Pending Payment", "Preparing"
 const PAYMENT_TYPES = ["All Payment Types", "Personal Tokens", "Company Subsidy", "Mixed Tokens", "Direct (RM)"];
 
 // Sleek KPI Card matching DashboardHome & Menu standard
-const KPICard = ({ title, value, badge, info, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
-    <div className="flex items-center gap-3.5 min-w-0">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
-        <Icon size={20} strokeWidth={2.2} />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-          {info && <InfoTooltip content={info} title={title} />}
+const KPICard = ({ title, value, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]/10 text-[#2E5E58]" }) => {
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
+      </div>
+      <div className="mt-2.5 sm:mt-3 flex flex-wrap items-baseline justify-between gap-1 sm:gap-2">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {badge && (
+          <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-[85px] sm:max-w-[100px]">
+            {badge}
+          </span>
+        )}
       </div>
     </div>
-    {badge && (
-      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
-        {badge}
-      </span>
-    )}
-  </div>
-);
+  );
+};
 
 // Date Picker Input 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
@@ -318,7 +322,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice }) => 
   ];
 
   return (
-    <div className="print-section w-[360px] lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4 print:overflow-visible print:w-full">
+    <div className="print-section w-full xl:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col shrink-0 overflow-y-auto p-4 sm:p-5 space-y-4 print:overflow-visible print:w-full">
       {/* Header */}
       <div className="border-b border-gray-100 pb-3">
         <div className="flex justify-between items-start">
@@ -559,6 +563,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice }) => 
 // Main Component 
 
 const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => {
+  const responsiveDefaultPageSize = useResponsivePageSize(5, 10);
   const [ordersList, setOrdersList] = useState([]);
   const [, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -572,7 +577,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const [showRefundsView, setShowRefundsView] = useState(initialShowRefunds);
   const [viewingProfileFor, setViewingProfileFor] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(responsiveDefaultPageSize);
+  const [showAllOrders, setShowAllOrders] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [sortKey, setSortKey] = useState("time");
@@ -842,7 +848,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   }
 
   const totalPages = Math.max(1, Math.ceil(sortedOrders.length / itemsPerPage));
-  const paginated = sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginated = showAllOrders ? sortedOrders : sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // KPI counts based on active list
   const totalCount = ordersList.length;
@@ -886,12 +892,12 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   };
 
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
       {/* Page Title & Subtitle */}
       <div className="mb-6 shrink-0 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Orders</h1>
             <InfoTooltip
               content="Real-time order feed across all cafe outlets. Track preparation, payment settlement, customer details, and print receipts."
               title="Orders Management"
@@ -905,15 +911,14 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
       {loadError && <div role="alert" className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700 shadow-2xs">{loadError}</div>}
 
       {/* Operational KPI Cards */}
-      <div className="grid grid-cols-1 gap-3.5 mb-6 shrink-0 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 shrink-0">
         <KPICard
           title="Total Orders"
           value={totalCount}
           badge="Live Feed"
           info="Total orders recorded across all outlets."
           icon={ShoppingBag}
-          iconBg="bg-[#1F3A34]"
-          iconColor="text-white"
+          iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
         />
         <KPICard
           title="Collected"
@@ -921,8 +926,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           badge={`${totalCount > 0 ? ((collected / totalCount) * 100).toFixed(0) : 0}% Done`}
           info="Orders successfully prepared and collected by customers."
           icon={Clock}
-          iconBg="bg-[#2E5E58]"
-          iconColor="text-white"
+          iconBg="bg-emerald-500/10 text-emerald-700"
         />
         <KPICard
           title="Cancelled"
@@ -930,8 +934,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           badge={cancelled > 0 ? `${cancelled} voided` : 'Zero'}
           info="Orders cancelled by the customer or counter before preparation."
           icon={Ban}
-          iconBg="bg-[#E07A5F]"
-          iconColor="text-white"
+          iconBg="bg-rose-500/10 text-rose-600"
         />
         <KPICard
           title="Refunds"
@@ -939,8 +942,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           badge={refunds > 0 ? `${refunds} requests` : 'None'}
           info="Orders currently under refund request or already refunded."
           icon={RotateCcw}
-          iconBg="bg-[#8C6D53]"
-          iconColor="text-white"
+          iconBg="bg-amber-500/15 text-amber-700"
         />
       </div>
 
@@ -1108,7 +1110,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           </div>
 
           {/* Table Bottom: Pagination */}
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0 bg-white">
+          <div className="px-4 sm:px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 bg-white">
             <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 whitespace-nowrap">
               Rows per page
               <select
@@ -1126,6 +1128,8 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
               itemsPerPage={itemsPerPage}
               totalItems={sortedOrders.length}
               itemName="orders"
+              showAll={showAllOrders}
+              onToggleShowAll={() => setShowAllOrders(!showAllOrders)}
             />
             <button
               onClick={() => {
