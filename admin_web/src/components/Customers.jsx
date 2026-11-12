@@ -646,8 +646,10 @@ const Customers = ({ currentUser }) => {
   const totalSpendRm = filteredData.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
   const totalSpendTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalPersonalTokens || 0), 0);
   const totalSubsidyTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalSubsidyTokens || 0), 0);
-  const averageSpendRm = totalCustomers > 0 ? totalSpendRm / totalCustomers : 0;
-  const averageSpendTokens = totalCustomers > 0 ? totalSpendTokens / totalCustomers : 0;
+  const totalOrders = filteredData.reduce((sum, customer) => sum + Number(customer.orderCount ?? customer.orders ?? 0), 0);
+  const totalOrderTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalSpentTokens || 0), 0);
+  const averageSpendRm = totalOrders > 0 ? totalSpendRm / totalOrders : 0;
+  const averageSpendTokens = totalOrders > 0 ? totalOrderTokens / totalOrders : 0;
 
   return (
     <div className="px-8 pb-8 pt-2 h-full flex flex-col">
@@ -671,9 +673,10 @@ const Customers = ({ currentUser }) => {
         <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} change={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-[#D9C4A9]" iconColor="text-white" />
       </div>
 
-      {/* Filters and Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4 flex-shrink-0">
-        <div className="relative w-full max-w-[400px]">
+      {/* Search, filters, and actions */}
+      <div className="mb-6 flex-shrink-0 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search size={18} className="text-gray-400" />
           </div>
@@ -684,9 +687,30 @@ const Customers = ({ currentUser }) => {
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58] sm:text-sm"
             placeholder="Search customer by username, tokens balance..."
           />
+          </div>
+
+          {canManageCustomers && (
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setImportError('');
+                  setImportResult(null);
+                  setIsImportModalOpen(true);
+                }}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+              >
+                <Upload size={16} className="mr-2" /> Import CSV
+              </button>
+              <button type="button" onClick={() => setIsAddModalOpen(true)} className="inline-flex items-center justify-center rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#2E5E58]">
+                <Plus size={16} className="mr-2" /> Add Customer
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+          <span className="mr-1 text-xs font-bold uppercase tracking-wide text-gray-400">Filter by</span>
           <div className="relative">
             <select
               value={selectedTier}
@@ -776,24 +800,6 @@ const Customers = ({ currentUser }) => {
               customInput={<CustomDateInput onClear={() => { setSelectedDateRange([null, null]); setCurrentPage(1); }} />}
               dateFormat="MMM d, yyyy"
             />
-          )}
-
-          {canManageCustomers && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  setImportError('');
-                  setImportResult(null);
-                  setIsImportModalOpen(true);
-                }}
-                className="flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-bold text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-              >
-                <Upload size={16} className="mr-2" /> Import CSV
-              </button>
-              <button onClick={() => setIsAddModalOpen(true)} className="flex items-center px-4 py-2 bg-[#1F3A34] text-white border-transparent text-sm font-bold rounded-lg hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer">
-                <Plus size={16} className="mr-2" /> Add Customer
-              </button>
-            </div>
           )}
         </div>
       </div>

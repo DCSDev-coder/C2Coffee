@@ -719,7 +719,9 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         if (!silent) {
           setIsLoading(true);
         }
-        const response = await adminRequest(`/v1/admin/orders${selectedStoreId ? `?store_id=${encodeURIComponent(selectedStoreId)}` : ''}`);
+        const query = new URLSearchParams({ limit: '10000' });
+        if (selectedStoreId) query.set('store_id', String(selectedStoreId));
+        const response = await adminRequest(`/v1/admin/orders?${query.toString()}`);
         if (!isMounted) return;
 
         const nextOrders = Array.isArray(response?.orders) ? response.orders : [];
