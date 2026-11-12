@@ -1,7 +1,9 @@
 import { readdir, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = new URL('../dist/', import.meta.url);
+const rootPath = fileURLToPath(root);
 const maximumFileBytes = 2 * 1024 * 1024;
 const maximumBuildBytes = 10 * 1024 * 1024;
 
@@ -14,7 +16,6 @@ async function filesIn(directory) {
   return nested.flat();
 }
 
-const rootPath = root.pathname;
 const files = await filesIn(rootPath);
 let totalBytes = 0;
 const oversized = [];

@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package, Gift,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap, X
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
 import { adminRequest } from '../lib/adminApi';
 
-const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, currentUser }) => {
+const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, currentUser, mobileOpen, onClose }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [retentionDueCount, setRetentionDueCount] = useState(0);
   const menuItems = [
@@ -65,46 +65,72 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
   }, [currentUser?.roles]);
 
   return (
-    <div className="w-56 bg-[#2E5E58] text-white h-[calc(100vh-2rem)] fixed left-4 top-4 bottom-4 flex flex-col p-4 rounded-3xl z-10 shadow-xl overflow-y-auto" style={{ fontFamily: 'Afacad, sans-serif' }}>
-      <div
-        className="flex flex-col items-center mt-6 mb-8 cursor-pointer"
-        onClick={() => {
-          if (setCurrentPage) setCurrentPage('Dashboard');
-        }}
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-200"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`w-64 md:w-56 bg-[#2E5E58] text-white h-full md:h-[calc(100vh-2rem)] fixed top-0 bottom-0 md:top-4 md:bottom-4 left-0 md:left-4 flex flex-col p-4 rounded-none md:rounded-3xl z-50 shadow-2xl md:shadow-xl overflow-y-auto transition-transform duration-300 ease-in-out ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+        style={{ fontFamily: 'Afacad, sans-serif' }}
       >
-        <img src="/c2_logo.png" alt="C2 Logo" className="w-24 h-24 object-contain drop-shadow-md" />
-        <div className="mt-3 px-3 py-1.5 rounded-full bg-white/10 text-center border border-white/15">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-white/60">Tenant</p>
-          <p className="text-sm font-bold leading-tight">{currentTenant?.display_name || 'C2 Coffee & Candle'}</p>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 md:hidden p-1.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          aria-label="Close menu"
+        >
+          <X size={20} strokeWidth={2.5} />
+        </button>
 
-      <nav className="flex-1 space-y-1">
-        {visibleMenuItems.map((item, index) => {
-          const Icon = item.icon;
-          const isActive = currentPage ? currentPage === item.name : index === 0;
-          const startsSection = index === 0 || visibleMenuItems[index - 1].section !== item.section;
-          return (
-            <React.Fragment key={item.name}>
-              {startsSection && (
-                <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 ${index === 0 ? 'mb-1' : 'mb-1 mt-5'}`}>
-                  {item.section}
-                </p>
-              )}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (setCurrentPage) {
-                    setCurrentPage(item.name);
-                  }
-                }}
-                className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm group ${
-                  isActive
-                    ? 'bg-[#1F3A34] font-medium shadow-sm translate-x-1'
-                    : 'hover:bg-[#1F3A34]/80 text-white/85 hover:text-white hover:translate-x-1'
-                }`}
-              >
+        <div
+          className="flex flex-col items-center mt-6 mb-8 cursor-pointer"
+          onClick={() => {
+            if (setCurrentPage) setCurrentPage('Dashboard');
+            if (onClose) onClose();
+          }}
+        >
+          <img src="/c2_logo.png" alt="C2 Logo" className="w-24 h-24 object-contain drop-shadow-md" />
+          <div className="mt-3 px-3 py-1.5 rounded-full bg-white/10 text-center border border-white/15">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/60">Tenant</p>
+            <p className="text-sm font-bold leading-tight">{currentTenant?.display_name || 'C2 Coffee & Candle'}</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          {visibleMenuItems.map((item, index) => {
+            const Icon = item.icon;
+            const isActive = currentPage ? currentPage === item.name : index === 0;
+            const startsSection = index === 0 || visibleMenuItems[index - 1].section !== item.section;
+            return (
+              <React.Fragment key={item.name}>
+                {startsSection && (
+                  <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 ${index === 0 ? 'mb-1' : 'mb-1 mt-5'}`}>
+                    {item.section}
+                  </p>
+                )}
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (setCurrentPage) {
+                      setCurrentPage(item.name);
+                    }
+                    if (onClose) {
+                      onClose();
+                    }
+                  }}
+                  className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm group ${
+                    isActive
+                      ? 'bg-[#1F3A34] font-medium shadow-sm translate-x-1'
+                      : 'hover:bg-[#1F3A34]/80 text-white/85 hover:text-white hover:translate-x-1'
+                  }`}
+                >
                 <div className={`w-5 h-5 flex items-center justify-center transition-transform duration-200 ${isActive ? 'scale-110 text-emerald-300' : 'group-hover:scale-105'}`}>
                   <Icon size={18} strokeWidth={2.5} className="opacity-90" />
                 </div>
@@ -164,7 +190,8 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
         </div>,
         document.body
       )}
-    </div>
+      </aside>
+    </>
   );
 };
 
