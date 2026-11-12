@@ -2,12 +2,12 @@ import 'package:counter_app/barista/services/api_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('parses a handover state without requiring order attribution', () {
+  test('parses an unlocked attendance-driven state', () {
     final state = WorkstationAccessState.fromJson({
       'schedule_status': 'published',
-      'access_state': 'handover',
+      'access_state': 'unlocked',
       'can_prepare_orders': true,
-      'message': 'Mira must clock in for the current shift.',
+      'message': 'Outlet is open and staffed.',
       'schedule_date': '2026-10-20',
       'current_staff': [
         {
@@ -17,9 +17,7 @@ void main() {
           'ends_at': '22:00',
         },
       ],
-      'missing_staff': [
-        {'barista_id': 2, 'barista_name': 'Mira'},
-      ],
+      'missing_staff': [],
       'active_attendance': [
         {
           'id': 10,
@@ -41,8 +39,8 @@ void main() {
     });
 
     expect(state.canPrepareOrders, isTrue);
-    expect(state.accessState, 'handover');
-    expect(state.missingStaff.single.baristaName, 'Mira');
+    expect(state.accessState, 'unlocked');
+    expect(state.missingStaff, isEmpty);
     expect(state.activeAttendance.single.baristaName, 'Aina');
     expect(state.soundSettings.volumePercent, 55);
     expect(state.soundSettings.clockInBeeps, 2);

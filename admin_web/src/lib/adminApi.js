@@ -379,6 +379,10 @@ export async function loadAdminCustomers({ limit = 500 } = {}) {
   return adminRequest(`/v1/admin/customers?limit=${encodeURIComponent(limit)}`);
 }
 
+export async function loadAdminCustomerActivity(customerId) {
+  return adminRequest(`/v1/admin/customers/${encodeURIComponent(customerId)}/activity`);
+}
+
 export async function loadAdminOrders(params = {}) {
   const query = new URLSearchParams();
   if (params.limit) query.set("limit", String(params.limit));

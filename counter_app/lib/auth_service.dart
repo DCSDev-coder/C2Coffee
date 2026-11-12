@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api_client.dart';
 import 'safe_error_message.dart';
+import 'json_helpers.dart';
 
 enum DeviceVerificationStatus {
   activated,
@@ -35,9 +36,9 @@ class AdministratorUnlockResult {
   });
 
   const AdministratorUnlockResult.success({bool deviceTokenValid = true})
-      : this._(true, null, deviceTokenValid: deviceTokenValid);
+    : this._(true, null, deviceTokenValid: deviceTokenValid);
   const AdministratorUnlockResult.failure(String message)
-      : this._(false, message);
+    : this._(false, message);
 }
 
 class AuthService {
@@ -52,8 +53,8 @@ class AuthService {
 
   final ValueNotifier<DeviceVerificationStatus> statusNotifier =
       ValueNotifier<DeviceVerificationStatus>(
-    DeviceVerificationStatus.temporarilyUnavailable,
-  );
+        DeviceVerificationStatus.temporarilyUnavailable,
+      );
 
   Future<String?> getToken() async {
     return _storage.read(key: _tokenKey);
@@ -98,8 +99,12 @@ class AuthService {
       );
       if (response.statusCode == 200) {
         try {
-          final body = jsonDecode(response.body) as Map<String, dynamic>? ?? const {};
-          final deviceTokenValid = body['device_token_valid'] as bool? ?? true;
+          final body =
+              jsonDecode(response.body) as Map<String, dynamic>? ?? const {};
+          final deviceTokenValid = readJsonBool(
+            body['device_token_valid'],
+            fallback: true,
+          );
           if (!deviceTokenValid) {
             // Device token is no longer recognized by the backend.
             // Clear local token so the tablet can return to the activation screen.

@@ -1,3 +1,5 @@
+import 'json_helpers.dart';
+
 class CounterModifierOption {
   final int id;
   final String code;
@@ -21,7 +23,7 @@ class CounterModifierOption {
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? '',
       priceDeltaRm: json['price_delta_rm'] as String? ?? '0.00',
-      isDefault: json['is_default'] as bool? ?? false,
+      isDefault: readJsonBool(json['is_default']),
       imageUrl: json['image_url']?.toString().trim().isNotEmpty == true
           ? json['image_url'].toString().trim()
           : null,
@@ -68,7 +70,7 @@ class CounterModifierGroup {
       selectionType: json['selection_type'] as String? ?? 'single',
       minSelect: (json['min_select'] as num?)?.toInt() ?? 0,
       maxSelect: (json['max_select'] as num?)?.toInt() ?? 1,
-      isRequired: json['is_required'] as bool? ?? false,
+      isRequired: readJsonBool(json['is_required']),
       hiddenWhenOptionIds: (json['hidden_when_option_ids'] as List? ?? const [])
           .whereType<num>()
           .map((id) => id.toInt())
@@ -137,20 +139,19 @@ class CounterMenuItem {
       imageUrl: json['image_url']?.toString().trim().isNotEmpty == true
           ? json['image_url'].toString().trim()
           : null,
-      isAvailable: json['is_available'] != false,
+      isAvailable: readJsonBool(json['is_available'], fallback: true),
       categoryName:
           categoryName ??
           json['product_kind_name']?.toString() ??
           json['subcategory_name']?.toString(),
-      isHandcraftedDrink: json['is_handcrafted_drink'] as bool? ?? false,
-      allowChoiceOfBeans: json['allow_choice_of_beans'] as bool? ?? false,
-      allowEspressoShot: json['allow_espresso_shot'] as bool? ?? false,
-      allowChoiceOfMilk: json['allow_choice_of_milk'] as bool? ?? false,
-      allowChoiceOfSweetness:
-          json['allow_choice_of_sweetness'] as bool? ?? false,
-      allowIceLevel: json['allow_ice_level'] as bool? ?? false,
-      allowTemperature: json['allow_temperature'] as bool? ?? false,
-      allowSparklingMixer: json['allow_sparkling_mixer'] as bool? ?? false,
+      isHandcraftedDrink: readJsonBool(json['is_handcrafted_drink']),
+      allowChoiceOfBeans: readJsonBool(json['allow_choice_of_beans']),
+      allowEspressoShot: readJsonBool(json['allow_espresso_shot']),
+      allowChoiceOfMilk: readJsonBool(json['allow_choice_of_milk']),
+      allowChoiceOfSweetness: readJsonBool(json['allow_choice_of_sweetness']),
+      allowIceLevel: readJsonBool(json['allow_ice_level']),
+      allowTemperature: readJsonBool(json['allow_temperature']),
+      allowSparklingMixer: readJsonBool(json['allow_sparkling_mixer']),
       modifierGroups: (json['modifier_groups'] as List? ?? const [])
           .map(
             (group) => CounterModifierGroup.fromApi(
@@ -174,8 +175,14 @@ class CounterMenuItem {
     if (!allowChoiceOfBeans) return false;
     final beans = availableBeans;
     if (beans.isEmpty) return false;
-    final normalized = bean.toLowerCase().replaceAll("'", "").replaceAll(" ", "");
-    return beans.any((b) => b.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized);
+    final normalized = bean
+        .toLowerCase()
+        .replaceAll("'", "")
+        .replaceAll(" ", "");
+    return beans.any(
+      (b) =>
+          b.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized,
+    );
   }
 
   List<String> get availableMilks {
@@ -190,8 +197,14 @@ class CounterMenuItem {
     if (!allowChoiceOfMilk) return false;
     final milks = availableMilks;
     if (milks.isEmpty) return false;
-    final normalized = milk.toLowerCase().replaceAll("'", "").replaceAll(" ", "");
-    return milks.any((m) => m.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized);
+    final normalized = milk
+        .toLowerCase()
+        .replaceAll("'", "")
+        .replaceAll(" ", "");
+    return milks.any(
+      (m) =>
+          m.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized,
+    );
   }
 
   List<String> get availableSparkling {
@@ -206,8 +219,14 @@ class CounterMenuItem {
     if (!allowSparklingMixer) return false;
     final sparklingList = availableSparkling;
     if (sparklingList.isEmpty) return false;
-    final normalized = sparkling.toLowerCase().replaceAll("'", "").replaceAll(" ", "");
-    return sparklingList.any((s) => s.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized);
+    final normalized = sparkling
+        .toLowerCase()
+        .replaceAll("'", "")
+        .replaceAll(" ", "");
+    return sparklingList.any(
+      (s) =>
+          s.toLowerCase().replaceAll("'", "").replaceAll(" ", "") == normalized,
+    );
   }
 }
 

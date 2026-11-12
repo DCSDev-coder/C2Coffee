@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:counter_app/widgets/top_notice.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'current_order_page.dart';
 import 'order_history_page.dart';
 import 'menu_availability_page.dart';
@@ -37,7 +36,9 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isRefreshingOrders = false;
   bool _isRefreshingAccess = false;
   bool _isRefreshingSideWork = false;
-  String? _lastShiftAlertKey;
+  bool _showHeaderMenu = false;
+  bool _hasLoadedSideWork = false;
+  final Set<int> _knownSideWorkTaskIds = <int>{};
   final Set<int> _alertedSideWorkTaskIds = <int>{};
   final Set<String> _alertedOrderEvents = <String>{};
 
@@ -62,16 +63,6 @@ class _MainLayoutState extends State<MainLayout> {
       final access = await ApiService.fetchWorkstationAccessState();
       globalWorkstationAccess.value = access;
       BaristaSoundService.instance.configure(access.soundSettings);
-      if (access.accessState == 'closing' || access.accessState == 'handover') {
-        final alertKey =
-            '${access.scheduleDate}:${access.accessState}:${access.missingStaff.map((staff) => staff.baristaId).join(',')}';
-        if (_lastShiftAlertKey != alertKey) {
-          _lastShiftAlertKey = alertKey;
-          await SystemSound.play(SystemSoundType.alert);
-        }
-      } else if (access.accessState == 'unlocked') {
-        _lastShiftAlertKey = null;
-      }
       await _refreshSideWorkAlerts();
     } catch (error) {
       debugPrint('Failed to refresh shift access: $error');
@@ -85,6 +76,19 @@ class _MainLayoutState extends State<MainLayout> {
     _isRefreshingSideWork = true;
     try {
       final tasks = await ApiService.fetchSideWork();
+      final incomingTasks = _hasLoadedSideWork
+          ? tasks.where(
+              (task) =>
+                  !_knownSideWorkTaskIds.contains(task.id) && !task.isCompleted,
+            )
+          : const <BaristaSideWorkTask>[];
+      if (incomingTasks.isNotEmpty) {
+        globalSideWorkAttention.value = true;
+      }
+      _knownSideWorkTaskIds
+        ..clear()
+        ..addAll(tasks.map((task) => task.id));
+      _hasLoadedSideWork = true;
       final newlyDue = tasks
           .where(
             (task) =>
@@ -112,7 +116,7 @@ class _MainLayoutState extends State<MainLayout> {
     }
   }
 
-  Future<void> _clockInFromGate(WorkstationAccessState access) async {
+  Future<void> _clockInFromGate() async {
     BaristaAttendanceStatus attendance;
     try {
       attendance = await ApiService.fetchAttendanceStatus();
@@ -128,22 +132,9 @@ class _MainLayoutState extends State<MainLayout> {
     final activeIds = attendance.activeAttendance
         .map((item) => item.baristaId)
         .toSet();
-    final missingIds = access.missingStaff
-        .map((item) => item.baristaId)
-        .toSet();
-    var choices = attendance.baristas
-        .where(
-          (item) =>
-              item.pinConfigured &&
-              (missingIds.contains(item.id) ||
-                  (!activeIds.contains(item.id) && missingIds.isEmpty)),
-        )
+    final choices = attendance.baristas
+        .where((item) => item.pinConfigured && !activeIds.contains(item.id))
         .toList();
-    if (choices.isEmpty) {
-      choices = attendance.baristas
-          .where((item) => item.pinConfigured && !activeIds.contains(item.id))
-          .toList();
-    }
     final action = await showModalBottomSheet<_GateClockInAction>(
       context: context,
       isScrollControlled: true,
@@ -195,7 +186,10 @@ class _MainLayoutState extends State<MainLayout> {
           _alertedOrderEvents.add('cancel:${order.orderId}:$cancellation')) {
         await BaristaSoundService.instance.play(BaristaSoundEvent.cancellation);
         if (mounted) {
-          TopNotice.error(context, 'Cancellation request for ${order.orderId}. Review before preparing.');
+          TopNotice.error(
+            context,
+            'Cancellation request for ${order.orderId}. Review before preparing.',
+          );
         }
       }
 
@@ -206,25 +200,47 @@ class _MainLayoutState extends State<MainLayout> {
             ? order.statusStartedAt
             : null,
       );
-      if (order.status == OrderStatus.newOrder && settings.waitingAlertEnabled && ageMinutes >= settings.waitingAlertAfterMinutes) {
+      if (order.status == OrderStatus.newOrder &&
+          settings.waitingAlertEnabled &&
+          ageMinutes >= settings.waitingAlertAfterMinutes) {
         final interval = settings.waitingAlertRepeatMinutes.clamp(1, 120);
-        final bucket = (ageMinutes - settings.waitingAlertAfterMinutes) ~/ interval;
+        final bucket =
+            (ageMinutes - settings.waitingAlertAfterMinutes) ~/ interval;
         if (_alertedOrderEvents.add('waiting:${order.orderId}:$bucket')) {
-          await BaristaSoundService.instance.play(BaristaSoundEvent.waitingOrder);
-          if (mounted) TopNotice.info(context, '${order.orderId} has been waiting $ageMinutes minutes.');
+          await BaristaSoundService.instance.play(
+            BaristaSoundEvent.waitingOrder,
+          );
+          if (mounted) {
+            TopNotice.info(
+              context,
+              '${order.orderId} has been waiting $ageMinutes minutes.',
+            );
+          }
         }
       }
-      if (order.status == OrderStatus.preparing && settings.preparingAlertEnabled && ageMinutes >= settings.preparingAlertAfterMinutes) {
+      if (order.status == OrderStatus.preparing &&
+          settings.preparingAlertEnabled &&
+          ageMinutes >= settings.preparingAlertAfterMinutes) {
         final interval = settings.preparingAlertRepeatMinutes.clamp(1, 120);
-        final bucket = (ageMinutes - settings.preparingAlertAfterMinutes) ~/ interval;
+        final bucket =
+            (ageMinutes - settings.preparingAlertAfterMinutes) ~/ interval;
         if (_alertedOrderEvents.add('preparing:${order.orderId}:$bucket')) {
-          await BaristaSoundService.instance.play(BaristaSoundEvent.preparingTooLong);
-          if (mounted) TopNotice.info(context, '${order.orderId} has been preparing $ageMinutes minutes.');
+          await BaristaSoundService.instance.play(
+            BaristaSoundEvent.preparingTooLong,
+          );
+          if (mounted) {
+            TopNotice.info(
+              context,
+              '${order.orderId} has been preparing $ageMinutes minutes.',
+            );
+          }
         }
       }
     }
     if (_alertedOrderEvents.length > 1000) {
-      _alertedOrderEvents.removeWhere((key) => !orders.any((order) => key.contains(order.orderId)));
+      _alertedOrderEvents.removeWhere(
+        (key) => !orders.any((order) => key.contains(order.orderId)),
+      );
     }
   }
 
@@ -244,6 +260,9 @@ class _MainLayoutState extends State<MainLayout> {
 
   void _onTabSelected(int index) {
     if (_currentIndex == index) return;
+    if (index == 6) {
+      globalSideWorkAttention.value = false;
+    }
     setState(() {
       _currentIndex = index;
     });
@@ -289,6 +308,9 @@ class _MainLayoutState extends State<MainLayout> {
           _WorkspaceHeader(
             currentIndex: _currentIndex,
             onTabSelected: _onTabSelected,
+            menuOpen: _showHeaderMenu,
+            onMenuToggle: () =>
+                setState(() => _showHeaderMenu = !_showHeaderMenu),
           ),
           ValueListenableBuilder<WorkstationAccessState?>(
             valueListenable: globalWorkstationAccess,
@@ -299,22 +321,8 @@ class _MainLayoutState extends State<MainLayout> {
               if (!access.canPrepareOrders) {
                 return _ShiftAccessGate(
                   access: access,
-                  onClockIn: () => _clockInFromGate(access),
+                  onClockIn: _clockInFromGate,
                   onRefresh: _refreshShiftAccess,
-                );
-              }
-              if (access.accessState == 'handover' ||
-                  access.accessState == 'closing') {
-                return Positioned(
-                  top: 112,
-                  left: 18,
-                  right: 18,
-                  child: SafeArea(
-                    child: _ShiftNotice(
-                      access: access,
-                      onClockIn: () => _clockInFromGate(access),
-                    ),
-                  ),
                 );
               }
               return const SizedBox.shrink();
@@ -330,10 +338,14 @@ class _WorkspaceHeader extends StatelessWidget {
   const _WorkspaceHeader({
     required this.currentIndex,
     required this.onTabSelected,
+    required this.menuOpen,
+    required this.onMenuToggle,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
+  final bool menuOpen;
+  final VoidCallback onMenuToggle;
 
   @override
   Widget build(BuildContext context) => Positioned(
@@ -367,12 +379,20 @@ class _WorkspaceHeader extends StatelessWidget {
                   child: _HeaderNavBar(
                     currentIndex: currentIndex,
                     onTabSelected: onTabSelected,
+                    showSecondary: menuOpen,
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 16),
             const BlinkingOnlineIndicator(),
+            IconButton(
+              onPressed: onMenuToggle,
+              tooltip: menuOpen ? 'Hide navigation' : 'Show navigation',
+              color: Colors.white,
+              icon: Icon(menuOpen ? Icons.close_rounded : Icons.menu_rounded),
+              iconSize: 28,
+            ),
           ],
         ),
       ),
@@ -384,20 +404,35 @@ class _HeaderNavBar extends StatelessWidget {
   const _HeaderNavBar({
     required this.currentIndex,
     required this.onTabSelected,
+    required this.showSecondary,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
+  final bool showSecondary;
 
-  static const _navItems = [
-    (Icons.shopping_basket_outlined, Icons.shopping_basket_rounded, 'Orders'),
-    (Icons.history_outlined, Icons.history_rounded, 'History'),
-    (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu'),
-    (Icons.campaign_outlined, Icons.campaign_rounded, 'Marketing'),
-    (Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Inventory'),
-    (Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Timetable'),
-    (Icons.checklist_outlined, Icons.task_alt_rounded, 'Tasks'),
-    (Icons.settings_outlined, Icons.settings_rounded, 'Settings'),
+  static const _coreNavItems = [
+    (
+      Icons.shopping_basket_outlined,
+      Icons.shopping_basket_rounded,
+      'Orders',
+      0,
+    ),
+    (Icons.history_outlined, Icons.history_rounded, 'History', 1),
+    (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu', 2),
+    (Icons.checklist_outlined, Icons.task_alt_rounded, 'Tasks', 6),
+  ];
+
+  static const _secondaryNavItems = [
+    (Icons.campaign_outlined, Icons.campaign_rounded, 'Marketing', 3),
+    (Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Inventory', 4),
+    (
+      Icons.calendar_month_outlined,
+      Icons.calendar_month_rounded,
+      'Timetable',
+      5,
+    ),
+    (Icons.settings_outlined, Icons.settings_rounded, 'Settings', 7),
   ];
 
   @override
@@ -414,101 +449,104 @@ class _HeaderNavBar extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: List.generate(_navItems.length, (index) {
-          final isSelected = currentIndex == index;
-          final item = _navItems[index];
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () => onTabSelected(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.14),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isSelected ? item.$2 : item.$1,
-                        color: isSelected
-                            ? const Color(0xFF203E32)
-                            : Colors.white.withValues(alpha: 0.8),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        item.$3,
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          color: isSelected
-                              ? const Color(0xFF203E32)
-                              : Colors.white.withValues(alpha: 0.85),
-                          fontSize: 14.5,
-                          fontWeight: isSelected
-                              ? FontWeight.w800
-                              : FontWeight.w600,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      if (index == 0) ...[
-                        ValueListenableBuilder<List<CurrentOrder>>(
-                          valueListenable: globalCurrentOrders,
-                          builder: (context, orders, _) {
-                            final count = orders.length;
-                            if (count == 0) return const SizedBox.shrink();
-                            return Container(
-                              margin: const EdgeInsets.only(left: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? const Color(0xFF203E32)
-                                    : Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '$count',
-                                style: const TextStyle(
-                                  fontFamily: 'Afacad',
-                                  color: Colors.white,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
+        children: [
+          ..._buildItems(_coreNavItems),
+          if (showSecondary) ..._buildItems(_secondaryNavItems),
+        ],
       ),
     );
+  }
+
+  List<Widget> _buildItems(List<(IconData, IconData, String, int)> items) {
+    return List.generate(items.length, (index) {
+      final pageIndex = items[index].$4;
+      final isSelected = currentIndex == pageIndex;
+      final item = items[index];
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => onTabSelected(pageIndex),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.14),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isSelected ? item.$2 : item.$1,
+                    color: isSelected
+                        ? const Color(0xFF203E32)
+                        : Colors.white.withValues(alpha: 0.8),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    item.$3,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      color: isSelected
+                          ? const Color(0xFF203E32)
+                          : Colors.white.withValues(alpha: 0.85),
+                      fontSize: 14.5,
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  if (pageIndex == 0 || pageIndex == 6) ...[
+                    ValueListenableBuilder<List<CurrentOrder>>(
+                      valueListenable: globalCurrentOrders,
+                      builder: (context, orders, _) {
+                        return ValueListenableBuilder<bool>(
+                          valueListenable: globalSideWorkAttention,
+                          builder: (context, hasTaskAlert, _) {
+                            final showDot = pageIndex == 0
+                                ? orders.any(
+                                    (order) =>
+                                        order.status == OrderStatus.newOrder,
+                                  )
+                                : hasTaskAlert;
+                            return showDot
+                                ? Container(
+                                    margin: const EdgeInsets.only(left: 6),
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFE53935),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  )
+                                : const SizedBox.shrink();
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 }
 
@@ -568,10 +606,8 @@ class _ShiftAccessGate extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      access.scheduleStatus == 'unpublished'
-                          ? 'Timetable required'
-                          : access.accessState == 'closed'
-                          ? 'Shift closed'
+                      access.accessState == 'closed'
+                          ? 'Outlet unavailable'
                           : 'Clock in to unlock',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -606,8 +642,11 @@ class _ShiftAccessGate extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 24),
-                    if (access.scheduleStatus == 'published' &&
-                        access.accessState != 'closed')
+                    // Opening hours describe customer trading availability; they
+                    // must not prevent a barista from starting an early or late
+                    // shift. Only an unavailable/emergency-closed outlet blocks
+                    // the PIN clock-in action.
+                    if (access.accessState != 'closed')
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
@@ -623,7 +662,7 @@ class _ShiftAccessGate extends StatelessWidget {
                     TextButton.icon(
                       onPressed: onRefresh,
                       icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Refresh shift status'),
+                      label: const Text('Refresh workstation status'),
                     ),
                     const SizedBox(height: 4),
                     const Text(
@@ -637,39 +676,6 @@ class _ShiftAccessGate extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    ),
-  );
-}
-
-class _ShiftNotice extends StatelessWidget {
-  const _ShiftNotice({required this.access, required this.onClockIn});
-  final WorkstationAccessState access;
-  final VoidCallback onClockIn;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    elevation: 8,
-    borderRadius: BorderRadius.circular(16),
-    color: const Color(0xFFFFF4E5),
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.notifications_active_outlined,
-            color: Color(0xFF8A5A13),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              access.message,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          if (access.accessState == 'handover')
-            TextButton(onPressed: onClockIn, child: const Text('Clock in')),
-        ],
       ),
     ),
   );
@@ -711,15 +717,13 @@ class _GateClockInSheetState extends State<_GateClockInSheet> {
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Each scheduled barista clocks in once with their own six-digit PIN.',
-          ),
+          const Text('Choose your name and enter your own six-digit PIN.'),
           const SizedBox(height: 18),
           if (widget.baristas.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Text(
-                'No eligible scheduled profile with a PIN is available. Ask an administrator to check the timetable and PIN setup.',
+                'No available barista profile has a PIN. Ask an administrator to check the barista profile and PIN setup.',
               ),
             )
           else ...[

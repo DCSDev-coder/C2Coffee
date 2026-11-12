@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, CircleAlert, ClipboardCheck, Clock3, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, CircleAlert, ClipboardCheck, Clock3, Pencil, Plus, RefreshCw, Save, Trash2, Volume2, X } from 'lucide-react';
 import {
   adminRequest,
   createAdminSideWorkBatch,
@@ -243,6 +243,7 @@ export default function Operations() {
   const [shiftForm, setShiftForm] = useState(initialShift);
   const [sideWork, setSideWork] = useState([]);
   const [sideWorkForm, setSideWorkForm] = useState(initialSideWork);
+  const [editingSideWorkId, setEditingSideWorkId] = useState(null);
   const [savingSideWork, setSavingSideWork] = useState(false);
   const [soundOutlets, setSoundOutlets] = useState([]);
   const [selectedSoundStoreId, setSelectedSoundStoreId] = useState('');
@@ -438,6 +439,51 @@ export default function Operations() {
       setNotice('Side-work task removed.');
     } catch (deleteError) {
       setError(deleteError.message || 'Unable to remove the side-work task.');
+    }
+  };
+
+  const editSideWork = (task) => {
+    setEditingSideWorkId(task.id);
+    setSideWorkForm({
+      title: task.title || '',
+      instructions: task.instructions || '',
+      scheduled_date: task.scheduled_date,
+      scheduled_time: task.scheduled_time,
+      repeat: false,
+      repeat_until: task.scheduled_date,
+      repeat_weekdays: [weekdayForDate(task.scheduled_date)]
+    });
+    setError('');
+    setNotice('');
+  };
+
+  const cancelSideWorkEdit = () => {
+    setEditingSideWorkId(null);
+    setSideWorkForm(initialSideWork);
+  };
+
+  const updateSideWork = async (event) => {
+    event.preventDefault();
+    setSavingSideWork(true);
+    setError('');
+    setNotice('');
+    try {
+      await adminRequest(`/v1/admin/side-work/${editingSideWorkId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: sideWorkForm.title,
+          instructions: sideWorkForm.instructions || null,
+          scheduled_date: sideWorkForm.scheduled_date,
+          scheduled_time: sideWorkForm.scheduled_time
+        })
+      });
+      setNotice('Side-work task updated.');
+      cancelSideWorkEdit();
+      await loadData();
+    } catch (updateError) {
+      setError(updateError.message || 'Unable to update the side-work task.');
+    } finally {
+      setSavingSideWork(false);
     }
   };
 
@@ -663,19 +709,19 @@ export default function Operations() {
         </section>}
 
         {activeTab === 'side-work' && <section className="mt-6 grid gap-5 xl:grid-cols-[380px_1fr]">
-          <form onSubmit={addSideWork} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
-            <h2 className="text-lg font-bold text-slate-900">Schedule side work</h2>
-            <p className="mt-1 text-sm text-slate-500">Create timed cleaning and upkeep reminders for the barista team.</p>
+          <form onSubmit={editingSideWorkId ? updateSideWork : addSideWork} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
+            <h2 className="text-lg font-bold text-slate-900">{editingSideWorkId ? 'Edit side work' : 'Schedule side work'}</h2>
+            <p className="mt-1 text-sm text-slate-500">{editingSideWorkId ? 'Incomplete tasks can be changed, including after they become due.' : 'Create timed cleaning and upkeep reminders for the barista team.'}</p>
             <label className="mt-5 block text-sm font-bold text-slate-700">Task name<input required maxLength="120" value={sideWorkForm.title} onChange={(event) => setSideWorkForm((current) => ({ ...current, title: event.target.value }))} placeholder="Mop the service floor" className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
             <label className="mt-4 block text-sm font-bold text-slate-700">Instructions<textarea maxLength="500" rows="4" value={sideWorkForm.instructions} onChange={(event) => setSideWorkForm((current) => ({ ...current, instructions: event.target.value }))} placeholder="Include the area, supplies, and completion standard." className="mt-1.5 w-full resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-[#2E5E58]" /></label>
             <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-sm font-bold text-slate-700">Start date<input required type="date" min={isoDate()} max={isoDate(30)} value={sideWorkForm.scheduled_date} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_date: event.target.value, repeat_weekdays: [weekdayForDate(event.target.value)] }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><label className="text-sm font-bold text-slate-700">Time<input required type="time" value={sideWorkForm.scheduled_time} onChange={(event) => setSideWorkForm((current) => ({ ...current, scheduled_time: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label></div>
-            <label className="mt-5 flex items-start gap-3 rounded-xl border border-[#CFE3DE] bg-[#F4FAF8] p-3 text-sm text-slate-700"><input type="checkbox" checked={sideWorkForm.repeat} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Repeat on selected weekdays</span><span className="mt-1 block text-xs text-slate-500">Creates the same task from the start date through the next 30 days.</span></span></label>
-            {sideWorkForm.repeat && <div className="mt-3 rounded-xl border border-slate-200 p-3"><label className="block text-sm font-bold text-slate-700">Repeat until<input type="date" min={sideWorkForm.scheduled_date} max={isoDate(30)} value={sideWorkForm.repeat_until} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_until: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">Weekdays</p><div className="mt-2 flex flex-wrap gap-2">{weekdayOptions.map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-bold ${sideWorkForm.repeat_weekdays.includes(value) ? 'border-[#2E5E58] bg-[#E7F3EF] text-[#1F3A34]' : 'border-slate-200 text-slate-500'}`}><input type="checkbox" checked={sideWorkForm.repeat_weekdays.includes(value)} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_weekdays: event.target.checked ? [...current.repeat_weekdays, value] : current.repeat_weekdays.filter((day) => day !== value) }))} className="sr-only" />{label}</label>)}</div></div>}
-            <button disabled={savingSideWork} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1F3A34] hover:bg-[#2E5E58] px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs"><Plus size={17} />{savingSideWork ? 'Scheduling...' : 'Schedule task'}</button>
+            {!editingSideWorkId && <label className="mt-5 flex items-start gap-3 rounded-xl border border-[#CFE3DE] bg-[#F4FAF8] p-3 text-sm text-slate-700"><input type="checkbox" checked={sideWorkForm.repeat} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Repeat on selected weekdays</span><span className="mt-1 block text-xs text-slate-500">Creates the same task from the start date through the next 30 days.</span></span></label>}
+            {!editingSideWorkId && sideWorkForm.repeat && <div className="mt-3 rounded-xl border border-slate-200 p-3"><label className="block text-sm font-bold text-slate-700">Repeat until<input type="date" min={sideWorkForm.scheduled_date} max={isoDate(30)} value={sideWorkForm.repeat_until} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_until: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" /></label><p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-500">Weekdays</p><div className="mt-2 flex flex-wrap gap-2">{weekdayOptions.map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-bold ${sideWorkForm.repeat_weekdays.includes(value) ? 'border-[#2E5E58] bg-[#E7F3EF] text-[#1F3A34]' : 'border-slate-200 text-slate-500'}`}><input type="checkbox" checked={sideWorkForm.repeat_weekdays.includes(value)} onChange={(event) => setSideWorkForm((current) => ({ ...current, repeat_weekdays: event.target.checked ? [...current.repeat_weekdays, value] : current.repeat_weekdays.filter((day) => day !== value) }))} className="sr-only" />{label}</label>)}</div></div>}
+            <div className="mt-5 flex gap-3"><button disabled={savingSideWork} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#1F3A34] hover:bg-[#2E5E58] px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs">{editingSideWorkId ? <Save size={17} /> : <Plus size={17} />}{savingSideWork ? 'Saving...' : editingSideWorkId ? 'Save changes' : 'Schedule task'}</button>{editingSideWorkId && <button type="button" onClick={cancelSideWorkEdit} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">Cancel</button>}</div>
           </form>
           <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
             <div><h2 className="text-lg font-bold text-slate-900">Next 31 days</h2><p className="mt-1 text-sm text-slate-500">Completion is recorded against the clocked-in barista who confirms the task.</p></div>
-            <div className="mt-5 space-y-3">{sideWork.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">No side work scheduled.</p> : sideWork.map((task) => <div key={task.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200/80 p-4 shadow-2xs hover:shadow-xs transition-shadow bg-white"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">{task.title}</p>{task.completed_at && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">Completed by {task.completed_by_barista_name}</span>}</div><p className="mt-1 text-sm font-semibold text-[#2E5E58]">{displayDate(task.scheduled_date)} at {displayTime(task.scheduled_time)}</p>{task.instructions && <p className="mt-2 text-sm leading-6 text-slate-600">{task.instructions}</p>}</div><button type="button" onClick={() => void removeSideWork(task.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer" aria-label={`Remove ${task.title}`}><Trash2 size={17} /></button></div>)}</div>
+            <div className="mt-5 space-y-3">{sideWork.length === 0 ? <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">No side work scheduled.</p> : sideWork.map((task) => <div key={task.id} className="flex items-start justify-between gap-4 rounded-xl border border-slate-200/80 p-4 shadow-2xs hover:shadow-xs transition-shadow bg-white"><div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-slate-900">{task.title}</p>{task.completed_at && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">Completed by {task.completed_by_barista_name}</span>}</div><p className="mt-1 text-sm font-semibold text-[#2E5E58]">{displayDate(task.scheduled_date)} at {displayTime(task.scheduled_time)}</p>{task.instructions && <p className="mt-2 text-sm leading-6 text-slate-600">{task.instructions}</p>}</div><div className="flex shrink-0 items-center gap-1">{!task.completed_at && <button type="button" onClick={() => editSideWork(task)} className="rounded-lg p-2 text-slate-400 hover:bg-[#E7F3EF] hover:text-[#2E5E58] transition-colors cursor-pointer" aria-label={`Edit ${task.title}`} title="Edit task"><Pencil size={17} /></button>}{!task.completed_at && <button type="button" onClick={() => void removeSideWork(task.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer" aria-label={`Remove ${task.title}`} title="Remove task"><Trash2 size={17} /></button>}</div></div>)}</div>
           </article>
         </section>}
 

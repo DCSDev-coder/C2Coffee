@@ -7,14 +7,10 @@ import {
   shouldBlockBaristaClockOut,
 } from '../dist/services/barista-shift-access.js';
 
-const openHours = Object.fromEntries(
-  ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => [day, { closed: false, open: '08:00', close: '22:00' }]),
-);
-
 function connectionFixture({ store = {}, attendance = [] } = {}) {
   return {
     async query(sql) {
-      if (sql.includes('FROM stores')) return [[{ status: 'active', temporarily_closed: 0, timezone: 'Asia/Kuala_Lumpur', weekly_hours_json: JSON.stringify(openHours), ...store }]];
+      if (sql.includes('FROM stores')) return [[{ status: 'active', temporarily_closed: 0, timezone: 'Asia/Kuala_Lumpur', ...store }]];
       if (sql.includes('clocked_out_at IS NULL')) return [attendance];
       throw new Error(`Unexpected query: ${sql}`);
     }
@@ -28,17 +24,17 @@ const input = {
   now: new Date('2026-10-20T01:05:00.000Z')
 };
 
-test('opening hours are informational and early clock-in opens the outlet', async () => {
+test('early clock-in opens the outlet without consulting opening hours', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
     attendance: [{ id: 9, barista_id: 9, barista_name: 'Early', clocked_in_at: '2026-10-20T22:45:00.000Z' }]
   }), { ...input, now: new Date('2026-10-20T23:05:00.000Z') });
-  assert.equal(state.schedule_status, 'closed');
+  assert.equal(state.schedule_status, 'published');
   assert.equal(state.access_state, 'unlocked');
   assert.equal(state.can_prepare_orders, true);
   assert.match(state.message, /open and staffed/);
 });
 
-test('waits for a barista during opening hours', async () => {
+test('active outlet waits for a barista at any time of day', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({ attendance: [] }), input);
   assert.equal(state.schedule_status, 'published');
   assert.equal(state.access_state, 'locked');
@@ -57,7 +53,7 @@ test('opens as soon as any barista clocks in', async () => {
   assert.equal(state.missing_staff.length, 0);
 });
 
-test('temporary closure overrides attendance and opening hours', async () => {
+test('temporary closure overrides attendance', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
     store: { temporarily_closed: 1 },
     attendance: [{ id: 1, barista_id: 1, barista_name: 'Aina', clocked_in_at: '2026-10-20T01:00:00.000Z' }]
@@ -74,48 +70,32 @@ test('ignores a stale missing clock-out instead of keeping the outlet open', asy
   assert.equal(state.can_prepare_orders, false);
 });
 
-test('keeps previous-date attendance during one overnight operating window', async () => {
-  const overnightHours = Object.fromEntries(
-    ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => [day, { closed: false, open: '20:00', close: '02:00' }]),
-  );
+test('keeps recent previous-date attendance active after midnight', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
-    store: { weekly_hours_json: JSON.stringify(overnightHours) },
     attendance: [{ id: 3, barista_id: 3, barista_name: 'Nadia', clocked_in_at: '2026-10-20T12:30:00.000Z' }]
   }), { ...input, now: new Date('2026-10-20T17:00:00.000Z') });
   assert.equal(state.active_attendance.length, 1);
   assert.equal(state.can_prepare_orders, true);
 });
 
-test('accepts a replacement barista clocking in after midnight during an overnight window', async () => {
-  const overnightHours = Object.fromEntries(
-    ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => [day, { closed: false, open: '20:00', close: '02:00' }]),
-  );
+test('accepts a replacement barista clocking in after midnight', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
-    store: { weekly_hours_json: JSON.stringify(overnightHours) },
     attendance: [{ id: 4, barista_id: 4, barista_name: 'Sofia', clocked_in_at: '2026-10-20T16:30:00.000Z' }]
   }), { ...input, now: new Date('2026-10-20T17:00:00.000Z') });
   assert.equal(state.active_attendance.length, 1);
   assert.equal(state.can_prepare_orders, true);
 });
 
-test('does not reuse an after-midnight attendance for the next evening shift', async () => {
-  const overnightHours = Object.fromEntries(
-    ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => [day, { closed: false, open: '20:00', close: '02:00' }]),
-  );
+test('does not reuse stale attendance for a later shift', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
-    store: { weekly_hours_json: JSON.stringify(overnightHours) },
     attendance: [{ id: 5, barista_id: 5, barista_name: 'Hana', clocked_in_at: '2026-10-19T16:30:00.000Z' }]
   }), { ...input, now: new Date('2026-10-20T12:30:00.000Z') });
   assert.equal(state.active_attendance.length, 0);
   assert.equal(state.can_prepare_orders, false);
 });
 
-test('active attendance keeps the outlet open after scheduled closing time', async () => {
-  const overnightHours = Object.fromEntries(
-    ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map((day) => [day, { closed: false, open: '20:00', close: '02:00' }]),
-  );
+test('active attendance keeps the outlet open at any time', async () => {
   const state = await resolveBaristaShiftAccess(connectionFixture({
-    store: { weekly_hours_json: JSON.stringify(overnightHours) },
     attendance: [
       { id: 6, barista_id: 6, barista_name: 'Recent', clocked_in_at: '2026-10-20T12:30:00.000Z' },
       { id: 7, barista_id: 7, barista_name: 'Stale', clocked_in_at: '2026-10-18T12:30:00.000Z' },
@@ -147,4 +127,9 @@ test('clock-out active order check matches visible active orders and excludes pe
   assert.doesNotMatch(baristaStaff, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing'\)/);
   assert.match(baristaStaff, /FROM order_cancellation_requests ocr/);
   assert.match(baristaStaff, /Outstanding order/);
+});
+
+test('shift access cannot read or evaluate configured opening hours', async () => {
+  const source = await readFile(new URL('../src/services/barista-shift-access.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /isStoreTradingNow|weekly_hours_json/);
 });

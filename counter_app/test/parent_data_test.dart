@@ -28,19 +28,11 @@ void main() {
       scheduleStatus: 'published',
       accessState: 'locked',
       canPrepareOrders: false,
-      message:
-          'All opening-shift baristas must clock in once before order preparation unlocks.',
+      message: 'Clock in a barista before preparing orders.',
       soundSettings: BaristaSoundSettings.defaults(),
       currentStaff: [],
       activeAttendance: [],
-      missingStaff: [
-        ShiftStaff(
-          baristaId: 8,
-          baristaName: 'Hafiz',
-          startsAt: '08:00',
-          endsAt: '17:00',
-        ),
-      ],
+      missingStaff: [],
       scheduleDate: '2026-10-22',
       minutesUntilShiftEnd: null,
     );
@@ -48,12 +40,12 @@ void main() {
     expect(find.text('Clock in to unlock'), findsOneWidget);
     expect(find.text('Clock in with PIN'), findsOneWidget);
 
-    // 3. handover (unlocked for preparation, but warning notice)
+    // 3. fully unlocked
     globalWorkstationAccess.value = const WorkstationAccessState(
       scheduleStatus: 'published',
-      accessState: 'handover',
+      accessState: 'unlocked',
       canPrepareOrders: true,
-      message: 'Awish has not clocked in yet. Handover is in progress.',
+      message: 'Outlet is open and staffed.',
       soundSettings: BaristaSoundSettings.defaults(),
       currentStaff: [
         ShiftStaff(
@@ -64,23 +56,12 @@ void main() {
         ),
       ],
       activeAttendance: [],
-      missingStaff: [
-        ShiftStaff(
-          baristaId: 10,
-          baristaName: 'Awish',
-          startsAt: '08:00',
-          endsAt: '17:00',
-        ),
-      ],
+      missingStaff: [],
       scheduleDate: '2026-10-22',
       minutesUntilShiftEnd: 480,
     );
     await tester.pump();
     expect(find.text('Clock in to unlock'), findsNothing);
-    expect(
-      find.text('Awish has not clocked in yet. Handover is in progress.'),
-      findsOneWidget,
-    );
     expect(find.text('Current Order'), findsOneWidget);
 
     // 4. fully unlocked

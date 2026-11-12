@@ -45,4 +45,28 @@ void main() {
     expect(items.single.id, '5');
     expect(items.single.priceRm, 6.5);
   });
+
+  test('treats nullable and database-style menu flags safely', () {
+    final items = parseCounterMenu({
+      'categories': [
+        {
+          'items': [
+            {
+              'id': 7,
+              'name': 'Safe Latte',
+              'base_price_rm': '10.00',
+              'is_available': null,
+              'is_handcrafted_drink': null,
+              'allow_choice_of_beans': 1,
+              'allow_espresso_shot': 'false',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(items.single.isAvailable, isTrue);
+    expect(items.single.allowChoiceOfBeans, isTrue);
+    expect(items.single.allowEspressoShot, isFalse);
+  });
 }

@@ -5,6 +5,7 @@ import '../widgets/order_card.dart';
 import 'direct_printer_service.dart';
 import 'api_config.dart';
 import 'secure_session_service.dart';
+import '../../json_helpers.dart';
 
 class ApiService {
   static String get baseUrl => ApiConfig.baseUrl;
@@ -63,12 +64,25 @@ class ApiService {
     }
   }
 
-  static Future<ApiRequestResult> confirmManualPayment(String orderId, String method) async {
+  static Future<ApiRequestResult> confirmManualPayment(
+    String orderId,
+    String method,
+  ) async {
     try {
-      final response = await _authenticatedRequest((headers) => http.post(Uri.parse('$baseUrl/barista/orders/$orderId/payment/confirm'), headers: headers, body: json.encode({'payment_method': method})));
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/orders/$orderId/payment/confirm'),
+          headers: headers,
+          body: json.encode({'payment_method': method}),
+        ),
+      );
       if (response.statusCode == 200) return const ApiRequestResult.success();
       return ApiRequestResult.failure(_responseMessage(response));
-    } catch (_) { return const ApiRequestResult.failure('Unable to confirm payment. Check the connection and try again.'); }
+    } catch (_) {
+      return const ApiRequestResult.failure(
+        'Unable to confirm payment. Check the connection and try again.',
+      );
+    }
   }
 
   static Future<ApiRequestResult> reviewCancellationRequest(
@@ -198,7 +212,9 @@ class ApiService {
               OrderStatus? parsedStatus;
               final statusStr =
                   (json['status'] as String?)?.toLowerCase() ?? '';
-              if (statusStr == 'pending_payment' || statusStr == 'paid' || statusStr == 'accepted') {
+              if (statusStr == 'pending_payment' ||
+                  statusStr == 'paid' ||
+                  statusStr == 'accepted') {
                 parsedStatus = OrderStatus.newOrder;
               } else if (statusStr.contains('preparing')) {
                 parsedStatus = OrderStatus.preparing;
@@ -365,11 +381,7 @@ class ApiService {
             return 'Clock in from Workstation before preparing orders.';
           case 'shift_access_locked':
             return error['message']?.toString() ??
-                'The workstation is locked until the scheduled shift clocks in.';
-          case 'handover_required':
-            return 'The incoming scheduled barista must clock in before this shift can clock out.';
-          case 'shift_coverage_required':
-            return 'The final scheduled barista must stay clocked in until the shift ends or another scheduled barista takes over.';
+                'Clock in a barista with their PIN before preparing orders.';
           case 'active_orders_require_coverage':
             return error['message']?.toString() ??
                 'The final barista cannot clock out while active orders still need coverage.';
@@ -377,8 +389,6 @@ class ApiService {
             return 'Complete all preparing and ready-for-pickup orders before using emergency closure.';
           case 'emergency_closure_active':
             return 'This outlet is already temporarily closed.';
-          case 'barista_not_scheduled':
-            return 'Only a barista scheduled for the current shift can reopen this outlet.';
           case 'workstation_outlet_required':
             return 'Assign this C2 Store device to one outlet in Admin Web before using shift access.';
           case 'barista_not_clocked_in':
@@ -1228,7 +1238,7 @@ class WorkstationAccessState {
   ) => WorkstationAccessState(
     scheduleStatus: json['schedule_status']?.toString() ?? 'unpublished',
     accessState: json['access_state']?.toString() ?? 'locked',
-    canPrepareOrders: json['can_prepare_orders'] == true,
+    canPrepareOrders: readJsonBool(json['can_prepare_orders']),
     message: json['message']?.toString() ?? 'Shift access is unavailable.',
     scheduleDate: json['schedule_date']?.toString() ?? '',
     currentStaff: (json['current_staff'] as List? ?? const [])
@@ -1387,7 +1397,7 @@ class AttendanceBarista {
       AttendanceBarista(
         id: (json['id'] as num).toInt(),
         name: json['name']?.toString() ?? 'Barista',
-        pinConfigured: json['pin_configured'] == true,
+        pinConfigured: readJsonBool(json['pin_configured']),
       );
 }
 
@@ -1611,7 +1621,7 @@ class PrinterTarget {
     name: json['name']?.toString() ?? 'Receipt printer',
     deliveryMode: json['delivery_mode']?.toString() ?? '',
     status: json['status']?.toString() ?? 'not_configured',
-    isDefault: json['is_default'] == true,
+    isDefault: readJsonBool(json['is_default']),
     networkHost: json['network_host']?.toString(),
     networkPort: (json['network_port'] as num?)?.toInt(),
   );
@@ -1729,7 +1739,7 @@ class BaristaCustomizationOption {
         name: json['name']?.toString() ?? '',
         subtitle: json['subtitle']?.toString() ?? '',
         value: json['value']?.toString() ?? '',
-        isAvailable: json['is_available'] == true,
+        isAvailable: readJsonBool(json['is_available']),
       );
 }
 
@@ -1754,7 +1764,7 @@ class BaristaBeanBlend {
         name: json['name']?.toString() ?? '',
         subtitle: json['subtitle']?.toString() ?? '',
         value: json['value']?.toString() ?? '',
-        isAvailable: json['is_available'] == true,
+        isAvailable: readJsonBool(json['is_available']),
       );
 }
 
@@ -1812,7 +1822,7 @@ class BaristaMenuItemAvailability {
         description: json['description']?.toString(),
         basePriceRm: json['base_price_rm']?.toString() ?? '0.00',
         imageUrl: json['image_url']?.toString(),
-        allowChoiceOfBeans: json['allow_choice_of_beans'] == true,
-        isAvailable: json['is_available'] != false,
+        allowChoiceOfBeans: readJsonBool(json['allow_choice_of_beans']),
+        isAvailable: readJsonBool(json['is_available'], fallback: true),
       );
 }

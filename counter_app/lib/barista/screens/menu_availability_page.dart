@@ -15,6 +15,8 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
   BaristaMenuAvailabilityResult? _data;
   bool _loading = true;
   String _searchQuery = '';
+  bool _showItems = true;
+  final Set<String> _expandedCustomizationGroups = <String>{};
   int? _selectedCategoryId;
   final TextEditingController _searchController = TextEditingController();
 
@@ -45,7 +47,10 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
         setState(() => _loading = false);
         TopNotice.error(
           context,
-          error.toString().replaceFirst('Bad state: ', '').replaceFirst('Exception: ', ''),
+          error
+              .toString()
+              .replaceFirst('Bad state: ', '')
+              .replaceFirst('Exception: ', ''),
         );
       }
     }
@@ -106,7 +111,10 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
     }
   }
 
-  Future<void> _toggleItem(BaristaMenuItemAvailability item, bool newValue) async {
+  Future<void> _toggleItem(
+    BaristaMenuItemAvailability item,
+    bool newValue,
+  ) async {
     final previous = item.isAvailable;
     setState(() {
       item.isAvailable = newValue;
@@ -122,7 +130,10 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
       setState(() {
         item.isAvailable = previous;
       });
-      TopNotice.error(context, result.errorMessage ?? 'Failed to update item availability.');
+      TopNotice.error(
+        context,
+        result.errorMessage ?? 'Failed to update item availability.',
+      );
     } else {
       TopNotice.info(
         context,
@@ -137,12 +148,16 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
   Widget build(BuildContext context) {
     final categories = _data?.categories ?? const <BaristaMenuCategory>[];
     final beans = _data?.beans ?? const <BaristaBeanBlend>[];
-    final customizations = _data?.customizations ?? const <BaristaCustomizationGroup>[];
+    final customizations =
+        _data?.customizations ?? const <BaristaCustomizationGroup>[];
 
     // Filter items
-    final allItems = <({BaristaMenuCategory category, BaristaMenuItemAvailability item})>[];
+    final allItems =
+        <({BaristaMenuCategory category, BaristaMenuItemAvailability item})>[];
     for (final cat in categories) {
-      if (_selectedCategoryId != null && cat.id != _selectedCategoryId) continue;
+      if (_selectedCategoryId != null && cat.id != _selectedCategoryId) {
+        continue;
+      }
       for (final item in cat.items) {
         if (_searchQuery.isNotEmpty) {
           final q = _searchQuery.toLowerCase();
@@ -154,7 +169,10 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
       }
     }
 
-    final totalCount = categories.fold<int>(0, (sum, cat) => sum + cat.items.length);
+    final totalCount = categories.fold<int>(
+      0,
+      (sum, cat) => sum + cat.items.length,
+    );
     final availableCount = categories.fold<int>(
       0,
       (sum, cat) => sum + cat.items.where((i) => i.isAvailable).length,
@@ -188,10 +206,14 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF203E32).withValues(alpha: 0.08),
+                            color: const Color(
+                              0xFF203E32,
+                            ).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: const Color(0xFF203E32).withValues(alpha: 0.12),
+                              color: const Color(
+                                0xFF203E32,
+                              ).withValues(alpha: 0.12),
                             ),
                           ),
                           child: Row(
@@ -218,117 +240,217 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                     ),
                     const SizedBox(height: 22),
 
-                    // Section 1: Ingredients & Customizations
-                    const BaristaSectionLabel(label: 'INGREDIENTS & CUSTOMIZATIONS'),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Manage ingredient options like coffee beans, milk varieties, and mixers. Toggling an option off removes it from customer kiosks in real-time.',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 13.5,
-                        color: const Color(0xFF203E32).withValues(alpha: 0.65),
-                        fontWeight: FontWeight.w500,
+                    _buildMenuViewSwitcher(),
+                    const SizedBox(height: 22),
+
+                    if (!_showItems) ...[
+                      const BaristaSectionLabel(
+                        label: 'INGREDIENTS & CUSTOMIZATIONS',
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildCustomizationsSection(customizations, beans),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Manage ingredient options like coffee beans, milk varieties, and mixers. Toggling an option off removes it from customer kiosks in real-time.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 13.5,
+                          color: const Color(
+                            0xFF203E32,
+                          ).withValues(alpha: 0.65),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildCustomizationsSection(customizations, beans),
+                    ],
 
-                    const SizedBox(height: 26),
+                    if (!_showItems) const SizedBox(height: 26),
 
-                    // Section 2: Menu Items & Drinks
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const BaristaSectionLabel(label: 'DRINKS & MENU ITEMS'),
-                        if (!_loading)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF203E32).withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(12),
+                    if (_showItems) ...[
+                      // Menu items and drink availability
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const BaristaSectionLabel(
+                            label: 'DRINKS & MENU ITEMS',
+                          ),
+                          if (!_loading)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF203E32,
+                                ).withValues(alpha: 0.06),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '$availableCount / $totalCount available',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  color: Color(0xFF203E32),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                            child: Text(
-                              '$availableCount / $totalCount available',
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Search & Category Filters
+                      _buildFilterBar(categories),
+                      const SizedBox(height: 14),
+
+                      // Items List
+                      if (_loading)
+                        const BaristaCard(
+                          child: Padding(
+                            padding: EdgeInsets.all(40),
+                            child: Center(
+                              child: CircularProgressIndicator(
                                 color: Color(0xFF203E32),
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Search & Category Filters
-                    _buildFilterBar(categories),
-                    const SizedBox(height: 14),
-
-                    // Items List
-                    if (_loading)
-                      const BaristaCard(
-                        child: Padding(
-                          padding: EdgeInsets.all(40),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF203E32),
-                            ),
-                          ),
-                        ),
-                      )
-                    else if (allItems.isEmpty)
-                      BaristaCard(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 36),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.search_off_rounded,
-                                  size: 40,
-                                  color: const Color(0xFF203E32).withValues(alpha: 0.3),
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  _searchQuery.isNotEmpty
-                                      ? 'No items match "$_searchQuery"'
-                                      : 'No menu items found.',
-                                  style: const TextStyle(
-                                    fontFamily: 'Afacad',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF203E32),
+                        )
+                      else if (allItems.isEmpty)
+                        BaristaCard(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 36),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.search_off_rounded,
+                                    size: 40,
+                                    color: const Color(
+                                      0xFF203E32,
+                                    ).withValues(alpha: 0.3),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    _searchQuery.isNotEmpty
+                                        ? 'No items match "$_searchQuery"'
+                                        : 'No menu items found.',
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF203E32),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      )
-                    else
-                      BaristaCard(
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: allItems.length,
-                          separatorBuilder: (context, index) => Divider(
-                            height: 1,
-                            color: const Color(0xFF203E32).withValues(alpha: 0.08),
+                        )
+                      else
+                        BaristaCard(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: allItems.length,
+                            separatorBuilder: (context, index) => Divider(
+                              height: 1,
+                              color: const Color(
+                                0xFF203E32,
+                              ).withValues(alpha: 0.08),
+                            ),
+                            itemBuilder: (context, index) {
+                              final entry = allItems[index];
+                              return _buildMenuItemRow(
+                                entry.category,
+                                entry.item,
+                              );
+                            },
                           ),
-                          itemBuilder: (context, index) {
-                            final entry = allItems[index];
-                            return _buildMenuItemRow(entry.category, entry.item);
-                          },
                         ),
-                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuViewSwitcher() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF203E32).withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          _buildMenuViewButton(
+            label: 'Menu Items',
+            icon: Icons.local_cafe_outlined,
+            selected: _showItems,
+            onTap: () => setState(() => _showItems = true),
+          ),
+          _buildMenuViewButton(
+            label: 'Ingredients & Customisations',
+            icon: Icons.tune_rounded,
+            selected: !_showItems,
+            onTap: () => setState(() => _showItems = false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuViewButton({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: const Color(0xFF203E32)),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    color: Color(0xFF203E32),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -366,79 +488,98 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
   }
 
   Widget _buildCustomizationGroupCard(BaristaCustomizationGroup group) {
+    final isExpanded = _expandedCustomizationGroups.contains(group.type);
     return BaristaCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                _buildGroupHeaderIcon(group.type),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        group.categoryName,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF203E32),
-                        ),
-                      ),
-                      if (group.description.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() {
+                if (isExpanded) {
+                  _expandedCustomizationGroups.remove(group.type);
+                } else {
+                  _expandedCustomizationGroups.add(group.type);
+                }
+              }),
+              child: Row(
+                children: [
+                  _buildGroupHeaderIcon(group.type),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          group.description,
+                          group.categoryName,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF203E32),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${group.options.length} options · ${group.options.where((option) => option.isAvailable).length} available',
                           style: TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF203E32).withValues(alpha: 0.6),
+                            fontWeight: FontWeight.w600,
+                            color: const Color(
+                              0xFF203E32,
+                            ).withValues(alpha: 0.6),
                           ),
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: const Color(0xFF203E32).withValues(alpha: 0.65),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 14),
-            Divider(
-              height: 1,
-              color: const Color(0xFF203E32).withValues(alpha: 0.08),
-            ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 540;
-                final cards = group.options
-                    .map((opt) => _buildOptionTile(group.type, opt))
-                    .toList();
+            if (isExpanded) ...[
+              const SizedBox(height: 14),
+              Divider(
+                height: 1,
+                color: const Color(0xFF203E32).withValues(alpha: 0.08),
+              ),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 540;
+                  final cards = group.options
+                      .map((opt) => _buildOptionTile(group.type, opt))
+                      .toList();
 
-                if (isWide && cards.length == 2) {
-                  return Row(
+                  if (isWide && cards.length == 2) {
+                    return Row(
+                      children: [
+                        Expanded(child: cards[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: cards[1]),
+                      ],
+                    );
+                  }
+
+                  return Column(
                     children: [
-                      Expanded(child: cards[0]),
-                      const SizedBox(width: 12),
-                      Expanded(child: cards[1]),
+                      for (int i = 0; i < cards.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 8),
+                        cards[i],
+                      ],
                     ],
                   );
-                }
-
-                return Column(
-                  children: [
-                    for (int i = 0; i < cards.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 8),
-                      cards[i],
-                    ],
-                  ],
-                );
-              },
-            ),
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -542,7 +683,10 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: isInStock
                             ? const Color(0xFF203E32).withValues(alpha: 0.08)
@@ -583,11 +727,8 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
             value: option.isAvailable,
             activeThumbColor: const Color(0xFF203E32),
             activeTrackColor: const Color(0xFF203E32).withValues(alpha: 0.4),
-            onChanged: (val) => _toggleCustomization(
-              type: type,
-              option: option,
-              newValue: val,
-            ),
+            onChanged: (val) =>
+                _toggleCustomization(type: type, option: option, newValue: val),
           ),
         ],
       ),
@@ -651,10 +792,15 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: isInStock
-                                    ? const Color(0xFF203E32).withValues(alpha: 0.08)
+                                    ? const Color(
+                                        0xFF203E32,
+                                      ).withValues(alpha: 0.08)
                                     : Colors.red.withValues(alpha: 0.09),
                                 borderRadius: BorderRadius.circular(6),
                               ),
@@ -678,7 +824,9 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                           style: TextStyle(
                             fontFamily: 'Afacad',
                             fontSize: 13,
-                            color: const Color(0xFF203E32).withValues(alpha: 0.6),
+                            color: const Color(
+                              0xFF203E32,
+                            ).withValues(alpha: 0.6),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -689,7 +837,9 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                   Switch(
                     value: bean.isAvailable,
                     activeThumbColor: const Color(0xFF203E32),
-                    activeTrackColor: const Color(0xFF203E32).withValues(alpha: 0.4),
+                    activeTrackColor: const Color(
+                      0xFF203E32,
+                    ).withValues(alpha: 0.4),
                     onChanged: (val) => _toggleBean(bean, val),
                   ),
                 ],
@@ -753,7 +903,10 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                 : null,
             filled: true,
             fillColor: const Color(0xFF203E32).withValues(alpha: 0.03),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 11,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
@@ -831,7 +984,10 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
     );
   }
 
-  Widget _buildMenuItemRow(BaristaMenuCategory category, BaristaMenuItemAvailability item) {
+  Widget _buildMenuItemRow(
+    BaristaMenuCategory category,
+    BaristaMenuItemAvailability item,
+  ) {
     final isAvailable = item.isAvailable;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -878,9 +1034,14 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                     if (item.allowChoiceOfBeans) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1.5,
+                        ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF993300).withValues(alpha: 0.08),
+                          color: const Color(
+                            0xFF993300,
+                          ).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Text(

@@ -282,6 +282,100 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
     }
   });
 
+  app.get('/v1/admin/customers/:userId/activity', { preHandler: [authenticateAdminRequest] }, async (request, reply) => {
+    requireAnyAdminRole(request, ['super_admin', 'support_admin']);
+    const userId = Number((request.params as { userId?: string }).userId);
+    if (!Number.isInteger(userId) || userId < 1) {
+      throw new ApiError(400, 'invalid_customer_id', 'Customer id must be a positive integer.');
+    }
+
+    const connection = await mysqlPool.getConnection();
+    try {
+      const [membershipRows] = await connection.query<RowDataPacket[]>(
+        `SELECT 1 FROM customer_tenant_memberships WHERE user_id = :userId AND tenant_id = :tenantId LIMIT 1`,
+        { userId, tenantId: request.adminAuth.tenantId }
+      );
+      if (membershipRows.length === 0) {
+        throw new ApiError(404, 'customer_not_found', 'Customer was not found for this tenant.');
+      }
+
+      const [orderRows] = await connection.query<RowDataPacket[]>(
+        `SELECT o.order_ref AS id, o.created_at, o.final_total_rm AS total_rm,
+                o.token_amount_charged AS tokens_charged,
+                o.employee_allowance_tokens_used AS subsidy_tokens,
+                o.status, o.payment_mode, s.name AS store_name,
+                COUNT(oi.id) AS item_count,
+                GROUP_CONCAT(CONCAT(oi.quantity, 'x ', oi.item_name_snapshot) ORDER BY oi.id SEPARATOR ', ') AS items
+           FROM orders o
+           JOIN stores s ON s.id = o.store_id AND s.tenant_id = :tenantId
+           LEFT JOIN order_items oi ON oi.order_id = o.id
+          WHERE o.user_id = :userId
+            AND o.status IN ('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected', 'refunded', 'cancelled')
+          GROUP BY o.id, o.order_ref, o.created_at, o.final_total_rm, o.token_amount_charged,
+                   o.employee_allowance_tokens_used, o.status, o.payment_mode, s.name
+          ORDER BY o.created_at DESC, o.id DESC`,
+        { userId, tenantId: request.adminAuth.tenantId }
+      );
+
+      const [tokenRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id, direction, source_type, source_id, amount, balance_after, remarks, created_at
+           FROM token_ledger
+          WHERE user_id = :userId
+          ORDER BY created_at DESC, id DESC`,
+        { userId }
+      );
+
+      const [voucherRows] = await connection.query<RowDataPacket[]>(
+        `SELECT uv.id, uv.status, uv.issued_reason, uv.issue_case_ref, uv.issued_at,
+                uv.redeemed_at, vt.name, vt.voucher_type, vr.order_id
+           FROM user_vouchers uv
+           JOIN voucher_templates vt ON vt.id = uv.voucher_template_id AND vt.tenant_id = :tenantId
+           LEFT JOIN voucher_redemptions vr ON vr.user_voucher_id = uv.id
+          WHERE uv.user_id = :userId AND uv.status = 'redeemed'
+          ORDER BY COALESCE(uv.redeemed_at, uv.issued_at) DESC, uv.id DESC`,
+        { userId, tenantId: request.adminAuth.tenantId }
+      );
+
+      return reply.send({
+        orders: orderRows.map((row) => ({
+          id: row.id,
+          date: row.created_at,
+          items: Number(row.item_count || 0),
+          itemNames: row.items || '',
+          totalRm: Number(row.total_rm || 0),
+          tokensCharged: Number(row.tokens_charged || 0),
+          subsidyTokens: Number(row.subsidy_tokens || 0),
+          personalTokens: Math.max(0, Number(row.tokens_charged || 0) - Number(row.subsidy_tokens || 0)),
+          status: row.status,
+          paymentMode: row.payment_mode || '',
+          storeName: row.store_name || ''
+        })),
+        tokenTransactions: tokenRows.map((row) => ({
+          id: row.id,
+          direction: row.direction,
+          source: row.source_type,
+          sourceId: row.source_id,
+          amount: Number(row.amount || 0),
+          balanceAfter: Number(row.balance_after || 0),
+          remarks: row.remarks || '',
+          date: row.created_at
+        })),
+        redeemedVouchers: voucherRows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          type: row.voucher_type,
+          issuedReason: row.issued_reason,
+          issueCaseRef: row.issue_case_ref,
+          issuedAt: row.issued_at,
+          redeemedAt: row.redeemed_at,
+          orderId: row.order_id || null
+        }))
+      });
+    } finally {
+      connection.release();
+    }
+  });
+
   app.post('/v1/admin/customers', { preHandler: [authenticateAdminRequest] }, async (request) => {
     requireAdminRole(request, 'super_admin');
     const payload = createCustomerSchema.parse(request.body);

@@ -157,7 +157,7 @@ test('side-work completion is due-time, attendance, tenant, and PIN guarded', as
   assert.match(baristaStaff, /verifyPassword\(payload\.pin/);
   assert.match(baristaStaff, /clocked_out_at IS NULL/);
   assert.match(baristaStaff, /tenant_id = :tenantId/);
-  assert.match(baristaStaff, /TIMESTAMP\(scheduled_date, scheduled_time\) <= CONVERT_TZ/);
+  assert.match(baristaStaff, /TIMESTAMP\((?:t\.)?scheduled_date, (?:t\.)?scheduled_time\) <= CONVERT_TZ/);
   assert.match(baristaStaff, /AS is_due/);
   assert.match(baristaStaff, /INSERT IGNORE INTO barista_side_work_completions/);
 });

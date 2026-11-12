@@ -144,12 +144,18 @@ class _SideWorkPageState extends State<SideWorkPage> {
       );
     }
     final tasks = snapshot.data!;
+    final activeTasks = tasks.where((task) => !task.isCompleted).toList();
+    final now = DateTime.now();
+    final completedTasks = tasks.where((task) {
+      final completedAt = task.completedAt;
+      return completedAt != null && now.difference(completedAt).inMinutes < 60;
+    }).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const BaristaSectionLabel(label: 'NEXT 31 DAYS'),
         const SizedBox(height: 12),
-        if (tasks.isEmpty)
+        if (activeTasks.isEmpty)
           BaristaCard(
             padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
             child: Center(
@@ -183,7 +189,7 @@ class _SideWorkPageState extends State<SideWorkPage> {
             ),
           )
         else
-          ...tasks.map(
+          ...activeTasks.map(
             (task) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _TaskCard(
@@ -193,6 +199,21 @@ class _SideWorkPageState extends State<SideWorkPage> {
               ),
             ),
           ),
+        if (completedTasks.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const BaristaSectionLabel(label: 'COMPLETED'),
+          const SizedBox(height: 12),
+          ...completedTasks.map(
+            (task) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _TaskCard(
+                task: task,
+                completing: false,
+                onComplete: () {},
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -212,6 +233,7 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final completedBy = task.completedByBaristaName?.trim();
+    final overdue = !task.isCompleted && task.isDue && _scheduledAt(task).isBefore(DateTime.now());
     return BaristaCard(
       borderColor: task.isCompleted
           ? const Color(0xFF9AD7B2)
@@ -276,9 +298,11 @@ class _TaskCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${_displayDate(task.scheduledDate)} at ${_displayTime(context, task.scheduledTime)}',
-                  style: const TextStyle(
-                    color: _SideWorkPageState._green,
+                  overdue
+                      ? 'Overdue · ${_displayDate(task.scheduledDate)} at ${_displayTime(context, task.scheduledTime)}'
+                      : '${_displayDate(task.scheduledDate)} at ${_displayTime(context, task.scheduledTime)}',
+                  style: TextStyle(
+                    color: overdue ? Color(0xFFB42318) : _SideWorkPageState._green,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -298,7 +322,7 @@ class _TaskCard extends StatelessWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.done_rounded),
-                      label: Text(task.isDue ? 'Complete task' : 'Not due yet'),
+                      label: Text(overdue ? 'Complete overdue task' : task.isDue ? 'Complete task' : 'Not due yet'),
                       style: FilledButton.styleFrom(
                         backgroundColor: _SideWorkPageState._green,
                       ),
@@ -312,6 +336,11 @@ class _TaskCard extends StatelessWidget {
       ),
     );
   }
+}
+
+DateTime _scheduledAt(BaristaSideWorkTask task) {
+  final date = DateTime.tryParse('${task.scheduledDate}T${task.scheduledTime}:00');
+  return date ?? DateTime.now();
 }
 
 class _SideWorkAction {

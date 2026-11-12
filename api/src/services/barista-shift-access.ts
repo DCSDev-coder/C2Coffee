@@ -1,12 +1,11 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
-import { isStoreTradingNow } from './store-availability.js';
 import { isCurrentAttendance } from './attendance-duration.js';
 
 const TIME_ZONE = 'Asia/Kuala_Lumpur';
 
 export type ShiftAccessState = {
-  schedule_status: 'published' | 'unpublished' | 'closed';
-  access_state: 'locked' | 'unlocked' | 'handover' | 'closing' | 'closed';
+  schedule_status: 'published' | 'closed';
+  access_state: 'locked' | 'unlocked' | 'closed';
   can_prepare_orders: boolean;
   message: string;
   schedule_date: string;
@@ -50,7 +49,7 @@ export async function resolveBaristaShiftAccess(
   const now = input.now ?? new Date();
   const [storeRows, attendanceRows] = await Promise.all([
     connection.query<RowDataPacket[]>(
-      `SELECT status, temporarily_closed, timezone, weekly_hours_json
+      `SELECT status, temporarily_closed, timezone
          FROM stores WHERE id = :storeId AND tenant_id = :tenantId LIMIT 1`,
       { storeId: input.storeId, tenantId: input.tenantId }
     ),
@@ -68,12 +67,6 @@ export async function resolveBaristaShiftAccess(
   const store = storeRows[0][0];
   const timezone = String(store?.timezone || TIME_ZONE);
   const { date: today } = zonedParts(now, timezone);
-  const withinOpeningHours = Boolean(store) && isStoreTradingNow({
-    status: String(store.status),
-    temporarily_closed: store.temporarily_closed,
-    timezone: store.timezone,
-    weekly_hours_json: store.weekly_hours_json
-  }, now);
   const mapAttendance = (row: RowDataPacket) => ({
       id: Number(row.id), barista_id: Number(row.barista_id), barista_name: String(row.barista_name),
       clocked_in_at: new Date(row.clocked_in_at).toISOString()
@@ -87,7 +80,9 @@ export async function resolveBaristaShiftAccess(
   const storeCanTrade = Boolean(store) && String(store.status) === 'active' && !Boolean(store.temporarily_closed);
   const isOpen = storeCanTrade && activeAttendance.length > 0;
   return {
-    schedule_status: withinOpeningHours ? 'published' : 'closed',
+    // Opening hours are customer-facing information only. Workstation access is
+    // controlled exclusively by outlet availability and live attendance.
+    schedule_status: storeCanTrade ? 'published' : 'closed',
     access_state: isOpen ? 'unlocked' : storeCanTrade ? 'locked' : 'closed',
     can_prepare_orders: isOpen,
     message: !storeCanTrade

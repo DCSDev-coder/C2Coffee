@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { loadAdminCustomerActivity } from '../lib/adminApi';
 
 const OrderHistory = ({ customer, onBack }) => {
-  const orders = [
-    { id: 'ORD-2026-001', date: 'Aug 19, 2026', items: 3, total: 'Tokens 145.00', status: 'Delivered' },
-    { id: 'ORD-2026-002', date: 'Aug 19, 2026', items: 1, total: 'Tokens 25.50', status: 'Delivered' },
-    { id: 'ORD-2026-003', date: 'Aug 19, 2026', items: 5, total: 'Tokens 320.00', status: 'Delivered' },
-  ];
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    loadAdminCustomerActivity(customer.id)
+      .then((data) => active && setOrders(data.orders || []))
+      .catch(() => active && setOrders([]))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [customer.id]);
 
   return (
     <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
@@ -39,15 +45,15 @@ const OrderHistory = ({ customer, onBack }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {orders.map((order) => (
+            {loading ? <tr><td colSpan="5" className="px-6 py-10 text-center text-sm text-gray-500">Loading order history...</td></tr> : orders.length === 0 ? <tr><td colSpan="5" className="px-6 py-10 text-center text-sm text-gray-500">No orders found for this customer.</td></tr> : orders.map((order) => (
               <tr key={order.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 text-sm font-bold text-gray-900">{order.id}</td>
-                <td className="px-6 py-4 text-sm text-gray-500">{order.date}</td>
-                <td className="px-6 py-4 text-sm text-gray-900">{order.items} items</td>
-                <td className="px-6 py-4 text-sm font-bold text-[#E07A5F]">{order.total}</td>
+                <td className="px-6 py-4 text-sm text-gray-500">{new Date(order.date).toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                <td className="px-6 py-4 text-sm text-gray-900">{order.itemNames || `${order.items} items`}</td>
+                <td className="px-6 py-4 text-sm font-bold text-[#E07A5F]">{order.tokensCharged} tokens <span className="block text-xs font-medium text-gray-500">RM {order.totalRm.toFixed(2)} · {order.personalTokens} personal{order.subsidyTokens ? ` · ${order.subsidyTokens} subsidy` : ''}</span></td>
                 <td className="px-6 py-4">
                   <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-green-100 text-green-700">
-                    {order.status}
+                    {String(order.status).replaceAll('_', ' ')}
                   </span>
                 </td>
               </tr>

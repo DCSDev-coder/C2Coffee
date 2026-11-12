@@ -54,6 +54,7 @@ const sideWorkBatchSchema = z.object({
   scheduled_dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(31),
   scheduled_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 });
+const sideWorkUpdateSchema = sideWorkSchema;
 
 const sideWorkCompletionSchema = attendanceActionSchema.extend({
   task_id: z.coerce.number().int().positive()
@@ -353,6 +354,40 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     }
   });
 
+  app.put('/v1/admin/side-work/:taskId', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
+    const taskId = z.coerce.number().int().positive().parse((request.params as { taskId: string }).taskId);
+    const payload = sideWorkUpdateSchema.parse(request.body);
+    validateSideWorkDates([payload.scheduled_date]);
+    const [result] = await mysqlPool.execute<ResultSetHeader>(
+      `UPDATE barista_side_work_tasks t
+       LEFT JOIN barista_side_work_completions c ON c.task_id = t.id
+       SET t.title = :title, t.instructions = :instructions,
+           t.scheduled_date = :scheduledDate, t.scheduled_time = :scheduledTime,
+           t.updated_at = CURRENT_TIMESTAMP
+       WHERE t.id = :taskId AND t.tenant_id = :tenantId AND t.is_active = 1 AND c.id IS NULL`,
+      {
+        taskId,
+        tenantId: request.adminAuth.tenantId,
+        title: payload.title,
+        instructions: payload.instructions || null,
+        scheduledDate: payload.scheduled_date,
+        scheduledTime: payload.scheduled_time
+      }
+    );
+    if (!result.affectedRows) {
+      const [completed] = await mysqlPool.query<RowDataPacket[]>(
+        `SELECT c.id FROM barista_side_work_completions c
+         JOIN barista_side_work_tasks t ON t.id = c.task_id
+         WHERE t.id = :taskId AND t.tenant_id = :tenantId LIMIT 1`,
+        { taskId, tenantId: request.adminAuth.tenantId }
+      );
+      if (completed[0]) throw new ApiError(409, 'side_work_completed', 'Completed side work is locked and cannot be edited.');
+      throw new ApiError(404, 'side_work_not_found', 'The side-work task was not found.');
+    }
+    return { updated: true };
+  });
+
   app.delete('/v1/admin/side-work/:taskId', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const taskId = z.coerce.number().int().positive().parse((request.params as { taskId: string }).taskId);
@@ -435,13 +470,15 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         throw new ApiError(409, 'barista_not_clocked_in', 'Clock in before completing side work.');
       }
       const [tasks] = await connection.query<RowDataPacket[]>(
-        `SELECT id FROM barista_side_work_tasks
-         WHERE id = :taskId AND tenant_id = :tenantId AND is_active = 1
-           AND TIMESTAMP(scheduled_date, scheduled_time) <= CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')
+        `SELECT t.id, c.id AS completion_id FROM barista_side_work_tasks t
+         LEFT JOIN barista_side_work_completions c ON c.task_id = t.id
+         WHERE t.id = :taskId AND t.tenant_id = :tenantId AND t.is_active = 1
+           AND TIMESTAMP(t.scheduled_date, t.scheduled_time) <= CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')
          LIMIT 1 FOR UPDATE`,
         { taskId: payload.task_id, tenantId: request.adminAuth.tenantId }
       );
       if (!tasks[0]) throw new ApiError(409, 'side_work_not_due', 'This side-work task is not due yet or is no longer available.');
+      if (tasks[0].completion_id) throw new ApiError(409, 'side_work_already_completed', 'This side-work task has already been completed.');
       await connection.execute(
         `INSERT IGNORE INTO barista_side_work_completions
            (task_id, barista_id, recorded_by_admin_user_id)

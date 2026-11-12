@@ -19,6 +19,8 @@ final ValueNotifier<List<CurrentOrder>> globalCurrentOrders =
 final ValueNotifier<List<CurrentOrder>> globalHistoryOrders =
     ValueNotifier<List<CurrentOrder>>([]);
 
+final ValueNotifier<bool> globalSideWorkAttention = ValueNotifier<bool>(false);
+
 final ValueNotifier<WorkstationAccessState?> globalWorkstationAccess =
     ValueNotifier<WorkstationAccessState?>(null);
 

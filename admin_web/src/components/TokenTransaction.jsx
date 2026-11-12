@@ -1,19 +1,28 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { loadAdminCustomerActivity } from '../lib/adminApi';
 
 const TokenTransaction = ({ customer, transactions: providedTransactions, onBack }) => {
   const currentBalance = customer?.tokens || customer?.tokensBalance || '0';
   const balanceNum = parseInt(currentBalance.toString().replace(/,/g, ''), 10) || 0;
   const sourceTransactions = Array.isArray(providedTransactions) ? providedTransactions : [];
+  const [loadedTransactions, setLoadedTransactions] = useState(sourceTransactions);
+  const [loading, setLoading] = useState(!providedTransactions);
+  useEffect(() => {
+    if (providedTransactions) return undefined;
+    let active = true;
+    loadAdminCustomerActivity(customer.id).then((data) => active && setLoadedTransactions(data.tokenTransactions || [])).catch(() => active && setLoadedTransactions([])).finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [customer.id, providedTransactions]);
 
-  const transactions = sourceTransactions
+  const transactions = (providedTransactions ? sourceTransactions : loadedTransactions)
     .map((txn) => {
       const source = txn.source || txn.desc || 'Token activity';
       const rawAmount = txn.amount ?? txn.tokens ?? 0;
       const amountValue = typeof rawAmount === 'string'
         ? Number(rawAmount.replace(/[,+]/g, '').replace(/-/g, '')) || 0
         : Number(rawAmount || 0);
-      const type = txn.type || (String(txn.amount ?? txn.tokens ?? '').startsWith('-') ? 'Redeemed' : 'Earned');
+      const type = txn.type || (txn.direction === 'debit' || String(txn.amount ?? txn.tokens ?? '').startsWith('-') ? 'Redeemed' : 'Earned');
       const signedAmount = typeof txn.amount === 'string' && txn.amount.trim()
         ? txn.amount
         : `${type === 'Redeemed' ? '-' : '+'}${amountValue.toLocaleString('en-US')}`;
@@ -69,7 +78,9 @@ const TokenTransaction = ({ customer, transactions: providedTransactions, onBack
         </p>
       </div>
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex-1">
-      {transactions.length === 0 ? (
+      {loading ? (
+        <div className="h-full flex items-center justify-center px-6 py-10 text-sm text-gray-500">Loading token transactions...</div>
+      ) : transactions.length === 0 ? (
         <div className="h-full flex items-center justify-center px-6 py-10 text-sm text-gray-500">
           No token transactions available for this member.
         </div>

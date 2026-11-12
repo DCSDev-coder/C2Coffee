@@ -8,6 +8,7 @@ import 'auth_service.dart';
 import 'barista/services/barista_sound_service.dart';
 import 'barista/services/api_service.dart';
 import 'barista/services/direct_printer_service.dart';
+import 'json_helpers.dart';
 
 /// Polls the durable print queue with the activated outlet-device credential.
 ///
@@ -151,7 +152,7 @@ class DevicePrinterWorker {
       customerName: order['customer_name']?.toString().trim().isNotEmpty == true
           ? order['customer_name'].toString().trim()
           : 'Guest',
-      customerIsEmployee: order['is_employee'] == true,
+      customerIsEmployee: readJsonBool(order['is_employee']),
       voucherName: voucher?['name']?.toString(),
       voucherType: voucher?['type']?.toString(),
       voucherCode: voucher?['code']?.toString(),
