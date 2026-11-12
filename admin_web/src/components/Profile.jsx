@@ -81,7 +81,33 @@ const Profile = ({ onBack, currentUser }) => {
           <dl className="mt-6 divide-y divide-gray-100 border-y border-gray-100 text-sm"><div className="flex justify-between gap-4 py-4"><dt className="text-gray-500">Username</dt><dd className="font-semibold text-gray-900">{currentUser?.username || 'Not available'}</dd></div><div className="flex justify-between gap-4 py-4"><dt className="text-gray-500">Admin email</dt><dd className="max-w-[65%] truncate font-semibold text-gray-900">{email || 'No email configured'}</dd></div><div className="flex justify-between gap-4 py-4"><dt className="text-gray-500">Last sign-in</dt><dd className="font-semibold text-gray-900">{currentUser?.last_login_at ? new Date(currentUser.last_login_at).toLocaleString() : 'Not available'}</dd></div></dl>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-5"><div><div className="flex items-center gap-2"><ShieldCheck size={20} className="text-[#1F3A34]" /><h2 className="text-lg font-bold text-gray-900">Password</h2></div><p className="mt-2 text-sm text-gray-500">Changing your password requires your current password and a six-digit code sent to your admin email. All devices will need to sign in again.</p></div><button onClick={() => setOpen(true)} className="shrink-0 rounded-lg bg-[#1F3A34] px-4 py-2 text-sm font-bold text-white hover:bg-[#2E5E58]">Change Password</button></div></section>
+        <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={20} className="text-[#1F3A34] shrink-0" />
+              <h2 className="text-base sm:text-lg font-bold text-gray-900">Password</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="hidden sm:inline-flex rounded-xl bg-[#1F3A34] px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-[#2E5E58] shadow-2xs transition-colors cursor-pointer shrink-0"
+            >
+              Change Password
+            </button>
+          </div>
+          <p className="mt-2.5 text-xs sm:text-sm text-gray-500 leading-relaxed">
+            Changing your password requires your current password and a six-digit code sent to your admin email. All devices will need to sign in again.
+          </p>
+          <div className="mt-4 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="w-full rounded-xl bg-[#1F3A34] py-2.5 px-4 text-xs font-bold text-white hover:bg-[#2E5E58] shadow-2xs transition-colors cursor-pointer text-center"
+            >
+              Change Password
+            </button>
+          </div>
+        </section>
       </div>
 
       {open && typeof document !== 'undefined' && createPortal(

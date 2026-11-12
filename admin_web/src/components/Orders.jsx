@@ -389,6 +389,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
           </div>
           <button
             onClick={() => {
+              onClose?.();
               const cups = order.tier === 'Legend' ? '35' : order.tier === 'Ketagih' ? '25' : order.tier === 'Dilamun' ? '15' : '5';
               onViewProfile({
                 username: order.customer,
@@ -542,8 +543,11 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
         ) : String(order.paymentMode || '').toLowerCase() === 'token' ? (
           <button
             type="button"
-            onClick={() => onCorrectPrice(order)}
-            className="mt-3 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+            onClick={() => {
+              onClose?.();
+              onCorrectPrice(order);
+            }}
+            className="mt-3 w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 cursor-pointer transition-colors"
           >
             Review historical token price
           </button>
@@ -642,6 +646,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const [correctionLoading, setCorrectionLoading] = useState(false);
 
   const openPriceCorrection = async (order) => {
+    setSelectedOrder(null);
     setCorrectionOrder(order);
     setCorrectionPreview(null);
     setCorrectionError('');
@@ -1248,15 +1253,15 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         document.body
       )}
 
-      {correctionOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <form onSubmit={submitPriceCorrection} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+      {correctionOrder && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
+          <form onSubmit={submitPriceCorrection} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Correct historical token price</h2>
                 <p className="mt-1 text-xs text-gray-500">{correctionOrder.id} · Review every item before returning tokens.</p>
               </div>
-              <button type="button" onClick={closePriceCorrection} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={18} /></button>
+              <button type="button" onClick={closePriceCorrection} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer transition-colors"><X size={18} /></button>
             </div>
 
             {correctionError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">{correctionError}</div>}
@@ -1291,13 +1296,14 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                 <input type="password" required minLength={8} value={correctionPassword} onChange={(event) => setCorrectionPassword(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#2E5E58]" />
 
                 <div className="mt-6 flex justify-end gap-3">
-                  <button type="button" onClick={closePriceCorrection} className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-700">Cancel</button>
-                  <button type="submit" disabled={correctionLoading} className="rounded-xl bg-[#1F3A34] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{correctionLoading ? 'Applying…' : 'Apply audited correction'}</button>
+                  <button type="button" onClick={closePriceCorrection} className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors">Cancel</button>
+                  <button type="submit" disabled={correctionLoading} className="rounded-xl bg-[#1F3A34] px-4 py-2 text-xs font-bold text-white disabled:opacity-50 cursor-pointer hover:bg-[#16342D] transition-colors">{correctionLoading ? 'Applying…' : 'Apply audited correction'}</button>
                 </div>
               </>
             )}
           </form>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>
