@@ -717,6 +717,288 @@ function SortableHeader({ label, columnKey, currentKey, direction, onSort, info,
   );
 }
 
+const VoucherDetailPanel = ({
+  voucher,
+  activeTab,
+  setActiveTab,
+  onClose,
+  productKindLabels,
+  isAutomaticDailyEmployeeVoucher,
+  openIssueModal,
+  handleDuplicate,
+  setEditingVoucher,
+  normalizeVoucherForm,
+  handleDelete,
+  issuancesLoading,
+  voucherIssuances,
+  handleRevokeIssuedVoucher,
+  isModal = false
+}) => {
+  return (
+    <div className="flex flex-col h-full space-y-5">
+      {/* Top Close Icon and Avatar */}
+      <div className="relative">
+        <button
+          onClick={onClose}
+          className="absolute top-0 right-0 text-gray-500 hover:text-black cursor-pointer p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          title="Close"
+          aria-label="Close details"
+        >
+          <X size={20} strokeWidth={2.5} />
+        </button>
+
+        <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 pr-8">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1F3A34] text-white flex items-center justify-center font-bold text-xl sm:text-2xl shrink-0 shadow-sm">
+            {voucher.name.charAt(0)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 id="voucher-detail-modal-title" className="text-base sm:text-lg font-bold text-gray-900 leading-tight truncate">
+              {voucher.name}
+            </h3>
+            <p className="text-xs text-gray-500 mt-1 truncate">
+              {voucher.id} - Created on {voucher.created}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Detail Tabs */}
+      <div className="flex border-b border-gray-200 text-xs font-bold text-gray-500 shrink-0">
+        {["Details", "Usage", "History"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 pb-2 text-center transition-colors cursor-pointer ${
+              activeTab === tab
+                ? "text-gray-900 border-b-2 border-[#1F3A34]"
+                : "hover:text-gray-900"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Tab 1: Details Fields */}
+        {activeTab === "Details" && (
+          <div className="space-y-3.5 text-xs">
+            <div>
+              <p className="text-gray-500 text-[11px] font-semibold mb-0.5">Description</p>
+              <p className="font-semibold text-gray-900 leading-snug">
+                {voucher.description}
+              </p>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Voucher Label</span>
+              <span className="font-bold text-gray-900">{voucher.type}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Benefit</span>
+              <span className="font-bold text-gray-900">{benefitTypeLabel(voucher.benefitType)}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Payment mode</span>
+              <span className="font-bold text-gray-900 text-right max-w-[220px]">{paymentModeLabel(voucher.paymentMode)}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Audience</span>
+              <span className="font-bold text-gray-900">{audienceLabel(voucher.audience)}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Items</span>
+              <span className="font-bold text-gray-900 truncate max-w-[200px]" title={Array.isArray(voucher.eligibleItems) ? voucher.eligibleItems.join(', ') : "All Items"}>
+                {formatVoucherEligibility(voucher, productKindLabels)}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Availability</span>
+              <span className="font-bold text-gray-900 text-right max-w-[200px]">{voucher.availabilityLabel || formatAvailabilityMode(voucher.availabilityMode)}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Total Quantity</span>
+              <span className="font-bold text-gray-900">
+                {voucher.totalQty === null ? "Unlimited" : (voucher.totalQty || 0).toLocaleString()}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Issued</span>
+              <span className="font-bold text-gray-900">
+                {(voucher.issued || 0).toLocaleString()}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Redeemed</span>
+              <span className="font-bold text-gray-900">
+                {(voucher.redeemed || 0).toLocaleString()}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Redemption Rate</span>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-gray-900">{voucher.rate}</span>
+                <div className="w-14 bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-[#1F3A34] h-full rounded-full w-3/5"></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">{limitPerUserLabel}</span>
+              <span className="font-bold text-gray-900">{voucher.limitPerUser}</span>
+            </div>
+
+            <div className="flex justify-between items-center py-1">
+              <span className="text-gray-500">Status</span>
+              <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-green-100 text-green-800">
+                {voucher.status}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Usage */}
+        {activeTab === "Usage" && (
+          <div className="space-y-3 text-xs">
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <p className="text-gray-500 text-[11px]">Remaining Allocation</p>
+              <p className="text-lg font-bold text-gray-900 mt-1">
+                {voucher.totalQty === null
+                  ? 'Unlimited'
+                  : `${Math.max(0, (voucher.totalQty || 0) - (voucher.issued || 0)).toLocaleString()} units`}
+              </p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <p className="text-gray-500 text-[11px]">Redemption Success Rate</p>
+              <p className="text-lg font-bold text-green-700 mt-1">
+                {voucher.rate}
+              </p>
+            </div>
+            {isAutomaticDailyEmployeeVoucher(voucher) ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900">
+                <span className="block font-bold">Issued automatically to employees</span>
+                Mark the customer as an Employee in Customers. Their daily voucher is created when they next open or refresh the customer app, with one voucher per Kuala Lumpur calendar day.
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  if (isModal) onClose();
+                  openIssueModal(voucher);
+                }}
+                className="w-full py-2 px-3 bg-[#1F3A34] text-white rounded-lg text-sm font-bold hover:bg-[#2E5E58] transition-colors cursor-pointer"
+              >
+                Issue Voucher To Customer
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: History */}
+        {activeTab === "History" && (
+          <div className="space-y-2.5 text-xs">
+            {issuancesLoading ? (
+              <div className="p-3 bg-gray-50 rounded-lg text-gray-500">Loading issuance history...</div>
+            ) : voucherIssuances.length === 0 ? (
+              <div className="p-3 bg-gray-50 rounded-lg text-gray-500">No issued vouchers yet for this template.</div>
+            ) : (
+              voucherIssuances.map((issuance) => (
+                <div key={issuance.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-gray-900">{issuance.customer.displayName}</p>
+                      <p className="text-[10px] text-gray-500">
+                        {issuance.customer.email || issuance.customer.phone}
+                      </p>
+                      <p className="text-[10px] text-gray-500 mt-1">
+                        Issued {new Date(issuance.issuedAt).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "numeric", hour12: true })}
+                      </p>
+                      <p className="text-[10px] text-gray-500">
+                        Expires {new Date(issuance.expiresAt).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "numeric", hour12: true })}
+                      </p>
+                      <p className="text-[10px] text-gray-500">
+                        Reason: {issuance.issuedReason}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${issuance.status === 'active'
+                          ? 'bg-green-100 text-green-800'
+                          : issuance.status === 'redeemed'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                        {issuance.status}
+                      </span>
+                      {issuance.status === 'active' && (
+                        <button
+                          onClick={() => handleRevokeIssuedVoucher(issuance.id)}
+                          className="text-[10px] font-bold text-red-600 hover:text-red-700 cursor-pointer"
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Action Buttons */}
+      <div className="pt-4 border-t border-gray-100 grid grid-cols-4 gap-2 mt-auto shrink-0">
+        <button
+          onClick={() => {
+            if (isModal) onClose();
+            openIssueModal(voucher);
+          }}
+          className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+        >
+          <Plus size={12} /> Issue
+        </button>
+        <button
+          onClick={() => {
+            if (isModal) onClose();
+            handleDuplicate(voucher);
+          }}
+          className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+        >
+          <Copy size={12} /> Duplicate
+        </button>
+        <button
+          onClick={() => {
+            if (isModal) onClose();
+            setEditingVoucher(normalizeVoucherForm(voucher));
+          }}
+          className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+        >
+          <Edit3 size={12} /> Edit
+        </button>
+        <button
+          onClick={() => {
+            if (isModal) onClose();
+            handleDelete(voucher.id);
+          }}
+          className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-red-50 hover:text-red-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
+        >
+          <Trash2 size={12} /> Archive
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const Vouchers = ({ onNavigate }) => {
   const itemsPerPage = useResponsivePageSize(5, 10);
   const [voucherSortKey, setVoucherSortKey] = useState("name");
@@ -1599,254 +1881,66 @@ const Vouchers = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Right-Side Voucher Detail Drawer (Matching Mockup exactly) */}
+        {/* Desktop Voucher Detail Drawer (>= xl) */}
         {selectedVoucher && (
-          <div className="w-[360px] lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col shrink-0 overflow-y-auto space-y-5 animate-in fade-in duration-200">
-            {/* Top Close Icon and Avatar */}
-            <div className="relative">
-              <button
-                onClick={() => setSelectedVoucher(null)}
-                className="absolute top-0 right-0 text-gray-500 hover:text-black cursor-pointer"
-                title="Close"
-              >
-                <X size={20} strokeWidth={2.5} />
-              </button>
-
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 rounded-full bg-[#1F3A34] text-white flex items-center justify-center font-bold text-2xl shrink-0 shadow-sm">
-                  {selectedVoucher.name.charAt(0)}
-                </div>
-                <div className="min-w-0 pr-6">
-                  <h3 className="text-base font-bold text-gray-900 leading-tight">
-                    {selectedVoucher.name}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {selectedVoucher.id} - Created on {selectedVoucher.created}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Detail Tabs */}
-            <div className="flex border-b border-gray-200 text-xs font-bold text-gray-500">
-              {["Details", "Usage", "History"].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex-1 pb-2 text-center transition-colors cursor-pointer ${activeTab === tab
-                    ? "text-gray-900 border-b-2 border-[#1F3A34]"
-                    : "hover:text-gray-900"
-                    }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab 1: Details Fields */}
-            {activeTab === "Details" && (
-              <div className="space-y-3.5 text-xs">
-                <div>
-                  <p className="text-gray-500 text-[11px] font-semibold mb-0.5">Description</p>
-                  <p className="font-semibold text-gray-900 leading-snug">
-                    {selectedVoucher.description}
-                  </p>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Voucher Label</span>
-                  <span className="font-bold text-gray-900">{selectedVoucher.type}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Benefit</span>
-                  <span className="font-bold text-gray-900">{benefitTypeLabel(selectedVoucher.benefitType)}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Payment mode</span>
-                  <span className="font-bold text-gray-900 text-right max-w-[220px]">{paymentModeLabel(selectedVoucher.paymentMode)}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Audience</span>
-                  <span className="font-bold text-gray-900">{audienceLabel(selectedVoucher.audience)}</span>
-                </div>
-
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Items</span>
-                  <span className="font-bold text-gray-900 truncate max-w-[200px]" title={Array.isArray(selectedVoucher.eligibleItems) ? selectedVoucher.eligibleItems.join(', ') : "All Items"}>
-                    {formatVoucherEligibility(selectedVoucher, productKindLabels)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Availability</span>
-                  <span className="font-bold text-gray-900 text-right max-w-[200px]">{selectedVoucher.availabilityLabel || formatAvailabilityMode(selectedVoucher.availabilityMode)}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Total Quantity</span>
-                  <span className="font-bold text-gray-900">
-                    {selectedVoucher.totalQty === null ? "Unlimited" : (selectedVoucher.totalQty || 0).toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Issued</span>
-                  <span className="font-bold text-gray-900">
-                    {(selectedVoucher.issued || 0).toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Redeemed</span>
-                  <span className="font-bold text-gray-900">
-                    {(selectedVoucher.redeemed || 0).toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Redemption Rate</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-900">{selectedVoucher.rate}</span>
-                    <div className="w-14 bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-[#1F3A34] h-full rounded-full w-3/5"></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">{limitPerUserLabel}</span>
-                  <span className="font-bold text-gray-900">{selectedVoucher.limitPerUser}</span>
-                </div>
-
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Status</span>
-                  <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-green-100 text-green-800">
-                    {selectedVoucher.status}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Tab 2: Usage */}
-            {activeTab === "Usage" && (
-              <div className="space-y-3 text-xs">
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                  <p className="text-gray-500 text-[11px]">Remaining Allocation</p>
-                  <p className="text-lg font-bold text-gray-900 mt-1">
-                    {selectedVoucher.totalQty === null
-                      ? 'Unlimited'
-                      : `${Math.max(0, (selectedVoucher.totalQty || 0) - (selectedVoucher.issued || 0)).toLocaleString()} units`}
-                  </p>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                  <p className="text-gray-500 text-[11px]">Redemption Success Rate</p>
-                  <p className="text-lg font-bold text-green-700 mt-1">
-                    {selectedVoucher.rate}
-                  </p>
-                </div>
-                {isAutomaticDailyEmployeeVoucher(selectedVoucher) ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900">
-                    <span className="block font-bold">Issued automatically to employees</span>
-                    Mark the customer as an Employee in Customers. Their daily voucher is created when they next open or refresh the customer app, with one voucher per Kuala Lumpur calendar day.
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => openIssueModal(selectedVoucher)}
-                    className="w-full py-2 px-3 bg-[#1F3A34] text-white rounded-lg text-sm font-bold hover:bg-[#2E5E58] transition-colors cursor-pointer"
-                  >
-                    Issue Voucher To Customer
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Tab 3: History */}
-            {activeTab === "History" && (
-              <div className="space-y-2.5 text-xs">
-                {issuancesLoading ? (
-                  <div className="p-3 bg-gray-50 rounded-lg text-gray-500">Loading issuance history...</div>
-                ) : voucherIssuances.length === 0 ? (
-                  <div className="p-3 bg-gray-50 rounded-lg text-gray-500">No issued vouchers yet for this template.</div>
-                ) : (
-                  voucherIssuances.map((issuance) => (
-                    <div key={issuance.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-bold text-gray-900">{issuance.customer.displayName}</p>
-                          <p className="text-[10px] text-gray-500">
-                            {issuance.customer.email || issuance.customer.phone}
-                          </p>
-                          <p className="text-[10px] text-gray-500 mt-1">
-                            Issued {new Date(issuance.issuedAt).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "numeric", hour12: true })}
-                          </p>
-                          <p className="text-[10px] text-gray-500">
-                            Expires {new Date(issuance.expiresAt).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "numeric", hour12: true })}
-                          </p>
-                          <p className="text-[10px] text-gray-500">
-                            Reason: {issuance.issuedReason}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${issuance.status === 'active'
-                              ? 'bg-green-100 text-green-800'
-                              : issuance.status === 'redeemed'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}>
-                            {issuance.status}
-                          </span>
-                          {issuance.status === 'active' && (
-                            <button
-                              onClick={() => handleRevokeIssuedVoucher(issuance.id)}
-                              className="text-[10px] font-bold text-red-600 hover:text-red-700 cursor-pointer"
-                            >
-                              Revoke
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Bottom Action Buttons */}
-            <div className="pt-4 border-t border-gray-100 grid grid-cols-4 gap-2 mt-auto">
-              <button
-                onClick={() => openIssueModal(selectedVoucher)}
-                className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Plus size={12} /> Issue
-              </button>
-              <button
-                onClick={() => handleDuplicate(selectedVoucher)}
-                className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Copy size={12} /> Duplicate
-              </button>
-
-              <button
-                onClick={() => setEditingVoucher(normalizeVoucherForm(selectedVoucher))}
-                className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Edit3 size={12} /> Edit
-              </button>
-
-              <button
-                onClick={() => handleDelete(selectedVoucher.id)}
-                className="py-2 px-2 border border-gray-800 rounded-lg text-xs font-bold text-gray-900 hover:bg-red-50 hover:text-red-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Trash2 size={12} /> Archive
-              </button>
-            </div>
+          <div className="hidden xl:flex w-[360px] lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex-col shrink-0 overflow-y-auto animate-in fade-in duration-200">
+            <VoucherDetailPanel
+              voucher={selectedVoucher}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              onClose={() => setSelectedVoucher(null)}
+              productKindLabels={productKindLabels}
+              isAutomaticDailyEmployeeVoucher={isAutomaticDailyEmployeeVoucher}
+              openIssueModal={openIssueModal}
+              handleDuplicate={handleDuplicate}
+              setEditingVoucher={setEditingVoucher}
+              normalizeVoucherForm={normalizeVoucherForm}
+              handleDelete={handleDelete}
+              issuancesLoading={issuancesLoading}
+              voucherIssuances={voucherIssuances}
+              handleRevokeIssuedVoucher={handleRevokeIssuedVoucher}
+              isModal={false}
+            />
           </div>
         )}
       </div>
+
+      {/* Mobile/Tablet Popup Modal (< xl) */}
+      {selectedVoucher && typeof document !== 'undefined' && createPortal(
+        <div
+          className="xl:hidden fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSelectedVoucher(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="voucher-detail-modal-title"
+        >
+          <div
+            className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl bg-white overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-6 flex flex-col h-full overflow-hidden">
+              <VoucherDetailPanel
+                voucher={selectedVoucher}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                onClose={() => setSelectedVoucher(null)}
+                productKindLabels={productKindLabels}
+                isAutomaticDailyEmployeeVoucher={isAutomaticDailyEmployeeVoucher}
+                openIssueModal={openIssueModal}
+                handleDuplicate={handleDuplicate}
+                setEditingVoucher={setEditingVoucher}
+                normalizeVoucherForm={normalizeVoucherForm}
+                handleDelete={handleDelete}
+                issuancesLoading={issuancesLoading}
+                voucherIssuances={voucherIssuances}
+                handleRevokeIssuedVoucher={handleRevokeIssuedVoucher}
+                isModal={true}
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {showIssueModal && issuingVoucher && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">

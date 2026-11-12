@@ -133,6 +133,132 @@ function SortableHeader({ label, columnKey, currentKey, direction, onSort, info,
   );
 }
 
+const CreditDetailPanel = ({
+  customer,
+  onClose,
+  setActiveView,
+  onAdjust,
+  getTierColor,
+  isModal = false
+}) => {
+  return (
+    <div className={`flex flex-col h-full ${isModal ? '' : ''}`}>
+      {/* Header */}
+      <div className={`p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-white ${isModal ? '' : 'rounded-t-2xl'} shrink-0`}>
+        <h2 id="credit-detail-modal-title" className="text-lg sm:text-xl font-bold text-gray-900">C2 Credit Details</h2>
+        <button
+          onClick={onClose}
+          className="p-1.5 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+          aria-label="Close details"
+        >
+          <X size={20} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-6">
+          {/* Profile Info */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">{customer.name}</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5 truncate">{customer.email}</p>
+                <p className="text-[11px] text-gray-400 truncate">{customer.phone}</p>
+                <p className="text-[11px] font-bold text-gray-700 mt-1 truncate">Member ID : {customer.memberId}</p>
+              </div>
+            </div>
+            <div className="self-start shrink-0 ml-2">
+              <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(customer.tier, customer.tierCode)}`}>
+                {customer.tier}
+              </span>
+            </div>
+          </div>
+          <p className="-mt-3 text-xs text-gray-500">Account details and order activity are available on Customers.</p>
+
+          {/* Stats Row */}
+          <div className="flex items-center justify-between pt-2">
+            <div className="text-center">
+              <p className="text-[10px] text-gray-500 font-semibold mb-1">Tokens Balance</p>
+              <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
+                <Ticket size={12} className="text-gray-400" /> {customer.tokensBalance}
+              </p>
+            </div>
+            <div className="w-px h-8 bg-gray-100"></div>
+            <div className="text-center">
+              <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Earned</p>
+              <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
+                <CheckCircle2 size={12} className="text-gray-400" /> {customer.lifetimeEarned}
+              </p>
+            </div>
+            <div className="w-px h-8 bg-gray-100"></div>
+            <div className="text-center">
+              <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Redeemed</p>
+              <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
+                <ShoppingBag size={12} className="text-gray-400" /> {customer.lifetimeRedeemed}
+              </p>
+            </div>
+          </div>
+
+          {/* Token History */}
+          <div className="pt-2">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-gray-900 text-sm">Recent C2 Credit Activity</h3>
+              <button
+                onClick={() => {
+                  onClose();
+                  setActiveView('tokens');
+                }}
+                className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                View All <ArrowRight size={14} className="ml-0.5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {(customer.tokenHistory || []).length > 0 ? (
+                (customer.tokenHistory || []).map((history) => (
+                  <div key={history.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm ${history.type === 'Earned' ? 'bg-gray-900' : 'bg-gray-900'}`}>
+                        {history.type === 'Earned' ? (
+                          <CheckCircle2 size={16} strokeWidth={2.5} />
+                        ) : (
+                          <Percent size={16} strokeWidth={2.5} />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 text-xs">{history.type}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5 leading-tight truncate">{history.desc}</p>
+                        <p className="text-[9px] text-gray-400">{history.date}</p>
+                      </div>
+                    </div>
+                    <div className={`font-bold text-xs shrink-0 ml-2 ${history.type === 'Earned' ? 'text-gray-900' : 'text-gray-900'}`}>
+                      {history.amount}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-gray-500">No recent token history available.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Action */}
+      <div className={`p-4 border-t border-gray-100 bg-white ${isModal ? '' : 'rounded-b-2xl'} shrink-0`}>
+        <button
+          onClick={onAdjust}
+          className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+        >
+          <Edit3 size={16} /> Adjust C2 Credit
+        </button>
+      </div>
+    </div>
+  );
+};
+
 //Main Component
 const LoyaltyTokens = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -553,9 +679,9 @@ const LoyaltyTokens = () => {
         </div>
       </div>
 
-      <div className="flex flex-1 space-x-6 min-h-0 relative">
+      <div className="flex flex-col xl:flex-row flex-1 gap-6 min-h-0 relative">
         {/* Table Container */}
-        <div className={`flex flex-col transition-all duration-300 ease-in-out ${selectedCustomer ? 'w-[65%]' : 'w-full'}`}>
+        <div className={`flex flex-col transition-all duration-300 ease-in-out w-full ${selectedCustomer ? 'xl:w-[65%]' : ''}`}>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col flex-1 overflow-hidden min-h-0">
             <div className="overflow-x-auto flex-1">
               <table className="min-w-full text-sm">
@@ -686,125 +812,56 @@ const LoyaltyTokens = () => {
           </div>
         </div>
 
-        {/* Right side: C2 Credit details panel */}
+        {/* Desktop C2 Credit Details Panel (>= xl) */}
         {selectedCustomer && (
-          <div className="w-[35%] bg-white rounded-2xl border border-gray-200 shadow-lg flex flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0">
-            {/* Header */}
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-white rounded-t-2xl shrink-0">
-              <h2 className="text-xl font-bold text-gray-900">C2 Credit Details</h2>
-              <button
-                onClick={() => setSelectedCustomer(null)}
-                className="p-1.5 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-              >
-                <X size={20} strokeWidth={2.5} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-6 space-y-6">
-                {/* Profile Info */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.name}</h3>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{selectedCustomer.email}</p>
-                      <p className="text-[11px] text-gray-400">{selectedCustomer.phone}</p>
-                      <p className="text-[11px] font-bold text-gray-700 mt-1">Member ID : {selectedCustomer.memberId}</p>
-                    </div>
-                  </div>
-                  <div className="self-start">
-                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded-md ${getTierColor(selectedCustomer.tier, selectedCustomer.tierCode)}`}>
-                      {selectedCustomer.tier}
-                    </span>
-                  </div>
-                </div>
-                <p className="-mt-3 text-xs text-gray-500">Account details and order activity are available on Customers.</p>
-
-                {/* Stats Row */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="text-center">
-                    <p className="text-[10px] text-gray-500 font-semibold mb-1">Tokens Balance</p>
-                    <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
-                      <Ticket size={12} className="text-gray-400" /> {selectedCustomer.tokensBalance}
-                    </p>
-                  </div>
-                  <div className="w-px h-8 bg-gray-100"></div>
-                  <div className="text-center">
-                    <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Earned</p>
-                    <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
-                      <CheckCircle2 size={12} className="text-gray-400" /> {selectedCustomer.lifetimeEarned}
-                    </p>
-                  </div>
-                  <div className="w-px h-8 bg-gray-100"></div>
-                  <div className="text-center">
-                    <p className="text-[10px] text-gray-500 font-semibold mb-1">Lifetime Redeemed</p>
-                    <p className="text-sm font-bold text-gray-900 flex items-center justify-center gap-1">
-                      <ShoppingBag size={12} className="text-gray-400" /> {selectedCustomer.lifetimeRedeemed}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Token History */}
-                <div className="pt-2">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-gray-900 text-sm">Recent C2 Credit Activity</h3>
-                    <button
-                      onClick={() => setActiveView('tokens')}
-                      className="text-xs font-bold text-gray-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      View All <ArrowRight size={14} className="ml-0.5" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    {(selectedCustomer.tokenHistory || []).length > 0 ? (
-                      (selectedCustomer.tokenHistory || []).map((history) => (
-                        <div key={history.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm ${history.type === 'Earned' ? 'bg-gray-900' : 'bg-gray-900'}`}>
-                              {history.type === 'Earned' ? (
-                                <CheckCircle2 size={16} strokeWidth={2.5} />
-                              ) : (
-                                <Percent size={16} strokeWidth={2.5} />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-bold text-gray-900 text-xs">{history.type}</p>
-                              <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{history.desc}</p>
-                              <p className="text-[9px] text-gray-400">{history.date}</p>
-                            </div>
-                          </div>
-                          <div className={`font-bold text-xs ${history.type === 'Earned' ? 'text-gray-900' : 'text-gray-900'}`}>
-                            {history.amount}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-gray-500">No recent token history available.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer Action */}
-            <div className="p-4 border-t border-gray-100 bg-white rounded-b-2xl shrink-0">
-              <button
-                onClick={() => {
-                  setEditTokenError("");
-                  setEditTokenReason("");
-                  setEditTokenPassword("");
-                  setIsEditTokensOpen(true);
-                }}
-                className="w-full py-2.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-              >
-                <Edit3 size={16} /> Adjust C2 Credit
-              </button>
-            </div>
+          <div className="hidden xl:flex xl:w-[35%] bg-white rounded-2xl border border-gray-200 shadow-lg flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0">
+            <CreditDetailPanel
+              customer={selectedCustomer}
+              onClose={() => setSelectedCustomer(null)}
+              setActiveView={setActiveView}
+              onAdjust={() => {
+                setEditTokenError("");
+                setEditTokenReason("");
+                setEditTokenPassword("");
+                setIsEditTokensOpen(true);
+              }}
+              getTierColor={getTierColor}
+              isModal={false}
+            />
           </div>
         )}
       </div>
+
+      {/* Mobile/Tablet Popup Modal (< xl) */}
+      {selectedCustomer && typeof document !== 'undefined' && createPortal(
+        <div
+          className="xl:hidden fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSelectedCustomer(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="credit-detail-modal-title"
+        >
+          <div
+            className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl bg-white overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CreditDetailPanel
+              customer={selectedCustomer}
+              onClose={() => setSelectedCustomer(null)}
+              setActiveView={setActiveView}
+              onAdjust={() => {
+                setEditTokenError("");
+                setEditTokenReason("");
+                setEditTokenPassword("");
+                setIsEditTokensOpen(true);
+              }}
+              getTierColor={getTierColor}
+              isModal={true}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* C2 Credit adjustment modal */}
       {isEditTokensOpen && selectedCustomer && typeof document !== 'undefined' && createPortal(
