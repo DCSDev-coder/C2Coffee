@@ -69,7 +69,7 @@ const Profile = ({ onBack, currentUser }) => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
+    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-center gap-3">
           {onBack && <button onClick={onBack} className="rounded-lg p-1 text-gray-700 hover:bg-gray-100"><ArrowLeft size={22} /></button>}

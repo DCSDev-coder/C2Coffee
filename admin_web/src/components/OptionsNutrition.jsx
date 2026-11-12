@@ -570,7 +570,7 @@ export default function OptionsNutrition() {
   };
 
   return (
-    <div className="relative px-6 lg:px-8 pb-24 pt-4 space-y-6 max-w-7xl">
+    <div className="relative px-4 sm:px-6 lg:px-8 pb-24 pt-4 space-y-6 max-w-7xl">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">

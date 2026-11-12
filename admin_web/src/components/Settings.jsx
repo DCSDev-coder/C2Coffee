@@ -215,7 +215,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
+    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 sm:p-6 lg:p-8">
       <div className="max-w-3xl space-y-6">
         {/* Header */}
         <div>

@@ -23,6 +23,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react';
 import Pagination from './Pagination';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import InfoTooltip from './InfoTooltip';
 import { exportToCSV } from '../utils/exportToCSV';
 import {
@@ -46,7 +47,6 @@ import { showAdminError, showAdminSuccess } from '../lib/adminToast';
 import { requestAdminConfirm } from '../lib/adminDialog';
 import { adminRequest } from '../lib/adminApi';
 
-const ITEMS_PER_PAGE = 10;
 const LAST_SELECTED_ITEM_KEY = 'c2_admin_menu_last_selected_item_id';
 const MENU_PANEL_DISMISSED_KEY = 'c2_admin_menu_panel_dismissed';
 const MENU_PRODUCT_KIND_OPTIONS = [
@@ -57,25 +57,27 @@ const MENU_PRODUCT_KIND_OPTIONS = [
   { value: 'other', label: 'Other' }
 ];
 
-const MenuStat = ({ title, value, badge, info, icon: Icon, iconBg, iconColor = 'text-white' }) => (
-  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
-    <div className="flex items-center gap-3.5 min-w-0">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
-        <Icon size={20} strokeWidth={2.2} />
+const MenuStat = ({ title, value, badge, info, icon: Icon, iconBg = 'bg-[#1F3A34]/10 text-[#1F3A34]' }) => (
+  <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+    <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 min-w-0">
+        <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+        {info && <InfoTooltip content={info} title={title} placement="top" />}
       </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-          {info && <InfoTooltip content={info} title={title} />}
-        </div>
-        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${iconBg}`}>
+        <Icon size={15} strokeWidth={2.2} />
       </div>
     </div>
-    {badge && (
-      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
-        {badge}
-      </span>
-    )}
+    <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+      <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+      {badge && (
+        <div className="flex">
+          <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+            {badge}
+          </span>
+        </div>
+      )}
+    </div>
   </div>
 );
 
@@ -328,6 +330,7 @@ const flattenMenuData = (categories) =>
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
 
 const Menu = () => {
+  const itemsPerPage = useResponsivePageSize(5, 10);
   const [menuCategories, setMenuCategories] = useState([]);
   const [menuSubcategories, setMenuSubcategories] = useState([]);
   const [optionGroups, setOptionGroups] = useState([]);
@@ -359,6 +362,7 @@ const Menu = () => {
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAllMenu, setShowAllMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMenuTemplate, setSelectedMenuTemplate] = useState('custom');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -567,8 +571,8 @@ const Menu = () => {
     });
   }, [filteredMenuItems, sortKey, sortDirection]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedMenuItems.length / ITEMS_PER_PAGE));
-  const paginatedItems = sortedMenuItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(sortedMenuItems.length / itemsPerPage));
+  const paginatedItems = showAllMenu ? sortedMenuItems : sortedMenuItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const selectedItem = allMenuItems.find((item) => item.id === selectedItemId) || null;
   const selectedItemIsDrink = selectedItem && String(
     selectedItem.product_kind_code || menuCategories.find((category) => category.code === selectedItem.category_code)?.product_kind_code || ''
@@ -1116,7 +1120,7 @@ const Menu = () => {
   };
 
   return (
-    <div className="h-full flex flex-col px-8 pb-8 pt-2 space-y-6 overflow-hidden">
+    <div className="h-full flex flex-col px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 overflow-hidden">
       <div className="shrink-0 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -1141,14 +1145,14 @@ const Menu = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           <MenuStat
             title="Total Menu Items"
             value={String(totalMenuItems)}
             badge="Full Catalog"
             info="All menu products registered in the C2 catalog across all categories."
             icon={ClipboardList}
-            iconBg="bg-[#1F3A34]"
+            iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
           />
           <MenuStat
             title="Active Items"
@@ -1156,16 +1160,18 @@ const Menu = () => {
             badge={`${totalMenuItems > 0 ? ((activeItems / totalMenuItems) * 100).toFixed(0) : '0'}% Live`}
             info="Items currently live and available for customers to order in the mobile app."
             icon={CheckCircle2}
-            iconBg="bg-[#2E5E58]"
+            iconBg="bg-emerald-500/10 text-emerald-700"
           />
-          <MenuStat
-            title="Archived Items"
-            value={String(archivedItems)}
-            badge={archivedItems > 0 ? 'Archived' : 'None'}
-            info="Inactive items hidden from the customer app. Historical sales and order records are preserved."
-            icon={XCircle}
-            iconBg="bg-gray-400"
-          />
+          <div className="col-span-2 sm:col-span-1">
+            <MenuStat
+              title="Archived Items"
+              value={String(archivedItems)}
+              badge={archivedItems > 0 ? 'Archived' : 'None'}
+              info="Inactive items hidden from the customer app. Historical sales and order records are preserved."
+              icon={XCircle}
+              iconBg="bg-slate-500/10 text-slate-600"
+            />
+          </div>
         </div>
 
         {archivedItemsDueForReview.length > 0 && (
@@ -1341,26 +1347,30 @@ const Menu = () => {
             </table>
           </div>
 
-          <div className="border-t border-gray-100 px-6 py-4 flex items-center justify-between gap-4 shrink-0 bg-white">
+          <div className="border-t border-gray-100 px-4 sm:px-6 py-3.5 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
+              itemsPerPage={itemsPerPage}
               totalItems={sortedMenuItems.length}
               itemName="menu items"
+              showAll={showAllMenu}
+              onToggleShowAll={() => setShowAllMenu(!showAllMenu)}
+              action={(
+                <button
+                  onClick={() => exportToCSV(exportRows, 'menu.csv')}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-all"
+                >
+                  <Download size={13} /> Export
+                </button>
+              )}
             />
-            <button
-              onClick={() => exportToCSV(exportRows, 'menu.csv')}
-              className="flex items-center px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs whitespace-nowrap cursor-pointer transition-all"
-            >
-              <Download size={14} className="mr-1.5" /> Export
-            </button>
           </div>
         </div>
 
         {selectedItem && (
-          <div className="w-80 lg:w-[350px] xl:w-[400px] 2xl:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+          <div className="w-full xl:w-[400px] 2xl:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
             <div className="p-5 flex flex-col h-full">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex gap-4">

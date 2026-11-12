@@ -7,8 +7,8 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpe
 
   return (
     <header className="flex justify-between md:justify-end items-center bg-transparent py-3 md:py-4 px-4 sm:px-6 md:px-8 border-b border-gray-100/60 md:border-b-0" style={{ fontFamily: '"DM Sans", sans-serif' }}>
-      {/* Mobile Burger & Active Page indicator */}
-      <div className="flex items-center gap-2.5 md:hidden">
+      {/* Mobile Burger Menu Button */}
+      <div className="flex items-center md:hidden">
         <button
           type="button"
           onClick={onOpenMenu}
@@ -17,12 +17,6 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpe
         >
           <Menu size={22} strokeWidth={2.2} />
         </button>
-        <div className="flex items-center gap-2">
-          <img src="/c2_logo.png" alt="C2" className="w-6 h-6 object-contain drop-shadow-xs" />
-          <span className="text-sm font-bold text-gray-900 truncate max-w-[130px] sm:max-w-none">
-            {currentPage || 'Dashboard'}
-          </span>
-        </div>
       </div>
 
       <div className="flex items-center space-x-3 sm:space-x-6">

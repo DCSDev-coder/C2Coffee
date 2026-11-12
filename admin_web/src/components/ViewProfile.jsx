@@ -5,7 +5,7 @@ import { resolveTierProgress } from './Customers';
 const ViewProfile = ({ customer, onBack }) => {
   const progress = resolveTierProgress(customer);
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
       <div className="mb-6 shrink-0">
         <div className="flex items-center gap-2.5">
           {onBack && (

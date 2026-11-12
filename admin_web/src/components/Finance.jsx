@@ -4,6 +4,8 @@ import {
   ArrowUp,
   ArrowUpDown,
   BarChart3,
+  ChevronDown,
+  ChevronUp,
   Download,
   RefreshCw,
   ReceiptText,
@@ -70,27 +72,33 @@ const topUpMethodLabel = (method) => {
   }
 };
 
-const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, iconColor = 'text-white', info }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5">
-        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
-          {title}
-        </h3>
-        {info && <InfoTooltip content={info} title={title} />}
+const StatCard = ({ title, value, subtitle, badge, icon: Icon, iconBg, info }) => {
+  const displayBadge = badge || subtitle;
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
+        </div>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
       </div>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {subtitle && (
-        <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">
-          {subtitle}
-        </p>
-      )}
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {displayBadge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {displayBadge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
   const isSorted = currentKey === columnKey;
@@ -277,7 +285,11 @@ const Finance = ({ setCurrentPage }) => {
     });
   }, [recentTransactions, transactionSortKey, transactionSortDirection]);
 
-  const topTransactions = sortedTransactions.slice(0, 10);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const topTransactions = showAllTransactions ? sortedTransactions : sortedTransactions.slice(0, 5);
+  const [showAllAudit, setShowAllAudit] = useState(false);
+  const visibleAuditEntries = showAllAudit ? auditEntries : auditEntries.slice(0, 5);
+
   const refreshOverview = async () => {
     try {
       const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId });
@@ -291,11 +303,11 @@ const Finance = ({ setCurrentPage }) => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
         <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Finance</h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">
               Token-first finance view for daily operations and RM reconciliation.
             </p>
             <p className="text-xs text-gray-400 mt-2">
@@ -315,43 +327,39 @@ const Finance = ({ setCurrentPage }) => {
           </div>
         </div>
 
-        <div className="overflow-x-auto pb-1">
-          <div className="min-w-[1180px]">
-            <div className="grid grid-cols-4 gap-4 shrink-0">
-              <StatCard
-                title="Token orders"
-                value={formatReportTokens(summary.totalTokensCharged)}
-                subtitle={`${formatReportMoney(summary.tokenOrderValueRm)} RM equivalent`}
-                icon={Wallet}
-                iconBg="bg-[#1F3A34]"
-                info="Tokens spent on completed orders. The RM figure is an equivalent order value, not a card or bank settlement."
-              />
-              <StatCard
-                title="Direct order value"
-                value={formatReportMoney(summary.directPaymentOrderValueRm)}
-                subtitle={`${summary.totalOrders.toLocaleString('en-US')} orders in scope`}
-                icon={BarChart3}
-                iconBg="bg-[#2E5E58]"
-                info="Order value for direct-payment orders only. Actual gateway settlement is shown below from paid payment records."
-              />
-              <StatCard
-                title="Refunds"
-                value={formatReportMoney(summary.totalRefundAmountRm)}
-                subtitle={`${formatReportTokens(summary.totalRefundTokens)} returned`}
-                icon={ReceiptText}
-                iconBg="bg-[#E07A5F]"
-                info="Completed refunds only. Token returns and RM refunds are shown separately from sales."
-              />
-              <StatCard
-                title="Orders in scope"
-                value={summary.totalOrders.toLocaleString('en-US')}
-                subtitle={`${summary.activeOrders.toLocaleString('en-US')} active · ${summary.completedOrders.toLocaleString('en-US')} completed`}
-                icon={ShoppingCart}
-                iconBg="bg-[#6F9F96]"
-                info="Total order count handled by the counter and app fulfillment system."
-              />
-            </div>
-          </div>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+          <StatCard
+            title="Token orders"
+            value={formatReportTokens(summary.totalTokensCharged)}
+            subtitle={`${formatReportMoney(summary.tokenOrderValueRm)} RM equivalent`}
+            icon={Wallet}
+            iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
+            info="Tokens spent on completed orders. The RM figure is an equivalent order value, not a card or bank settlement."
+          />
+          <StatCard
+            title="Direct order value"
+            value={formatReportMoney(summary.directPaymentOrderValueRm)}
+            subtitle={`${summary.totalOrders.toLocaleString('en-US')} orders in scope`}
+            icon={BarChart3}
+            iconBg="bg-blue-500/10 text-blue-700"
+            info="Order value for direct-payment orders only. Actual gateway settlement is shown below from paid payment records."
+          />
+          <StatCard
+            title="Refunds"
+            value={formatReportMoney(summary.totalRefundAmountRm)}
+            subtitle={`${formatReportTokens(summary.totalRefundTokens)} returned`}
+            icon={ReceiptText}
+            iconBg="bg-rose-500/10 text-rose-600"
+            info="Completed refunds only. Token returns and RM refunds are shown separately from sales."
+          />
+          <StatCard
+            title="Orders in scope"
+            value={summary.totalOrders.toLocaleString('en-US')}
+            subtitle={`${summary.activeOrders.toLocaleString('en-US')} active · ${summary.completedOrders.toLocaleString('en-US')} completed`}
+            icon={ShoppingCart}
+            iconBg="bg-amber-500/15 text-amber-700"
+            info="Total order count handled by the counter and app fulfillment system."
+          />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
@@ -434,7 +442,7 @@ const Finance = ({ setCurrentPage }) => {
                 {['Date & time', 'Type / source', 'Customer', 'Reference', 'Outlet', 'RM', 'Tokens', 'Status'].map((label) => <th key={label} className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-500">{label}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-gray-50">
-                {auditEntries.map((entry) => (
+                {visibleAuditEntries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-gray-50/50">
                     <td className="px-5 py-3 text-gray-600">{new Date(entry.createdAt).toLocaleString('en-MY')}</td>
                     <td className="px-5 py-3"><p className="font-semibold text-gray-900">{entry.type}</p><p className="text-xs text-gray-500">{formatPaymentLabel(entry.source)}</p></td>
@@ -446,10 +454,28 @@ const Finance = ({ setCurrentPage }) => {
                     <td className="px-5 py-3 text-gray-600 capitalize">{String(entry.status || '').replaceAll('_', ' ')}</td>
                   </tr>
                 ))}
-                {!auditEntries.length && <tr><td colSpan="8" className="px-5 py-10 text-center text-gray-500">No audit movements available.</td></tr>}
+                {!visibleAuditEntries.length && <tr><td colSpan="8" className="px-5 py-10 text-center text-gray-500">No audit movements available.</td></tr>}
               </tbody>
             </table>
           </div>
+          {auditEntries.length > 5 && (
+            <div className="p-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 bg-white">
+              <span className="text-xs text-gray-500 font-medium">
+                Showing top {visibleAuditEntries.length} of {auditEntries.length} entries
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAllAudit(!showAllAudit)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2E5E58] hover:text-[#1F3A34] px-3 py-1.5 rounded-lg hover:bg-[#2E5E58]/10 transition-colors cursor-pointer border border-[#2E5E58]/20"
+              >
+                {showAllAudit ? (
+                  <>Show top 5 only <ChevronUp size={14} /></>
+                ) : (
+                  <>Click for more ({auditEntries.length - 5} remaining) <ChevronDown size={14} /></>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
@@ -636,11 +662,25 @@ const Finance = ({ setCurrentPage }) => {
               </tbody>
             </table>
           </div>
-          <div className="border-t border-gray-100 px-6 py-4 flex justify-end shrink-0 bg-white">
+          <div className="border-t border-gray-100 px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0 bg-white">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">
+                Showing {topTransactions.length} of {sortedTransactions.length} transactions
+              </span>
+              {sortedTransactions.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllTransactions(!showAllTransactions)}
+                  className="inline-flex md:hidden items-center gap-1 text-[11px] font-bold text-[#2E5E58] hover:text-[#1F3A34] px-2 py-0.5 rounded-md hover:bg-[#2E5E58]/10 transition-colors cursor-pointer border border-[#2E5E58]/20"
+                >
+                  {showAllTransactions ? "Show top 5" : `See more (${sortedTransactions.length - 5} remaining)`}
+                </button>
+              )}
+            </div>
             <button
               type="button"
               onClick={handleExport}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm w-full sm:w-auto justify-center"
             >
               <Download size={16} /> Export
             </button>

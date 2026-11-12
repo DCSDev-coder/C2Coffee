@@ -327,20 +327,20 @@ export default function Outlets({ currentUser }) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
+    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 sm:gap-4">
           <div>
             <div className="flex items-center gap-1.5">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2E5E58]">Store network</p>
               <InfoTooltip content="Physical branch locations configuring operational hours and pickup availability." title="Store Network" />
             </div>
             <div className="flex items-center gap-2 mt-1">
-              <h1 className="text-3xl font-bold text-gray-900">Outlets</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Outlets</h1>
             </div>
             <p className="mt-2 text-sm text-gray-500">Add branches for this cafe only. Archive closed outlets while preserving their sales history.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-600 cursor-pointer select-none">
               <input
                 type="checkbox"

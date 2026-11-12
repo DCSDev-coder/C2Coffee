@@ -11,6 +11,7 @@ import { showAdminError, showAdminSuccess } from '../lib/adminToast';
 import Pagination from './Pagination';
 import InfoTooltip from './InfoTooltip';
 import { exportToCSV } from '../utils/exportToCSV';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 
 const emptyForm = {
   currency: 'token',
@@ -20,7 +21,6 @@ const emptyForm = {
   reason: ''
 };
 
-const ITEMS_PER_PAGE = 10;
 const STATUS_TABS = ['All', 'Active', 'Pending Payment', 'Suspended', 'Cancelled'];
 
 const money = (value, currency) =>
@@ -37,34 +37,41 @@ function reportGiftCardError(operation, error) {
 }
 
 // Modern KPI Stat Card matching Admin Dashboard standard
-const StatCard = ({ title, value, info, icon: Icon, iconBg = 'bg-[#1E433A]', iconColor = 'text-white', badge }) => (
-  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
-    <div className="flex items-center gap-3.5 min-w-0">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
-        <Icon size={20} strokeWidth={2.2} />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-          {info && <InfoTooltip content={info} title={title} />}
+const StatCard = ({ title, value, info, icon: Icon, iconBg = 'bg-[#2E5E58]/10 text-[#2E5E58]', badge }) => {
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
+      </div>
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {badge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {badge}
+            </span>
+          </div>
+        )}
       </div>
     </div>
-    {badge && (
-      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
-        {badge}
-      </span>
-    )}
-  </div>
-);
+  );
+};
 
 export default function GiftCards({ currentUser }) {
+  const itemsPerPage = useResponsivePageSize(5, 10);
   const [cards, setCards] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [currencyFilter, setCurrencyFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAllCards, setShowAllCards] = useState(false);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [showIssue, setShowIssue] = useState(false);
@@ -183,11 +190,12 @@ export default function GiftCards({ currentUser }) {
     });
   }, [cards, statusFilter, currencyFilter, search]);
 
-  const totalPages = Math.ceil(filteredCards.length / ITEMS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(filteredCards.length / itemsPerPage) || 1;
   const paginatedCards = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredCards.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredCards, currentPage]);
+    if (showAllCards) return filteredCards;
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredCards.slice(start, start + itemsPerPage);
+  }, [filteredCards, currentPage, showAllCards, itemsPerPage]);
 
   const handleExportCSV = () => {
     if (cards.length === 0) {
@@ -296,34 +304,40 @@ export default function GiftCards({ currentUser }) {
   };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 max-w-7xl mx-auto min-w-0 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
-            <Gift className="text-[#1E433A]" size={26} />
-            Gift Cards
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+              <Gift className="text-[#1E433A]" size={22} />
+              Gift Cards
+            </h1>
+            <InfoTooltip
+              title="Gift Cards Management"
+              content="Issue, audit, and track customer gift cards with real-time balance reconciliation."
+            />
+          </div>
+          <p className="mt-1 text-xs sm:text-sm text-gray-500">
             Issue, audit, and track customer gift cards with real-time balance reconciliation.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto overflow-x-auto no-scrollbar whitespace-nowrap pb-1 sm:pb-0 shrink-0">
           <button
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200/90 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-2xs hover:bg-gray-50 hover:text-gray-900 transition-colors"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200/90 bg-white px-4 py-2 text-xs sm:text-sm font-bold text-gray-700 shadow-2xs hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
           >
-            <Download size={16} />
+            <Download size={15} />
             Export CSV
           </button>
           {canControl && (
             <button
               ref={issueButtonRef}
               onClick={() => setShowIssue(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-4 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-[#16332c] transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1E433A] px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-[#16332c] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
             >
-              <Plus size={17} strokeWidth={2.5} />
+              <Plus size={16} strokeWidth={2.5} />
               Issue gift card
             </button>
           )}
@@ -331,19 +345,19 @@ export default function GiftCards({ currentUser }) {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard
           title="Total Cards"
           value={cards.length}
           icon={Gift}
-          iconBg="bg-slate-800"
+          iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
           info="Total gift cards created in the system, including app purchases and admin issues."
         />
         <StatCard
           title="Active Cards"
           value={outstanding.activeCount}
           icon={CheckCircle2}
-          iconBg="bg-[#1E433A]"
+          iconBg="bg-emerald-500/10 text-emerald-700"
           badge={`${cards.length ? Math.round((outstanding.activeCount / cards.length) * 100) : 0}% active`}
           info="Cards that are currently active and ready to be redeemed at checkout."
         />
@@ -351,78 +365,78 @@ export default function GiftCards({ currentUser }) {
           title="Active RM Value"
           value={`RM ${outstanding.rm.toFixed(2)}`}
           icon={CircleDollarSign}
-          iconBg="bg-teal-700"
+          iconBg="bg-blue-500/10 text-blue-700"
           info="Total unredeemed RM stored-value liability across active gift cards."
         />
         <StatCard
-          title="Active Token Value"
+          title="Active Tokens"
           value={outstanding.token.toLocaleString()}
           icon={Coins}
-          iconBg="bg-amber-600"
+          iconBg="bg-amber-500/15 text-amber-700"
           info="Total unredeemed C2 Tokens stored across active gift cards."
         />
       </div>
 
       {/* Controls: Search, Tabs & Currency Filters */}
-      <div className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
+      <div className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="relative w-full lg:max-w-md">
             <Search className="absolute left-3.5 top-3 text-gray-400" size={17} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && refresh()}
               placeholder="Search by code (e.g. C2G-...), recipient phone, name, or purchase ref..."
-              className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-[#1E433A] focus:ring-1 focus:ring-[#1E433A] outline-none"
+              className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm focus:border-[#1E433A] focus:ring-1 focus:ring-[#1E433A] outline-none bg-white shadow-2xs"
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={currencyFilter}
-              onChange={(e) => {
-                setCurrencyFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:border-[#1E433A] outline-none"
-            >
-              <option value="all">All Currencies</option>
-              <option value="token">C2 Tokens</option>
-              <option value="rm">RM Credit</option>
-            </select>
+          {/* Unified horizontal scrollable filter strip */}
+          <div className="flex items-center gap-2.5 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0 shrink-0">
+            {STATUS_TABS.map((tab) => {
+              const isSelected = statusFilter === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setStatusFilter(tab);
+                    setCurrentPage(1);
+                  }}
+                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-2xs ${
+                    isSelected
+                      ? 'bg-[#1E433A] text-white'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  {tab}
+                </button>
+              );
+            })}
+
+            <div className="relative shrink-0">
+              <select
+                value={currencyFilter}
+                onChange={(e) => {
+                  setCurrencyFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:border-[#1E433A] outline-none cursor-pointer shadow-2xs whitespace-nowrap"
+              >
+                <option value="all">All Currencies</option>
+                <option value="token">C2 Tokens</option>
+                <option value="rm">RM Credit</option>
+              </select>
+            </div>
 
             <button
               onClick={refresh}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-2xs"
               title="Refresh list"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-              <span className="hidden sm:inline">Refresh</span>
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <span>Refresh</span>
             </button>
           </div>
-        </div>
-
-        {/* Status Filter Tabs */}
-        <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-3">
-          {STATUS_TABS.map((tab) => {
-            const isSelected = statusFilter === tab;
-            return (
-              <button
-                key={tab}
-                onClick={() => {
-                  setStatusFilter(tab);
-                  setCurrentPage(1);
-                }}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                  isSelected
-                    ? 'bg-[#1E433A] text-white shadow-2xs'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                }`}
-              >
-                {tab}
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -590,9 +604,12 @@ export default function GiftCards({ currentUser }) {
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
               onPageChange={setCurrentPage}
               totalItems={filteredCards.length}
-              itemsPerPage={ITEMS_PER_PAGE}
+              itemsPerPage={itemsPerPage}
+              showAll={showAllCards}
+              onToggleShowAll={() => setShowAllCards(!showAllCards)}
             />
           </div>
         )}
@@ -615,7 +632,7 @@ export default function GiftCards({ currentUser }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="issue-gift-card-title"
-            className="w-full max-w-lg rounded-2xl border border-white/80 bg-white p-6 shadow-2xl space-y-5"
+            className="w-full max-w-lg rounded-2xl border border-white/80 bg-white p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-start justify-between">
               <div>

@@ -17,6 +17,7 @@ import {
 import Pagination from "./Pagination";
 import PaymentServiceNotices from "./PaymentServiceNotices";
 import InfoTooltip from "./InfoTooltip";
+import { useResponsivePageSize } from "../utils/useResponsivePageSize";
 import { showAdminError, showAdminSuccess } from "../lib/adminToast";
 import { requestAdminConfirm, requestAdminPrompt } from "../lib/adminDialog";
 import {
@@ -35,8 +36,6 @@ import {
   reverseAdminMarketingDrinkUsage,
   uploadAdminMarketingPoster,
 } from "../lib/adminApi";
-
-const ITEMS_PER_PAGE = 8;
 
 function localYearMonth(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -151,9 +150,9 @@ function EmojiPicker({ inputRef, value, onChange, label = "Add emoji" }) {
         aria-label={label}
         aria-expanded={isOpen}
         title={label}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-base transition-colors hover:border-[#2E5E58] hover:bg-[#2E5E58]/5 focus:outline-none focus:ring-2 focus:ring-[#2E5E58]/25"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-base transition-colors hover:border-[#2E5E58] hover:bg-[#2E5E58]/5 focus:outline-none focus:ring-2 focus:ring-[#2E5E58]/25 overflow-visible"
       >
-        😊
+        <span className="text-base leading-none select-none -translate-y-0.5 inline-block">😊</span>
       </button>
       {isOpen && (
         <div role="dialog" aria-label={`${label} picker`} className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
@@ -345,6 +344,7 @@ function routeLabel(banner) {
 }
 
 const Marketing = () => {
+  const itemsPerPage = useResponsivePageSize(5, 10);
   const customerMessageRequestKey = useRef(null);
   const customerMessageTitleRef = useRef(null);
   const customerMessageBodyRef = useRef(null);
@@ -359,6 +359,7 @@ const Marketing = () => {
   const [selectedPlacement, setSelectedPlacement] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAllBanners, setShowAllBanners] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -585,12 +586,14 @@ const Marketing = () => {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(sortedBanners.length / ITEMS_PER_PAGE),
+    Math.ceil(sortedBanners.length / itemsPerPage),
   );
-  const currentRows = sortedBanners.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  );
+  const currentRows = showAllBanners
+    ? sortedBanners
+    : sortedBanners.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage,
+      );
 
   const arrangeRows = useMemo(() => {
     if (!arrangeSurface) return [];
@@ -1021,7 +1024,7 @@ const Marketing = () => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="px-6 py-5 lg:px-8 lg:py-6 w-full h-full flex flex-col gap-4">
+      <div className="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6 w-full h-full flex flex-col gap-4">
         <div className="shrink-0 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -1038,12 +1041,12 @@ const Marketing = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="inline-flex items-center gap-1.5">
+          <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1 lg:pb-0 shrink-0">
+            <div className="inline-flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setArrangeSurface("home")}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#2E5E58] text-[#2E5E58] text-xs font-bold rounded-lg hover:bg-[#F5FBF9] transition-colors cursor-pointer shadow-xs"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#2E5E58] text-[#2E5E58] text-xs font-bold rounded-lg hover:bg-[#F5FBF9] transition-colors cursor-pointer shadow-xs whitespace-nowrap"
               >
                 Arrange display
               </button>
@@ -1055,14 +1058,14 @@ const Marketing = () => {
             <button
               type="button"
               onClick={() => void loadPageData()}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-xs"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-xs whitespace-nowrap shrink-0"
             >
               <RefreshCw size={14} /> Refresh
             </button>
             <button
               type="button"
               onClick={openCreateModal}
-              className="flex items-center gap-1.5 px-4 py-2 bg-[#2E5E58] text-white text-xs font-bold rounded-lg hover:bg-[#1F4B43] transition-colors cursor-pointer shadow-xs"
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#2E5E58] text-white text-xs font-bold rounded-lg hover:bg-[#1F4B43] transition-colors cursor-pointer shadow-xs whitespace-nowrap shrink-0"
             >
               <Plus size={15} /> Add Poster
             </button>
@@ -1075,7 +1078,7 @@ const Marketing = () => {
               <h2 className="text-sm font-bold text-gray-900">Complimentary Drink Audit</h2>
               <p className="mt-0.5 text-xs text-gray-500">Current-month marketing usage recorded by baristas. These are not sales, vouchers, employee credits, or loyalty cups.</p>
             </div>
-            <div className="flex items-center gap-2 self-start">
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar shrink-0 pb-1 sm:pb-0">
               <label className="sr-only" htmlFor="marketing-drink-month">Audit month</label>
               <input
                 id="marketing-drink-month"
@@ -1083,9 +1086,9 @@ const Marketing = () => {
                 value={marketingDrinkMonth}
                 max={localYearMonth()}
                 onChange={(event) => setMarketingDrinkMonth(event.target.value || localYearMonth())}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shrink-0"
               />
-              <button type="button" onClick={() => void loadMarketingDrinkAudit()} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">
+              <button type="button" onClick={() => void loadMarketingDrinkAudit()} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 shrink-0 whitespace-nowrap">
                 <RefreshCw size={14} /> Refresh audit
               </button>
             </div>
@@ -1200,15 +1203,15 @@ const Marketing = () => {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
-              <div className="relative">
+            <div className="flex items-center gap-2.5 w-full xl:w-auto overflow-x-auto no-scrollbar pb-2 xl:pb-0 shrink-0">
+              <div className="relative shrink-0">
                 <select
                   value={selectedType}
                   onChange={(event) => {
                     setSelectedType(event.target.value);
                     setCurrentPage(1);
                   }}
-                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer min-w-[160px]"
+                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer min-w-[140px] whitespace-nowrap"
                 >
                   <option value="">All types</option>
                   {bannerTypeOptions.map((option) => (
@@ -1223,14 +1226,14 @@ const Marketing = () => {
                 />
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <select
                   value={selectedPlacement}
                   onChange={(event) => {
                     setSelectedPlacement(event.target.value);
                     setCurrentPage(1);
                   }}
-                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer min-w-[160px]"
+                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer min-w-[140px] whitespace-nowrap"
                 >
                   <option value="">All placements</option>
                   <option value="home">Home</option>
@@ -1243,14 +1246,14 @@ const Marketing = () => {
                 />
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <select
                   value={selectedStatus}
                   onChange={(event) => {
                     setSelectedStatus(event.target.value);
                     setCurrentPage(1);
                   }}
-                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer min-w-[160px]"
+                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none cursor-pointer min-w-[140px] whitespace-nowrap"
                 >
                   <option value="">All statuses</option>
                   <option value="Active">Active</option>
@@ -1431,9 +1434,11 @@ const Marketing = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
+              itemsPerPage={itemsPerPage}
               totalItems={sortedBanners.length}
               itemName="posters"
+              showAll={showAllBanners}
+              onToggleShowAll={() => setShowAllBanners(!showAllBanners)}
             />
           </div>
         </div>
@@ -1460,7 +1465,7 @@ const Marketing = () => {
                   <X size={20} />
                 </button>
               </div>
-              <div className="flex gap-2 border-b border-gray-100 px-6 py-3">
+              <div className="flex items-center gap-2 border-b border-gray-100 px-4 sm:px-6 py-3 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
                 {[
                   ["home", "Home"],
                   ["floating", "Floating"],
@@ -1470,7 +1475,7 @@ const Marketing = () => {
                     key={value}
                     type="button"
                     onClick={() => setArrangeSurface(value)}
-                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${arrangeSurface === value ? "bg-[#1F3A34] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors shrink-0 whitespace-nowrap cursor-pointer ${arrangeSurface === value ? "bg-[#1F3A34] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                   >
                     {label}
                   </button>
@@ -1502,7 +1507,7 @@ const Marketing = () => {
                           <p className="truncate text-sm font-semibold text-gray-900">{banner.title}</p>
                           <p className="truncate text-xs text-gray-500">{bannerTypeLabel(banner.bannerType)}</p>
                         </div>
-                        <div className="flex flex-col gap-1 opacity-40 transition-opacity group-hover:opacity-100">
+                        <div className="flex flex-col gap-1 opacity-80 sm:opacity-40 transition-opacity sm:group-hover:opacity-100 shrink-0">
                           <button
                             type="button"
                             onClick={() => void moveSurfaceBanner(banner, -1)}
@@ -1546,7 +1551,7 @@ const Marketing = () => {
         createPortal(
           <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-              <div className="px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-bold text-gray-900">
                     {editingBanner ? "Edit Poster" : "Create Poster"}
@@ -1567,7 +1572,7 @@ const Marketing = () => {
 
               <form
                 onSubmit={submitBanner}
-                className="p-6 overflow-y-auto flex-1"
+                className="p-4 sm:p-6 overflow-y-auto flex-1"
               >
                 {error && (
                   <div

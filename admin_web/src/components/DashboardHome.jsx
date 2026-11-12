@@ -58,14 +58,14 @@ const StatCard = ({ title, value, detail, info, icon: Icon, iconBg, badge, highl
       </div>
     </div>
     <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-1 sm:gap-2">
-        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
-        {badge && (
-          <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-[85px] sm:max-w-[100px]">
+      <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+      {badge && (
+        <div className="flex">
+          <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
             {badge}
           </span>
-        )}
-      </div>
+        </div>
+      )}
       {detail && <div className="text-[10px] sm:text-[11px] font-medium text-gray-500 leading-tight">{detail}</div>}
     </div>
   </button>

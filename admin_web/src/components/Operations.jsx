@@ -553,7 +553,7 @@ export default function Operations() {
   });
   return (
     <div className="flex-1 overflow-y-auto bg-[#F9FAFB]">
-      <div className="mx-auto w-full max-w-7xl p-6 lg:p-8">
+      <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
         <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-1.5">

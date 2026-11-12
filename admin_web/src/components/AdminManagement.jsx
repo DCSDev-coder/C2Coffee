@@ -6,31 +6,36 @@ import "react-datepicker/dist/react-datepicker.css";
 import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
 import InfoTooltip from './InfoTooltip';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import { adminRequest } from '../lib/adminApi';
 
-const StatCard = ({ title, value, subtitle, icon: Icon, iconBgColor, iconColor, info }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBgColor} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5">
-        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
-          {title}
-        </h3>
-        {info && <InfoTooltip content={info} title={title} />}
-      </div>
-      <p className="text-2xl font-bold text-gray-900 leading-tight mt-1">{value}</p>
-      {subtitle && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {subtitle}
-          </p>
+const StatCard = ({ title, value, subtitle, badge, icon: Icon, iconBgColor, info }) => {
+  const displayBadge = badge || subtitle;
+  const bg = iconBgColor || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-      )}
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
+      </div>
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {displayBadge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {displayBadge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
   const isSorted = currentKey === columnKey;
@@ -138,7 +143,8 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
   const [confirmation, setConfirmation] = useState(null);
   const [confirmationPassword, setConfirmationPassword] = useState('');
 
-  const itemsPerPage = 10;
+  const itemsPerPage = useResponsivePageSize(5, 10);
+  const [showAllAdmins, setShowAllAdmins] = useState(false);
   
   const fetchAdmins = async () => {
     setIsLoading(true);
@@ -245,7 +251,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
   }, [filteredAdmins, adminSortKey, adminSortDirection]);
 
   const totalPages = Math.ceil(sortedAdmins.length / itemsPerPage) || 1;
-  const paginatedAdmins = sortedAdmins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedAdmins = showAllAdmins ? sortedAdmins : sortedAdmins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // Stats
   const totalAdmins = managedAdmins.length;
@@ -385,7 +391,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="p-6 lg:p-8 w-full h-full flex flex-col">
+      <div className="p-4 sm:p-6 lg:p-8 w-full h-full flex flex-col">
         <div className="mb-6 shrink-0">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900">{initialRole === 'Barista' ? 'Barista Management' : 'Admin Management'}</h1>
@@ -398,14 +404,13 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 shrink-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 shrink-0">
           <StatCard
             title="Total Admins"
             value={totalAdmins}
             subtitle="Registered accounts"
             icon={Users}
-            iconBgColor="bg-[#1F3A34]"
-            iconColor="text-white"
+            iconBgColor="bg-[#1F3A34]/10 text-[#1F3A34]"
             info="Total managed administrative accounts with portal or workspace credentials."
           />
           <StatCard
@@ -413,8 +418,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             value={activeAdmins}
             subtitle="Enabled accounts"
             icon={Menu}
-            iconBgColor="bg-[#6F9F96]"
-            iconColor="text-white"
+            iconBgColor="bg-emerald-500/10 text-emerald-700"
             info="Accounts with active authentication access to the management console."
           />
           <StatCard
@@ -422,8 +426,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             value={inactiveAdmins}
             subtitle="Disable accounts"
             icon={UserX}
-            iconBgColor="bg-[#E07A5F]"
-            iconColor="text-white"
+            iconBgColor="bg-rose-500/10 text-rose-600"
             info="Deactivated admin accounts preserved for audit tracking and security."
           />
           <StatCard
@@ -431,8 +434,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             value={rolesCount}
             subtitle="System roles"
             icon={UserCog}
-            iconBgColor="bg-[#D4AF7A]"
-            iconColor="text-white"
+            iconBgColor="bg-indigo-500/10 text-indigo-700"
             info="Distinct functional permission profiles assigned across staff."
           />
         </div>
@@ -452,9 +454,9 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+          <div className="flex items-center gap-2.5 w-full xl:w-auto overflow-x-auto no-scrollbar pb-2 xl:pb-0 shrink-0">
             {/* Date Filter */}
-            <div className="relative z-50">
+            <div className="relative z-50 shrink-0">
               <DatePicker portalId="root-portal" popperPlacement="bottom-end"
                 selected={selectedDate}
                 onChange={(date) => {
@@ -484,10 +486,10 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             </div>
 
             {/* Role Filter */}
-            <div className="relative z-40">
+            <div className="relative z-40 shrink-0">
               <button
                 onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                className="flex items-center justify-between space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 w-40"
+                className="flex items-center justify-between space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 w-40 whitespace-nowrap"
               >
                 <span className="truncate">{selectedRole}</span>
                 <ChevronDown size={16} className={`transition-transform duration-200 ${isRoleDropdownOpen ? 'rotate-180' : ''}`} />
@@ -512,10 +514,10 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             </div>
 
             {/* Status Filter */}
-            <div className="relative z-30">
+            <div className="relative z-30 shrink-0">
               <button
                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                className="flex items-center justify-between space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 w-40"
+                className="flex items-center justify-between space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 w-40 whitespace-nowrap"
               >
                 <span>{selectedStatus}</span>
                 <ChevronDown size={16} className={`transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
@@ -541,7 +543,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
 
             <button
               onClick={() => openModal()}
-              className="flex items-center space-x-2 px-4 py-2 border border-transparent rounded-lg bg-[#1F3A34] text-white font-medium hover:bg-[#2E5E58] transition-colors h-10"
+              className="flex items-center space-x-2 px-4 py-2 border border-transparent rounded-lg bg-[#1F3A34] text-white font-medium hover:bg-[#2E5E58] transition-colors h-10 shrink-0 whitespace-nowrap"
             >
               <Plus size={16} />
               <span>New Account</span>
@@ -640,7 +642,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
             </table>
           </div>
 
-          <div className="p-4 border-t border-gray-200 flex items-center justify-between gap-4 shrink-0 bg-white w-full">
+          <div className="px-4 sm:px-6 py-3.5 border-t border-gray-200 shrink-0 bg-white w-full">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -648,14 +650,18 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
               itemsPerPage={itemsPerPage}
               totalItems={sortedAdmins.length}
               itemName="admin"
+              showAll={showAllAdmins}
+              onToggleShowAll={() => setShowAllAdmins(!showAllAdmins)}
+              action={(
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 border border-gray-300 rounded-xl bg-white text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer shadow-2xs"
+                >
+                  <Download size={14} />
+                  <span>Export</span>
+                </button>
+              )}
             />
-            <button
-              onClick={handleExport}
-              className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 font-medium hover:bg-gray-50 h-10 cursor-pointer"
-            >
-              <Download size={16} />
-              <span>Export</span>
-            </button>
           </div>
         </div>
       </div>

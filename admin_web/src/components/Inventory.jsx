@@ -24,26 +24,29 @@ function SectionCard({ children, className = '' }) {
   return <section className={`rounded-2xl border border-gray-200/80 bg-white p-6 shadow-2xs ${className}`}>{children}</section>;
 }
 
-function KPICard({ title, value, badge, info, icon: Icon, iconBg = "bg-[#1E433A]", iconColor = "text-white" }) {
+function KPICard({ title, value, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]/10 text-[#2E5E58]" }) {
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
-      <div className="flex items-center gap-3.5 min-w-0">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
-          <Icon size={20} strokeWidth={2.2} />
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-            {info && <InfoTooltip content={info} title={title} />}
-          </div>
-          <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
         </div>
       </div>
-      {badge && (
-        <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
-          {badge}
-        </span>
-      )}
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {badge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {badge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -461,7 +464,7 @@ export default function Inventory() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8">
+    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-4 empty:hidden"><StockAvailabilityAlert /></div>
         {/* Header */}
@@ -513,14 +516,14 @@ export default function Inventory() {
         )}
 
         {/* Operational KPI Summary Cards */}
-        <div className="mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <KPICard
             title="Active Items"
             value={activeItems.length}
             badge="Catalog"
             info="Total number of active ingredient, packaging, and supply items in inventory."
             icon={Boxes}
-            iconBg="bg-[#1E433A]"
+            iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
           />
           <KPICard
             title="Stock Value"
@@ -528,7 +531,7 @@ export default function Inventory() {
             badge="Valuation"
             info="Total estimated inventory value on hand calculated from purchase costs."
             icon={Warehouse}
-            iconBg="bg-[#2E5E58]"
+            iconBg="bg-blue-500/10 text-blue-700"
           />
           <KPICard
             title="Low Stock Alert"
@@ -536,7 +539,7 @@ export default function Inventory() {
             badge={lowStockCount > 0 ? `${lowStockCount} items` : 'Healthy'}
             info="Items currently at or below their configured reorder alert quantity."
             icon={AlertTriangle}
-            iconBg={lowStockCount > 0 ? "bg-amber-600" : "bg-[#2E5E58]"}
+            iconBg={lowStockCount > 0 ? "bg-amber-500/15 text-amber-700" : "bg-emerald-500/10 text-emerald-700"}
           />
           <KPICard
             title="Recipes Linked"
@@ -544,18 +547,18 @@ export default function Inventory() {
             badge={`${context.menu_items.length > 0 ? Math.round((linkedMenuCount / context.menu_items.length) * 100) : 0}% Done`}
             info="Active menu items connected to automated inventory recipes."
             icon={Link2}
-            iconBg="bg-[#8C6D53]"
+            iconBg="bg-[#6F9F96]/20 text-[#2E5E58]"
           />
         </div>
 
         {/* Navigation Tabs */}
-        <div className="mt-6 flex flex-wrap gap-2 border-b border-gray-200/80 pb-3">
+        <div className="mt-6 flex items-center gap-2 border-b border-gray-200/80 pb-3 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
           {tabItems.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer ${
+              className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 tab === id
                   ? 'bg-[#1E433A] text-white shadow-xs'
                   : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
@@ -573,16 +576,16 @@ export default function Inventory() {
               <h2 className="mt-1 text-base font-bold text-gray-900">Complete common inventory jobs without hunting through pages</h2>
               <p className="mt-1 text-xs text-gray-500">Recommended flow: create the item once → link suppliers → order → receive → stock is updated automatically.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => { setTab('stock'); setOpenPopup('item'); }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">1. Add item</button>
-              <button type="button" onClick={() => openOperationsAction('supplier')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">2. Add supplier</button>
-              <button type="button" onClick={() => openOperationsAction('supplierItem')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">3. Link item</button>
-              <button type="button" onClick={() => openOperationsAction('po')} className="rounded-xl bg-[#1E433A] px-3 py-2 text-xs font-bold text-white hover:bg-[#2E5E58] cursor-pointer">4. Create order</button>
-              <button type="button" onClick={() => openOperationsAction('receive')} className="rounded-xl bg-[#2E5E58] px-3 py-2 text-xs font-bold text-white hover:bg-[#1E433A] cursor-pointer">5. Receive delivery</button>
-              <button type="button" onClick={() => setTab('recipes')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">Set product usage</button>
-              <button type="button" onClick={() => openOperationsAction('options')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">Set choice usage</button>
-              <button type="button" onClick={() => openOperationsAction('stocktake')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer">Count stock</button>
-              <button type="button" onClick={() => openOperationsAction('wastage')} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 cursor-pointer">Record loss</button>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap pb-1 shrink-0">
+              <button type="button" onClick={() => { setTab('stock'); setOpenPopup('item'); }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">1. Add item</button>
+              <button type="button" onClick={() => openOperationsAction('supplier')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">2. Add supplier</button>
+              <button type="button" onClick={() => openOperationsAction('supplierItem')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">3. Link item</button>
+              <button type="button" onClick={() => openOperationsAction('po')} className="rounded-xl bg-[#1E433A] px-3 py-2 text-xs font-bold text-white hover:bg-[#2E5E58] cursor-pointer whitespace-nowrap shrink-0">4. Create order</button>
+              <button type="button" onClick={() => openOperationsAction('receive')} className="rounded-xl bg-[#2E5E58] px-3 py-2 text-xs font-bold text-white hover:bg-[#1E433A] cursor-pointer whitespace-nowrap shrink-0">5. Receive delivery</button>
+              <button type="button" onClick={() => setTab('recipes')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">Set product usage</button>
+              <button type="button" onClick={() => openOperationsAction('options')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">Set choice usage</button>
+              <button type="button" onClick={() => openOperationsAction('stocktake')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">Count stock</button>
+              <button type="button" onClick={() => openOperationsAction('wastage')} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 cursor-pointer whitespace-nowrap shrink-0">Record loss</button>
             </div>
           </div>
         </SectionCard>
@@ -608,11 +611,11 @@ export default function Inventory() {
                       View live stock balances, reserved orders, and replenishment alert thresholds.
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar whitespace-nowrap pb-1 shrink-0">
                     <button
                       type="button"
                       onClick={() => setOpenPopup('item')}
-                      className="inline-flex items-center gap-2 rounded-xl border border-[#1E433A] bg-white px-3.5 py-2 text-xs font-bold text-[#1E433A] shadow-2xs hover:bg-[#E8F1EF] transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-2 rounded-xl border border-[#1E433A] bg-white px-3.5 py-2 text-xs font-bold text-[#1E433A] shadow-2xs hover:bg-[#E8F1EF] transition-colors cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <PackagePlus size={15} />
                       <span>Add item</span>
@@ -621,7 +624,7 @@ export default function Inventory() {
                       <button
                         type="button"
                         onClick={() => setOpenPopup('movement')}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-3.5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-3.5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors cursor-pointer whitespace-nowrap shrink-0"
                       >
                         <ShoppingCart size={15} />
                         <span>Manual stock entry</span>
@@ -631,7 +634,7 @@ export default function Inventory() {
                 </div>
 
                 {/* Filter and Search Bar */}
-                <div className="mt-4 flex flex-col sm:flex-row items-center gap-3">
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="relative w-full sm:max-w-xs">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                       <Search size={14} className="text-gray-400" />
@@ -644,19 +647,21 @@ export default function Inventory() {
                       className="block w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-xs text-gray-800 placeholder-gray-400 shadow-2xs outline-none focus:border-[#1E433A]"
                     />
                   </div>
-                  <div className="relative w-full sm:w-auto">
-                    <select
-                      aria-label="Filter inventory items by status"
-                      value={itemStatusFilter}
-                      onChange={(event) => setItemStatusFilter(event.target.value)}
-                      className="w-full appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-3.5 pr-8 text-xs font-semibold text-gray-700 shadow-2xs hover:bg-gray-50 focus:outline-none cursor-pointer"
-                    >
-                      <option value="active">Active items only</option>
-                      <option value="archived">Inactive items</option>
-                      <option value="all">All items</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5">
-                      <ChevronDown size={13} className="text-gray-500" />
+                  <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0">
+                    <div className="relative shrink-0">
+                      <select
+                        aria-label="Filter inventory items by status"
+                        value={itemStatusFilter}
+                        onChange={(event) => setItemStatusFilter(event.target.value)}
+                        className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-3.5 pr-8 text-xs font-semibold text-gray-700 shadow-2xs hover:bg-gray-50 focus:outline-none cursor-pointer whitespace-nowrap"
+                      >
+                        <option value="active">Active items only</option>
+                        <option value="archived">Inactive items</option>
+                        <option value="all">All items</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5">
+                        <ChevronDown size={13} className="text-gray-500" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -992,18 +997,18 @@ export default function Inventory() {
                     Reconciled movement summary for {selectedStore?.name || 'outlet'}.
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar whitespace-nowrap pb-1 shrink-0">
                   <input
                     aria-label="Report month"
                     type="month"
                     value={month}
                     onChange={(event) => setMonth(event.target.value)}
-                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-2xs outline-none focus:border-[#1E433A]"
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-2xs outline-none focus:border-[#1E433A] shrink-0"
                   />
                   <button
                     type="button"
                     onClick={loadReport}
-                    className="rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-bold text-gray-700 shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-bold text-gray-700 shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                   >
                     Generate report
                   </button>
@@ -1011,7 +1016,7 @@ export default function Inventory() {
                     type="button"
                     onClick={exportReport}
                     disabled={!sortedReport.length}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-3.5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors disabled:opacity-50 cursor-pointer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-3.5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors disabled:opacity-50 cursor-pointer shrink-0 whitespace-nowrap"
                   >
                     <Download size={14} />
                     <span>Export CSV</span>

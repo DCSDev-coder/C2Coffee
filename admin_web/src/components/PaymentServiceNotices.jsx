@@ -125,9 +125,9 @@ export default function PaymentServiceNotices() {
   return (
     <section className="rounded-2xl border border-amber-200 bg-amber-50/70 shadow-sm">
       <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex gap-3">
-          <div className="rounded-xl bg-amber-100 p-2.5 text-amber-700">
-            <BellRing size={22} />
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 min-w-10 min-h-10 aspect-square rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700">
+            <BellRing size={20} />
           </div>
           <div>
             <h2 className="text-base font-bold text-gray-900">Payment service notices</h2>

@@ -1,36 +1,43 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowUp, ArrowUpDown, Award, BarChart3, Edit3, Gift, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Award, BarChart3, ChevronDown, ChevronUp, Edit3, Gift, MoreVertical, Plus, Save, Trash2, Users, X } from 'lucide-react';
 import { BarChart, Bar, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Pagination from './Pagination';
 import InfoTooltip from './InfoTooltip';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import { adminRequest, createAdminTier, deleteAdminTier, getAdminApiBaseUrl, loadAdminLoyaltyOverview, loadAdminMenu, loadAdminVouchers, updateAdminTier, uploadAdminTierImage } from '../lib/adminApi';
 import { requestAdminConfirm } from '../lib/adminDialog';
 import { showAdminError } from '../lib/adminToast';
 
 const DEFAULT_COLORS = ['#1F3A34', '#2E5E58', '#6F9F96', '#E07A5F', '#D4AF7A', '#9333EA'];
 
-const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = 'text-white', info }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5">
-        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
-          {title}
-        </h3>
-        {info && <InfoTooltip content={info} title={title} />}
+const StatCard = ({ title, value, change, badge, icon: Icon, iconBg, info }) => {
+  const displayBadge = badge || change;
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
+        </div>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
       </div>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">
-          {change}
-        </p>
-      )}
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {displayBadge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {displayBadge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
   const isSorted = currentKey === columnKey;
@@ -610,7 +617,21 @@ const TierManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [tierSortKey, setTierSortKey] = useState('minCups');
   const [tierSortDirection, setTierSortDirection] = useState('asc');
-  const itemsPerPage = 8;
+  const itemsPerPage = useResponsivePageSize(5, 8);
+  const [showAllTiers, setShowAllTiers] = useState(false);
+  const [expandedTierIds, setExpandedTierIds] = useState(new Set());
+
+  const toggleTierExpanded = (tierId) => {
+    setExpandedTierIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tierId)) {
+        next.delete(tierId);
+      } else {
+        next.add(tierId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleClickOutside = () => setOpenDropdownId(null);
@@ -682,7 +703,6 @@ const TierManagement = () => {
 
   const activeTiers = useMemo(() => sortedTiers.filter((tier) => tier.isActive), [sortedTiers]);
   const totalMembers = parseNumber(overview?.summary?.totalMembers);
-  const activeTierCount = activeTiers.length;
   const topTier = activeTiers[activeTiers.length - 1] ?? null;
   const baseTier = activeTiers[0] ?? null;
   const topTierBreakdown = Array.isArray(overview?.tierBreakdown) && overview.tierBreakdown.length > 0
@@ -1009,22 +1029,22 @@ const TierManagement = () => {
   }, [sortedTiers, tierSortKey, tierSortDirection]);
 
   const totalPages = Math.max(1, Math.ceil(tableTiers.length / itemsPerPage));
-  const paginatedTiers = tableTiers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedTiers = showAllTiers ? tableTiers : tableTiers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
-      <div className="shrink-0 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tier Management</h1>
-            <p className="text-sm text-gray-500 mt-1">Configure loyalty tiers and cup requirements from the live database.</p>
-          </div>
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Tier Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Configure loyalty tiers and cup requirements from the live database.</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1F3A34] text-white text-sm font-bold rounded-lg border-transparent hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer whitespace-nowrap"
-        >
-          <Plus size={16} /> New Tier
-        </button>
+        <div className="flex items-center self-start sm:self-auto">
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 px-4 py-2 bg-[#1F3A34] text-white text-sm font-bold rounded-lg border-transparent hover:bg-[#2E5E58] transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+          >
+            <Plus size={16} /> New Tier
+          </button>
+        </div>
       </div>
 
       {loadError && (
@@ -1042,39 +1062,39 @@ const TierManagement = () => {
         <StatCard
           title="Total Members"
           value={isLoading ? '—' : totalMembers.toLocaleString('en-US')}
-          change="Live loyalty data"
+          badge="Live loyalty"
           icon={Users}
-          iconBg="bg-[#1F3A34]"
+          iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
           info="Total registered loyalty members active across all tier levels."
         />
         <StatCard
           title="Base Tier"
           value={baseTier?.name || 'None'}
-          change={baseTier ? `Starts at ${formatCupsLabel(baseTier.minCups)}` : 'No active tiers'}
+          badge={baseTier ? `Starts at ${formatCupsLabel(baseTier.minCups)}` : 'No active tiers'}
           icon={BarChart3}
-          iconBg="bg-[#6F9F96]"
+          iconBg="bg-blue-500/10 text-blue-700"
           info="Entry-level tier assigned to new customers upon joining the loyalty program."
         />
         <StatCard
           title="Top Tier"
           value={topTier?.name || 'None'}
-          change={topTier ? `Starts at ${formatCupsLabel(topTier.minCups)}` : 'No active tiers'}
+          badge={topTier ? `Starts at ${formatCupsLabel(topTier.minCups)}` : 'No active tiers'}
           icon={Award}
-          iconBg="bg-[#D4AF7A]"
+          iconBg="bg-amber-500/15 text-amber-700"
           info="Highest unlocked VIP tier with peak lifetime cup threshold and top rewards."
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col min-h-[300px]">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Members by Tier</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Live from the current tier configuration and customer snapshots.</p>
-            </div>
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col min-h-[300px] shrink-0">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Members by Tier</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Live from the current tier configuration and customer snapshots.</p>
           </div>
+        </div>
 
-          <div className="flex-1 min-h-[250px]">
+        <div className="flex-1 min-h-[250px] overflow-x-auto overflow-y-hidden touch-pan-x pb-2">
+          <div className="h-[250px] min-w-[480px] sm:min-w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
@@ -1095,25 +1115,6 @@ const TierManagement = () => {
             </ResponsiveContainer>
           </div>
         </div>
-
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm flex flex-col justify-center items-center text-center">
-          <div className="w-16 h-16 bg-[#1F3A34]/10 text-[#1F3A34] rounded-full flex items-center justify-center mb-4">
-            <Users size={32} />
-          </div>
-          <h3 className="text-4xl font-bold text-gray-900">{activeTierCount}</h3>
-          <p className="text-sm font-medium text-gray-500 mt-1">Active tiers in use</p>
-          <div className="mt-8 w-full pt-6 border-t border-gray-100 flex justify-between items-center px-4">
-            <div className="text-center">
-              <p className="text-lg font-bold text-green-600">{totalMembers.toLocaleString('en-US')}</p>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Members</p>
-            </div>
-            <div className="w-px h-10 bg-gray-200"></div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-[#1F3A34]">{topTier?.name || 'None'}</p>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Top Tier</p>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col flex-1 min-h-[420px]">
@@ -1121,9 +1122,9 @@ const TierManagement = () => {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-gray-50/80 backdrop-blur-xs border-b border-gray-200 sticky top-0 z-10">
               <tr>
-                <SortableHeader label="Tier Name" columnKey="name" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Display name and visual badge assigned to this loyalty level." />
+                <SortableHeader label="Tier Name" columnKey="name" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Display name and visual badge for this loyalty level." />
                 <SortableHeader label="Cups Needed" columnKey="minCups" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Number of lifetime cups required to reach and unlock this tier." />
-                <SortableHeader label="Tier Rewards" columnKey="rewards" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Achievement and birthday vouchers unlocked upon reaching this tier." />
+                <th className="hidden md:table-cell px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider">Tier Rewards</th>
                 <SortableHeader label="Status" columnKey="status" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Whether this tier is currently active in customer progression." className="text-center" />
                 <th className="px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider text-center">Actions</th>
               </tr>
@@ -1153,24 +1154,70 @@ const TierManagement = () => {
 
                   return (
                     <tr key={tier.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex items-start gap-3">
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border"
+                            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border mt-0.5"
                             style={badgeStyle}
                           >
                             <Award size={16} />
                           </div>
-                        <div>
-                          <span className="font-semibold text-gray-900">{tier.name}</span>
+                          <div className="min-w-0">
+                            {/* Desktop: standard label */}
+                            <p className="hidden md:block font-semibold text-gray-900 leading-tight">
+                              {tier.name}
+                            </p>
+
+                            {/* Mobile: expandable dropdown button */}
+                            <div className="md:hidden">
+                              <button
+                                type="button"
+                                onClick={() => toggleTierExpanded(tier.id)}
+                                className="font-semibold text-gray-900 hover:text-[#2E5E58] inline-flex items-center gap-2 cursor-pointer text-left transition-colors"
+                                title="Click to view or hide rewards"
+                              >
+                                <span>{tier.name}</span>
+                                <span className="text-xs text-gray-400 font-normal inline-flex items-center gap-0.5 px-2 py-0.5 bg-gray-100 rounded-md hover:bg-gray-200">
+                                  {linkedRewards.length} reward{linkedRewards.length === 1 ? '' : 's'}
+                                  {expandedTierIds.has(tier.id) ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                                </span>
+                              </button>
+
+                              {/* Mobile rewards appear when clicked */}
+                              {expandedTierIds.has(tier.id) && (
+                                <div className="mt-3 min-w-[260px] max-w-sm space-y-2 whitespace-normal animate-in fade-in duration-150">
+                                  {linkedRewards.map((reward) => (
+                                    <div key={`mob-${tier.id}-${reward.timing}-${reward.voucherTemplateId}`} className="rounded-lg border border-[#DDE9E5] bg-[#F8FBFA] p-2.5">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${reward.timing === 'birthday_month' ? 'bg-[#FFF4DD] text-[#996514]' : 'bg-[#EEF3FF] text-[#32549A]'}`}>{reward.timing === 'birthday_month' ? 'Birthday month' : 'Achievement'}</span>
+                                            <span className="truncate text-xs font-bold text-gray-900">{reward.voucher?.name || `Reward #${reward.voucherTemplateId}`}</span>
+                                          </div>
+                                          <p className="mt-1 text-[11px] text-gray-500">{reward.voucher?.reward || reward.voucher?.benefitType || 'Voucher'}{reward.timing === 'achievement' && Number(reward.voucher?.limitPerUser) > 1 ? ` · ×${reward.voucher.limitPerUser} claims` : ''}{reward.voucher?.status ? ` · ${reward.voucher.status}` : ''}</p>
+                                        </div>
+                                        <div className="flex shrink-0 gap-1">
+                                          <button type="button" onClick={() => openTierRewardModal(tier.id, reward)} className="rounded-md border border-[#BFD3CE] p-1.5 text-[#1F3A34] hover:bg-white" aria-label={`Edit ${reward.voucher?.name || 'tier reward'}`} title="Edit reward"><Edit3 size={13} /></button>
+                                          <button type="button" onClick={() => handleUnlinkTierReward(tier, reward.voucherTemplateId, reward.timing)} className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50" aria-label={`Unlink ${reward.voucher?.name || 'tier reward'}`} title="Unlink reward"><X size={13} /></button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {linkedRewards.length === 0 && <p className="text-xs text-gray-400">No rewards configured.</p>}
+                                  <button type="button" onClick={() => openTierRewardModal(tier.id)} disabled={!tier.isActive} className="inline-flex items-center gap-1 text-xs font-bold text-[#1F3A34] hover:text-[#2E5E58] disabled:cursor-not-allowed disabled:text-gray-400 cursor-pointer"><Plus size={13} /> Add reward</button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-gray-600 font-medium">{formatCupsLabel(tier.minCups)}</td>
-                      <td className="px-6 py-4 align-top whitespace-normal">
-                        <div className="min-w-[280px] space-y-2">
+                      <td className="px-6 py-4 text-gray-600 font-medium align-top">{formatCupsLabel(tier.minCups)}</td>
+
+                      {/* Desktop Tier Rewards Column */}
+                      <td className="hidden md:table-cell px-6 py-4 align-top">
+                        <div className="flex flex-col gap-2 max-w-md">
                           {linkedRewards.map((reward) => (
-                            <div key={`${tier.id}-${reward.timing}-${reward.voucherTemplateId}`} className="rounded-lg border border-[#DDE9E5] bg-[#F8FBFA] p-2.5">
+                            <div key={`desk-${tier.id}-${reward.timing}-${reward.voucherTemplateId}`} className="rounded-lg border border-[#DDE9E5] bg-[#F8FBFA] p-2.5">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-1.5">
@@ -1180,22 +1227,23 @@ const TierManagement = () => {
                                   <p className="mt-1 text-[11px] text-gray-500">{reward.voucher?.reward || reward.voucher?.benefitType || 'Voucher'}{reward.timing === 'achievement' && Number(reward.voucher?.limitPerUser) > 1 ? ` · ×${reward.voucher.limitPerUser} claims` : ''}{reward.voucher?.status ? ` · ${reward.voucher.status}` : ''}</p>
                                 </div>
                                 <div className="flex shrink-0 gap-1">
-                                  <button type="button" onClick={() => openTierRewardModal(tier.id, reward)} className="rounded-md border border-[#BFD3CE] p-1.5 text-[#1F3A34] hover:bg-white" aria-label={`Edit ${reward.voucher?.name || 'tier reward'}`} title="Edit reward"><Edit3 size={13} /></button>
-                                  <button type="button" onClick={() => handleUnlinkTierReward(tier, reward.voucherTemplateId, reward.timing)} className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50" aria-label={`Unlink ${reward.voucher?.name || 'tier reward'}`} title="Unlink reward"><X size={13} /></button>
+                                  <button type="button" onClick={() => openTierRewardModal(tier.id, reward)} className="rounded-md border border-[#BFD3CE] p-1.5 text-[#1F3A34] hover:bg-white cursor-pointer" aria-label={`Edit ${reward.voucher?.name || 'tier reward'}`} title="Edit reward"><Edit3 size={13} /></button>
+                                  <button type="button" onClick={() => handleUnlinkTierReward(tier, reward.voucherTemplateId, reward.timing)} className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 cursor-pointer" aria-label={`Unlink ${reward.voucher?.name || 'tier reward'}`} title="Unlink reward"><X size={13} /></button>
                                 </div>
                               </div>
                             </div>
                           ))}
                           {linkedRewards.length === 0 && <p className="text-xs text-gray-400">No rewards configured.</p>}
-                          <button type="button" onClick={() => openTierRewardModal(tier.id)} disabled={!tier.isActive} className="inline-flex items-center gap-1 text-xs font-bold text-[#1F3A34] hover:text-[#2E5E58] disabled:cursor-not-allowed disabled:text-gray-400"><Plus size={13} /> Add reward</button>
+                          <button type="button" onClick={() => openTierRewardModal(tier.id)} disabled={!tier.isActive} className="inline-flex items-center gap-1 text-xs font-bold text-[#1F3A34] hover:text-[#2E5E58] disabled:cursor-not-allowed disabled:text-gray-400 cursor-pointer self-start"><Plus size={13} /> Add reward</button>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
+
+                      <td className="px-6 py-4 text-center align-top">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md font-bold text-xs ${getStatusClass(Boolean(tier.isActive))}`}>
                           {formatTierStatus(Boolean(tier.isActive))}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center relative">
+                      <td className="px-6 py-4 text-center relative align-top">
                         <button
                           onClick={(event) => {
                             event.stopPropagation();
@@ -1252,8 +1300,10 @@ const TierManagement = () => {
             totalPages={totalPages}
             setCurrentPage={setCurrentPage}
             itemsPerPage={itemsPerPage}
-            totalItems={sortedTiers.length}
+            totalItems={tableTiers.length}
             itemName="tiers"
+            showAll={showAllTiers}
+            onToggleShowAll={() => setShowAllTiers(!showAllTiers)}
           />
         </div>
       </div>

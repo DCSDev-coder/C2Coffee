@@ -7,6 +7,8 @@ import {
 import { adminRequest, loadAdminVouchers } from '../lib/adminApi';
 import { requestAdminConfirm, requestAdminPrompt } from '../lib/adminDialog';
 import InfoTooltip from './InfoTooltip';
+import Pagination from './Pagination';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 
 const emptyProgram = () => ({
   id: null,
@@ -67,26 +69,29 @@ function statusStyle(status) {
   return 'bg-slate-100 text-slate-600 border border-slate-200/60';
 }
 
-function KPICard({ title, value, badge, info, icon: Icon, iconBg = "bg-[#1E433A]", iconColor = "text-white" }) {
+function KPICard({ title, value, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]/10 text-[#2E5E58]" }) {
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
-      <div className="flex items-center gap-3.5 min-w-0">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
-          <Icon size={20} strokeWidth={2.2} />
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-            {info && <InfoTooltip content={info} title={title} />}
-          </div>
-          <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
         </div>
       </div>
-      {badge && (
-        <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
-          {badge}
-        </span>
-      )}
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {badge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {badge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -498,10 +503,21 @@ export default function ReferralProgram() {
     return result;
   }, [programs, search, statusFilter, sortKey, sortDirection]);
 
+  const itemsPerPage = useResponsivePageSize(5, 10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showAllPrograms, setShowAllPrograms] = useState(false);
+
+  const totalPages = Math.ceil(filteredPrograms.length / itemsPerPage) || 1;
+  const paginatedPrograms = useMemo(() => {
+    if (showAllPrograms) return filteredPrograms;
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredPrograms.slice(start, start + itemsPerPage);
+  }, [filteredPrograms, currentPage, showAllPrograms, itemsPerPage]);
+
   return (
-    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 max-w-7xl mx-auto min-w-0 overflow-x-hidden">
       {/* Header */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2 text-[#2E5E58]">
             <Share2 size={18} />
@@ -511,22 +527,22 @@ export default function ReferralProgram() {
               content="Encourage word-of-mouth growth. When existing customers invite friends, both parties earn configured rewards upon first order fulfillment."
             />
           </div>
-          <h1 className="mt-1 text-3xl font-extrabold text-gray-900 tracking-tight">Referral Program</h1>
-          <p className="mt-1.5 max-w-2xl text-xs text-gray-500">
+          <h1 className="mt-1 text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Referral Program</h1>
+          <p className="mt-1.5 max-w-2xl text-xs sm:text-sm text-gray-600 leading-relaxed break-words">
             The friend receives their reward when claiming an eligible code. The referrer receives theirs after the friend's first collected order.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-1">
           <button
             onClick={() => void refresh()}
-            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-700 shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer"
+            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-700 shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer shrink-0"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin text-[#1E433A]' : ''} />
           </button>
           <button
             onClick={() => setEditing(emptyProgram())}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#1E433A] px-4 py-2.5 text-xs font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors cursor-pointer"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#1E433A] px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors cursor-pointer whitespace-nowrap shrink-0"
           >
             <Plus size={15} />
             <span>New Referral Program</span>
@@ -537,14 +553,14 @@ export default function ReferralProgram() {
       {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 shadow-2xs">{error}</div>}
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <KPICard
           title="Referral Programs"
           value={programs.length}
           badge="Campaigns"
           info="Total number of referral rule templates created."
           icon={Users}
-          iconBg="bg-[#1E433A]"
+          iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
         />
         <KPICard
           title="Active Program"
@@ -552,7 +568,7 @@ export default function ReferralProgram() {
           badge={programs.some((program) => program.status === 'active') ? 'Live' : 'Inactive'}
           info="Currently running program. Only one referral program can be active at any time."
           icon={Gift}
-          iconBg="bg-[#2E5E58]"
+          iconBg="bg-emerald-500/10 text-emerald-700"
         />
         <KPICard
           title="Qualification Event"
@@ -560,7 +576,7 @@ export default function ReferralProgram() {
           badge="Collected"
           info="Referrer reward is issued only after the friend completes and collects their first order."
           icon={Share2}
-          iconBg="bg-[#8C6D53]"
+          iconBg="bg-amber-500/15 text-amber-700"
         />
       </div>
 
@@ -613,8 +629,8 @@ export default function ReferralProgram() {
 
       {/* Campaigns Table & Filter Bar */}
       <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
-        <div className="border-b border-gray-100 p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="border-b border-gray-100 p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-gray-900">Campaigns</h2>
@@ -627,33 +643,41 @@ export default function ReferralProgram() {
             </div>
 
             {/* Search and Status Filter */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative w-full sm:max-w-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <Search size={14} className="text-gray-400" />
                 </div>
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   placeholder="Search campaigns..."
                   className="block w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-xs text-gray-800 placeholder-gray-400 shadow-2xs outline-none focus:border-[#1E433A]"
                 />
               </div>
-              <div className="relative">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-3.5 pr-8 text-xs font-semibold text-gray-700 shadow-2xs hover:bg-gray-50 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="active">Active</option>
-                  <option value="draft">Draft</option>
-                  <option value="paused">Paused</option>
-                  <option value="archived">Archived</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5">
-                  <ChevronDown size={13} className="text-gray-500" />
+              <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0">
+                <div className="relative shrink-0">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="appearance-none rounded-xl border border-gray-200 bg-white py-2 pl-3.5 pr-8 text-xs font-semibold text-gray-700 shadow-2xs hover:bg-gray-50 focus:outline-none cursor-pointer whitespace-nowrap"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="draft">Draft</option>
+                    <option value="paused">Paused</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5">
+                    <ChevronDown size={13} className="text-gray-500" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -682,7 +706,7 @@ export default function ReferralProgram() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {filteredPrograms.map((program) => (
+                {paginatedPrograms.map((program) => (
                   <tr key={program.id} className="hover:bg-gray-50/75 transition-colors">
                     <td className="px-6 py-4 font-bold text-gray-900">
                       <div>
@@ -734,6 +758,22 @@ export default function ReferralProgram() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Footer */}
+        {filteredPrograms.length > 0 && (
+          <div className="border-t border-gray-100 px-5 py-3">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              setCurrentPage={setCurrentPage}
+              totalItems={filteredPrograms.length}
+              itemsPerPage={itemsPerPage}
+              itemName="campaigns"
+              showAll={showAllPrograms}
+              onToggleShowAll={() => setShowAllPrograms(!showAllPrograms)}
+            />
           </div>
         )}
       </div>

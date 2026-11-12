@@ -9,7 +9,7 @@ const TiersHistory = ({ customer, onBack }) => {
   ];
 
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
       <div className="mb-6 shrink-0">
         <div className="flex items-center gap-2.5">
           {onBack && (
@@ -27,7 +27,7 @@ const TiersHistory = ({ customer, onBack }) => {
           Progression timeline for {customer.username}
         </p>
       </div>
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 flex-1">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 md:p-8 flex-1">
         <div className="relative border-l-2 border-gray-100 ml-4 space-y-10">
           {history.map((event, idx) => (
             <div key={idx} className="relative pl-8">

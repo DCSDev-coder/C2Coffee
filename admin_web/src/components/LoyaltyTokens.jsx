@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Pagination from './Pagination';
 import InfoTooltip from './InfoTooltip';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
@@ -72,27 +73,33 @@ const getTypeColor = (type) => {
 };
 
 // Sleek KPI Card matching standard
-const KPICard = ({ title, value, change, info, icon: Icon, iconBg = "bg-[#1E433A]", iconColor = "text-white" }) => (
-  <div className="flex items-center justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-2xs hover:shadow-xs transition-shadow">
-    <div className="flex items-center gap-3.5 min-w-0">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-xs`}>
-        <Icon size={20} strokeWidth={2.2} />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-          {info && <InfoTooltip content={info} title={title} />}
+const KPICard = ({ title, value, change, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]/10 text-[#2E5E58]" }) => {
+  const displayBadge = badge || change;
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-        <p className="text-2xl font-extrabold text-gray-900 tracking-tight leading-tight mt-0.5">{value}</p>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
+      </div>
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {displayBadge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {displayBadge}
+            </span>
+          </div>
+        )}
       </div>
     </div>
-    {change && (
-      <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F3F0] text-[#1E433A]">
-        {change}
-      </span>
-    )}
-  </div>
-);
+  );
+};
 
 function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
   const isSorted = currentKey === columnKey;
@@ -268,7 +275,8 @@ const LoyaltyTokens = () => {
     };
   }, []);
 
-  const itemsPerPage = 10;
+  const itemsPerPage = useResponsivePageSize(5, 10);
+  const [showAllMembers, setShowAllMembers] = useState(false);
 
   const filteredTransactions = transactions.filter((tx) => {
     const matchesSearch = tx.member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -361,7 +369,7 @@ const LoyaltyTokens = () => {
   });
 
   const totalPages = Math.max(1, Math.ceil(sortedMembers.length / itemsPerPage));
-  const paginatedMembers = sortedMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedMembers = showAllMembers ? sortedMembers : sortedMembers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   if (activeView === 'analytics') {
     return <LoyaltyAnalytics overview={overview} onBack={() => setActiveView('list')} onViewSummary={() => setActiveView('program_summary')} />;
@@ -384,7 +392,7 @@ const LoyaltyTokens = () => {
       ...purchases.map((row) => [employeeReportMonth, row.orderRef, `"${row.employee}"`, `"${row.outlet}"`, `"${String(row.items).replaceAll('"','""')}"`, row.allowanceTokens, row.refundedAllowanceTokens, row.personalTokens, row.status])
     ], `employee-token-audit-${employeeReportMonth}.csv`);
     return (
-      <div className="h-full overflow-y-auto px-8 pb-8 pt-2 space-y-6">
+      <div className="h-full overflow-y-auto px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Employee Token Audit</h1>
@@ -426,13 +434,13 @@ const LoyaltyTokens = () => {
           {subsidyPolicySaved && <p className="mt-3 text-sm font-semibold text-[#1F3A34]">{subsidyPolicySaved}</p>}
         </form>
         {employeeReportError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{employeeReportError}</div>}
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          <KPICard title="Issued / eligible" value={employeeReportLoading ? '—' : `${Number(summary.employeesIssued || 0).toLocaleString('en-US')} / ${Number(summary.employeesEligible || 0).toLocaleString('en-US')}`} icon={Users} />
-          <KPICard title="Carried" value={Number(summary.carriedForward || 0).toLocaleString('en-US')} icon={Coins} iconBg="bg-[#6F9F96]" />
-          <KPICard title="Top-up" value={Number(summary.companyTopUp || 0).toLocaleString('en-US')} icon={Coins} iconBg="bg-[#6F9F96]" />
-          <KPICard title="Used" value={Number(summary.grossUsed || 0).toLocaleString('en-US')} icon={ShoppingBag} iconBg="bg-[#D4AF7A]" />
-          <KPICard title="Refunded" value={Number(summary.refunded || 0).toLocaleString('en-US')} icon={ArrowDown} iconBg="bg-[#8B6F47]" />
-          <KPICard title="Ending" value={Number(summary.endingBalance || 0).toLocaleString('en-US')} icon={Coins} />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+          <KPICard title="Issued / eligible" value={employeeReportLoading ? '—' : `${Number(summary.employeesIssued || 0).toLocaleString('en-US')} / ${Number(summary.employeesEligible || 0).toLocaleString('en-US')}`} icon={Users} iconBg="bg-[#1F3A34]/10 text-[#1F3A34]" />
+          <KPICard title="Carried" value={Number(summary.carriedForward || 0).toLocaleString('en-US')} icon={Coins} iconBg="bg-blue-500/10 text-blue-700" />
+          <KPICard title="Top-up" value={Number(summary.companyTopUp || 0).toLocaleString('en-US')} icon={Coins} iconBg="bg-emerald-500/10 text-emerald-700" />
+          <KPICard title="Used" value={Number(summary.grossUsed || 0).toLocaleString('en-US')} icon={ShoppingBag} iconBg="bg-amber-500/15 text-amber-700" />
+          <KPICard title="Refunded" value={Number(summary.refunded || 0).toLocaleString('en-US')} icon={ArrowDown} iconBg="bg-rose-500/10 text-rose-600" />
+          <KPICard title="Ending" value={Number(summary.endingBalance || 0).toLocaleString('en-US')} icon={Coins} iconBg="bg-indigo-500/10 text-indigo-700" />
         </div>
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100"><h2 className="font-bold text-gray-900">Monthly allowance records</h2></div>
@@ -453,7 +461,7 @@ const LoyaltyTokens = () => {
   }
 
   return (
-    <div className="h-full flex flex-col px-8 pb-8 pt-2 space-y-6 overflow-hidden">
+    <div className="h-full flex flex-col px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 overflow-hidden">
       <div className="shrink-0 space-y-6">
         {/* Header */}
         <div>
@@ -468,20 +476,20 @@ const LoyaltyTokens = () => {
         )}
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <KPICard
             title="C2 Credit Members"
             value={isLoading ? '—' : (overview?.summary?.totalMembers ?? 0).toLocaleString('en-US')}
             change="Customer C2 Credit"
             icon={Users}
-            iconBg="bg-[#1F3A34]"
+            iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
           />
           <KPICard
             title="Tokens Held"
             value={isLoading ? '—' : (overview?.summary?.tokensInCirculation ?? 0).toLocaleString('en-US')}
             change="C2 Credit balance"
             icon={Coins}
-            iconBg="bg-[#6F9F96]"
+            iconBg="bg-amber-500/15 text-amber-700"
           />
         </div>
 
@@ -504,8 +512,8 @@ const LoyaltyTokens = () => {
             Showing {groupedMembers.length.toLocaleString('en-US')} C2 Credit members and {filteredTransactions.length.toLocaleString('en-US')} token events
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
+          <div className="flex items-center gap-2.5 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0 shrink-0">
+            <div className="relative shrink-0">
               <DatePicker portalId="root-portal" popperPlacement="bottom-end"
                 selected={selectedDate}
                 onChange={(date) => { setSelectedDate(date); setCurrentPage(1); }}
@@ -513,13 +521,13 @@ const LoyaltyTokens = () => {
                 dateFormat="MMM d, yyyy"
               />
             </div>
-            <div className="relative">
+            <div className="relative shrink-0 min-w-[200px]">
               <select
                 value={selectedType}
                 onChange={(e) => { setSelectedType(e.target.value); setCurrentPage(1); }}
                 onFocus={() => setTypeOpen(true)}
                 onBlur={() => setTypeOpen(false)}
-                className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+                className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full whitespace-nowrap"
               >
                 <option value="All Transaction Types">All Transaction Types</option>
                 <option value="Earned">Earned</option>
@@ -531,13 +539,13 @@ const LoyaltyTokens = () => {
             </div>
             <button
               onClick={() => setActiveView('analytics')}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap transition-transform duration-200 peer-focus:-rotate-180"
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap shrink-0"
             >
               Analytics
             </button>
             <button
               onClick={() => setActiveView('employee_allowances')}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap shrink-0"
             >
               Employee Token Audit
             </button>
@@ -641,7 +649,7 @@ const LoyaltyTokens = () => {
             </div>
 
             {/* Pagination */}
-            <div className="mt-auto px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0 bg-white">
+            <div className="mt-auto px-4 sm:px-6 py-3.5 border-t border-gray-100 shrink-0 bg-white">
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -649,27 +657,31 @@ const LoyaltyTokens = () => {
                 itemsPerPage={itemsPerPage}
                 totalItems={groupedMembers.length}
                 itemName="members"
+                showAll={showAllMembers}
+                onToggleShowAll={() => setShowAllMembers(!showAllMembers)}
+                action={(
+                  <button
+                    onClick={() => {
+                      const rows = [
+                        ["Transaction ID", "Member Name", "Tokens", "Balance", "Type", "Source", "Date"],
+                        ...filteredTransactions.map((transaction) => [
+                          `"${transaction.id}"`,
+                          `"${transaction.member.name}"`,
+                          `"${transaction.tokens}"`,
+                          `"${transaction.balance}"`,
+                          `"${transaction.type}"`,
+                          `"${transaction.description}"`,
+                          `"${transaction.date} ${transaction.time}"`
+                        ])
+                      ];
+                      exportToCSV(rows, "loyalty_tokens.csv");
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-2xs whitespace-nowrap"
+                  >
+                    <Download size={14} /> Export
+                  </button>
+                )}
               />
-              <button
-                onClick={() => {
-                  const rows = [
-                    ["Transaction ID", "Member Name", "Tokens", "Balance", "Type", "Source", "Date"],
-                    ...filteredTransactions.map((transaction) => [
-                      `"${transaction.id}"`,
-                      `"${transaction.member.name}"`,
-                      `"${transaction.tokens}"`,
-                      `"${transaction.balance}"`,
-                      `"${transaction.type}"`,
-                      `"${transaction.description}"`,
-                      `"${transaction.date} ${transaction.time}"`
-                    ])
-                  ];
-                  exportToCSV(rows, "loyalty_tokens.csv");
-                }}
-                className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap"
-              >
-                <Download size={16} className="mr-1.5" /> Export
-              </button>
             </div>
           </div>
         </div>

@@ -35,7 +35,7 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
   const redemptionRate = parseNumber(summary.redemptionRate);
 
   return (
-    <div className="h-full flex flex-col px-8 pb-8 pt-2 space-y-6 overflow-y-auto bg-gray-50/30">
+    <div className="h-full flex flex-col px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 overflow-y-auto bg-gray-50/30">
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div>
@@ -135,34 +135,36 @@ const LoyaltyAnalytics = ({ overview, onBack, onViewSummary }) => {
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 w-full relative -ml-4">
+          <div className="flex-1 min-h-0 w-full overflow-x-auto overflow-y-hidden touch-pan-x pb-2">
             {tokenActivityData.length === 0 ? (
               <div className="h-full rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500 flex items-center">
                 No token movement recorded yet.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={tokenActivityData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorIssued" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorRedeemed" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8AACA5" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#8AACA5" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
-                  <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
-                    itemStyle={{ color: '#fff' }}
-                  />
-                  <Area type="monotone" dataKey="issued" stroke="#2E5E58" strokeWidth={3} fillOpacity={1} fill="url(#colorIssued)" />
-                  <Area type="monotone" dataKey="redeemed" stroke="#8AACA5" strokeWidth={3} fillOpacity={1} fill="url(#colorRedeemed)" />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="h-full min-w-[480px] sm:min-w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={tokenActivityData} margin={{ top: 10, right: 10, left: 15, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorIssued" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorRedeemed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8AACA5" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#8AACA5" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="day" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600, angle: -20, textAnchor: 'end' }} dy={10} height={40} />
+                    <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dx={-10} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}K` : val} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                    <Area type="monotone" dataKey="issued" stroke="#2E5E58" strokeWidth={3} fillOpacity={1} fill="url(#colorIssued)" />
+                    <Area type="monotone" dataKey="redeemed" stroke="#8AACA5" strokeWidth={3} fillOpacity={1} fill="url(#colorRedeemed)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
         </div>

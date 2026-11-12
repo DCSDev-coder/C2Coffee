@@ -4,6 +4,8 @@ import { exportToCSV } from '../utils/exportToCSV';
 import { loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatPaymentLabel, formatReportMoney, formatReportTokens } from '../utils/reporting';
 import InfoTooltip from './InfoTooltip';
+import Pagination from './Pagination';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -43,6 +45,7 @@ const AllTransactions = ({ onBack }) => {
   const [overview, setOverview] = useState({ recentTransactions: [] });
   const [searchTerm, setSearchTerm] = useState('');
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [showAll, setShowAll] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [transactionSortKey, setTransactionSortKey] = useState('dateTime');
   const [transactionSortDirection, setTransactionSortDirection] = useState('desc');
@@ -142,22 +145,22 @@ const AllTransactions = ({ onBack }) => {
     });
   }, [filtered, transactionSortKey, transactionSortDirection]);
 
-  const visibleTransactions = useMemo(
-    () => sortedTransactions.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage),
-    [currentPage, sortedTransactions, rowsPerPage]
-  );
+  const responsiveItemsPerPage = useResponsivePageSize(5, rowsPerPage);
+  const itemsPerPage = showAll ? filtered.length : responsiveItemsPerPage;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-  const pageStart = filtered.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
-  const pageEnd = Math.min(filtered.length, currentPage * rowsPerPage);
+  const visibleTransactions = useMemo(
+    () => sortedTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+    [currentPage, sortedTransactions, itemsPerPage]
+  );
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, rowsPerPage]);
 
   useEffect(() => {
-    setCurrentPage((page) => Math.min(page, pageCount));
-  }, [pageCount]);
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const refreshOverview = async () => {
     try {
@@ -184,20 +187,8 @@ const AllTransactions = ({ onBack }) => {
     ])
   ], [filtered]);
 
-  const paginationWindow = useMemo(() => {
-    const windowSize = 2;
-    const start = Math.max(1, currentPage - windowSize);
-    const end = Math.min(pageCount, currentPage + windowSize);
-    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-  }, [currentPage, pageCount]);
-
-  const goToPage = (nextPage) => {
-    const clamped = Math.max(1, Math.min(pageCount, nextPage));
-    setCurrentPage(clamped);
-  };
-
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
       <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <button
@@ -245,13 +236,13 @@ const AllTransactions = ({ onBack }) => {
               />
             </div>
 
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                <span>Show</span>
+            <div className="hidden sm:flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 whitespace-nowrap">
+                <span>Rows</span>
                 <select
                   value={rowsPerPage}
                   onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-[#1F3A34] focus:border-[#1F3A34]"
+                  className="px-2 py-1 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 shadow-2xs focus:outline-none focus:ring-1 focus:ring-[#1F3A34] focus:border-[#1F3A34]"
                 >
                   {[50, 100, 150, 200].map((count) => (
                     <option key={count} value={count}>
@@ -260,9 +251,6 @@ const AllTransactions = ({ onBack }) => {
                   ))}
                 </select>
               </label>
-              <p className="text-sm font-medium text-gray-500">
-                Showing {pageStart.toLocaleString('en-US')} to {pageEnd.toLocaleString('en-US')} of {filtered.length.toLocaleString('en-US')} transaction{filtered.length === 1 ? '' : 's'}
-              </p>
             </div>
           </div>
         </div>
@@ -322,82 +310,26 @@ const AllTransactions = ({ onBack }) => {
           </table>
         </div>
 
-        <div className="border-t border-gray-100 bg-white px-5 py-4 shrink-0">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <p className="text-sm text-gray-500">
-              Page {currentPage.toLocaleString('en-US')} of {pageCount.toLocaleString('en-US')}
-            </p>
-
-            <div className="flex items-center gap-2">
+        <div className="border-t border-gray-100 bg-white px-4 sm:px-6 py-3.5 shrink-0">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            setCurrentPage={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            totalItems={filtered.length}
+            itemName="transactions"
+            showAll={showAll}
+            onToggleShowAll={() => setShowAll(!showAll)}
+            action={
               <button
                 type="button"
-                onClick={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => exportToCSV(exportRows, 'all_transactions.csv')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs"
               >
-                Previous
+                <Download size={13} /> Export
               </button>
-
-              {paginationWindow[0] > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => goToPage(1)}
-                    className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-                  >
-                    1
-                  </button>
-                  {paginationWindow[0] > 2 && <span className="px-1 text-gray-400">…</span>}
-                </>
-              )}
-
-              {paginationWindow.map((page) => (
-                <button
-                  key={page}
-                  type="button"
-                  onClick={() => goToPage(page)}
-                  className={`px-3 py-2 rounded-lg border text-sm font-semibold shadow-sm transition-colors ${
-                    page === currentPage
-                      ? 'border-[#1F3A34] bg-[#1F3A34] text-white'
-                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-
-              {paginationWindow[paginationWindow.length - 1] < pageCount && (
-                <>
-                  {paginationWindow[paginationWindow.length - 1] < pageCount - 1 && (
-                    <span className="px-1 text-gray-400">…</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => goToPage(pageCount)}
-                    className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-                  >
-                    {pageCount}
-                  </button>
-                </>
-              )}
-
-              <button
-                type="button"
-                onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === pageCount}
-                className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => exportToCSV(exportRows, 'all_transactions.csv')}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-            >
-              <Download size={16} /> Export
-            </button>
-          </div>
+            }
+          />
         </div>
       </div>
     </div>

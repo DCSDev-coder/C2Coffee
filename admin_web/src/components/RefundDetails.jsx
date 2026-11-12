@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ArrowLeft, Check, Mail, Search, X, Clock, CheckCircle2, XCircle } from "lucide-react";
 import Pagination from "./Pagination";
 import InfoTooltip from "./InfoTooltip";
+import { useResponsivePageSize } from "../utils/useResponsivePageSize";
 import {
   createAdminRefund,
   loadAdminRefunds,
@@ -11,7 +12,6 @@ import {
 import ViewProfile from "./ViewProfile";
 import OutletFilter from './OutletFilter';
 
-const ITEMS_PER_PAGE = 10;
 const STATUSES = ["All Status", "Pending", "Approved", "Completed", "Rejected"];
 
 const statusClass = {
@@ -39,11 +39,13 @@ const formatAmount = (refund) => {
 };
 
 const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreChange }) => {
+  const itemsPerPage = useResponsivePageSize(5, 10);
   const [refunds, setRefunds] = useState([]);
   const [selectedRefund, setSelectedRefund] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAllRefunds, setShowAllRefunds] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
@@ -152,10 +154,10 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
       (statusFilter === "All Status" || refund.status === statusFilter)
     );
   });
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const pageItems = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const pageItems = showAllRefunds ? filtered : filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
   );
   const counts = Object.fromEntries(
     STATUSES.slice(1).map((status) => [
@@ -173,7 +175,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
     );
 
   return (
-    <div className="flex h-full flex-col px-8 pb-8 pt-2">
+    <div className="flex h-full flex-col px-4 sm:px-6 md:px-8 pb-8 pt-2">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
@@ -218,15 +220,17 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
             className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-3.5 text-xs bg-white outline-none focus:border-[#2E5E58] shadow-2xs"
           />
         </div>
-        <div className="flex items-center gap-3">
-          <OutletFilter value={selectedStoreId} onChange={onStoreChange} />
+        <div className="flex items-center gap-2.5 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0">
+          <div className="shrink-0">
+            <OutletFilter value={selectedStoreId} onChange={onStoreChange} />
+          </div>
           <select
             value={statusFilter}
             onChange={(event) => {
               setStatusFilter(event.target.value);
               setCurrentPage(1);
             }}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 shadow-2xs outline-none focus:border-[#2E5E58] cursor-pointer"
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 shadow-2xs outline-none focus:border-[#2E5E58] cursor-pointer shrink-0 whitespace-nowrap"
           >
             {STATUSES.map((status) => (
               <option key={status}>{status}</option>
@@ -375,9 +379,11 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
+              itemsPerPage={itemsPerPage}
               totalItems={filtered.length}
               itemName="refund requests"
+              showAll={showAllRefunds}
+              onToggleShowAll={() => setShowAllRefunds(!showAllRefunds)}
             />
           </div>
         </div>

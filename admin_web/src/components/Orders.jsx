@@ -251,12 +251,14 @@ const KPICard = ({ title, value, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]
           <Icon size={15} strokeWidth={2.2} />
         </div>
       </div>
-      <div className="mt-2.5 sm:mt-3 flex flex-wrap items-baseline justify-between gap-1 sm:gap-2">
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
         <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
         {badge && (
-          <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-[85px] sm:max-w-[100px]">
-            {badge}
-          </span>
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {badge}
+            </span>
+          </div>
         )}
       </div>
     </div>
@@ -1010,15 +1012,15 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         </div>
 
         {/* Filters Group */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2.5 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0 shrink-0">
           {/* Status Dropdown */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }}
               onFocus={() => setStatusOpen(true)}
               onBlur={() => setStatusOpen(false)}
-              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
+              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs whitespace-nowrap"
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -1030,13 +1032,13 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           </div>
 
           {/* Payment Dropdown */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={paymentFilter}
               onChange={(e) => { setPaymentFilter(e.target.value); resetPage(); }}
               onFocus={() => setPaymentOpen(true)}
               onBlur={() => setPaymentOpen(false)}
-              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
+              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs whitespace-nowrap"
             >
               {PAYMENT_TYPES.map((p) => (
                 <option key={p} value={p}>{p}</option>
@@ -1048,11 +1050,11 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
           </div>
 
           {/* Date Picker */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={selectedPeriod}
               onChange={(e) => { setSelectedPeriod(e.target.value); if (e.target.value !== "custom") setSelectedDateRange([null, null]); resetPage(); }}
-              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs"
+              className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs whitespace-nowrap"
             >
               <option value="today">Today</option>
               <option value="this_week">This week</option>
@@ -1062,7 +1064,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             </select>
           </div>
           {selectedPeriod === "custom" && (
-            <div className="relative">
+            <div className="relative shrink-0">
               <DatePicker
                 portalId="root-portal"
                 popperPlacement="bottom-end"

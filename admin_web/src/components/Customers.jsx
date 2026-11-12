@@ -719,15 +719,15 @@ const Customers = ({ currentUser }) => {
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
-          <span className="mr-1 text-xs font-bold uppercase tracking-wide text-gray-400">Filter by</span>
-          <div className="relative">
+        <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
+          <span className="mr-1 text-xs font-bold uppercase tracking-wide text-gray-400 shrink-0">Filter by</span>
+          <div className="relative shrink-0">
             <select
               value={selectedTier}
               onChange={(e) => { setSelectedTier(e.target.value); setCurrentPage(1); }}
               onFocus={() => setTierOpen(true)}
               onBlur={() => setTierOpen(false)}
-              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer whitespace-nowrap"
             >
               <option value="All Tiers">All Tiers</option>
               {tiers.length > 0 ? (
@@ -750,13 +750,13 @@ const Customers = ({ currentUser }) => {
             </div>
           </div>
 
-          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
+          <div className="relative shrink-0 transition-transform duration-200 peer-focus:-rotate-180">
             <select
               value={selectedStatus}
               onChange={(e) => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
               onFocus={() => setStatusOpen(true)}
               onBlur={() => setStatusOpen(false)}
-              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+              className="peer pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer whitespace-nowrap"
             >
               <option value="All Status">All Status</option>
               <option value="Active">Active</option>
@@ -769,11 +769,11 @@ const Customers = ({ currentUser }) => {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={selectedEmployment}
               onChange={(e) => { setSelectedEmployment(e.target.value); setCurrentPage(1); }}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer w-full"
+              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer whitespace-nowrap"
               aria-label="Filter by employee status"
             >
               <option value="All Customers">All Customers</option>
@@ -785,11 +785,11 @@ const Customers = ({ currentUser }) => {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative shrink-0">
             <select
               value={selectedPeriod}
               onChange={(e) => { setSelectedPeriod(e.target.value); if (e.target.value !== 'custom') setSelectedDateRange([null, null]); setCurrentPage(1); }}
-              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer whitespace-nowrap"
             >
               <option value="all">All time</option>
               <option value="today">Today</option>
@@ -800,16 +800,18 @@ const Customers = ({ currentUser }) => {
             </select>
           </div>
           {selectedPeriod === 'custom' && (
-            <DatePicker
-              portalId="root-portal"
-              popperPlacement="bottom-end"
-              selectsRange
-              startDate={selectedDateRange[0]}
-              endDate={selectedDateRange[1]}
-              onChange={(range) => { setSelectedDateRange(range); setCurrentPage(1); }}
-              customInput={<CustomDateInput onClear={() => { setSelectedDateRange([null, null]); setCurrentPage(1); }} />}
-              dateFormat="MMM d, yyyy"
-            />
+            <div className="shrink-0">
+              <DatePicker
+                portalId="root-portal"
+                popperPlacement="bottom-end"
+                selectsRange
+                startDate={selectedDateRange[0]}
+                endDate={selectedDateRange[1]}
+                onChange={(range) => { setSelectedDateRange(range); setCurrentPage(1); }}
+                customInput={<CustomDateInput onClear={() => { setSelectedDateRange([null, null]); setCurrentPage(1); }} />}
+                dateFormat="MMM d, yyyy"
+              />
+            </div>
           )}
         </div>
       </div>

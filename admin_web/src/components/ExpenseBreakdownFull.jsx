@@ -78,7 +78,7 @@ const ExpenseBreakdownFull = ({ onBack }) => {
   ], [statusBreakdown, totalStatuses]);
 
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
       <div className="shrink-0 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <button
@@ -89,8 +89,8 @@ const ExpenseBreakdownFull = ({ onBack }) => {
             <ArrowLeft size={22} strokeWidth={2.5} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Transaction Breakdown</h1>
-            <p className="text-sm text-gray-500 mt-1">Live mix of order and refund statuses.</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Transaction Breakdown</h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">Live mix of order and refund statuses.</p>
             <p className="text-xs text-gray-400 mt-1">
               {loading ? 'Refreshing live data...' : error ? `Showing last successful data. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
             </p>
@@ -107,7 +107,7 @@ const ExpenseBreakdownFull = ({ onBack }) => {
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col lg:flex-row gap-10">
+      <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col lg:flex-row gap-6 sm:gap-10">
         <div className="flex-1 max-w-md mx-auto relative flex items-center justify-center">
           <div className="w-full aspect-square relative shrink-0">
             <ResponsiveContainer width="100%" height="100%">

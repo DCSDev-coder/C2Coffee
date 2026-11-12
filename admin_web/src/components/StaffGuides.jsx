@@ -373,7 +373,7 @@ export default function StaffGuides() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-6 lg:p-8 space-y-7">
+    <div className="flex-1 overflow-y-auto bg-[#F9FAFB] p-4 sm:p-6 lg:p-8 space-y-7">
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
           <div className="flex items-center gap-2">

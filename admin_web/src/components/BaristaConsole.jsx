@@ -163,9 +163,9 @@ function OrderCard({ order, stage, isUpdating, canOperate, guides, now, onOpen, 
   const isOverdue = stage === 'new' && isNewOrderOverdue(order, now);
 
   return (
-    <article className={`rounded-2xl border bg-white p-4 shadow-sm ${isOverdue ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200'}`}>
+    <article className={`rounded-2xl border bg-white p-4 shadow-sm min-w-0 w-full overflow-hidden ${isOverdue ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200'}`}>
       <div
-        className={`w-full text-left ${canOperate ? 'cursor-pointer' : ''}`}
+        className={`w-full min-w-0 text-left ${canOperate ? 'cursor-pointer' : ''}`}
         onClick={canOperate ? () => onOpen(order) : undefined}
         onKeyDown={canOperate ? (event) => {
           if (event.key === 'Enter' || event.key === ' ') onOpen(order);
@@ -174,11 +174,11 @@ function OrderCard({ order, stage, isUpdating, canOperate, guides, now, onOpen, 
         tabIndex={canOperate ? 0 : undefined}
         aria-label={canOperate ? `Open order ${order.id}` : undefined}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+        <div className="flex items-start justify-between gap-2 sm:gap-3 min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-base font-extrabold text-slate-900">{order.id}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
-              <UserRound size={14} />
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500 min-w-0">
+              <UserRound size={14} className="shrink-0" />
               <span className="truncate">{order.customer || 'Customer'}</span>
             </p>
           </div>
@@ -190,16 +190,19 @@ function OrderCard({ order, stage, isUpdating, canOperate, guides, now, onOpen, 
 
         <div className="my-3 border-t border-slate-100" />
 
-        <div className="space-y-2">
+        <div className="space-y-2 min-w-0">
           {(order.items || []).slice(0, 3).map((item, index) => {
             const guide = guideForItem(guides, item.name);
             return (
-            <div key={`${item.name}-${index}`} className="text-sm text-slate-700">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-slate-900">{item.qty || 1}x {item.name || 'Menu item'}</span>
-                <div className="flex items-center gap-1.5">{item.orderType && <span className="shrink-0 rounded-md bg-amber-100 px-2 py-1 text-[11px] font-extrabold text-amber-900">{item.orderType}</span>}{guide && canOperate && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenGuide(guide); }} className="shrink-0 rounded-md border border-[#8ABFB4] bg-[#F0F8F6] px-2 py-1 text-[11px] font-extrabold text-[#1F3A34] hover:bg-[#E2F2EE]">SOP</button>}</div>
+            <div key={`${item.name}-${index}`} className="text-sm text-slate-700 min-w-0">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <span className="font-bold text-slate-900 min-w-0 truncate">{item.qty || 1}x {item.name || 'Menu item'}</span>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {item.orderType && <span className="shrink-0 rounded-md bg-amber-100 px-2 py-1 text-[11px] font-extrabold text-amber-900">{item.orderType}</span>}
+                  {guide && canOperate && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenGuide(guide); }} className="shrink-0 rounded-md border border-[#8ABFB4] bg-[#F0F8F6] px-2 py-1 text-[11px] font-extrabold text-[#1F3A34] hover:bg-[#E2F2EE]">SOP</button>}
+                </div>
               </div>
-              {itemModifiers(item) && <p className="mt-0.5 truncate text-xs text-slate-500">{itemModifiers(item)}</p>}
+              {itemModifiers(item) && <p className="mt-0.5 text-xs text-slate-500 break-words leading-relaxed">{itemModifiers(item)}</p>}
             </div>
             );
           })}
@@ -209,21 +212,21 @@ function OrderCard({ order, stage, isUpdating, canOperate, guides, now, onOpen, 
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-        <span className="text-xs font-medium text-slate-500">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 min-w-0">
+        <span className="text-xs font-medium text-slate-500 shrink-0">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
         {action && canOperate ? (
           <button
             type="button"
             onClick={() => onAdvance(order.id, action.nextStatus)}
             disabled={isUpdating}
-            className="rounded-lg bg-[#1F3A34] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#2E5E58] disabled:cursor-wait disabled:opacity-60"
+            className="rounded-lg bg-[#1F3A34] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#2E5E58] disabled:cursor-wait disabled:opacity-60 shrink-0 cursor-pointer"
           >
             {isUpdating ? 'Updating...' : action.label}
           </button>
         ) : stage === 'ready' ? (
-          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">Awaiting collection</span>
+          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 shrink-0">Awaiting collection</span>
         ) : (
-          <span className="text-xs font-semibold text-slate-500">Read-only</span>
+          <span className="text-xs font-semibold text-slate-500 shrink-0">Read-only</span>
         )}
       </div>
     </article>
@@ -455,6 +458,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
   const [pushStatus, setPushStatus] = useState({ status: 'idle', message: '' });
   const [isEnablingPush, setIsEnablingPush] = useState(false);
   const [newOrderAlert, setNewOrderAlert] = useState('');
+  const [mobileStage, setMobileStage] = useState('all');
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const lastReminderAtByOrderId = useRef(new Map());
   const notifiedSideWorkIds = useRef(new Set());
@@ -679,14 +683,14 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
 
   return (
     <div className="min-h-full bg-[#F7F7F4] px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+      <div className="mx-auto max-w-[1600px] min-w-0 w-full">
+        <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between min-w-0">
+          <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2E5E58]">Counter workspace</p>
-            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900">{isWorkspace ? 'Barista Workspace' : 'Barista Console'}</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{isWorkspace ? 'Check today’s coverage, manage attendance, and open preparation guides.' : 'Follow orders from new to ready for pickup. This browser workspace does not print receipts automatically.'}</p>
+            <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 truncate">{isWorkspace ? 'Barista Workspace' : 'Barista Console'}</h1>
+            <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-5 sm:leading-6 text-slate-600">{isWorkspace ? 'Check today’s coverage, manage attendance, and open preparation guides.' : 'Follow orders from new to ready for pickup. This browser workspace does not print receipts automatically.'}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
             {!canOperate && <span className="rounded-full bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600">Read-only view</span>}
             {canOperate && !isWorkspace && pushStatus.status === 'enabled' && <span className="hidden rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-800 sm:inline">Browser alerts on</span>}
             {canOperate && !isWorkspace && pushStatus.status !== 'enabled' && (
@@ -695,7 +699,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
                 onClick={() => void enableBrowserPush()}
                 disabled={isEnablingPush || pushStatus.status === 'configuration' || pushStatus.status === 'unsupported'}
                 title={pushStatus.message}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#8ABFB4] bg-[#F0F8F6] px-4 py-2.5 text-sm font-bold text-[#1F3A34] shadow-sm hover:bg-[#E2F2EE] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl border border-[#8ABFB4] bg-[#F0F8F6] px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-bold text-[#1F3A34] shadow-sm hover:bg-[#E2F2EE] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
               >
                 <BellRing size={16} />
                 {isEnablingPush ? 'Enabling alerts...' : 'Enable order alerts'}
@@ -707,7 +711,7 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
                 type="button"
                 onClick={() => void loadOrders({ silent: true })}
                 disabled={isRefreshing}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:border-[#2E5E58] disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-bold text-slate-700 shadow-sm hover:border-[#2E5E58] disabled:cursor-wait disabled:opacity-60 cursor-pointer"
               >
                 <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
                 Refresh
@@ -754,43 +758,83 @@ export default function BaristaConsole({ currentUser, view = 'orders' }) {
         {!isWorkspace && (isLoading ? (
           <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm font-semibold text-slate-500">Loading the order queue...</div>
         ) : (
-          <div className="mt-6 grid gap-5 xl:grid-cols-3">
-            {STAGES.map(({ key, title, description, accent, icon: Icon }) => (
-              <section key={key} className={`rounded-2xl border p-4 ${key === 'new' && overdueNewOrders.length > 0 ? 'border-red-300 bg-red-50' : accent}`}>
-                <div className="flex items-center justify-between gap-4 px-1 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#1F3A34] shadow-sm"><Icon size={20} /></div>
-                    <div>
-                      <h2 className="font-extrabold text-slate-900">{title}</h2>
-                      <p className="text-xs text-slate-600">{description}</p>
+          <div className="mt-6 min-w-0">
+            {/* Mobile Stage Selector Tabs */}
+            <div className="flex xl:hidden items-center gap-1.5 overflow-x-auto pb-1 mb-3 no-scrollbar scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              {[
+                { key: 'all', label: 'All Stages', count: (stagedOrders.new?.length || 0) + (stagedOrders.preparing?.length || 0) + (stagedOrders.ready?.length || 0) },
+                ...STAGES.map((s) => ({ key: s.key, label: s.title, count: stagedOrders[s.key]?.length || 0 }))
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setMobileStage(tab.key)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    mobileStage === tab.key
+                      ? 'bg-[#1F3A34] text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    mobileStage === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-5 xl:grid-cols-3 min-w-0">
+              {STAGES.map(({ key, title, description, accent, icon: Icon }) => (
+                <section
+                  key={key}
+                  className={`rounded-2xl border p-3.5 sm:p-4 min-w-0 w-full transition-all ${
+                    key === 'new' && overdueNewOrders.length > 0
+                      ? 'border-red-300 bg-red-50'
+                      : accent
+                  } ${mobileStage !== 'all' && mobileStage !== key ? 'hidden xl:block' : ''}`}
+                >
+                  <div className="flex items-center justify-between gap-3 px-1 pb-4 min-w-0">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                      <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#1F3A34] shadow-sm">
+                        <Icon size={18} className="sm:w-5 sm:h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="font-extrabold text-slate-900 text-sm sm:text-base truncate">{title}</h2>
+                        <p className="text-xs text-slate-600 truncate">{description}</p>
+                      </div>
                     </div>
+                    <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs sm:text-sm font-extrabold text-slate-700 shadow-sm">
+                      {stagedOrders[key].length}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-sm font-extrabold text-slate-700 shadow-sm">{stagedOrders[key].length}</span>
-                </div>
 
-                <div className="space-y-3">
-                  {stagedOrders[key].map((order) => (
-                    <OrderCard
-                      key={order.id}
-                      order={order}
-                      stage={key}
-                      isUpdating={updatingOrderId === order.id}
-                      canOperate={canOperate}
-                      guides={guides}
-                      now={currentTime}
-                      onOpen={canOperate ? setSelectedOrder : () => {}}
-                      onAdvance={advanceOrder}
-                      onOpenGuide={(guide) => { setInitialGuideId(guide.id); setGuideType('drink'); }}
-                    />
-                  ))}
-                  {stagedOrders[key].length === 0 && (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 px-5 py-10 text-center text-sm font-medium text-slate-500">No orders here.</div>
-                  )}
-                </div>
-              </section>
-            ))}
+                  <div className="space-y-3 min-w-0">
+                    {stagedOrders[key].map((order) => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        stage={key}
+                        isUpdating={updatingOrderId === order.id}
+                        canOperate={canOperate}
+                        guides={guides}
+                        now={currentTime}
+                        onOpen={canOperate ? setSelectedOrder : () => {}}
+                        onAdvance={advanceOrder}
+                        onOpenGuide={(guide) => { setInitialGuideId(guide.id); setGuideType('drink'); }}
+                      />
+                    ))}
+                    {stagedOrders[key].length === 0 && (
+                      <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 px-5 py-10 text-center text-sm font-medium text-slate-500">
+                        No orders here.
+                      </div>
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
-
         ))}
 
         {isWorkspace && (

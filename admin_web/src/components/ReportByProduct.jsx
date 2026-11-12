@@ -16,6 +16,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Pagination from './Pagination';
 import InfoTooltip from './InfoTooltip';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import { getAdminApiBaseUrl, loadAdminProductReport } from '../lib/adminApi';
 import { formatReportMoney, formatReportTokens } from '../utils/reporting';
 import { exportToCSV } from '../utils/exportToCSV';
@@ -56,25 +57,33 @@ const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
   </button>
 ));
 
-const StatCard = ({ title, value, subtitle, icon: Icon, iconBg, info }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-2xs hover:shadow-xs transition-shadow flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} text-white shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5">
-        <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight whitespace-normal">
-          {title}
-        </h3>
-        {info && <InfoTooltip content={info} title={title} />}
+const StatCard = ({ title, value, subtitle, badge, icon: Icon, iconBg, info }) => {
+  const displayBadge = badge || subtitle;
+  const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
+        </div>
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
       </div>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {subtitle && (
-        <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal mt-1">{subtitle}</p>
-      )}
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {displayBadge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {displayBadge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
   const isSorted = currentKey === columnKey;
@@ -135,7 +144,8 @@ const ReportByProduct = ({ onBack }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [productSortKey, setProductSortKey] = useState('unitsSold');
   const [productSortDirection, setProductSortDirection] = useState('desc');
-  const itemsPerPage = 8;
+  const [showAllProducts, setShowAllProducts] = useState(false);
+  const itemsPerPage = useResponsivePageSize(5, 10);
 
   useEffect(() => {
     let active = true;
@@ -233,7 +243,7 @@ const ReportByProduct = ({ onBack }) => {
   }, [filteredData, productSortKey, productSortDirection]);
 
   const totalPages = Math.max(1, Math.ceil(sortedData.length / itemsPerPage));
-  const currentRows = sortedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const currentRows = showAllProducts ? sortedData : sortedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const exportRows = useMemo(() => [
     ['Product Name', 'Category', 'Subcategory', 'Quantity Sold', 'RM Revenue', 'Token Price', 'Last Ordered', 'Active'],
@@ -266,7 +276,7 @@ const ReportByProduct = ({ onBack }) => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
         <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <button
@@ -297,13 +307,13 @@ const ReportByProduct = ({ onBack }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 shrink-0">
           <StatCard
             title="Products in Report"
             value={overview.summary.totalProducts.toLocaleString('en-US')}
             subtitle="Live menu items included in this report"
             icon={Package}
-            iconBg="bg-[#1F3A34]"
+            iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
             info="Total active catalog products tracked in sales reports."
           />
           <StatCard
@@ -311,7 +321,7 @@ const ReportByProduct = ({ onBack }) => {
             value={overview.summary.totalUnitsSold.toLocaleString('en-US')}
             subtitle="From completed menu orders"
             icon={ShoppingCart}
-            iconBg="bg-[#2E5E58]"
+            iconBg="bg-blue-500/10 text-blue-700"
             info="Total cumulative items prepared and sold across orders."
           />
           <StatCard
@@ -319,7 +329,7 @@ const ReportByProduct = ({ onBack }) => {
             value={formatReportMoney(overview.summary.totalRevenueRm)}
             subtitle="Live RM revenue from sold items"
             icon={TrendingUp}
-            iconBg="bg-[#E07A5F]"
+            iconBg="bg-emerald-500/10 text-emerald-700"
             info="Gross Ringgit Malaysia revenue generated from product sales."
           />
           <StatCard
@@ -327,7 +337,7 @@ const ReportByProduct = ({ onBack }) => {
             value={overview.summary.topProduct}
             subtitle={overview.summary.topProduct ? `${overview.summary.topProductUnits.toLocaleString('en-US')} units · ${formatReportMoney(overview.summary.topProductRevenueRm)} revenue` : ''}
             icon={TrendingUp}
-            iconBg="bg-[#D4AF7A]"
+            iconBg="bg-amber-500/15 text-amber-700"
             info="Leading product by volume ordered in the selected time range."
           />
         </div>
@@ -342,25 +352,27 @@ const ReportByProduct = ({ onBack }) => {
               <p className="text-sm text-gray-500">Ranked from live order records.</p>
             </div>
           </div>
-          <div className="flex-1 w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} />
-                <YAxis dataKey="name" type="category" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} width={110} />
-                <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
-                <Bar dataKey="quantitySold" radius={[0, 4, 4, 0]} barSize={24}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${entry.name}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="flex-1 w-full overflow-x-auto overflow-y-hidden touch-pan-x pb-2">
+            <div className="h-[320px] min-w-[500px] sm:min-w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
+                  <XAxis type="number" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} />
+                  <YAxis dataKey="name" type="category" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} width={110} />
+                  <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
+                  <Bar dataKey="quantitySold" radius={[0, 4, 4, 0]} barSize={24}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${entry.name}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col min-h-[400px]">
-          <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
+          <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between sm:items-center gap-3 shrink-0">
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
@@ -374,18 +386,20 @@ const ReportByProduct = ({ onBack }) => {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1F3A34] text-sm"
               />
             </div>
-            <div className="relative w-full sm:w-auto">
-              <DatePicker
-                portalId="root-portal"
-                selected={selectedDate}
-                onChange={(date) => {
-                  setSelectedDate(date);
-                  setCurrentPage(1);
-                }}
-                dateFormat="d MMM yyyy"
-                popperPlacement="bottom-end"
-                customInput={<CustomDateInput />}
-              />
+            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0">
+              <div className="relative shrink-0">
+                <DatePicker
+                  portalId="root-portal"
+                  selected={selectedDate}
+                  onChange={(date) => {
+                    setSelectedDate(date);
+                    setCurrentPage(1);
+                  }}
+                  dateFormat="d MMM yyyy"
+                  popperPlacement="bottom-end"
+                  customInput={<CustomDateInput />}
+                />
+              </div>
             </div>
           </div>
 
@@ -445,7 +459,7 @@ const ReportByProduct = ({ onBack }) => {
             </table>
           </div>
 
-          <div className="p-4 border-t border-gray-100 flex shrink-0 justify-between items-center bg-white">
+          <div className="p-4 border-t border-gray-100 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -453,13 +467,17 @@ const ReportByProduct = ({ onBack }) => {
               itemsPerPage={itemsPerPage}
               totalItems={filteredData.length}
               itemName="products"
+              showAll={showAllProducts}
+              onToggleShowAll={() => setShowAllProducts(!showAllProducts)}
+              action={(
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Download size={14} /> Export
+                </button>
+              )}
             />
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-            >
-              <Download size={16} /> Export
-            </button>
           </div>
         </div>
       </div>

@@ -15,9 +15,9 @@ import { exportToCSV } from '../utils/exportToCSV';
 import Pagination from './Pagination';
 import { loadAdminAuditLogs } from '../lib/adminApi';
 import InfoTooltip from './InfoTooltip';
+import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 
 const REFRESH_INTERVAL_MS = 60_000;
-const ITEMS_PER_PAGE = 8;
 
 const EMPTY_AUDIT = {
   logs: [],
@@ -87,6 +87,7 @@ function SortableHeader({ label, sortKey, currentKey, direction, onSort, tooltip
 }
 
 const AuditLogs = () => {
+  const itemsPerPage = useResponsivePageSize(5, 10);
   const [auditResponse, setAuditResponse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -95,6 +96,7 @@ const AuditLogs = () => {
   const [selectedActionCode, setSelectedActionCode] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAllLogs, setShowAllLogs] = useState(false);
   const [sortKey, setSortKey] = useState('timestamp');
   const [sortDirection, setSortDirection] = useState('desc');
 
@@ -205,8 +207,8 @@ const AuditLogs = () => {
     });
   }, [filteredLogs, sortKey, sortDirection]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedLogs.length / ITEMS_PER_PAGE));
-  const currentRows = sortedLogs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(sortedLogs.length / itemsPerPage));
+  const currentRows = showAllLogs ? sortedLogs : sortedLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const exportRows = useMemo(() => {
     return [
@@ -246,7 +248,7 @@ const AuditLogs = () => {
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
-      <div className="px-6 py-5 lg:px-8 lg:py-6 w-full h-full flex flex-col gap-4">
+      <div className="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6 w-full h-full flex flex-col gap-4">
         {/* Header */}
         <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
           <div className="space-y-0.5">
@@ -295,15 +297,15 @@ const AuditLogs = () => {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
-              <div className="relative">
+            <div className="flex items-center gap-2.5 w-full xl:w-auto overflow-x-auto no-scrollbar pb-2 xl:pb-0 shrink-0">
+              <div className="relative shrink-0">
                 <select
                   value={selectedTargetType}
                   onChange={(event) => {
                     setSelectedTargetType(event.target.value);
                     setCurrentPage(1);
                   }}
-                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-200/80 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-[#1F3A34] cursor-pointer min-w-[160px] shadow-2xs"
+                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-200/80 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-[#1F3A34] cursor-pointer min-w-[160px] shadow-2xs whitespace-nowrap"
                 >
                   <option value="">All Targets</option>
                   {uniqueTargetTypes.map((targetType) => (
@@ -315,14 +317,14 @@ const AuditLogs = () => {
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none transition-transform duration-200 peer-focus:-rotate-180" size={16} />
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <select
                   value={selectedActionCode}
                   onChange={(event) => {
                     setSelectedActionCode(event.target.value);
                     setCurrentPage(1);
                   }}
-                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-200/80 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-[#1F3A34] cursor-pointer min-w-[160px] shadow-2xs"
+                  className="peer appearance-none pl-4 pr-10 py-2 border border-gray-200/80 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-[#1F3A34] cursor-pointer min-w-[160px] shadow-2xs whitespace-nowrap"
                 >
                   <option value="">All Actions</option>
                   {uniqueActions.map((actionCode) => (
@@ -334,7 +336,7 @@ const AuditLogs = () => {
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none transition-transform duration-200 peer-focus:-rotate-180" size={16} />
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <DatePicker
                   portalId="root-portal"
                   popperPlacement="bottom-end"
@@ -346,7 +348,7 @@ const AuditLogs = () => {
                   dateFormat="d MMM yyyy"
                   customInput={(
                     <div className="relative">
-                      <button className="peer pl-4 pr-10 py-2 border border-gray-200/80 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 text-left min-w-[160px] cursor-pointer shadow-2xs">
+                      <button className="peer pl-4 pr-10 py-2 border border-gray-200/80 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 text-left min-w-[160px] cursor-pointer shadow-2xs whitespace-nowrap">
                         {selectedDate ? selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Select Date'}
                       </button>
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -480,22 +482,26 @@ const AuditLogs = () => {
             </table>
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-4 shrink-0">
+          <div className="px-4 sm:px-6 py-3.5 border-t border-gray-100 shrink-0 bg-white">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               setCurrentPage={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
+              itemsPerPage={itemsPerPage}
               totalItems={sortedLogs.length}
               itemName="audit logs"
+              showAll={showAllLogs}
+              onToggleShowAll={() => setShowAllLogs(!showAllLogs)}
+              action={(
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200/80 text-gray-700 text-xs font-semibold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs hover:shadow-xs"
+                >
+                  <Download size={14} /> Export
+                </button>
+              )}
             />
-            <button
-              type="button"
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200/80 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer shadow-2xs hover:shadow-xs"
-            >
-              <Download size={16} /> Export
-            </button>
           </div>
         </div>
       </div>

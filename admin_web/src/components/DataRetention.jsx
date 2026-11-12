@@ -163,7 +163,7 @@ export default function DataRetention() {
   };
 
   return (
-    <div className="space-y-6 px-8 pb-12 pt-5">
+    <div className="space-y-6 px-4 sm:px-6 md:px-8 pb-12 pt-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2E5E58]">System maintenance</p>

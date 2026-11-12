@@ -1,27 +1,35 @@
 import React from "react";
 import { ArrowLeft, Coins, Percent, Ticket } from "lucide-react";
+import InfoTooltip from "./InfoTooltip";
 
 //Stat Card Component
-const StatCard = ({ title, value, change, icon: Icon, iconBg, iconColor = "text-white" }) => (
-  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex items-center space-x-4 min-w-0">
-    <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor} shadow-sm`}>
-      <Icon size={26} strokeWidth={2.2} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <h3 className="text-gray-500 text-[11px] sm:text-xs xl:text-sm font-medium leading-tight mt-0.5 whitespace-normal">
-        {title}
-      </h3>
-      <p className="text-2xl font-bold text-gray-900 mt-1 leading-tight">{value}</p>
-      {change && (
-        <div className="flex items-center gap-1 mt-1">
-          <p className="text-[11px] text-gray-500 font-medium leading-tight whitespace-normal">
-            {change.includes('%') && !change.includes('of total') && !change.includes('↑') && !change.includes('↓') && change.includes('vs') ? `↑ ${change}` : change}
-          </p>
+const StatCard = ({ title, value, change, badge, icon: Icon, iconBg, info }) => {
+  const displayBadge = badge || change;
+  const bg = iconBg && iconBg.includes('/') ? iconBg : 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  return (
+    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 min-w-0">
+          <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} placement="top" />}
         </div>
-      )}
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+          <Icon size={15} strokeWidth={2.2} />
+        </div>
+      </div>
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {displayBadge && (
+          <div className="flex">
+            <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
+              {displayBadge}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const parseNumber = (value) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -81,7 +89,7 @@ const LoyaltyProgramSummary = ({ overview, onBack }) => {
         )}
 
         {/* Expanded Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
           <StatCard
             title="Average Tokens per Member"
             value={overview ? averageTokensPerMember.toFixed(2) : '—'}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, BarChart3, Download, ReceiptText, RefreshCw, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ArrowUpDown, BarChart3, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, TrendingUp, Wallet } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -165,8 +165,11 @@ const RevenueReport = ({ onBack }) => {
     ])
   ], [monthlyRevenue]);
 
+  const [showAllRevenue, setShowAllRevenue] = useState(false);
+  const visibleMonthlyRevenue = showAllRevenue ? sortedMonthlyRevenue : sortedMonthlyRevenue.slice(0, 5);
+
   return (
-    <div className="px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
+    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col space-y-6 overflow-y-auto bg-gray-50/30">
       <div className="shrink-0 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <button
@@ -261,23 +264,25 @@ const RevenueReport = ({ onBack }) => {
             <p className="text-sm text-gray-500">Settled order value, refunds, and order value after refunds.</p>
           </div>
         </div>
-        <div className="flex-1 w-full relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-              <XAxis dataKey="month" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} dy={10} />
-              <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}K`} />
-              <Tooltip
-                cursor={{ fill: '#F3F4F6' }}
-                contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                itemStyle={{ color: '#fff' }}
-                formatter={(value, name) => [`RM ${Number(value).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]}
-              />
-              <Bar dataKey="revenueRm" name="Order value (RM eq.)" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={36} />
-              <Bar dataKey="refundRm" name="Refunds" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={36} />
-              <Bar dataKey="netRm" name="After refunds (RM eq.)" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={36} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="flex-1 w-full overflow-x-auto overflow-y-hidden touch-pan-x pb-2">
+          <div className="h-[360px] min-w-[560px] sm:min-w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis dataKey="month" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} dy={10} />
+                <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(val) => `RM ${(val / 1000).toFixed(0)}K`} />
+                <Tooltip
+                  cursor={{ fill: '#F3F4F6' }}
+                  contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(value, name) => [`RM ${Number(value).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, name]}
+                />
+                <Bar dataKey="revenueRm" name="Order value (RM eq.)" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={36} />
+                <Bar dataKey="refundRm" name="Refunds" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={36} />
+                <Bar dataKey="netRm" name="After refunds (RM eq.)" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={36} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
@@ -306,7 +311,7 @@ const RevenueReport = ({ onBack }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {sortedMonthlyRevenue.length > 0 ? sortedMonthlyRevenue.map((entry) => (
+              {visibleMonthlyRevenue.length > 0 ? visibleMonthlyRevenue.map((entry) => (
                 <tr key={entry.month} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4 font-semibold text-gray-900">{entry.month}</td>
                   <td className="px-6 py-4 text-right text-gray-700 font-medium">{formatReportMoney(entry.revenueRm)}</td>
@@ -325,7 +330,20 @@ const RevenueReport = ({ onBack }) => {
             </tbody>
           </table>
         </div>
-        <div className="border-t border-gray-100 px-6 py-4 flex justify-end">
+        <div className="border-t border-gray-100 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          {sortedMonthlyRevenue.length > 5 ? (
+            <button
+              type="button"
+              onClick={() => setShowAllRevenue(!showAllRevenue)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2E5E58] hover:text-[#1F3A34] px-3 py-1.5 rounded-lg hover:bg-[#2E5E58]/10 transition-colors cursor-pointer border border-[#2E5E58]/20"
+            >
+              {showAllRevenue ? (
+                <>Show top 5 only <ChevronUp size={14} /></>
+              ) : (
+                <>Click for more ({sortedMonthlyRevenue.length - 5} remaining) <ChevronDown size={14} /></>
+              )}
+            </button>
+          ) : <div />}
           <button
             type="button"
             onClick={() => exportToCSV(exportRows, 'revenue_report.csv')}
