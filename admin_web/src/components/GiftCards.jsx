@@ -304,7 +304,7 @@ export default function GiftCards({ currentUser }) {
   };
 
   return (
-    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 max-w-7xl mx-auto min-w-0 overflow-x-hidden">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 min-w-0 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
@@ -323,29 +323,30 @@ export default function GiftCards({ currentUser }) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto overflow-x-auto no-scrollbar whitespace-nowrap pb-1 sm:pb-0 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto shrink-0 pt-1">
           <button
             onClick={handleExportCSV}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200/90 bg-white px-4 py-2 text-xs sm:text-sm font-bold text-gray-700 shadow-2xs hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl border border-gray-200/90 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-gray-700 shadow-2xs hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Download size={15} />
-            Export CSV
+            <span>Export CSV</span>
           </button>
           {canControl && (
             <button
               ref={issueButtonRef}
               onClick={() => setShowIssue(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1E433A] px-4 py-2 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-[#16332c] transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-[#1E433A] px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs hover:bg-[#16332c] transition-colors cursor-pointer shrink-0 whitespace-nowrap min-w-0"
             >
-              <Plus size={16} strokeWidth={2.5} />
-              Issue gift card
+              <Plus size={16} strokeWidth={2.5} className="shrink-0" />
+              <span className="sm:hidden">Issue Card</span>
+              <span className="hidden sm:inline">Issue gift card</span>
             </button>
           )}
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4 w-full min-w-0">
         <StatCard
           title="Total Cards"
           value={cards.length}
@@ -378,7 +379,7 @@ export default function GiftCards({ currentUser }) {
       </div>
 
       {/* Controls: Search, Tabs & Currency Filters */}
-      <div className="rounded-2xl border border-gray-200/80 bg-white p-4 shadow-2xs space-y-3">
+      <div className="w-full min-w-0 rounded-2xl border border-gray-200/80 bg-white p-3 sm:p-4 shadow-2xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="relative w-full lg:max-w-md">
             <Search className="absolute left-3.5 top-3 text-gray-400" size={17} />
@@ -392,7 +393,8 @@ export default function GiftCards({ currentUser }) {
           </div>
 
           {/* Unified horizontal scrollable filter strip */}
-          <div className="flex items-center gap-2.5 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0 shrink-0">
+            <span className="text-xs font-bold uppercase tracking-wide text-gray-400 shrink-0">Filter by</span>
             {STATUS_TABS.map((tab) => {
               const isSelected = statusFilter === tab;
               return (
@@ -402,7 +404,7 @@ export default function GiftCards({ currentUser }) {
                     setStatusFilter(tab);
                     setCurrentPage(1);
                   }}
-                  className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-2xs ${
+                  className={`rounded-xl px-3 sm:px-3.5 py-2 text-xs font-bold transition-colors shrink-0 whitespace-nowrap cursor-pointer shadow-2xs ${
                     isSelected
                       ? 'bg-[#1E433A] text-white'
                       : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -441,8 +443,8 @@ export default function GiftCards({ currentUser }) {
       </div>
 
       {/* Gift Cards Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
-        <div className="overflow-x-auto">
+      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
+        <div className="w-full min-w-0 overflow-x-auto no-scrollbar">
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50/80 text-xs font-bold uppercase tracking-wider text-gray-500">
               <tr>
@@ -600,7 +602,7 @@ export default function GiftCards({ currentUser }) {
 
         {/* Pagination Footer */}
         {filteredCards.length > 0 && (
-          <div className="border-t border-gray-100 px-5 py-3">
+          <div className="border-t border-gray-100 px-4 sm:px-5 py-3 w-full">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}

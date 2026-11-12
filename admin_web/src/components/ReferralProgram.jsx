@@ -515,7 +515,7 @@ export default function ReferralProgram() {
   }, [filteredPrograms, currentPage, showAllPrograms, itemsPerPage]);
 
   return (
-    <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 max-w-7xl mx-auto min-w-0 overflow-x-hidden">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6 min-w-0 overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
         <div>
@@ -535,17 +535,18 @@ export default function ReferralProgram() {
         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 pt-1">
           <button
             onClick={() => void refresh()}
-            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-700 shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer shrink-0"
+            className="rounded-xl border border-gray-200 bg-white p-2 sm:p-2.5 text-gray-700 shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer shrink-0"
             title="Refresh"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin text-[#1E433A]' : ''} />
           </button>
           <button
             onClick={() => setEditing(emptyProgram())}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 rounded-xl bg-[#1E433A] px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-[#1E433A] px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs hover:bg-[#2E5E58] transition-colors cursor-pointer whitespace-nowrap min-w-0"
           >
-            <Plus size={15} />
-            <span>New Referral Program</span>
+            <Plus size={15} className="shrink-0" />
+            <span className="sm:hidden">New Program</span>
+            <span className="hidden sm:inline">New Referral Program</span>
           </button>
         </div>
       </div>
@@ -553,7 +554,7 @@ export default function ReferralProgram() {
       {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 shadow-2xs">{error}</div>}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 w-full min-w-0">
         <KPICard
           title="Referral Programs"
           value={programs.length}
@@ -570,14 +571,16 @@ export default function ReferralProgram() {
           icon={Gift}
           iconBg="bg-emerald-500/10 text-emerald-700"
         />
-        <KPICard
-          title="Qualification Event"
-          value="1st Order"
-          badge="Collected"
-          info="Referrer reward is issued only after the friend completes and collects their first order."
-          icon={Share2}
-          iconBg="bg-amber-500/15 text-amber-700"
-        />
+        <div className="col-span-2 md:col-span-1">
+          <KPICard
+            title="Qualification Event"
+            value="1st Order"
+            badge="Collected"
+            info="Referrer reward is issued only after the friend completes and collects their first order."
+            icon={Share2}
+            iconBg="bg-amber-500/15 text-amber-700"
+          />
+        </div>
       </div>
 
       {/* Unresolved Rewards Alert */}
@@ -628,9 +631,9 @@ export default function ReferralProgram() {
       )}
 
       {/* Campaigns Table & Filter Bar */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
+      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
         <div className="border-b border-gray-100 p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-gray-900">Campaigns</h2>
@@ -643,7 +646,7 @@ export default function ReferralProgram() {
             </div>
 
             {/* Search and Status Filter */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full lg:w-auto">
               <div className="relative w-full sm:w-64">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <Search size={14} className="text-gray-400" />
@@ -660,6 +663,7 @@ export default function ReferralProgram() {
                 />
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0">
+                <span className="text-xs font-bold uppercase tracking-wide text-gray-400 shrink-0">Filter by</span>
                 <div className="relative shrink-0">
                   <select
                     value={statusFilter}
@@ -693,7 +697,7 @@ export default function ReferralProgram() {
             <p className="mt-1 text-xs text-gray-500">Create a new referral campaign to define friend and referrer rewards.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="w-full min-w-0 overflow-x-auto no-scrollbar">
             <table className="min-w-full text-left text-xs divide-y divide-gray-100">
               <thead className="bg-[#FAFBFB] text-gray-500 uppercase tracking-wider">
                 <tr>

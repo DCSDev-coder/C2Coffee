@@ -193,6 +193,116 @@ const QuickLink = ({ icon: Icon, title, desc, iconBg, onClick }) => (
   </button>
 );
 
+const CustomerDetailPanel = ({ customer, onClose, canManageCustomers, onEditCustomer, setActiveView, isModal = false }) => {
+  const progress = calculateTierProgress(customer.cupsLast180d ?? customer.orders);
+  return (
+    <div className={`w-full ${isModal ? 'max-h-[85vh] border-0 shadow-none p-4 sm:p-6' : 'xl:w-[380px] border border-gray-200 shadow-sm rounded-xl p-4 sm:p-6'} bg-white flex flex-col relative shrink-0 overflow-y-auto`}>
+      <div className="flex justify-between items-center mb-6">
+        <h2 id="customer-detail-title" className="text-lg font-bold text-gray-900">Customer Overview</h2>
+        <button
+          className="text-gray-400 hover:text-gray-900 cursor-pointer p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          onClick={onClose}
+          aria-label="Close overview"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="mb-6 sm:mb-8 shrink-0">
+        <div className="flex items-center gap-3">
+          <Avatar customer={customer} size="lg" />
+          <div className="min-w-0">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">{customer.username}</h3>
+              {hasPurchaseHistory(customer) && (
+                <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(customer.tier)}`}>{customer.tier}</span>
+              )}
+              {subsidyRoleForCustomer(customer) !== 'none' && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{subsidyRoleLabel(subsidyRoleForCustomer(customer))}</span>
+              )}
+            </div>
+            <p className="text-xs sm:text-sm text-gray-500 truncate">{customer.email}</p>
+            <p className="text-xs sm:text-sm text-gray-500 truncate">{customer.phone}</p>
+            <p className="text-xs sm:text-sm font-medium text-gray-900 mt-1">Member ID : C2-{String(customer.id).padStart(3, '0')}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-between border-y border-gray-100 py-3 sm:py-4 mb-6 text-center shrink-0">
+        <div>
+          <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">C2 Credit Tokens</p>
+          <p className="font-bold text-gray-900">{customer.tokens}</p>
+        </div>
+        <div className="w-px bg-gray-100"></div>
+        <div>
+          <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Total Orders</p>
+          <p className="font-bold text-gray-900">{customer.orders}</p>
+        </div>
+        <div className="w-px bg-gray-100"></div>
+        <div>
+          <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Personal Tokens</p>
+          <p className="font-bold text-gray-900">{formatTokens(customer.totalPersonalTokens)}</p>
+          <p className="text-[11px] text-amber-700 mt-1">Subsidy: {formatTokens(customer.totalSubsidyTokens)}</p>
+          <p className="text-[11px] text-gray-500 mt-1">RM equivalent: {customer.spent}</p>
+        </div>
+      </div>
+
+      {!hasPurchaseHistory(customer) ? (
+        <div className="bg-[#1F3A34] rounded-xl p-4 sm:p-5 mb-6 sm:mb-8 text-white relative overflow-hidden shrink-0">
+          <div className="flex items-center space-x-3 relative z-10">
+            <Crown size={24} className="text-white/60 shrink-0" />
+            <div>
+              <p className="font-bold text-sm sm:text-base">No tier yet</p>
+              <p className="text-xs text-white/70">Complete your first eligible purchase to enter Sipper.</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-[#1F3A34] rounded-xl p-4 sm:p-5 mb-6 sm:mb-8 text-white relative overflow-hidden shrink-0">
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="flex items-center space-x-3">
+              <Crown size={24} className="text-yellow-400 shrink-0" />
+              <div>
+                <p className="font-bold text-sm sm:text-base">{progress.tier}</p>
+                <p className="text-xs text-white/70">Until 31 Jan 2027</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-white/70 mb-1">Next: {progress.nextTier}</p>
+              <p className="font-bold text-xs sm:text-sm">{progress.tier === 'Legend' ? 'Max Tier' : `${progress.current}/${progress.target} cups`}</p>
+            </div>
+          </div>
+          <div className="w-full bg-black/30 rounded-full h-2 relative z-10">
+            <div className="bg-[#E07A5F] h-2 rounded-full transition-all duration-300" style={{ width: `${progress.percentage}%` }}></div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-4 shrink-0">
+        <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2">Quick Links</h3>
+        <div className="flex flex-col">
+          <QuickLink icon={User} title="View Profile" desc="Personal details and contact information" iconBg="bg-[#1F3A2A]" onClick={() => { if (isModal) onClose(); setActiveView('profile'); }} />
+          <QuickLink icon={ClipboardList} title="Order History" desc={`${customer.orders} order${Number(customer.orders) === 1 ? '' : 's'} · invoices and status`} iconBg="bg-[#2E5E58]" onClick={() => { if (isModal) onClose(); setActiveView('orders'); }} />
+          <QuickLink icon={Coins} title="Token Transactions" desc={`${formatTokens(customer.totalPersonalTokens)} personal · ${formatTokens(customer.totalSubsidyTokens)} subsidy`} iconBg="bg-[#B7CFCA]" onClick={() => { if (isModal) onClose(); setActiveView('tokens'); }} />
+          <QuickLink icon={Ticket} title="Voucher History" desc="View claimed and used vouchers" iconBg="bg-[#E07A5F]" onClick={() => { if (isModal) onClose(); setActiveView('vouchers'); }} />
+          <QuickLink icon={BarChart3} title="Tier Progress" desc={hasPurchaseHistory(customer) ? `${customer.tier} progress and upgrades` : 'No tier activity yet'} iconBg="bg-[#D4AF7A]" onClick={() => { if (isModal) onClose(); setActiveView('tiers'); }} />
+        </div>
+      </div>
+
+      {canManageCustomers && (
+        <div className="mt-auto pt-2 shrink-0">
+          <button
+            onClick={() => { if (isModal) onClose(); onEditCustomer(); }}
+            className="w-full py-3 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+          >
+            ✎ Edit Customer
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
   <div className="relative">
     <button
@@ -919,114 +1029,46 @@ const Customers = ({ currentUser }) => {
           </div>
         </div>
 
-        {/* Customer Overview Sidebar */}
+        {/* Desktop Side Panel (>= xl) */}
         {selectedCustomer && (
-          <div className="w-full xl:w-[380px] bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 flex flex-col relative shrink-0">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold text-gray-900">Customer Overview</h2>
-              <button className="text-gray-400 hover:text-gray-900" onClick={() => setSelectedCustomer(null)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="mb-8">
-              <div className="flex items-center gap-3">
-                <Avatar customer={selectedCustomer} size="lg" />
-                <div>
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.username}</h3>
-                  {hasPurchaseHistory(selectedCustomer) && (
-                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(selectedCustomer.tier)}`}>{selectedCustomer.tier}</span>
-                  )}
-                  {subsidyRoleForCustomer(selectedCustomer) !== 'none' && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{subsidyRoleLabel(subsidyRoleForCustomer(selectedCustomer))}</span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-500">{selectedCustomer.email}</p>
-                <p className="text-sm text-gray-500">{selectedCustomer.phone}</p>
-                <p className="text-sm font-medium text-gray-900 mt-1">Member ID : C2-{String(selectedCustomer.id).padStart(3, '0')}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between border-y border-gray-100 py-4 mb-6 text-center">
-              <div>
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">C2 Credit Tokens</p>
-                <p className="font-bold text-gray-900">{selectedCustomer.tokens}</p>
-              </div>
-              <div className="w-px bg-gray-100"></div>
-              <div>
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Total Orders</p>
-                <p className="font-bold text-gray-900">{selectedCustomer.orders}</p>
-              </div>
-              <div className="w-px bg-gray-100"></div>
-              <div>
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Personal Tokens</p>
-                <p className="font-bold text-gray-900">{formatTokens(selectedCustomer.totalPersonalTokens)}</p>
-                <p className="text-[11px] text-amber-700 mt-1">Subsidy: {formatTokens(selectedCustomer.totalSubsidyTokens)}</p>
-                <p className="text-[11px] text-gray-500 mt-1">RM equivalent: {selectedCustomer.spent}</p>
-              </div>
-            </div>
-
-            {(() => {
-              const progress = calculateTierProgress(selectedCustomer.cupsLast180d ?? selectedCustomer.orders);
-              if (!hasPurchaseHistory(selectedCustomer)) {
-                return (
-                  <div className="bg-[#1F3A34] rounded-xl p-5 mb-8 text-white relative overflow-hidden">
-                    <div className="flex items-center space-x-3 relative z-10">
-                      <Crown size={24} className="text-white/60" />
-                      <div>
-                        <p className="font-bold">No tier yet</p>
-                        <p className="text-xs text-white/70">Complete your first eligible purchase to enter Sipper.</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              return (
-                <div className="bg-[#1F3A34] rounded-xl p-5 mb-8 text-white relative overflow-hidden">
-                  <div className="flex items-center justify-between mb-4 relative z-10">
-                    <div className="flex items-center space-x-3">
-                      <Crown size={24} className="text-yellow-400" />
-                      <div>
-                        <p className="font-bold">{progress.tier}</p>
-                        <p className="text-xs text-white/70">Until 31 Jan 2027</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-white/70 mb-1">Next: {progress.nextTier}</p>
-                      <p className="font-bold">{progress.tier === 'Legend' ? 'Max Tier' : `${progress.current}/${progress.target} cups`}</p>
-                    </div>
-                  </div>
-                  <div className="w-full bg-black/30 rounded-full h-2 relative z-10">
-                    <div className="bg-[#E07A5F] h-2 rounded-full" style={{ width: `${progress.percentage}%` }}></div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="mb-4">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Quick Links</h3>
-              <div className="flex flex-col">
-                <QuickLink icon={User} title="View Profile" desc="Personal details and contact information" iconBg="bg-[#1F3A2A]" onClick={() => setActiveView('profile')} />
-                <QuickLink icon={ClipboardList} title="Order History" desc={`${selectedCustomer.orders} order${Number(selectedCustomer.orders) === 1 ? '' : 's'} · invoices and status`} iconBg="bg-[#2E5E58]" onClick={() => setActiveView('orders')} />
-                <QuickLink icon={Coins} title="Token Transactions" desc={`${formatTokens(selectedCustomer.totalPersonalTokens)} personal · ${formatTokens(selectedCustomer.totalSubsidyTokens)} subsidy`} iconBg="bg-[#B7CFCA]" onClick={() => setActiveView('tokens')} />
-                <QuickLink icon={Ticket} title="Voucher History" desc="View claimed and used vouchers" iconBg="bg-[#E07A5F]" onClick={() => setActiveView('vouchers')} />
-                <QuickLink icon={BarChart3} title="Tier Progress" desc={hasPurchaseHistory(selectedCustomer) ? `${selectedCustomer.tier} progress and upgrades` : 'No tier activity yet'} iconBg="bg-[#D4AF7A]" onClick={() => setActiveView('tiers')} />
-              </div>
-            </div>
-
-            {canManageCustomers && <div className="mt-auto">
-              <button
-                onClick={() => setEditingCustomer(selectedCustomer)}
-                className="w-full py-3 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                ✎ Edit Customer
-              </button>
-            </div>}
+          <div className="hidden xl:flex flex-col shrink-0">
+            <CustomerDetailPanel
+              customer={selectedCustomer}
+              onClose={() => setSelectedCustomer(null)}
+              canManageCustomers={canManageCustomers}
+              onEditCustomer={() => setEditingCustomer(selectedCustomer)}
+              setActiveView={setActiveView}
+              isModal={false}
+            />
           </div>
         )}
       </div>
+
+      {/* Mobile/Tablet Popup Modal (< xl) */}
+      {selectedCustomer && typeof document !== 'undefined' && createPortal(
+        <div
+          className="xl:hidden fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setSelectedCustomer(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="customer-detail-title"
+        >
+          <div
+            className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl bg-white overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CustomerDetailPanel
+              customer={selectedCustomer}
+              onClose={() => setSelectedCustomer(null)}
+              canManageCustomers={canManageCustomers}
+              onEditCustomer={() => setEditingCustomer(selectedCustomer)}
+              setActiveView={setActiveView}
+              isModal={true}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
 
       {isImportModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">

@@ -1369,24 +1369,291 @@ const Menu = () => {
           </div>
         </div>
 
+        {/* Desktop Side Panel (>= xl) */}
         {selectedItem && (
-          <div className="w-full xl:w-[400px] 2xl:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
-            <div className="p-5 flex flex-col h-full">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex gap-4">
+          <div className="hidden xl:flex flex-col shrink-0">
+            <div className="w-full xl:w-[400px] 2xl:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+              <div className="p-5 flex flex-col h-full">
+                <div className="flex justify-between items-start mb-4 shrink-0">
+                  <div className="flex gap-4">
+                    <img
+                      src={resolveMenuImageUrl(selectedItem.image_url)}
+                      alt={selectedItem.name}
+                      className="w-16 h-16 object-contain shrink-0 drop-shadow-md"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h2 className="text-lg font-bold text-gray-900">{selectedItem.name}</h2>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${selectedItem.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {selectedItem.is_active ? 'Active' : 'Archived'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 font-medium">ID: {selectedItem.code}</p>
+                      <p className="text-[10px] text-gray-500 font-medium mt-0.5">
+                        Updated on {new Date(selectedItem.updated_at).toLocaleDateString('en-MY', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeSelectedItem}
+                    className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 cursor-pointer"
+                    aria-label="Close details"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {!selectedItem.is_active && selectedItem.archived_at && (
+                  <div className={`mb-4 rounded-2xl border px-4 py-3 shrink-0 ${selectedItem.retention_review_due
+                    ? 'border-amber-200 bg-amber-50 text-amber-950'
+                    : 'border-gray-200 bg-gray-50 text-gray-700'
+                  }`}>
+                    <div className="flex items-start gap-2.5">
+                      <CalendarClock className={`mt-0.5 h-4 w-4 shrink-0 ${selectedItem.retention_review_due ? 'text-amber-700' : 'text-gray-500'}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold">
+                            {selectedItem.retention_review_due ? 'Archive review due' : 'Archive retention'}
+                          </p>
+                          <InfoTooltip
+                            content="Archived items with active order history are permanently protected from deletion to maintain financial and loyalty audit records."
+                            title="Retention Rules"
+                          />
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-gray-600 leading-tight">
+                          Archived {new Date(selectedItem.archived_at).toLocaleDateString('en-MY', {
+                            day: '2-digit', month: 'short', year: 'numeric'
+                          })}.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-6 border-b border-gray-100 mb-5 shrink-0 text-sm overflow-x-auto no-scrollbar">
+                  <button
+                    onClick={() => setActiveTab('Details')}
+                    className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'Details' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+                  >
+                    Details
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('Sales')}
+                    className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'Sales' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+                  >
+                    Sales & Analytics
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('History')}
+                    className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'History' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+                  >
+                    History
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto pr-2 pb-4 space-y-5 text-sm">
+                  {activeTab === 'Details' && (
+                    <>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <p className="text-gray-500 font-medium">Menu Category</p>
+                          <p className="text-gray-900 font-medium">{selectedItem.category_name}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <p className="text-gray-500 font-medium">Menu Type</p>
+                          <p className="text-gray-900 font-medium">{selectedItem.product_kind_name || 'Other'}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <p className="text-gray-500 font-medium">RM Price</p>
+                          <p className="text-gray-900 font-medium">{selectedItem.base_price_rm}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <p className="text-gray-500 font-medium">Token Price</p>
+                          <p className="text-gray-900 font-medium">{formatToken(selectedItem.base_price_token)}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-gray-500 font-medium">Loyalty Cup Stamps</p>
+                            <InfoTooltip content="Earns a cup stamp toward reward vouchers when ordered." title="Loyalty Stamp" />
+                          </div>
+                          <p className="text-gray-900 font-medium">{selectedItem.is_qualifying_cup ? 'Yes' : 'No'}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-gray-500 font-medium">Made-to-order</p>
+                            <InfoTooltip content="Queued in the Barista Console for handcrafted preparation." title="Handcrafted" />
+                          </div>
+                          <p className="text-gray-900 font-medium">{selectedItem.is_handcrafted_drink ? 'Yes' : 'No'}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <p className="text-gray-500 font-medium">Customizations</p>
+                          <div className="text-gray-900 font-medium">
+                            <div className="flex flex-wrap gap-2">
+                              {optionGroupsForItem(selectedItem.id).length > 0 ? (
+                                optionGroupsForItem(selectedItem.id).map((group) => (
+                                  <span
+                                    key={group.id}
+                                    className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700"
+                                  >
+                                    {group.name}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-gray-400">None</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <p className="text-[11px] text-gray-500 font-semibold mb-2">Item Image</p>
+                        <img
+                          src={resolveMenuImageUrl(selectedItem.image_url)}
+                          alt={selectedItem.name}
+                          className="w-16 h-16 object-contain shrink-0 drop-shadow-md rounded-xl border border-gray-100 p-1 bg-white"
+                        />
+                      </div>
+                      {selectedItemIsDrink && (
+                        <div className="rounded-2xl border border-[#B9D6D0] bg-[#F3FAF8] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <div className="rounded-xl bg-white p-2 text-[#2E5E58] shadow-2xs"><ImagePlus size={16} /></div>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-gray-900 text-sm">Drink SOP</p>
+                                <InfoTooltip content={`Preparation guide displayed in the Barista Workspace while crafting ${selectedItem.name}.`} title="Drink SOP" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setSopFile(event.target.files?.[0] || null)} className="min-w-0 flex-1 text-xs" />
+                            <button type="button" disabled={!sopFile || isSavingSop} onClick={() => void uploadDrinkSop()} className="rounded-xl bg-[#2E5E58] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#244B46] disabled:cursor-not-allowed disabled:opacity-50 shadow-xs transition-colors cursor-pointer">{isSavingSop ? 'Uploading...' : 'Upload SOP'}</button>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).length === 0 ? <p className="text-xs text-gray-400">No SOP image uploaded for this drink yet.</p> : drinkGuides.filter((guide) => Number(guide.menu_item_id) === Number(selectedItem.id)).map((guide) => <div key={guide.id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-2 border border-gray-100 shadow-2xs"><img src={`${getAdminApiBaseUrl()}${guide.image_url}`} alt={`${selectedItem.name} SOP`} className="h-11 w-11 rounded-lg object-cover" /><span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">Preparation guide</span><button type="button" onClick={() => void deleteDrinkSop(guide.id)} className="rounded-lg p-1.5 text-red-600 hover:bg-red-50 transition-colors" aria-label="Delete SOP image"><Trash2 size={15} /></button></div>)}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {activeTab === 'Sales' && (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 font-medium mb-1">Total Sales</p>
+                          <p className="text-lg font-bold text-gray-900">{(selectedItem.sales_count || 0).toLocaleString()}</p>
+                          <p className="text-[10px] text-green-600 font-medium mt-1">Live from order history</p>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                          <p className="text-xs text-gray-500 font-medium mb-1">Total Revenue</p>
+                          <p className="text-lg font-bold text-gray-900">{selectedItem.total_revenue_rm || 'Tokens 0.00'}</p>
+                          <p className="text-[10px] text-green-600 font-medium mt-1">Completed orders only</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'History' && (
+                    <div className="space-y-6">
+                      <div className="relative border-l-2 border-gray-100 ml-3 space-y-8 pb-4">
+                        <div className="relative pl-6">
+                          <div className="absolute w-3 h-3 bg-[#1F3A34] rounded-full -left-[7px] top-1.5 ring-4 ring-white"></div>
+                          <p className="text-sm font-bold text-gray-900">Last Updated</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Edited from the admin web menu page</p>
+                          <p className="text-[10px] text-gray-400 font-medium mt-1">
+                            {new Date(selectedItem.updated_at).toLocaleDateString('en-MY', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+
+                        <div className="relative pl-6">
+                          <div className="absolute w-3 h-3 bg-gray-200 rounded-full -left-[7px] top-1.5 ring-4 ring-white"></div>
+                          <p className="text-sm font-bold text-gray-900">Item Created</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Stored in the catalog database</p>
+                          <p className="text-[10px] text-gray-400 font-medium mt-1">
+                            {new Date(selectedItem.created_at).toLocaleDateString('en-MY', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-gray-100 shrink-0 grid grid-cols-3 gap-2.5">
+                  <button
+                    onClick={() => handleDuplicate(selectedItem)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Copy size={13} /> Duplicate
+                  </button>
+                  <button
+                    onClick={() => openEditModal(selectedItem)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Edit2 size={13} /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleArchive(selectedItem)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 border border-red-200 rounded-xl text-xs font-bold text-red-600 bg-white hover:bg-red-50 shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Archive size={13} /> {selectedItem.is_active ? 'Archive' : 'Restore'}
+                  </button>
+                  {!selectedItem.is_active && (
+                    <button
+                      onClick={() => handlePermanentDelete(selectedItem)}
+                      className="col-span-3 flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition-all cursor-pointer"
+                    >
+                      <Trash2 size={13} /> Delete permanently
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile/Tablet Popup Modal (< xl) */}
+      {selectedItem && typeof document !== 'undefined' && createPortal(
+        <div
+          className="xl:hidden fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={closeSelectedItem}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="menu-detail-modal-title"
+        >
+          <div
+            className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl shadow-2xl bg-white overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-5 flex flex-col h-full overflow-hidden">
+              <div className="flex justify-between items-start mb-4 shrink-0">
+                <div className="flex gap-3 sm:gap-4 min-w-0">
                   <img
                     src={resolveMenuImageUrl(selectedItem.image_url)}
                     alt={selectedItem.name}
-                    className="w-16 h-16 object-contain shrink-0 drop-shadow-md"
+                    className="w-14 h-14 sm:w-16 sm:h-16 object-contain shrink-0 drop-shadow-md rounded-xl border border-gray-100 p-1 bg-white"
                   />
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h2 className="text-lg font-bold text-gray-900">{selectedItem.name}</h2>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${selectedItem.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      <h2 id="menu-detail-modal-title" className="text-base sm:text-lg font-bold text-gray-900 truncate">{selectedItem.name}</h2>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${selectedItem.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                         {selectedItem.is_active ? 'Active' : 'Archived'}
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-500 font-medium">ID: {selectedItem.code}</p>
+                    <p className="text-[10px] text-gray-500 font-medium truncate">ID: {selectedItem.code}</p>
                     <p className="text-[10px] text-gray-500 font-medium mt-0.5">
                       Updated on {new Date(selectedItem.updated_at).toLocaleDateString('en-MY', {
                         day: '2-digit',
@@ -1398,14 +1665,15 @@ const Menu = () => {
                 </div>
                 <button
                   onClick={closeSelectedItem}
-                  className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                  className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 cursor-pointer shrink-0 transition-colors"
+                  aria-label="Close details"
                 >
                   <X size={20} />
                 </button>
               </div>
 
               {!selectedItem.is_active && selectedItem.archived_at && (
-                <div className={`mb-4 rounded-2xl border px-4 py-3 ${selectedItem.retention_review_due
+                <div className={`mb-4 rounded-2xl border px-4 py-3 shrink-0 ${selectedItem.retention_review_due
                   ? 'border-amber-200 bg-amber-50 text-amber-950'
                   : 'border-gray-200 bg-gray-50 text-gray-700'
                 }`}>
@@ -1431,28 +1699,28 @@ const Menu = () => {
                 </div>
               )}
 
-              <div className="flex gap-6 border-b border-gray-100 mb-5 shrink-0 text-sm">
+              <div className="flex gap-4 sm:gap-6 border-b border-gray-100 mb-4 sm:mb-5 shrink-0 text-sm overflow-x-auto no-scrollbar">
                 <button
                   onClick={() => setActiveTab('Details')}
-                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'Details' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'Details' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
                 >
                   Details
                 </button>
                 <button
                   onClick={() => setActiveTab('Sales')}
-                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'Sales' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'Sales' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
                 >
                   Sales & Analytics
                 </button>
                 <button
                   onClick={() => setActiveTab('History')}
-                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer ${activeTab === 'History' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
+                  className={`pb-2 font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap ${activeTab === 'History' ? 'border-[#2E5E58] text-[#1E433A]' : 'border-transparent text-gray-400 hover:text-gray-700'}`}
                 >
                   History
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto pr-2 pb-4 space-y-5 text-sm">
+              <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 pb-4 space-y-4 sm:space-y-5 text-sm">
                 {activeTab === 'Details' && (
                   <>
                     <div className="space-y-3">
@@ -1590,13 +1858,13 @@ const Menu = () => {
 
               <div className="pt-4 border-t border-gray-100 shrink-0 grid grid-cols-3 gap-2.5">
                 <button
-                  onClick={() => handleDuplicate(selectedItem)}
+                  onClick={() => { closeSelectedItem(); handleDuplicate(selectedItem); }}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
                 >
                   <Copy size={13} /> Duplicate
                 </button>
                 <button
-                  onClick={() => openEditModal(selectedItem)}
+                  onClick={() => { closeSelectedItem(); openEditModal(selectedItem); }}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all cursor-pointer"
                 >
                   <Edit2 size={13} /> Edit
@@ -1609,7 +1877,7 @@ const Menu = () => {
                 </button>
                 {!selectedItem.is_active && (
                   <button
-                    onClick={() => handlePermanentDelete(selectedItem)}
+                    onClick={() => { closeSelectedItem(); handlePermanentDelete(selectedItem); }}
                     className="col-span-3 flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50/50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition-all cursor-pointer"
                   >
                     <Trash2 size={13} /> Delete permanently
@@ -1618,8 +1886,9 @@ const Menu = () => {
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>,
+        document.body
+      )}
 
       {isHomePicksOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-md animate-in fade-in duration-200">
