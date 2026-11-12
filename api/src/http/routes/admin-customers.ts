@@ -152,11 +152,12 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     totalSpentRm: totalSpent,
     cupsLast180d,
     lastOrder: formatDisplayDate(lastOrderAt),
+    lastOrderAt: lastOrderAt ? lastOrderAt.toISOString() : null,
     joinedAt: formatDisplayDate(joinedAt),
     status: row.registration_status === 'imported'
       ? 'Pending signup'
       : row.user_status === 'active' ? 'Active' : 'Inactive',
-    avatar: row.avatar_value || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+    avatar: row.avatar_value || null,
     userStatus: row.user_status,
     isEmployee: Number(row.is_employee) === 1,
     subsidyRole: row.subsidy_role || (Number(row.is_employee) === 1 ? 'employee' : 'none'),

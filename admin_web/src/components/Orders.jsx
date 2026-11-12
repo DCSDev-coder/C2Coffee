@@ -183,7 +183,11 @@ const getPaymentTypeBadge = (order) => {
     );
   }
 
-  const provider = order?.paymentProvider ? formatPaymentLabel(order.paymentProvider) : null;
+  const provider = order?.paymentMethod
+    ? formatPaymentLabel(order.paymentMethod)
+    : order?.paymentProvider
+      ? formatPaymentLabel(order.paymentProvider)
+      : null;
   const label = provider && provider !== '-' ? `Direct (${provider})` : 'Direct (RM)';
 
   return (
@@ -201,6 +205,26 @@ const formatRm = (value) => {
 const formatTokens = (value) => {
   const amount = Number(value || 0);
   return `${amount.toLocaleString('en-US')} tokens`;
+};
+
+const formatOrderChannel = (value) => {
+  const channel = String(value || '').toLowerCase();
+  if (channel === 'counter') return 'Counter';
+  if (channel === 'mobile') return 'Mobile app';
+  return channel ? channel.replace(/_/g, ' ') : '-';
+};
+
+const formatFulfillmentType = (value) => {
+  const type = String(value || '').toLowerCase();
+  if (type === 'dine_in') return 'Dine in';
+  if (type === 'take_away') return 'Takeaway';
+  return type === 'pickup' ? 'Pickup' : type || '-';
+};
+
+const getPendingAge = (order) => {
+  if (normalizeOrderStatus(order?.status) !== 'Pending Payment' || !order?.createdAt) return null;
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000));
+  return `${minutes} min pending`;
 };
 
 const OrderValueStack = ({ tokenValue, rmValue, align = 'items-start' }) => (
@@ -484,6 +508,29 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice }) => 
         <p className="text-[11px] text-gray-400 mt-1">
           Reference: <span className="text-gray-700 font-medium">{order.txnId}</span>
         </p>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+          <div className="rounded-lg bg-gray-50 px-2.5 py-2">
+            <span className="block text-gray-400">Payment method</span>
+            <span className="font-semibold text-gray-800">{order.paymentMethod ? formatPaymentLabel(order.paymentMethod) : 'Loyalty tokens'}</span>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-2.5 py-2">
+            <span className="block text-gray-400">Order channel</span>
+            <span className="font-semibold text-gray-800">{formatOrderChannel(order.orderChannel)} · {formatFulfillmentType(order.fulfillmentType)}</span>
+          </div>
+        </div>
+        {String(order.paymentMode || '').toLowerCase() === 'token' && (
+          <div className="mt-2 rounded-lg bg-[#E8F3F0] px-2.5 py-2 text-[11px] text-[#1E433A]">
+            <span className="font-semibold">Token funding:</span> {formatTokens(Math.max(0, Number(order.tokenAmountCharged || 0) - Number(order.subsidyTokenAmount || 0)))} personal · {formatTokens(order.subsidyTokenAmount)} company subsidy
+          </div>
+        )}
+        {(order.voucherName || Number(order.discount || 0) > 0) && (
+          <div className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] text-emerald-800">
+            <span className="font-semibold">Promotion:</span> {order.voucherName || 'Discount'}{order.voucherCode ? ` (${order.voucherCode})` : ''} · {formatRm(order.discount)} off
+          </div>
+        )}
+        {order.paymentExpiresAt && normalizeOrderStatus(order.status) === 'Pending Payment' && (
+          <p className="mt-2 text-[11px] text-amber-700">Payment expires {new Date(order.paymentExpiresAt).toLocaleString()}</p>
+        )}
         {Number(order.priceCorrectionAmount || 0) > 0 ? (
           <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
             Original charge: <strong>{formatTokens(order.originalTokenAmount)}</strong><br />
@@ -851,10 +898,10 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const paginated = showAllOrders ? sortedOrders : sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   // KPI counts based on active list
-  const totalCount = ordersList.length;
-  const collected = ordersList.filter(o => normalizeOrderStatus(o.status) === "Collected").length;
-  const cancelled = ordersList.filter(o => normalizeOrderStatus(o.status) === "Cancelled").length;
-  const refunds = ordersList.filter(o => {
+  const totalCount = filtered.length;
+  const collected = filtered.filter(o => normalizeOrderStatus(o.status) === "Collected").length;
+  const cancelled = filtered.filter(o => normalizeOrderStatus(o.status) === "Cancelled").length;
+  const refunds = filtered.filter(o => {
     const s = normalizeOrderStatus(o.status);
     return s === "Refund Requested" || s === "Refunded";
   }).length;
@@ -915,7 +962,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         <KPICard
           title="Total Orders"
           value={totalCount}
-          badge="Live Feed"
           info="Total orders recorded across all outlets."
           icon={ShoppingBag}
           iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
@@ -923,7 +969,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         <KPICard
           title="Collected"
           value={collected}
-          badge={`${totalCount > 0 ? ((collected / totalCount) * 100).toFixed(0) : 0}% Done`}
           info="Orders successfully prepared and collected by customers."
           icon={Clock}
           iconBg="bg-emerald-500/10 text-emerald-700"
@@ -931,7 +976,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         <KPICard
           title="Cancelled"
           value={cancelled}
-          badge={cancelled > 0 ? `${cancelled} voided` : 'Zero'}
           info="Orders cancelled by the customer or counter before preparation."
           icon={Ban}
           iconBg="bg-rose-500/10 text-rose-600"
@@ -939,7 +983,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
         <KPICard
           title="Refunds"
           value={refunds}
-          badge={refunds > 0 ? `${refunds} requests` : 'None'}
           info="Orders currently under refund request or already refunded."
           icon={RotateCcw}
           iconBg="bg-amber-500/15 text-amber-700"
@@ -1040,6 +1083,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             <table className="min-w-full divide-y divide-gray-200 text-sm text-left">
               <thead className="bg-white border-b border-gray-200 sticky top-0 z-10">
                 <tr>
+                  <SortableHeader label="Date & Time" columnKey="time" info="Order date and time (latest first by default)." />
                   <SortableHeader label="Order ID" columnKey="id" />
                   <SortableHeader label="Username" columnKey="customer" />
                   <SortableHeader label="Outlet" columnKey="store" />
@@ -1047,7 +1091,6 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                   <SortableHeader label="Total" columnKey="total" info="Order amount charged in Loyalty Tokens and MYR." />
                   <SortableHeader label="Status" columnKey="status" info="Live order fulfillment stage." />
                   <SortableHeader label="Payment Type" columnKey="paymentType" info="Payment method used: Loyalty Tokens or Direct RM." />
-                  <SortableHeader label="Time" columnKey="time" info="Order timestamp (latest first by default)." />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
@@ -1065,6 +1108,10 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                         className={`hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? "bg-gray-50" : ""}`}
                         onClick={() => setSelectedOrder(order)}
                       >
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-500 font-medium">
+                          <div className="text-gray-700">{order.date}</div>
+                          <div className="text-[11px] text-gray-400 mt-0.5">{order.time}</div>
+                        </td>
                         <td className="px-6 py-3.5 whitespace-nowrap text-xs font-bold text-gray-900">
                           {order.id}
                         </td>
@@ -1076,10 +1123,14 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                             <div className="ml-3">
                               <div className="text-xs font-bold text-gray-900">{order.customer}</div>
                               <div className="text-[10px] text-gray-400">{order.email}</div>
+                              <div className="text-[10px] text-[#2E5E58] font-semibold">{order.isEmployee ? 'Employee' : 'Non-employee'}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-700 font-medium">{order.storeName || '-'}</td>
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-700 font-medium">
+                          <div>{order.storeName || '-'}</div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">{formatOrderChannel(order.orderChannel)} · {formatFulfillmentType(order.fulfillmentType)}</div>
+                        </td>
                         <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-800 font-medium max-w-[220px] truncate" title={itemsLabel}>
                           {itemsLabel}
                         </td>
@@ -1088,12 +1139,10 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           {getStatusBadge(order.status)}
+                          {getPendingAge(order) && <div className="text-[10px] text-amber-700 mt-1">{getPendingAge(order)}</div>}
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           {getPaymentTypeBadge(order)}
-                        </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-500 font-medium">
-                          {order.time}
                         </td>
                       </tr>
                     );

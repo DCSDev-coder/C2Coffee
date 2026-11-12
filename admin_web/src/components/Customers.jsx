@@ -2,7 +2,7 @@ import React, { useState, forwardRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Wallet, Users, Megaphone, Search, ChevronDown, Download, Upload, Plus,
-  MoreVertical, X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3, Trash2, Pencil
+  X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3
 } from 'lucide-react';
 import Pagination from './Pagination';
 import DatePicker from "react-datepicker";
@@ -123,6 +123,36 @@ const formatTokens = (value) => {
 const subsidyRoleForCustomer = (customer) => customer?.subsidyRole || (customer?.isEmployee ? 'employee' : 'none');
 const subsidyRoleLabel = (role) => ({ employee: 'Employee', intern: 'Intern', boss: 'Boss', none: 'No subsidy' }[role] || 'No subsidy');
 
+const Avatar = ({ customer, size = 'md' }) => {
+  const initials = String(customer?.username || 'C2')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+  const sizeClass = size === 'lg' ? 'h-16 w-16 text-xl' : 'h-10 w-10 text-sm';
+
+  return customer?.avatar ? (
+    <img
+      src={customer.avatar}
+      alt={`${customer.username} profile`}
+      className={`${sizeClass} shrink-0 rounded-full object-cover ring-1 ring-gray-200`}
+      onError={(event) => {
+        event.currentTarget.replaceWith(Object.assign(document.createElement('span'), {
+          className: `${sizeClass} shrink-0 rounded-full bg-[#2E5E58] text-white flex items-center justify-center font-bold`,
+          textContent: initials,
+          ariaLabel: `${customer.username} profile`
+        }));
+      }}
+    />
+  ) : (
+    <div className={`${sizeClass} shrink-0 rounded-full bg-[#2E5E58] text-white flex items-center justify-center font-bold`} aria-label={`${customer.username} profile`}>
+      {initials}
+    </div>
+  );
+};
+
 const getStatusColor = (status) => {
   switch (status) {
     case 'Active': return 'bg-green-100 text-green-600';
@@ -132,8 +162,15 @@ const getStatusColor = (status) => {
   }
 };
 
+const getCustomerActivityStatus = (customer) => {
+  if (customer.status === 'Pending signup') return 'Pending signup';
+  if (Number(customer.orderCount ?? customer.orders ?? 0) === 0) return 'No orders yet';
+  if (customer.status === 'Inactive') return 'Inactive';
+  return 'Active';
+};
+
 const QuickLink = ({ icon: Icon, title, desc, iconBg, onClick }) => (
-  <button onClick={onClick} className="w-full flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0 text-left">
+  <button type="button" onClick={onClick} className="w-full flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors last:border-0 text-left">
     <div className="flex items-center space-x-4">
       <div className={`w-12 h-12 rounded-xl text-white flex items-center justify-center ${iconBg}`}>
         <Icon size={20} strokeWidth={2} />
@@ -296,14 +333,14 @@ const Customers = ({ currentUser }) => {
   const [selectedTier, setSelectedTier] = useState('All Tiers');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
   const [selectedEmployment, setSelectedEmployment] = useState('All Customers');
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedPeriod, setSelectedPeriod] = useState('all');
+  const [selectedDateRange, setSelectedDateRange] = useState([null, null]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [tierOpen, setTierOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [activeView, setActiveView] = useState('list');
-  const [menuOpenId, setMenuOpenId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [customerConfirmation, setCustomerConfirmation] = useState(null);
@@ -318,12 +355,6 @@ const Customers = ({ currentUser }) => {
   const [importResult, setImportResult] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const itemsPerPage = 10;
-
-  useEffect(() => {
-    const handleClickOutside = () => setMenuOpenId(null);
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -410,16 +441,33 @@ const Customers = ({ currentUser }) => {
       customer.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
       String(customer.tokenBalance ?? customer.tokens ?? '').includes(searchQuery);
     const matchesTier = selectedTier === 'All Tiers' || customer.tier === selectedTier || customer.tierCode === selectedTier;
-    const matchesStatus = selectedStatus === 'All Status' || customer.status === selectedStatus;
+    const matchesStatus = selectedStatus === 'All Status' || getCustomerActivityStatus(customer) === selectedStatus;
     const matchesEmployment = selectedEmployment === 'All Customers'
       || (selectedEmployment === 'Employees' && customer.isEmployee)
       || (selectedEmployment === 'Customers' && !customer.isEmployee);
 
-    let matchesDate = true;
-    if (selectedDate) {
-      const formattedDate = selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      matchesDate = customer.lastOrder === formattedDate || customer.joinedAt === formattedDate;
+    const customerDate = customer.lastOrderAt ? new Date(customer.lastOrderAt) : null;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    let rangeStart = null;
+    let rangeEnd = null;
+    if (selectedPeriod === 'today') rangeStart = startOfToday;
+    if (selectedPeriod === 'this_week') rangeStart = startOfWeek;
+    if (selectedPeriod === 'this_month') rangeStart = startOfMonth;
+    if (selectedPeriod === 'this_year') rangeStart = startOfYear;
+    if (selectedPeriod === 'custom') {
+      rangeStart = selectedDateRange[0] ? new Date(selectedDateRange[0].getTime()) : null;
+      rangeEnd = selectedDateRange[1] ? new Date(selectedDateRange[1].getTime()) : rangeStart;
+      if (rangeStart) rangeStart.setHours(0, 0, 0, 0);
+      if (rangeEnd) rangeEnd.setHours(23, 59, 59, 999);
     }
+    const matchesDate = selectedPeriod === 'all' || !rangeStart
+      ? true
+      : Boolean(customerDate && customerDate >= rangeStart && (!rangeEnd ? customerDate <= now : customerDate <= rangeEnd));
 
     return matchesSearch && matchesTier && matchesStatus && matchesEmployment && matchesDate;
   });
@@ -589,12 +637,15 @@ const Customers = ({ currentUser }) => {
     void confirmCustomerAction();
   };
 
-  const totalCustomers = customers.length;
+  const totalCustomers = filteredData.length;
   const activeTiers = tiers.filter((t) => t.isActive);
   const baseTierName = activeTiers[0]?.name || 'Sipper';
-  const activeTierMembers = customers.filter((customer) => !resolveTierProgress(customer, tiers).isBaseTier).length;
-  const totalSpendRm = customers.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
-  const totalSpendTokens = customers.reduce((sum, customer) => sum + Number(customer.totalPersonalTokens || 0), 0);
+  const activeTierMembers = filteredData.filter((customer) => !resolveTierProgress(customer, tiers).isBaseTier).length;
+  const employeeCustomers = filteredData.filter((customer) => customer.isEmployee).length;
+  const nonEmployeeCustomers = filteredData.filter((customer) => !customer.isEmployee).length;
+  const totalSpendRm = filteredData.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
+  const totalSpendTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalPersonalTokens || 0), 0);
+  const totalSubsidyTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalSubsidyTokens || 0), 0);
   const averageSpendRm = totalCustomers > 0 ? totalSpendRm / totalCustomers : 0;
   const averageSpendTokens = totalCustomers > 0 ? totalSpendTokens / totalCustomers : 0;
 
@@ -614,9 +665,9 @@ const Customers = ({ currentUser }) => {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
-        <KPICard title="Total Customers" value={totalCustomers.toLocaleString('en-US')} change="Live from admin API" icon={Wallet} iconBg="bg-[#1F3A34]" iconColor="text-white" />
+        <KPICard title="Customers" value={totalCustomers.toLocaleString('en-US')} change={`${employeeCustomers} employees · ${nonEmployeeCustomers} non-employees`} icon={Wallet} iconBg="bg-[#1F3A34]" iconColor="text-white" />
         <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} change={`Customers above ${baseTierName} tier`} icon={Users} iconBg="bg-[#6F9F96]" iconColor="text-white" />
-        <KPICard title="Personal order tokens" value={formatTokens(customers.reduce((sum, customer) => sum + Number(customer.totalPersonalTokens || 0), 0))} change={`Company subsidy: ${formatTokens(customers.reduce((sum, customer) => sum + Number(customer.totalSubsidyTokens || 0), 0))}`} icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
+        <KPICard title="Token Usage" value={formatTokens(totalSpendTokens)} change={`Subsidy: ${formatTokens(totalSubsidyTokens)}`} icon={Megaphone} iconBg="bg-[#E07A5F]" iconColor="text-white" />
         <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} change={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-[#D9C4A9]" iconColor="text-white" />
       </div>
 
@@ -675,6 +726,7 @@ const Customers = ({ currentUser }) => {
             >
               <option value="All Status">All Status</option>
               <option value="Active">Active</option>
+              <option value="No orders yet">No orders yet</option>
               <option value="Pending signup">Pending signup</option>
               <option value="Inactive">Inactive</option>
             </select>
@@ -699,14 +751,32 @@ const Customers = ({ currentUser }) => {
             </div>
           </div>
 
-          <div className="relative transition-transform duration-200 peer-focus:-rotate-180">
-            <DatePicker portalId="root-portal" popperPlacement="bottom-end"
-              selected={selectedDate}
-              onChange={(date) => { setSelectedDate(date); setCurrentPage(1); }}
-              customInput={<CustomDateInput onClear={() => { setSelectedDate(null); setCurrentPage(1); }} />}
+          <div className="relative">
+            <select
+              value={selectedPeriod}
+              onChange={(e) => { setSelectedPeriod(e.target.value); if (e.target.value !== 'custom') setSelectedDateRange([null, null]); setCurrentPage(1); }}
+              className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer"
+            >
+              <option value="all">All time</option>
+              <option value="today">Today</option>
+              <option value="this_week">This week</option>
+              <option value="this_month">This month</option>
+              <option value="this_year">This year</option>
+              <option value="custom">Choose dates</option>
+            </select>
+          </div>
+          {selectedPeriod === 'custom' && (
+            <DatePicker
+              portalId="root-portal"
+              popperPlacement="bottom-end"
+              selectsRange
+              startDate={selectedDateRange[0]}
+              endDate={selectedDateRange[1]}
+              onChange={(range) => { setSelectedDateRange(range); setCurrentPage(1); }}
+              customInput={<CustomDateInput onClear={() => { setSelectedDateRange([null, null]); setCurrentPage(1); }} />}
               dateFormat="MMM d, yyyy"
             />
-          </div>
+          )}
 
           {canManageCustomers && (
             <div className="flex items-center gap-3">
@@ -741,16 +811,15 @@ const Customers = ({ currentUser }) => {
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tier</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">C2 Credit Tokens</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Total Orders</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Order Tokens Spent</th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Personal / Subsidy</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Last Order</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Status</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {isLoading && paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500 text-sm">
+                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500 text-sm">
                       Loading customers...
                     </td>
                   </tr>
@@ -760,11 +829,12 @@ const Customers = ({ currentUser }) => {
                     className={`cursor-pointer transition-colors hover:bg-gray-50 ${selectedCustomer?.id === customer.id ? 'bg-gray-50' : ''}`}
                     onClick={() => {
                       setSelectedCustomer(customer);
-                      setMenuOpenId(null);
                     }}
                   >
                     <td className="px-6 py-3.5 whitespace-nowrap">
-                      <div>
+                      <div className="flex items-center gap-3">
+                        <Avatar customer={customer} />
+                        <div>
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-bold text-gray-900">{customer.username}</div>
                           {subsidyRoleForCustomer(customer) !== 'none' && (
@@ -774,6 +844,7 @@ const Customers = ({ currentUser }) => {
                           )}
                         </div>
                         <div className="text-xs text-gray-500">{customer.email}</div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
@@ -789,64 +860,21 @@ const Customers = ({ currentUser }) => {
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.orders}</td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
                       <div className="flex flex-col">
-                        <span>{customer.spentTokens || formatTokens(customer.totalSpentTokens)}</span>
+                        <span>Personal: {formatTokens(customer.totalPersonalTokens)}</span>
+                        <span className="text-xs text-amber-700">Subsidy: {formatTokens(customer.totalSubsidyTokens)}</span>
                         <span className="text-xs text-gray-500">{customer.spent}</span>
                       </div>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.lastOrder}</td>
                     <td className="px-6 py-3 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md ${getStatusColor(customer.status)}`}>
-                        {customer.status}
+                      <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md ${getStatusColor(getCustomerActivityStatus(customer))}`}>
+                        {getCustomerActivityStatus(customer)}
                       </span>
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm font-medium">
-                      <div className="relative inline-block text-left">
-                        {canManageCustomers && <div className="bg-[#1E293B] hover:bg-[#0F172A] text-white px-2.5 py-1.5 rounded-lg inline-flex items-center shadow-sm transition-colors">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMenuOpenId(menuOpenId === customer.id ? null : customer.id);
-                            }}
-                            className="text-white/90 hover:text-white cursor-pointer transition-colors"
-                            title="More Options"
-                          >
-                            <MoreVertical size={15} />
-                          </button>
-                        </div>}
-
-                        {canManageCustomers && menuOpenId === customer.id && (
-                          <div className="absolute right-0 top-full mt-1.5 w-32 bg-white rounded-xl shadow-lg border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingCustomer(customer);
-                                setMenuOpenId(null);
-                              }}
-                              className="w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <Pencil size={13} className="text-gray-500" />
-                              {subsidyRoleForCustomer(customer) !== 'none' ? 'Edit subsidy role' : 'Set subsidy role'}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCustomerConfirmation({ type: 'delete', customer, label: customer.username });
-                                setConfirmationPassword('');
-                                setMenuOpenId(null);
-                              }}
-                              className="w-full px-3 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <Trash2 size={13} className="text-red-500" />
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500 text-sm">
+                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500 text-sm">
                       No customers found matching your criteria.
                     </td>
                   </tr>
@@ -880,7 +908,9 @@ const Customers = ({ currentUser }) => {
             </div>
 
             <div className="mb-8">
-              <div>
+              <div className="flex items-center gap-3">
+                <Avatar customer={selectedCustomer} size="lg" />
+                <div>
                 <div className="flex items-center space-x-2">
                   <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.username}</h3>
                   {hasPurchaseHistory(selectedCustomer) && (
@@ -893,6 +923,7 @@ const Customers = ({ currentUser }) => {
                 <p className="text-sm text-gray-500">{selectedCustomer.email}</p>
                 <p className="text-sm text-gray-500">{selectedCustomer.phone}</p>
                 <p className="text-sm font-medium text-gray-900 mt-1">Member ID : C2-{String(selectedCustomer.id).padStart(3, '0')}</p>
+                </div>
               </div>
             </div>
 
@@ -908,8 +939,9 @@ const Customers = ({ currentUser }) => {
               </div>
               <div className="w-px bg-gray-100"></div>
               <div>
-                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Order Tokens Spent</p>
-                <p className="font-bold text-gray-900">{selectedCustomer.spentTokens || formatTokens(selectedCustomer.totalSpentTokens)}</p>
+                <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Personal Tokens</p>
+                <p className="font-bold text-gray-900">{formatTokens(selectedCustomer.totalPersonalTokens)}</p>
+                <p className="text-[11px] text-amber-700 mt-1">Subsidy: {formatTokens(selectedCustomer.totalSubsidyTokens)}</p>
                 <p className="text-[11px] text-gray-500 mt-1">RM equivalent: {selectedCustomer.spent}</p>
               </div>
             </div>
@@ -954,11 +986,11 @@ const Customers = ({ currentUser }) => {
             <div className="mb-4">
               <h3 className="text-lg font-bold text-gray-900 mb-2">Quick Links</h3>
               <div className="flex flex-col">
-                <QuickLink icon={User} title="View Profile" desc="Customer personal details" iconBg="bg-[#1F3A2A]" onClick={() => setActiveView('profile')} />
-                <QuickLink icon={ClipboardList} title="Order History" desc="Past orders and invoices" iconBg="bg-[#2E5E58]" onClick={() => setActiveView('orders')} />
-                <QuickLink icon={Coins} title="Token Transaction" desc="Earned and spent tokens" iconBg="bg-[#B7CFCA]" onClick={() => setActiveView('tokens')} />
-                <QuickLink icon={Ticket} title="Voucher History" desc="Claimed and used vouchers" iconBg="bg-[#E07A5F]" onClick={() => setActiveView('vouchers')} />
-                <QuickLink icon={BarChart3} title="Tiers History" desc="Tier upgrade timeline" iconBg="bg-[#D4AF7A]" onClick={() => setActiveView('tiers')} />
+                <QuickLink icon={User} title="View Profile" desc="Personal details and contact information" iconBg="bg-[#1F3A2A]" onClick={() => setActiveView('profile')} />
+                <QuickLink icon={ClipboardList} title="Order History" desc={`${selectedCustomer.orders} order${Number(selectedCustomer.orders) === 1 ? '' : 's'} · invoices and status`} iconBg="bg-[#2E5E58]" onClick={() => setActiveView('orders')} />
+                <QuickLink icon={Coins} title="Token Transactions" desc={`${formatTokens(selectedCustomer.totalPersonalTokens)} personal · ${formatTokens(selectedCustomer.totalSubsidyTokens)} subsidy`} iconBg="bg-[#B7CFCA]" onClick={() => setActiveView('tokens')} />
+                <QuickLink icon={Ticket} title="Voucher History" desc="View claimed and used vouchers" iconBg="bg-[#E07A5F]" onClick={() => setActiveView('vouchers')} />
+                <QuickLink icon={BarChart3} title="Tier Progress" desc={hasPurchaseHistory(selectedCustomer) ? `${selectedCustomer.tier} progress and upgrades` : 'No tier activity yet'} iconBg="bg-[#D4AF7A]" onClick={() => setActiveView('tiers')} />
               </div>
             </div>
 

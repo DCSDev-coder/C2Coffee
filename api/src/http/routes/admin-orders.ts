@@ -552,6 +552,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           up.email,
           u.phone_e164 as phone,
           u.id as user_id,
+          COALESCE(ctm.is_employee, 0) as isEmployee,
           up.avatar_value as avatar,
           o.discount_total_rm as discount,
           vt.name as voucherName,
@@ -566,6 +567,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           opc.personal_token_amount as priceCorrectionPersonalAmount,
           opc.created_at as priceCorrectedAt,
           o.payment_mode as paymentMode,
+          COALESCE(o.order_channel, 'mobile') as orderChannel,
+          COALESCE(o.fulfillment_type, 'pickup') as fulfillmentType,
           o.status as status,
           COALESCE((
             SELECT lts.tier_code
@@ -578,6 +581,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           p.payment_method as paymentMethod,
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
+          p.expires_at as paymentExpiresAt,
           ocr.status as cancellationRequestStatus,
           ocr.reason as cancellationRequestReason,
           ocr.requested_at as cancellationRequestedAt,
@@ -597,6 +601,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         JOIN user_profiles up ON u.id = up.user_id
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
+        LEFT JOIN customer_tenant_memberships ctm ON ctm.user_id = u.id AND ctm.tenant_id = t.id
         LEFT JOIN payments p ON o.id = p.order_id
         LEFT JOIN user_vouchers uv ON uv.id = o.voucher_id
         LEFT JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
@@ -742,6 +747,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           priceCorrectionPersonalAmount: Number(o.priceCorrectionPersonalAmount || 0),
           priceCorrectedAt: o.priceCorrectedAt ? new Date(o.priceCorrectedAt).toISOString() : null,
           paymentMode: o.paymentMode || '',
+          orderChannel: o.orderChannel || 'mobile',
+          fulfillmentType: o.fulfillmentType || 'pickup',
+          isEmployee: Number(o.isEmployee || 0) === 1,
           status: capitalizeWords(o.status),
           payment: o.paymentMode || '',
           paymentMethod: o.paymentMethod || '',
@@ -750,6 +758,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           cancellationRequestReason: o.cancellationRequestReason || null,
           cancellationRequestedAt: o.cancellationRequestedAt ? new Date(o.cancellationRequestedAt).toISOString() : null,
           txnId: o.txnId || `TXN${o.internal_id}`,
+          paymentExpiresAt: o.paymentExpiresAt ? new Date(o.paymentExpiresAt).toISOString() : null,
           baristaName: o.baristaName || '',
           baristaUsername: '',
           createdAt: d.toISOString(),
