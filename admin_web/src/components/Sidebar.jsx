@@ -12,8 +12,8 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [retentionDueCount, setRetentionDueCount] = useState(0);
   const menuItems = [
-    { name: 'Barista Console', icon: Coffee, section: 'Daily work' },
-    { name: 'Barista Workspace', icon: CalendarDays, section: 'Daily work' },
+    { name: 'Barista Console', icon: Coffee, section: 'Daily work', hideOnMobile: true },
+    { name: 'Barista Workspace', icon: CalendarDays, section: 'Daily work', hideOnMobile: true },
     { name: 'Dashboard', icon: LayoutDashboard, section: 'Daily work' },
     { name: 'Orders', icon: ShoppingBag, section: 'Daily work' },
     { name: 'Customers', icon: Users, section: 'Daily work' },
@@ -107,10 +107,13 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
             const Icon = item.icon;
             const isActive = currentPage ? currentPage === item.name : index === 0;
             const startsSection = index === 0 || visibleMenuItems[index - 1].section !== item.section;
+            const sectionHasMobileItems = visibleMenuItems.some(
+              (m) => m.section === item.section && !m.hideOnMobile
+            );
             return (
               <React.Fragment key={item.name}>
                 {startsSection && (
-                  <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 ${index === 0 ? 'mb-1' : 'mb-1 mt-5'}`}>
+                  <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 ${index === 0 ? 'mb-1' : 'mb-1 mt-5'} ${sectionHasMobileItems ? '' : 'hidden md:block'}`}>
                     {item.section}
                   </p>
                 )}
@@ -125,7 +128,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
                       onClose();
                     }
                   }}
-                  className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm group ${
+                  className={`${item.hideOnMobile ? 'hidden md:flex' : 'flex'} items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm group ${
                     isActive
                       ? 'bg-[#1F3A34] font-medium shadow-sm translate-x-1'
                       : 'hover:bg-[#1F3A34]/80 text-white/85 hover:text-white hover:translate-x-1'
