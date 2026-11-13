@@ -8,6 +8,7 @@ import { runReferralRewardRetrySweep } from './services/referrals.js';
 import { runLoyaltyTierMaintenanceSweep } from './services/loyalty-tier-maintenance.js';
 import { runAutoCollectSweep } from './services/auto-collect-orders.js';
 import { runEmployeeAllowanceSweep } from './services/employee-token-allowance.js';
+import { expireStaleCounterPendingOrders } from './services/counter-pending-order-maintenance.js';
 
 const app = await buildApp();
 
@@ -39,6 +40,16 @@ async function runScheduledAutoCollect(): Promise<void> {
   }
 }
 void runScheduledAutoCollect();
+async function runScheduledCounterPendingMaintenance(): Promise<void> {
+  try {
+    await assertSingleCafeDeployment();
+    const result = await expireStaleCounterPendingOrders();
+    if (result.cancelled > 0) app.log.info(result, 'expired stale counter pending orders');
+  } catch (error) {
+    app.log.error(error, 'counter pending-order maintenance failed');
+  }
+}
+void runScheduledCounterPendingMaintenance();
 async function runScheduledVoucherMaintenance(): Promise<void> {
   try {
     await assertSingleCafeDeployment();
@@ -83,6 +94,10 @@ const autoCollectTimer = setInterval(() => {
   void runScheduledAutoCollect();
 }, 60_000);
 autoCollectTimer.unref();
+const counterPendingMaintenanceTimer = setInterval(() => {
+  void runScheduledCounterPendingMaintenance();
+}, 60_000);
+counterPendingMaintenanceTimer.unref();
 const voucherExpiryReminderTimer = setInterval(() => {
   void runScheduledVoucherMaintenance();
 }, 24 * 60 * 60 * 1000);

@@ -97,4 +97,51 @@ void main() {
 
     expect(errors, isEmpty);
   });
+
+  testWidgets('secondary navigation floats right and Take Order opens a page', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    globalWorkstationAccess.value = const WorkstationAccessState(
+      scheduleStatus: 'published',
+      accessState: 'unlocked',
+      canPrepareOrders: true,
+      message: 'Outlet is open and staffed.',
+      soundSettings: BaristaSoundSettings.defaults(),
+      currentStaff: [],
+      activeAttendance: [],
+      missingStaff: [],
+      scheduleDate: '2026-11-13',
+      minutesUntilShiftEnd: 480,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MainLayout(
+          onSignedOut: () {},
+          takeOrderPageBuilder: (_) => const Scaffold(
+            body: Center(child: Text('Barista order entry page')),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Take Order'), findsNothing);
+    await tester.tap(find.byTooltip('Open more navigation'));
+    await tester.pump();
+    expect(find.text('Take Order'), findsOneWidget);
+    expect(find.text('Marketing'), findsOneWidget);
+    expect(find.text('Inventory'), findsOneWidget);
+    expect(find.text('Timetable'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    expect(tester.getCenter(find.text('Marketing')).dx, greaterThan(1500));
+
+    await tester.tap(find.text('Take Order'));
+    await tester.pumpAndSettle();
+    expect(find.text('Barista order entry page'), findsOneWidget);
+  });
 }

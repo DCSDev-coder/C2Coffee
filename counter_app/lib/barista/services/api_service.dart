@@ -7,6 +7,14 @@ import 'api_config.dart';
 import 'secure_session_service.dart';
 import '../../json_helpers.dart';
 
+String normalizeApiStatus(Object? value) {
+  return value?.toString().trim().toLowerCase().replaceAll(
+        RegExp(r'[\s-]+'),
+        '_',
+      ) ??
+      '';
+}
+
 class ApiService {
   static String get baseUrl => ApiConfig.baseUrl;
 
@@ -31,6 +39,8 @@ class ApiService {
   static List<String> get currentRoles => List.unmodifiable(_currentRoles);
   static bool get isSignedIn =>
       _accessToken != null && _accessToken!.isNotEmpty;
+
+  static Future<String?> orderEntryAccessToken() async => _accessToken;
 
   static bool get canWorkOrders {
     return _currentRoles.any(
@@ -81,6 +91,32 @@ class ApiService {
     } catch (_) {
       return const ApiRequestResult.failure(
         'Unable to confirm payment. Check the connection and try again.',
+      );
+    }
+  }
+
+  static Future<ApiRequestResult> cancelOrder(
+    String orderId, {
+    String? reason,
+  }) async {
+    try {
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/orders/$orderId/cancel'),
+          headers: headers,
+          body: json.encode({'reason': reason}),
+        ),
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return ApiRequestResult.success(
+          decoded is Map<String, dynamic> ? decoded : null,
+        );
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (_) {
+      return const ApiRequestResult.failure(
+        'Unable to cancel this order. Check the connection and try again.',
       );
     }
   }
@@ -210,8 +246,7 @@ class ApiService {
             .map<CurrentOrder?>((json) {
               // Parse status
               OrderStatus? parsedStatus;
-              final statusStr =
-                  (json['status'] as String?)?.toLowerCase() ?? '';
+              final statusStr = normalizeApiStatus(json['status']);
               if (statusStr == 'pending_payment' ||
                   statusStr == 'paid' ||
                   statusStr == 'accepted') {
@@ -298,7 +333,8 @@ class ApiService {
                 voucherType: json['voucherType']?.toString(),
                 discount: (json['discount'] as num?)?.toDouble() ?? 0,
                 paymentMethod: json['paymentMethod']?.toString(),
-                paymentStatus: json['paymentStatus']?.toString(),
+                paymentStatus: normalizeApiStatus(json['paymentStatus']),
+                total: (json['total'] as num?)?.toDouble() ?? 0,
                 cancellationRequestStatus: json['cancellationRequestStatus']
                     ?.toString(),
               );

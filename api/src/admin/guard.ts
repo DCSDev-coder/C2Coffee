@@ -169,6 +169,12 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canReviewCancellationRequest =
     request.method === 'PATCH' &&
     /^\/v1\/admin\/orders\/[^/]+\/cancellation-request$/.test(path);
+  const canCancelCounterOrder =
+    request.method === 'POST' &&
+    /^\/v1\/barista\/orders\/[^/]+\/cancel$/.test(path);
+  const canConfirmCounterPayment =
+    request.method === 'POST' &&
+    /^\/v1\/barista\/orders\/[^/]+\/payment\/confirm$/.test(path);
   const canReadOperationalContext =
     request.method === 'GET' && path === '/v1/barista/operations/context';
   const canReadWorkstationAccess =
@@ -223,6 +229,8 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadBaristaRoster &&
     !canUpdateOrderStatus &&
     !canReviewCancellationRequest &&
+    !canCancelCounterOrder &&
+    !canConfirmCounterPayment &&
     !canReadOperationalContext &&
     !canReadWorkstationAccess &&
     !canReadWeeklySchedule &&

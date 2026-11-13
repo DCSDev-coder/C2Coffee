@@ -226,7 +226,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
   app.post('/v1/barista/orders/:orderRef/payment/confirm', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     assertStaffAccess(request);
     const { orderRef } = z.object({ orderRef: z.string().trim().min(1).max(80) }).parse(request.params);
-    const { payment_method: paymentMethod } = z.object({ payment_method: z.enum(['manual_terminal', 'manual_cash']) }).parse(request.body);
+    const { payment_method: paymentMethod } = z.object({ payment_method: z.enum(['manual_counter', 'manual_terminal', 'manual_cash']) }).parse(request.body);
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
@@ -240,7 +240,12 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       if (order.payment_method !== paymentMethod) throw new ApiError(409, 'manual_payment_method_mismatch', 'Confirm the payment method selected by the customer.');
       await connection.execute(`UPDATE payments SET payment_method = :method, provider_payment_ref = :reference, status = 'paid', paid_at = UTC_TIMESTAMP() WHERE id = :paymentId AND status = 'pending'`, { paymentId: order.payment_id, method: paymentMethod, reference: `MANUAL-${randomUUID()}` });
       await connection.execute(`UPDATE orders SET status = 'paid', paid_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'pending_payment'`, { orderId: order.id });
-      await connection.execute(`INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at) VALUES (:orderId, 'pending_payment', 'paid', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`, { orderId: order.id, adminUserId: request.adminAuth.adminUserId, reason: paymentMethod === 'manual_terminal' ? 'Manual terminal payment confirmed by barista.' : 'Manual cashier payment confirmed by barista.' });
+      const confirmationReason = paymentMethod === 'manual_counter'
+        ? 'Pay-at-counter payment confirmed by barista.'
+        : paymentMethod === 'manual_terminal'
+          ? 'Manual terminal payment confirmed by barista.'
+          : 'Manual cashier payment confirmed by barista.';
+      await connection.execute(`INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at) VALUES (:orderId, 'pending_payment', 'paid', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`, { orderId: order.id, adminUserId: request.adminAuth.adminUserId, reason: confirmationReason });
       await connection.execute(
         `INSERT INTO print_jobs
            (job_ref, tenant_code, order_id, printer_target_id, requested_by_admin_user_id, request_type)
@@ -257,6 +262,61 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       await connection.commit();
       return reply.send({ order_ref: orderRef, status: 'paid', payment_status: 'paid', payment_method: paymentMethod });
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
+  });
+  app.post('/v1/barista/orders/:orderRef/cancel', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    assertStaffAccess(request);
+    const { orderRef } = z.object({ orderRef: z.string().trim().min(1).max(80) }).parse(request.params);
+    const { reason } = z.object({ reason: z.string().trim().max(300).nullable().optional() }).parse(request.body ?? {});
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT o.id, o.store_id, o.status, o.user_id, o.final_total_rm,
+                p.id AS payment_id, p.status AS payment_status, p.payment_method
+           FROM orders o
+           JOIN payments p ON p.order_id = o.id
+           JOIN stores s ON s.id = o.store_id
+           JOIN admin_tenants t ON t.id = s.tenant_id
+          WHERE o.order_ref = :orderRef AND o.order_channel = 'counter' AND t.code = :tenantCode
+          LIMIT 1 FOR UPDATE`,
+        { orderRef, tenantCode: request.adminAuth.tenantCode }
+      );
+      const order = rows[0];
+      if (!order) throw new ApiError(404, 'order_not_found', 'Order was not found.');
+      const workstationStoreId = await resolveAttendanceStoreId(request);
+      if (Number(order.store_id) !== workstationStoreId) throw new ApiError(403, 'store_access_denied', 'This order belongs to another outlet.');
+      if (!['pending_payment', 'paid'].includes(String(order.status))) {
+        throw new ApiError(409, 'order_not_cancellable', 'This order is no longer waiting for preparation.');
+      }
+      const fromStatus = String(order.status);
+      const cancellationReason = reason || 'Cancelled by barista at the counter.';
+      if (fromStatus === 'pending_payment') {
+        await connection.execute(`UPDATE payments SET status = 'cancelled' WHERE id = :paymentId AND status IN ('pending', 'authorized')`, { paymentId: order.payment_id });
+        await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'pending_payment'`, { orderId: order.id });
+        await releaseInventoryForOrder(connection, Number(order.id));
+      } else {
+        const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
+        await connection.execute(
+          `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_at)
+           VALUES (:orderId, :paymentId, 'direct', :refundRef, :amountRm, NULL, 'pending', :reason, UTC_TIMESTAMP())`,
+          { orderId: order.id, paymentId: order.payment_id, refundRef, amountRm: order.final_total_rm, reason: `Barista cancellation: ${cancellationReason}` }
+        );
+        await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'paid'`, { orderId: order.id });
+        await releaseInventoryForOrder(connection, Number(order.id));
+      }
+      await connection.execute(
+        `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
+         VALUES (:orderId, :fromStatus, 'cancelled', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`,
+        { orderId: order.id, fromStatus, adminUserId: request.adminAuth.adminUserId, reason: cancellationReason }
+      );
+      await connection.commit();
+      return reply.send({ order_ref: orderRef, status: 'cancelled', refund_pending: fromStatus === 'paid' });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
   app.get('/v1/admin/side-work', { preHandler: authenticateAdminRequest }, async (request) => {
     requireAnyAdminRole(request, ['super_admin', 'operations_admin']);

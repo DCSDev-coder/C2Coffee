@@ -213,7 +213,7 @@ export async function registerBaristaMenuAvailabilityRoutes(app: FastifyInstance
          i.id AS item_id,
          i.name AS item_name,
          i.description AS item_description,
-         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+         CAST(i.counter_price_rm AS CHAR) AS base_price_rm,
          i.image_url,
          i.allow_choice_of_beans,
          i.allow_choice_of_milk,

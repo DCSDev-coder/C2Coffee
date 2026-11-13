@@ -20,9 +20,14 @@ import '../widgets/order_card.dart';
 import '../main.dart';
 
 class MainLayout extends StatefulWidget {
-  const MainLayout({super.key, required this.onSignedOut});
+  const MainLayout({
+    super.key,
+    required this.onSignedOut,
+    this.takeOrderPageBuilder,
+  });
 
   final VoidCallback onSignedOut;
+  final WidgetBuilder? takeOrderPageBuilder;
 
   @override
   State<MainLayout> createState() => _MainLayoutState();
@@ -259,6 +264,29 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   void _onTabSelected(int index) {
+    if (index == 8) {
+      final builder = widget.takeOrderPageBuilder;
+      if (builder != null) {
+        Navigator.of(
+          context,
+        ).push<bool>(MaterialPageRoute(builder: builder)).then((created) {
+          if (created == true) {
+            // Taking an order is a separate page. Once checkout creates the
+            // order, always land on the incoming queue—even if the barista
+            // opened Take Order from another workspace tab.
+            if (mounted) {
+              setState(() => _currentIndex = 0);
+              _pageController.jumpToPage(0);
+            }
+            _loadInitialOrders();
+            if (mounted) {
+              TopNotice.success(context, 'Order sent to the incoming queue.');
+            }
+          }
+        });
+      }
+      return;
+    }
     if (_currentIndex == index) return;
     if (index == 6) {
       globalSideWorkAttention.value = false;
@@ -352,50 +380,74 @@ class _WorkspaceHeader extends StatelessWidget {
     top: 0,
     left: 0,
     right: 0,
-    child: Container(
-      height: 110,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF203E32),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF203E32).withValues(alpha: .16),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SizedBox(height: menuOpen ? 330 : 110),
+        Container(
+          height: 110,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF203E32),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF203E32).withValues(alpha: .16),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            Image.asset('assets/images/c2_logo.png', height: 40),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: _HeaderNavBar(
-                    currentIndex: currentIndex,
-                    onTabSelected: onTabSelected,
-                    showSecondary: menuOpen,
+          child: SafeArea(
+            bottom: false,
+            child: Row(
+              children: [
+                Image.asset('assets/images/c2_logo.png', height: 40),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: _HeaderNavBar(
+                        currentIndex: currentIndex,
+                        onTabSelected: onTabSelected,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 16),
+                const BlinkingOnlineIndicator(),
+                const SizedBox(width: 6),
+                IconButton(
+                  onPressed: onMenuToggle,
+                  tooltip: menuOpen
+                      ? 'Close more navigation'
+                      : 'Open more navigation',
+                  color: Colors.white,
+                  icon: Icon(
+                    menuOpen ? Icons.close_rounded : Icons.menu_rounded,
+                  ),
+                  iconSize: 28,
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            const BlinkingOnlineIndicator(),
-            IconButton(
-              onPressed: onMenuToggle,
-              tooltip: menuOpen ? 'Hide navigation' : 'Show navigation',
-              color: Colors.white,
-              icon: Icon(menuOpen ? Icons.close_rounded : Icons.menu_rounded),
-              iconSize: 28,
-            ),
-          ],
+          ),
         ),
-      ),
+        if (menuOpen)
+          Positioned(
+            top: 92,
+            right: 24,
+            child: _SecondaryNavigationMenu(
+              currentIndex: currentIndex,
+              onSelected: (index) {
+                onTabSelected(index);
+                onMenuToggle();
+              },
+            ),
+          ),
+      ],
     ),
   );
 }
@@ -404,12 +456,10 @@ class _HeaderNavBar extends StatelessWidget {
   const _HeaderNavBar({
     required this.currentIndex,
     required this.onTabSelected,
-    required this.showSecondary,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
-  final bool showSecondary;
 
   static const _coreNavItems = [
     (
@@ -421,18 +471,6 @@ class _HeaderNavBar extends StatelessWidget {
     (Icons.history_outlined, Icons.history_rounded, 'History', 1),
     (Icons.restaurant_menu_outlined, Icons.restaurant_menu_rounded, 'Menu', 2),
     (Icons.checklist_outlined, Icons.task_alt_rounded, 'Tasks', 6),
-  ];
-
-  static const _secondaryNavItems = [
-    (Icons.campaign_outlined, Icons.campaign_rounded, 'Marketing', 3),
-    (Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Inventory', 4),
-    (
-      Icons.calendar_month_outlined,
-      Icons.calendar_month_rounded,
-      'Timetable',
-      5,
-    ),
-    (Icons.settings_outlined, Icons.settings_rounded, 'Settings', 7),
   ];
 
   @override
@@ -449,10 +487,7 @@ class _HeaderNavBar extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          ..._buildItems(_coreNavItems),
-          if (showSecondary) ..._buildItems(_secondaryNavItems),
-        ],
+        children: [..._buildItems(_coreNavItems)],
       ),
     );
   }
@@ -547,6 +582,96 @@ class _HeaderNavBar extends StatelessWidget {
         ),
       );
     });
+  }
+}
+
+class _SecondaryNavigationMenu extends StatelessWidget {
+  const _SecondaryNavigationMenu({
+    required this.currentIndex,
+    required this.onSelected,
+  });
+
+  final int currentIndex;
+  final ValueChanged<int> onSelected;
+
+  static const _items = [
+    (Icons.point_of_sale_rounded, 'Take Order', 8),
+    (Icons.campaign_rounded, 'Marketing', 3),
+    (Icons.inventory_2_rounded, 'Inventory', 4),
+    (Icons.calendar_month_rounded, 'Timetable', 5),
+    (Icons.settings_rounded, 'Settings', 7),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 230,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFF203E32).withValues(alpha: .12),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .18),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _items.map((item) {
+            final selected = currentIndex == item.$3;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: InkWell(
+                onTap: () => onSelected(item.$3),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0xFF203E32).withValues(alpha: .1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(item.$1, color: const Color(0xFF203E32), size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          item.$2,
+                          style: TextStyle(
+                            color: const Color(0xFF203E32),
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      if (selected)
+                        const Icon(
+                          Icons.check_rounded,
+                          color: Color(0xFF203E32),
+                          size: 18,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
   }
 }
 

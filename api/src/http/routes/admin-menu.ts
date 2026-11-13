@@ -36,6 +36,7 @@ const adminMenuUpsertSchema = z.object({
   name: z.string().trim().min(1).max(255),
   description: z.string().trim().max(5000).optional().or(z.literal('')),
   base_price_rm: z.coerce.number().positive(),
+  counter_price_rm: z.coerce.number().positive().optional(),
   base_price_token: z.coerce.number().int().min(0),
   image_url: z.string().trim().max(512).optional().or(z.literal('')),
   is_active: z.coerce.boolean().optional(),
@@ -141,6 +142,7 @@ type AdminMenuRow = RowDataPacket & {
   item_name: string;
   item_description: string | null;
   base_price_rm: string;
+  counter_price_rm: string;
   base_price_token: number;
   base_calories_kcal: number;
   image_url: string | null;
@@ -208,6 +210,7 @@ type AdminMenuItem = {
   name: string;
   description: string | null;
   base_price_rm: string;
+  counter_price_rm: string;
   base_price_token: number;
   base_calories_kcal: number;
   image_url: string | null;
@@ -348,6 +351,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.name AS item_name,
           i.description AS item_description,
           CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+          CAST(i.counter_price_rm AS CHAR) AS counter_price_rm,
           i.base_price_token,
           i.base_calories_kcal,
           i.image_url,
@@ -456,6 +460,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.name AS item_name,
           i.description AS item_description,
           CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+          CAST(i.counter_price_rm AS CHAR) AS counter_price_rm,
           i.base_price_token,
           i.base_calories_kcal,
           i.image_url,
@@ -563,6 +568,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
             name,
             description,
             base_price_rm,
+            counter_price_rm,
             base_price_token,
             is_handcrafted_drink,
             is_qualifying_cup,
@@ -588,6 +594,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
             :name,
             :description,
             :basePriceRm,
+            :counterPriceRm,
             :basePriceToken,
             :isHandcraftedDrink,
             :isQualifyingCup,
@@ -614,6 +621,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           name: payload.name,
           description: nullableString(payload.description),
           basePriceRm: payload.base_price_rm.toFixed(2),
+          counterPriceRm: (payload.counter_price_rm ?? payload.base_price_rm).toFixed(2),
           basePriceToken: payload.base_price_token,
           isHandcraftedDrink: payload.is_handcrafted_drink ?? 0,
           isQualifyingCup: payload.is_qualifying_cup ?? 0,
@@ -765,6 +773,10 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       if (payload.base_price_rm !== undefined) {
         updateFields.push('base_price_rm = :basePriceRm');
         updateParams.basePriceRm = payload.base_price_rm.toFixed(2);
+      }
+      if (payload.counter_price_rm !== undefined) {
+        updateFields.push('counter_price_rm = :counterPriceRm');
+        updateParams.counterPriceRm = payload.counter_price_rm.toFixed(2);
       }
       if (payload.base_price_token !== undefined) {
         updateFields.push('base_price_token = :basePriceToken');
@@ -1358,6 +1370,7 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
         name: row.item_name,
         description: row.item_description,
         base_price_rm: row.base_price_rm,
+        counter_price_rm: row.counter_price_rm,
         base_price_token: row.base_price_token,
         base_calories_kcal: row.base_calories_kcal,
         image_url: row.image_url,
@@ -1554,6 +1567,7 @@ async function loadMenuItemById(menuItemId: number, tenantId: number): Promise<A
         i.name AS item_name,
         i.description AS item_description,
         CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+        CAST(i.counter_price_rm AS CHAR) AS counter_price_rm,
         i.base_price_token,
         i.image_url,
         i.is_active AS is_available,

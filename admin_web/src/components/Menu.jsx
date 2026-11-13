@@ -267,6 +267,7 @@ const buildEmptyForm = (categoryCode) => ({
   name: '',
   description: '',
   base_price_rm: '',
+  counter_price_rm: '',
   base_price_token: '',
   image_url: '',
   is_active: true,
@@ -295,6 +296,7 @@ const buildFormFromItem = (item, optionGroups = []) => {
     name: item.name || '',
     description: item.description || '',
     base_price_rm: item.base_price_rm ? String(item.base_price_rm) : '',
+    counter_price_rm: item.counter_price_rm ? String(item.counter_price_rm) : String(item.base_price_rm || ''),
     base_price_token: item.base_price_token !== undefined && item.base_price_token !== null
       ? String(item.base_price_token)
       : '',
@@ -789,6 +791,7 @@ const Menu = () => {
       name: editFormData.name.trim(),
       description: nullableText(editFormData.description),
       base_price_rm: parseMoneyInput(editFormData.base_price_rm),
+      counter_price_rm: parseMoneyInput(editFormData.counter_price_rm || editFormData.base_price_rm),
       base_price_token: parseIntegerInput(editFormData.base_price_token, 0),
       image_url: imageUrl,
       is_active: Boolean(editFormData.is_active),
@@ -1279,7 +1282,7 @@ const Menu = () => {
                 <tr>
                   <SortableHeader label="Menu Item" columnKey="name" />
                   <SortableHeader label="Category" columnKey="category" />
-                  <SortableHeader label="RM Price" columnKey="price_rm" />
+                  <SortableHeader label="RM Prices" columnKey="price_rm" info="Customer/mobile price and one shared Counter price used by Counter and Barista order entry." />
                   <SortableHeader label="Token Price" columnKey="price_token" info="Amount in loyalty tokens required to redeem this item in the app." />
                   <SortableHeader label="Status" columnKey="status" />
                   <SortableHeader label="Sales" columnKey="sales" info="Total completed order quantity for this item." />
@@ -1322,7 +1325,10 @@ const Menu = () => {
                         <div>{item.category_name}</div>
                         <div className="text-[10px] text-gray-400">{item.subcategory_name || 'General'}</div>
                       </td>
-                      <td className="px-6 py-3 font-medium text-gray-900">{item.base_price_rm}</td>
+                      <td className="px-6 py-3 font-medium text-gray-900">
+                        <div>Customer: {item.base_price_rm}</div>
+                        <div className="text-[10px] text-gray-500">Counter: {item.counter_price_rm}</div>
+                      </td>
                       <td className="px-6 py-3 font-medium text-gray-900">{formatToken(item.base_price_token)}</td>
                       <td className="px-6 py-3">
                         <div className="flex flex-col items-start gap-1">
@@ -1468,8 +1474,14 @@ const Menu = () => {
                           <p className="text-gray-900 font-medium">{selectedItem.product_kind_name || 'Other'}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                          <p className="text-gray-500 font-medium">RM Price</p>
+                          <p className="text-gray-500 font-medium">Customer RM Price</p>
                           <p className="text-gray-900 font-medium">{selectedItem.base_price_rm}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <p className="text-gray-500 font-medium">Counter RM Price</p>
+                          <p className="text-gray-900 font-medium">{selectedItem.counter_price_rm}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <p className="text-gray-500 font-medium">Token Price</p>
@@ -1733,8 +1745,14 @@ const Menu = () => {
                         <p className="text-gray-900 font-medium">{selectedItem.product_kind_name || 'Other'}</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <p className="text-gray-500 font-medium">RM Price</p>
+                        <p className="text-gray-500 font-medium">Customer RM Price</p>
                         <p className="text-gray-900 font-medium">{selectedItem.base_price_rm}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <p className="text-gray-500 font-medium">Counter RM Price</p>
+                        <p className="text-gray-900 font-medium">{selectedItem.counter_price_rm}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <p className="text-gray-500 font-medium">Token Price</p>
@@ -2075,6 +2093,12 @@ const Menu = () => {
                 </div>
 
                 <div>
+                  <label className="text-xs font-bold text-gray-700">Counter RM Price</label>
+                  <input type="number" step="0.01" min="0.01" value={editFormData.counter_price_rm}
+                    onChange={(event) => setEditFormData({ ...editFormData, counter_price_rm: event.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs" placeholder="0.00" required />
+                </div>
+                <div>
                   <div className="flex items-center gap-1.5 mb-1">
                     <label className="text-xs font-bold text-gray-700">Status</label>
                     <InfoTooltip
@@ -2099,7 +2123,7 @@ const Menu = () => {
                   <input
                     type="number"
                     step="0.01"
-                    min="0"
+                    min="0.01"
                     value={editFormData.base_price_rm}
                     onChange={(event) => setEditFormData({ ...editFormData, base_price_rm: event.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"

@@ -61,14 +61,69 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
   Future<void> _confirmPayment(CurrentOrder order) async {
     if (_updatingOrderIds.contains(order.orderId)) return;
     setState(() => _updatingOrderIds.add(order.orderId));
-    final method = order.paymentMethod == 'manual_terminal' ? 'manual_terminal' : 'manual_cash';
+    final method = order.paymentMethod == 'manual_counter'
+        ? 'manual_counter'
+        : order.paymentMethod == 'manual_terminal'
+        ? 'manual_terminal'
+        : 'manual_cash';
     final result = await ApiService.confirmManualPayment(order.orderId, method);
     if (!mounted) return;
     setState(() => _updatingOrderIds.remove(order.orderId));
-    if (!result.isSuccess) { TopNotice.error(context, result.errorMessage!); return; }
+    if (!result.isSuccess) {
+      TopNotice.error(context, result.errorMessage!);
+      return;
+    }
     await _refreshOrders();
     if (!mounted) return;
     TopNotice.success(context, 'Payment received. Order is ready to prepare.');
+  }
+
+  Future<void> _cancelOrder(CurrentOrder order) async {
+    if (_updatingOrderIds.contains(order.orderId)) return;
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Cancel this order?'),
+            content: Text(
+              order.paymentStatus == 'paid'
+                  ? 'The order will be cancelled and a direct-payment refund will be opened for staff processing.'
+                  : 'The unpaid order will be cancelled and its stock reservation released.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Keep order'),
+              ),
+              FilledButton.tonal(
+                onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  foregroundColor: const Color(0xFF9B2C2C),
+                ),
+                child: const Text('Cancel order'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    setState(() => _updatingOrderIds.add(order.orderId));
+    final result = await ApiService.cancelOrder(order.orderId);
+    if (!mounted) return;
+    setState(() => _updatingOrderIds.remove(order.orderId));
+    if (!result.isSuccess) {
+      TopNotice.error(context, result.errorMessage!);
+      return;
+    }
+    await _refreshOrders();
+    if (mounted) {
+      TopNotice.success(
+        context,
+        result.data?['refund_pending'] == true
+            ? 'Order cancelled. Refund is pending.'
+            : 'Order cancelled.',
+      );
+    }
   }
 
   Future<void> _printReceipt(CurrentOrder order) async {
@@ -281,45 +336,57 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                     ),
                                   ),
                                 )
-                                else
-                                  ...filteredOrders.map((order) {
-                                    return OrderCard(
-                                      timeDate: order.timeDate,
-                                      status: order.status,
-                                      orderId: order.orderId,
-                                      customerDetails: order.customerDetails,
-                                      items: order.items,
-                                      voucherName: order.voucherName,
-                                      voucherType: order.voucherType,
-                                      discount: order.discount,
-                                      paymentMethod: order.paymentMethod,
-                                      paymentStatus: order.paymentStatus,
-                                      cancellationRequestStatus:
-                                          order.cancellationRequestStatus,
-                                      isActionLoading: _updatingOrderIds
-                                          .contains(order.orderId),
-                                      isPrintLoading: _printingOrderIds
-                                          .contains(order.orderId),
-                                      onPrintPressed: () =>
-                                          _printReceipt(order),
-                                      onActionPressed: () {
-                                        if (order.paymentStatus == 'pending' &&
-                                            (order.paymentMethod == 'manual_terminal' || order.paymentMethod == 'manual_cash')) {
-                                          _confirmPayment(order);
-                                        } else if (order.status ==
-                                                OrderStatus.newOrder &&
-                                            order.cancellationRequestStatus ==
-                                                null) {
-                                          _startPreparing(order);
-                                        } else {
-                                          _openOrderDetails(order);
-                                        }
-                                      },
-                                      onTap: () => _openOrderDetails(order),
-                                    );
-                                  }),
-                              ],
-                            ),
+                              else
+                                ...filteredOrders.map((order) {
+                                  return OrderCard(
+                                    timeDate: order.timeDate,
+                                    status: order.status,
+                                    orderId: order.orderId,
+                                    customerDetails: order.customerDetails,
+                                    items: order.items,
+                                    voucherName: order.voucherName,
+                                    voucherType: order.voucherType,
+                                    discount: order.discount,
+                                    paymentMethod: order.paymentMethod,
+                                    paymentStatus: order.paymentStatus,
+                                    total: order.total,
+                                    cancellationRequestStatus:
+                                        order.cancellationRequestStatus,
+                                    isActionLoading: _updatingOrderIds.contains(
+                                      order.orderId,
+                                    ),
+                                    isPrintLoading: _printingOrderIds.contains(
+                                      order.orderId,
+                                    ),
+                                    onPrintPressed: () => _printReceipt(order),
+                                    onCancelPressed:
+                                        order.status == OrderStatus.newOrder ||
+                                            order.paymentStatus == 'pending'
+                                        ? () => _cancelOrder(order)
+                                        : null,
+                                    onActionPressed: () {
+                                      if (order.paymentStatus == 'pending' &&
+                                          (order.paymentMethod ==
+                                                  'manual_counter' ||
+                                              order.paymentMethod ==
+                                                  'manual_terminal' ||
+                                              order.paymentMethod ==
+                                                  'manual_cash')) {
+                                        _confirmPayment(order);
+                                      } else if (order.status ==
+                                              OrderStatus.newOrder &&
+                                          order.cancellationRequestStatus ==
+                                              null) {
+                                        _startPreparing(order);
+                                      } else {
+                                        _openOrderDetails(order);
+                                      }
+                                    },
+                                    onTap: () => _openOrderDetails(order),
+                                  );
+                                }),
+                            ],
+                          ),
                         ],
                       ),
                     ),

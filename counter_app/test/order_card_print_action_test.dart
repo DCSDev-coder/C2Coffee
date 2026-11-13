@@ -67,4 +67,26 @@ void main() {
     expect(find.text('Ready for pickup'), findsOneWidget);
     expect(find.text('Print receipt'), findsOneWidget);
   });
+
+  testWidgets('pending pay-at-counter orders expose payment confirmation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OrderCard(
+            timeDate: '10:00 AM - Nov 13, 2026',
+            status: OrderStatus.newOrder,
+            orderId: 'C2-TEST-MANUAL',
+            customerDetails: 'Guest - 1 item',
+            items: [OrderItem(title: '1x Latte', tags: const [])],
+            paymentMethod: 'manual_counter',
+            paymentStatus: 'pending',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Payment Received'), findsOneWidget);
+  });
 }

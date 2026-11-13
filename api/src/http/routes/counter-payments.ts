@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 
-import { authenticateCounterDevice } from '../../counter/guard.js';
+import { authenticateCounterDevice, authenticateCounterOrderContext } from '../../counter/guard.js';
 import { env } from '../../config/env.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { hashSha256 } from '../../lib/crypto.js';
@@ -47,7 +47,7 @@ const itemSchema = z.object({
 });
 
 const createPaymentSchema = z.object({
-  payment_method: z.enum(['duitnow_qr', 'ewallet', 'manual_terminal', 'manual_cash']).nullish(),
+  payment_method: z.enum(['duitnow_qr', 'ewallet', 'manual_counter', 'manual_terminal', 'manual_cash']).nullish(),
   fulfillment_type: z.enum(['dine_in', 'take_away']),
   applied_voucher_id: z.coerce.number().int().positive().nullish(),
   voucher_authorization_token: z.string().trim().min(20).max(500).nullish(),
@@ -189,7 +189,7 @@ async function queueDefaultPrintJob(
 }
 
 export async function registerCounterPaymentRoutes(app: FastifyInstance): Promise<void> {
-  app.post('/v1/counter/orders/payment', { preHandler: authenticateCounterDevice }, async (request) => {
+  app.post('/v1/counter/orders/payment', { preHandler: [authenticateCounterDevice, authenticateCounterOrderContext] }, async (request) => {
     const payload = createPaymentSchema.parse(request.body);
     const keyHeader = request.headers['idempotency-key'];
     const idempotencyKey = (Array.isArray(keyHeader) ? keyHeader[0] : keyHeader)?.trim();
@@ -273,7 +273,8 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         connection,
         request.counterAuth.storeId,
         payload.items.map((item) => item.menu_item_id),
-        bootstrap?.tier ?? 'kawan'
+        bootstrap?.tier ?? 'kawan',
+        request.counterOrderContext.priceChannel
       );
       const byId = new Map(menuItems.map((item) => [Number(item.id), item]));
       const normalized: Array<{
@@ -543,15 +544,16 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
       await connection.execute(
         `INSERT INTO order_status_history
            (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
-         VALUES (:orderId, NULL, :orderStatus, 'counter_device', :deviceId,
+         VALUES (:orderId, NULL, :orderStatus, :changedByType, :changedById,
                  :reason, UTC_TIMESTAMP())`,
         {
           orderId,
           orderStatus: isComplimentary ? 'paid' : 'pending_payment',
-          deviceId: request.counterAuth.deviceId,
+          changedByType: request.counterOrderContext.adminUserId == null ? 'counter_device' : 'admin',
+          changedById: request.counterOrderContext.adminUserId ?? request.counterAuth.deviceId,
           reason: isComplimentary
-            ? 'Approved voucher covered the full counter order.'
-            : 'Counter checkout started.'
+            ? `Approved voucher covered the full ${request.counterOrderContext.priceChannel} order.`
+            : `${request.counterOrderContext.priceChannel === 'barista' ? 'Barista order entry' : 'Counter checkout'} started.`
         }
       );
       if (isComplimentary && payload.applied_voucher_id) {

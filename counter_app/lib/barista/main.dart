@@ -25,9 +25,14 @@ final ValueNotifier<WorkstationAccessState?> globalWorkstationAccess =
     ValueNotifier<WorkstationAccessState?>(null);
 
 class BaristaWorkspace extends StatefulWidget {
-  const BaristaWorkspace({super.key, this.onExitRequested});
+  const BaristaWorkspace({
+    super.key,
+    this.onExitRequested,
+    this.takeOrderPageBuilder,
+  });
 
   final Future<bool> Function()? onExitRequested;
+  final WidgetBuilder? takeOrderPageBuilder;
 
   @override
   State<BaristaWorkspace> createState() => _BaristaWorkspaceState();
@@ -66,6 +71,7 @@ class _BaristaWorkspaceState extends State<BaristaWorkspace> {
       );
     } else if (_signedIn) {
       content = MainLayout(
+        takeOrderPageBuilder: widget.takeOrderPageBuilder,
         onSignedOut: () {
           if (mounted) setState(() => _signedIn = false);
         },

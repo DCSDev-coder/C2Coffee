@@ -197,10 +197,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     refreshTooltip: 'Refresh workstation',
                   ),
                   const SizedBox(height: 22),
-                  const _SectionLabel(label: 'RECEIPT PRINTER'),
-                  const SizedBox(height: 12),
-                  const _DirectPrinterCard(),
-                  const SizedBox(height: 24),
                   const _SectionLabel(label: 'SHIFT ATTENDANCE'),
                   const SizedBox(height: 12),
                   FutureBuilder<BaristaAttendanceStatus>(
@@ -376,14 +372,16 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-class _DirectPrinterCard extends StatefulWidget {
-  const _DirectPrinterCard();
+class DirectPrinterCard extends StatefulWidget {
+  const DirectPrinterCard({super.key, this.onClose});
+
+  final VoidCallback? onClose;
 
   @override
-  State<_DirectPrinterCard> createState() => _DirectPrinterCardState();
+  State<DirectPrinterCard> createState() => _DirectPrinterCardState();
 }
 
-class _DirectPrinterCardState extends State<_DirectPrinterCard> {
+class _DirectPrinterCardState extends State<DirectPrinterCard> {
   bool _working = false;
   bool _sunmiDetected = false;
   String? _sunmiStatus;
@@ -542,6 +540,12 @@ class _DirectPrinterCardState extends State<_DirectPrinterCard> {
                   ),
                 ),
               ),
+              if (widget.onClose != null)
+                IconButton(
+                  onPressed: widget.onClose,
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close printer settings',
+                ),
             ],
           ),
           const SizedBox(height: 6),

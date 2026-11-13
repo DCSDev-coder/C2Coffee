@@ -24,6 +24,7 @@ class CurrentOrder {
   final double discount;
   final String? paymentMethod;
   final String? paymentStatus;
+  final double total;
 
   CurrentOrder({
     required this.status,
@@ -39,6 +40,7 @@ class CurrentOrder {
     this.discount = 0,
     this.paymentMethod,
     this.paymentStatus,
+    this.total = 0,
   });
 }
 
@@ -51,6 +53,7 @@ class OrderCard extends StatelessWidget {
   final VoidCallback? onActionPressed;
   final VoidCallback? onTap;
   final VoidCallback? onPrintPressed;
+  final VoidCallback? onCancelPressed;
   final bool isActionLoading;
   final bool isPrintLoading;
   final String? cancellationRequestStatus;
@@ -59,6 +62,7 @@ class OrderCard extends StatelessWidget {
   final double discount;
   final String? paymentMethod;
   final String? paymentStatus;
+  final double total;
 
   const OrderCard({
     super.key,
@@ -70,6 +74,7 @@ class OrderCard extends StatelessWidget {
     this.onActionPressed,
     this.onTap,
     this.onPrintPressed,
+    this.onCancelPressed,
     this.isActionLoading = false,
     this.isPrintLoading = false,
     this.cancellationRequestStatus,
@@ -78,6 +83,7 @@ class OrderCard extends StatelessWidget {
     this.discount = 0,
     this.paymentMethod,
     this.paymentStatus,
+    this.total = 0,
   });
 
   @override
@@ -87,8 +93,11 @@ class OrderCard extends StatelessWidget {
     final bool isPreparing = status == OrderStatus.preparing;
     final bool isReadyForPickup = status == OrderStatus.readyForPickup;
     final bool isHistory = status == OrderStatus.completed;
-    final bool isManualPaymentPending = paymentStatus == 'pending' &&
-        (paymentMethod == 'manual_terminal' || paymentMethod == 'manual_cash');
+    final bool isManualPaymentPending =
+        paymentStatus == 'pending' &&
+        (paymentMethod == 'manual_counter' ||
+            paymentMethod == 'manual_terminal' ||
+            paymentMethod == 'manual_cash');
 
     return GestureDetector(
       onTap: onTap,
@@ -240,6 +249,18 @@ class OrderCard extends StatelessWidget {
                   ),
                 ),
 
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Total: RM ${total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Color(0xFF203E32),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12.0),
                 child: Divider(color: Colors.grey, thickness: 0.5),
@@ -284,6 +305,29 @@ class OrderCard extends StatelessWidget {
               // Action Button (Only if not history or ready)
               if (!isHistory && !isReadyForPickup) ...[
                 const SizedBox(height: 16.0),
+                if (onCancelPressed != null)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: isActionLoading ? null : onCancelPressed,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF9B2C2C),
+                        side: const BorderSide(color: Color(0xFF9B2C2C)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel order',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (onCancelPressed != null) const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -311,7 +355,9 @@ class OrderCard extends StatelessWidget {
                         : Text(
                             isManualPaymentPending
                                 ? 'Payment Received'
-                                : (isPreparing ? 'Mark as Ready' : 'Start Preparing'),
+                                : (isPreparing
+                                      ? 'Mark as Ready'
+                                      : 'Start Preparing'),
                             style: const TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,

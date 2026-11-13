@@ -21,6 +21,11 @@ class CounterPaymentService {
       'X-Counter-Customer-Session': sessionToken,
   };
 
+  Map<String, String> _orderEntryHeaders(String? baristaAccessToken) => {
+    if (baristaAccessToken != null && baristaAccessToken.isNotEmpty)
+      'X-Barista-Access-Token': baristaAccessToken,
+  };
+
   Map<String, dynamic> _decode(String body) {
     final decoded = jsonDecode(body);
     return decoded is Map ? Map<String, dynamic>.from(decoded) : {};
@@ -40,9 +45,13 @@ class CounterPaymentService {
     if (response.statusCode != 200) {
       _failure(response.statusCode, 'Payment methods could not be loaded.');
     }
-    return (_decode(response.body)['methods'] as List? ?? const [])
+    final methods = (_decode(response.body)['methods'] as List? ?? const [])
         .map((value) => value.toString())
         .toList();
+    // Paying at the counter is a local/manual flow and must remain available
+    // even when the online gateway has no active methods configured.
+    if (!methods.contains('manual_counter')) methods.add('manual_counter');
+    return methods;
   }
 
   Future<Map<String, dynamic>> quote({
@@ -50,12 +59,16 @@ class CounterPaymentService {
     required String sessionToken,
     required List<Map<String, dynamic>> items,
     int? voucherId,
+    String? baristaAccessToken,
   }) async {
     final response = await _apiClient.post(
       '/v1/counter/orders/quote',
       {'items': items, 'applied_voucher_id': voucherId},
       token: deviceToken,
-      headers: _sessionHeaders(sessionToken),
+      headers: {
+        ..._sessionHeaders(sessionToken),
+        ..._orderEntryHeaders(baristaAccessToken),
+      },
     );
     if (response.statusCode != 200) {
       _failure(response.statusCode, 'The order total could not be confirmed.');
@@ -111,6 +124,7 @@ class CounterPaymentService {
     int? voucherId,
     String? voucherAuthorizationToken,
     String? idempotencyKey,
+    String? baristaAccessToken,
   }) async {
     final response = await _apiClient.post(
       '/v1/counter/orders/payment',
@@ -124,6 +138,7 @@ class CounterPaymentService {
       token: deviceToken,
       headers: {
         ..._sessionHeaders(sessionToken),
+        ..._orderEntryHeaders(baristaAccessToken),
         'Idempotency-Key':
             idempotencyKey ?? '${DateTime.now().microsecondsSinceEpoch}',
       },

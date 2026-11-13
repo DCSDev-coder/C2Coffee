@@ -1924,15 +1924,21 @@ export async function loadCheckoutMenuItems(
   connection: PoolConnection,
   storeId: number,
   menuItemIds: number[],
-  _tierCode?: string
+  _tierCode?: string,
+  priceChannel: 'mobile' | 'counter' | 'barista' = 'mobile'
 ): Promise<Array<MenuItemRow>> {
+  const priceColumn = priceChannel === 'counter'
+    ? 'i.counter_price_rm'
+    : priceChannel === 'barista'
+      ? 'i.counter_price_rm'
+      : 'i.base_price_rm';
   const [rows] = await connection.query<Array<MenuItemRow>>(
     `
       SELECT
         i.id,
         i.code,
         i.name,
-        CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+        CAST(${priceColumn} AS CHAR) AS base_price_rm,
         i.base_price_token,
         CAST(COALESCE(recipe.calculated_base_calories_kcal, i.base_calories_kcal) AS UNSIGNED) AS base_calories_kcal,
         COALESCE(a.is_available, 1) AS is_available,

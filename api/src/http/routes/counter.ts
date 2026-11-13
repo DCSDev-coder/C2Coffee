@@ -3,7 +3,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
-import { authenticateCounterDevice, type CounterAuthContext } from '../../counter/guard.js';
+import { authenticateCounterDevice, authenticateCounterOrderContext, type CounterAuthContext } from '../../counter/guard.js';
 import { getUtcConnection, mysqlPool } from '../../db/mysql.js';
 import { generateOpaqueToken, generateOtpCode, hashSha256, otpMatches } from '../../lib/crypto.js';
 import { normalizePhoneE164 } from '../../lib/phone.js';
@@ -703,20 +703,21 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
     return reply.send({ acknowledged: true });
   });
 
-  app.get('/v1/counter/menu', { preHandler: authenticateCounterDevice }, async (request) => {
-    return loadCatalogMenu(request.counterAuth.storeId);
+  app.get('/v1/counter/menu', { preHandler: [authenticateCounterDevice, authenticateCounterOrderContext] }, async (request) => {
+    const menu = await loadCatalogMenu(request.counterAuth.storeId, request.counterOrderContext.priceChannel);
+    return menu;
   });
 
   app.get('/v1/counter/payment-methods', { preHandler: authenticateCounterDevice }, async () => {
     if (!env.TOPUP_GATEWAY_ENABLED || env.TOPUP_GATEWAY_PROVIDER !== 'chip') {
-      return { methods: ['manual_terminal', 'manual_cash'] };
+      return { methods: ['manual_counter'] };
     }
     const active = await getActiveChipMethods();
     const allowed: ChipPaymentMethod[] = ['duitnow_qr', 'ewallet'];
-    return { methods: [...allowed.filter((method) => active.has(method)), 'manual_terminal', 'manual_cash'] };
+    return { methods: [...allowed.filter((method) => active.has(method)), 'manual_counter'] };
   });
 
-  app.post('/v1/counter/orders/quote', { preHandler: authenticateCounterDevice }, async (request) => {
+  app.post('/v1/counter/orders/quote', { preHandler: [authenticateCounterDevice, authenticateCounterOrderContext] }, async (request) => {
     const payload = counterQuoteSchema.parse(request.body);
     const session = await requireCounterCustomerSession(request);
     const connection = await getUtcConnection();
@@ -750,7 +751,8 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
         connection,
         store.id,
         payload.items.map((item) => item.menu_item_id),
-        bootstrap.tier
+        bootstrap.tier,
+        request.counterOrderContext.priceChannel
       );
       const itemsById = new Map(menuItems.map((item) => [Number(item.id), item]));
       let subtotalRm = 0;

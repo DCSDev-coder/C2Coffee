@@ -703,7 +703,12 @@ export async function registerCatalogRoutes(
   );
 }
 
-export async function loadCatalogMenu(storeId: number) {
+export async function loadCatalogMenu(storeId: number, priceChannel: 'mobile' | 'counter' | 'barista' = 'mobile') {
+  const priceColumn = priceChannel === 'counter'
+    ? 'i.counter_price_rm'
+    : priceChannel === 'barista'
+      ? 'i.counter_price_rm'
+      : 'i.base_price_rm';
   let availableBeans = ['Dato Blend', 'Datin Blend'];
   let availableMilks = ['Fresh Milk', 'Oat Milk'];
   let availableSparkling = ['Ginger Ade', 'Tonic Water'];
@@ -760,7 +765,7 @@ export async function loadCatalogMenu(storeId: number) {
           i.code AS item_code,
           i.name AS item_name,
           i.description AS item_description,
-          CAST(i.base_price_rm AS CHAR) AS base_price_rm,
+          CAST(${priceColumn} AS CHAR) AS base_price_rm,
           i.base_price_token,
           CAST(COALESCE(recipe.calculated_base_calories_kcal, i.base_calories_kcal) AS UNSIGNED) AS base_calories_kcal,
           i.image_url,

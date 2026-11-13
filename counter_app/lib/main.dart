@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:counter_app/widgets/top_notice.dart';
 import 'barista/main.dart' as barista;
+import 'barista/services/api_service.dart' as barista_api;
+import 'barista/screens/settings_page.dart' as barista_settings;
 import 'app_update_service.dart';
 import 'auth_service.dart';
 import 'session_manager.dart';
@@ -332,6 +334,29 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
         builder: (_) => barista.BaristaWorkspace(
           onExitRequested: () =>
               _confirmAdministratorWorkspaceExit(context, widget.authService),
+          takeOrderPageBuilder: (_) => CounterHomeScreen(
+            authService: widget.authService,
+            baristaAccessTokenProvider:
+                barista_api.ApiService.orderEntryAccessToken,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openPrinterSettings() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760, maxHeight: 760),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: barista_settings.DirectPrinterCard(
+              onClose: () => Navigator.of(dialogContext).pop(),
+            ),
+          ),
         ),
       ),
     );
@@ -660,6 +685,12 @@ class _WorkspaceSelectionScreenState extends State<WorkspaceSelectionScreen>
                       );
                     },
                   ),
+                  const SizedBox(height: 20),
+                  OutlinedButton.icon(
+                    onPressed: _openPrinterSettings,
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text('Printer settings'),
+                  ),
                 ],
               ),
             ),
@@ -829,7 +860,6 @@ class _AdministratorWorkspaceExitDialogState
             const SizedBox(height: 18),
             TextField(
               controller: _passwordController,
-              autofocus: true,
               enabled: !_submitting,
               obscureText: _obscurePassword,
               textInputAction: TextInputAction.done,
@@ -880,8 +910,15 @@ class _AdministratorWorkspaceExitDialogState
 
 class CounterHomeScreen extends StatefulWidget {
   final AuthService authService;
+  final Future<String?> Function()? baristaAccessTokenProvider;
 
-  const CounterHomeScreen({super.key, required this.authService});
+  const CounterHomeScreen({
+    super.key,
+    required this.authService,
+    this.baristaAccessTokenProvider,
+  });
+
+  bool get isBaristaOrderEntry => baristaAccessTokenProvider != null;
 
   @override
   State<CounterHomeScreen> createState() => _CounterHomeScreenState();
@@ -910,6 +947,10 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
   String _searchQuery = '';
 
   Future<void> _requestWorkspaceExit() async {
+    if (widget.isBaristaOrderEntry) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
     final allowed = await _confirmAdministratorWorkspaceExit(
       context,
       widget.authService,
@@ -980,7 +1021,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     if (token == null) return;
 
     try {
-      final response = await _apiClient.get('/v1/counter/menu', token: token);
+      final baristaAccessToken = await widget.baristaAccessTokenProvider
+          ?.call();
+      final response = await _apiClient.get(
+        '/v1/counter/menu',
+        token: token,
+        headers: {
+          if (baristaAccessToken != null && baristaAccessToken.isNotEmpty)
+            'X-Barista-Access-Token': baristaAccessToken,
+        },
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (mounted) {
@@ -1167,7 +1217,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               icon: const Icon(Icons.arrow_back_rounded),
             ),
             title: Row(
-              children: [Image.asset('assets/images/c2_logo.png', height: 32)],
+              children: [
+                Image.asset('assets/images/c2_logo.png', height: 32),
+                if (widget.isBaristaOrderEntry) ...[
+                  const SizedBox(width: 12),
+                  const Text('Take Order'),
+                ],
+              ],
             ),
             actions: [
               if (_orderType != null) ...[
@@ -1870,7 +1926,6 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             const SizedBox(height: 18),
             TextField(
               controller: _phoneController,
-              autofocus: true,
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.done,
               decoration: InputDecoration(
@@ -2112,7 +2167,6 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: controller,
-                autofocus: true,
                 maxLength: 6,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -2288,9 +2342,13 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                 subtitle: 'Continue to an available supported payment method',
                 onTap: () => Navigator.pop(dialogContext, 'ewallet'),
               ),
-            _paymentChoiceCard(icon: Icons.credit_card, title: 'Pay at terminal', subtitle: 'Customer pays by card; barista confirms payment.', onTap: () => Navigator.pop(dialogContext, 'manual_terminal')),
-            const SizedBox(height: 12),
-            _paymentChoiceCard(icon: Icons.payments_outlined, title: 'Pay at cashier', subtitle: 'Customer pays cash; barista confirms payment.', onTap: () => Navigator.pop(dialogContext, 'manual_cash')),
+            _paymentChoiceCard(
+              icon: Icons.storefront_outlined,
+              title: 'Pay at counter',
+              subtitle:
+                  'Customer pays at the counter; barista confirms the order.',
+              onTap: () => Navigator.pop(dialogContext, 'manual_counter'),
+            ),
             const SizedBox(height: 16),
             const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -2460,6 +2518,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         }
       }
       final session = _sessionManager.currentSession!;
+      final baristaAccessToken = await widget.baristaAccessTokenProvider
+          ?.call();
+      if (widget.isBaristaOrderEntry &&
+          (baristaAccessToken == null || baristaAccessToken.isEmpty)) {
+        throw const CounterPaymentException(
+          'The barista session has expired. Return to the workspace and sign in again.',
+        );
+      }
       final items = _checkoutItems();
       String? voucherAuthorizationToken;
       Map<String, dynamic>? selectedVoucher;
@@ -2480,6 +2546,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             sessionToken: session.sessionToken,
             items: items,
             voucherId: voucherId,
+            baristaAccessToken: baristaAccessToken,
           );
           amountRm = quote['final_total_rm']?.toString() ?? amountRm;
           if (!await _confirmMemberQuote(quote)) {
@@ -2514,6 +2581,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             deviceToken: deviceToken,
             sessionToken: session.sessionToken,
             items: items,
+            baristaAccessToken: baristaAccessToken,
           );
           amountRm = quote['final_total_rm']?.toString() ?? amountRm;
           if (!await _confirmMemberQuote(quote)) {
@@ -2527,11 +2595,17 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       String? method;
       final amount = double.tryParse(amountRm) ?? _getCartTotal();
       if (amount > 0) {
-        final methods = await _paymentService.paymentMethods(deviceToken);
-        if (methods.isEmpty) {
-          throw const CounterPaymentException(
-            'QR and online payments are currently unavailable.',
-          );
+        List<String> methods;
+        try {
+          methods = await _paymentService.paymentMethods(deviceToken);
+        } on CounterPaymentException {
+          // Manual counter payment does not depend on the online gateway. If
+          // the methods endpoint is temporarily unavailable, keep checkout
+          // usable and let the server create the pending-payment order.
+          methods = ['manual_counter'];
+        }
+        if (!methods.contains('manual_counter')) {
+          methods = [...methods, 'manual_counter'];
         }
         method = await _choosePaymentMethod(methods, amountRm: amountRm);
         if (method == null) {
@@ -2554,6 +2628,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
             ? null
             : (selectedVoucher['id'] as num).toInt(),
         voucherAuthorizationToken: voucherAuthorizationToken,
+        baristaAccessToken: baristaAccessToken,
       );
       final orderRef = payment['order_ref'].toString();
       // A fully discounted order has no external payment step. Treat the
@@ -2567,8 +2642,14 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           payment['requires_payment'] == false;
       if (!paid && payment['manual_payment'] == true) {
         if (mounted) {
-          TopNotice.info(context, 'Order created. Barista must confirm payment before preparation.');
+          TopNotice.info(
+            context,
+            'Order created. Barista must confirm payment before preparation.',
+          );
           await _resetCounterOrder();
+          if (widget.isBaristaOrderEntry && mounted) {
+            Navigator.of(context).pop(true);
+          }
         }
         return;
       }
@@ -2600,6 +2681,9 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
               : 'Payment confirmed by CHIP. Order sent to the barista.',
         );
         await _resetCounterOrder();
+        if (widget.isBaristaOrderEntry && mounted) {
+          Navigator.of(context).pop(true);
+        }
       } else {
         await _sessionManager.endSession(notify: false);
         _sessionManager.startGuestSession();
