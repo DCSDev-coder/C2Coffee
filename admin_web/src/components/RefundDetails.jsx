@@ -388,7 +388,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
           </div>
         </div>
         {selectedRefund && (
-          <aside className="w-full shrink-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm xl:w-[360px]">
+          <aside className="w-full shrink-0 rounded-xl border border-gray-200 bg-white p-5 shadow-sm xl:w-[360px] xl:max-h-[calc(100dvh-2rem)] xl:sticky xl:top-4 overflow-y-auto self-start">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-gray-900">

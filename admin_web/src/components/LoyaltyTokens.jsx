@@ -521,19 +521,19 @@ const LoyaltyTokens = () => {
       <div className="h-full overflow-y-auto px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Employee Token Audit</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Employee Allowance Audit</h1>
             <p className="text-sm text-gray-500 mt-1">Monthly company-funded C2 Credit and employee purchase audit.</p>
           </div>
           <div className="flex items-center gap-2">
             <input type="month" value={employeeReportMonth} onChange={(event) => setEmployeeReportMonth(event.target.value)} className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold" />
             <button onClick={exportEmployeeReport} disabled={!purchases.length} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"><Download size={15} className="inline mr-1" />Export</button>
-            <button onClick={() => setActiveView('list')} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50">Back to Token Ledger</button>
+            <button onClick={() => setActiveView('list')} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50">Back to C2 Credit Ledger</button>
           </div>
         </div>
         <form onSubmit={submitSubsidyPolicy} className="rounded-xl border border-[#B7CFCA] bg-[#F3F7F6] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="font-bold text-gray-900">Company subsidy settings</h2>
+              <h2 className="font-bold text-gray-900">Company allowance settings</h2>
               <p className="mt-1 text-sm text-gray-600">
                 Changes are scheduled for {subsidyPolicies?.next_period?.start || 'the next month'} and never change an issued allowance.
               </p>
@@ -591,7 +591,7 @@ const LoyaltyTokens = () => {
       <div className="shrink-0 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Token Ledger</h1>
+          <h1 className="text-2xl font-bold text-gray-900">C2 Credit Ledger</h1>
           <p className="text-gray-500 text-sm mt-0.5">Review C2 Credit balances, token movements, and approved corrections. Customer profiles and order activity stay on Customers.</p>
         </div>
 
@@ -635,7 +635,7 @@ const LoyaltyTokens = () => {
           </div>
 
           <div className="text-xs text-gray-500 lg:ml-2">
-            Showing {groupedMembers.length.toLocaleString('en-US')} C2 Credit members and {filteredTransactions.length.toLocaleString('en-US')} token events
+            Showing {groupedMembers.length.toLocaleString('en-US')} C2 Credit members and {filteredTransactions.length.toLocaleString('en-US')} C2 Credit activities
           </div>
 
           <div className="flex items-center gap-2.5 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0 shrink-0">
@@ -673,7 +673,7 @@ const LoyaltyTokens = () => {
               onClick={() => setActiveView('employee_allowances')}
               className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer shadow-sm whitespace-nowrap shrink-0"
             >
-              Employee Token Audit
+              Employee Allowance Audit
             </button>
           </div>
         </div>
@@ -741,11 +741,11 @@ const LoyaltyTokens = () => {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-500">No token activity yet</span>
+                          <span className="text-xs text-gray-500">No C2 Credit activity yet</span>
                         )}
                         {transactionCount > 1 && (
                           <p className="mt-1 text-[10px] text-gray-400">
-                            {transactionCount} token events for this member
+                            {transactionCount} C2 Credit activities for this member
                           </p>
                         )}
                       </td>
@@ -814,7 +814,7 @@ const LoyaltyTokens = () => {
 
         {/* Desktop C2 Credit Details Panel (>= xl) */}
         {selectedCustomer && (
-          <div className="hidden xl:flex xl:w-[35%] bg-white rounded-2xl border border-gray-200 shadow-lg flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0">
+          <div className="hidden xl:flex xl:w-[35%] xl:max-h-[calc(100dvh-2rem)] sticky top-4 self-start bg-white rounded-2xl border border-gray-200 shadow-lg flex-col h-full animate-in slide-in-from-right-8 duration-300 shrink-0 overflow-hidden">
             <CreditDetailPanel
               customer={selectedCustomer}
               onClose={() => setSelectedCustomer(null)}
@@ -869,7 +869,7 @@ const LoyaltyTokens = () => {
           <div className="bg-white rounded-3xl w-full max-w-[440px] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
             <div className="flex justify-between items-center px-6 py-4.5 border-b border-gray-100 bg-white">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-gray-900">Adjust C2 Credit Tokens</h2>
+                <h2 className="text-lg font-bold text-gray-900">Adjust C2 Credit Balance</h2>
                 <InfoTooltip content="Add or deduct tokens from customer C2 Credit with mandatory audit reason and confirmation." title="Adjust C2 Credit" />
               </div>
               <button onClick={() => { setEditTokenPassword(""); setIsEditTokensOpen(false); }} className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">

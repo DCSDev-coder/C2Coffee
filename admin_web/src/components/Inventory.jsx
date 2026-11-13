@@ -570,22 +570,22 @@ export default function Inventory() {
         </div>
 
         <SectionCard className="mt-6 p-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+            <div className="xl:w-72 xl:shrink-0 xl:pt-1">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2E5E58]">Quick work</p>
               <h2 className="mt-1 text-base font-bold text-gray-900">Complete common inventory jobs without hunting through pages</h2>
               <p className="mt-1 text-xs text-gray-500">Recommended flow: create the item once → link suppliers → order → receive → stock is updated automatically.</p>
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap pb-1 shrink-0">
-              <button type="button" onClick={() => { setTab('stock'); setOpenPopup('item'); }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">1. Add item</button>
-              <button type="button" onClick={() => openOperationsAction('supplier')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">2. Add supplier</button>
-              <button type="button" onClick={() => openOperationsAction('supplierItem')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">3. Link item</button>
-              <button type="button" onClick={() => openOperationsAction('po')} className="rounded-xl bg-[#1E433A] px-3 py-2 text-xs font-bold text-white hover:bg-[#2E5E58] cursor-pointer whitespace-nowrap shrink-0">4. Create order</button>
-              <button type="button" onClick={() => openOperationsAction('receive')} className="rounded-xl bg-[#2E5E58] px-3 py-2 text-xs font-bold text-white hover:bg-[#1E433A] cursor-pointer whitespace-nowrap shrink-0">5. Receive delivery</button>
-              <button type="button" onClick={() => setTab('recipes')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">Set product usage</button>
-              <button type="button" onClick={() => openOperationsAction('options')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">Set choice usage</button>
-              <button type="button" onClick={() => openOperationsAction('stocktake')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0">Count stock</button>
-              <button type="button" onClick={() => openOperationsAction('wastage')} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 cursor-pointer whitespace-nowrap shrink-0">Record loss</button>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap pb-1 shrink-0 xl:grid xl:flex-1 xl:grid-cols-3 xl:overflow-visible xl:whitespace-normal 2xl:grid-cols-5">
+              <button type="button" onClick={() => { setTab('stock'); setOpenPopup('item'); }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0 xl:w-full">1. Add item</button>
+              <button type="button" onClick={() => openOperationsAction('supplier')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0 xl:w-full">2. Add supplier</button>
+              <button type="button" onClick={() => openOperationsAction('supplierItem')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0 xl:w-full">3. Link item</button>
+              <button type="button" onClick={() => openOperationsAction('po')} className="rounded-xl bg-[#1E433A] px-3 py-2 text-xs font-bold text-white hover:bg-[#2E5E58] cursor-pointer whitespace-nowrap shrink-0 xl:w-full">4. Create order</button>
+              <button type="button" onClick={() => openOperationsAction('receive')} className="rounded-xl bg-[#2E5E58] px-3 py-2 text-xs font-bold text-white hover:bg-[#1E433A] cursor-pointer whitespace-nowrap shrink-0 xl:w-full">5. Receive delivery</button>
+              <button type="button" onClick={() => setTab('recipes')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0 xl:w-full">Set product usage</button>
+              <button type="button" onClick={() => openOperationsAction('options')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0 xl:w-full">Set choice usage</button>
+              <button type="button" onClick={() => openOperationsAction('stocktake')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer whitespace-nowrap shrink-0 xl:w-full">Count stock</button>
+              <button type="button" onClick={() => openOperationsAction('wastage')} className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 cursor-pointer whitespace-nowrap shrink-0 xl:w-full">Record loss</button>
             </div>
           </div>
         </SectionCard>

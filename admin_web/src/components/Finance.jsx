@@ -389,10 +389,10 @@ const Finance = ({ setCurrentPage }) => {
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Company subsidy</h3>
+                <h3 className="text-lg font-bold text-gray-900">Company allowance</h3>
                 <p className="mt-1 text-sm text-gray-500">Employee and intern allowance movements from the immutable token ledger.</p>
               </div>
-              <InfoTooltip content="Issuance, expiry, role changes, spending, and refund returns remain ledger movements and are not treated as customer payments." title="Company subsidy" />
+              <InfoTooltip content="Issuance, expiry, role changes, spending, and refund returns remain ledger movements and are not treated as customer payments." title="Company allowance" />
             </div>
             <div className="mt-5 grid grid-cols-3 gap-3">
               <div className="rounded-xl bg-emerald-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-emerald-700">Issued</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.issuedTokens)}</p></div>

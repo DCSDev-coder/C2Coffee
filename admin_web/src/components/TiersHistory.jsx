@@ -1,13 +1,8 @@
 import React from 'react';
-import { ArrowLeft, Award } from 'lucide-react';
+import { ArrowLeft, Award, Crown } from 'lucide-react';
 
-const TiersHistory = ({ customer, onBack }) => {
-  const history = [
-    { date: 'Dec 15, 2025', action: 'Upgraded to Legend', points: '1,500 pts reached' },
-    { date: 'June 20, 2025', action: 'Upgraded to Kawan', points: '500 pts reached' },
-    { date: 'Jan 12, 2025', action: 'Account Created', points: '0 pts' },
-  ];
-
+const TiersHistory = ({ customer, progress, onBack }) => {
+  const isMaxTier = progress.nextTier === 'Max Tier';
   return (
     <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
       <div className="mb-6 shrink-0">
@@ -21,23 +16,48 @@ const TiersHistory = ({ customer, onBack }) => {
               <ArrowLeft size={22} strokeWidth={2.5} />
             </button>
           )}
-          <h1 className="text-2xl font-bold text-gray-900">Tiers History</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Tier Progress</h1>
         </div>
         <p className={`text-gray-500 text-sm mt-0.5 ${onBack ? "ml-8" : ""}`}>
-          Progression timeline for {customer.username}
+          Current loyalty rank for {customer.username}
         </p>
       </div>
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 md:p-8 flex-1">
-        <div className="relative border-l-2 border-gray-100 ml-4 space-y-10">
-          {history.map((event, idx) => (
-            <div key={idx} className="relative pl-8">
-              <div className="absolute -left-[17px] bg-[#E07A5F] rounded-full w-8 h-8 flex items-center justify-center text-white border-4 border-white shadow-sm">
-                <Award size={14} />
+        <div className="mx-auto max-w-2xl space-y-6">
+          <div className="rounded-2xl bg-[#1F3A34] p-5 sm:p-6 text-white">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10">
+                  <Crown size={22} className="text-yellow-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/65">Current tier</p>
+                  <p className="text-xl font-bold">{progress.tier}</p>
+                </div>
               </div>
-              <p className="text-sm font-bold text-gray-900">{event.action}</p>
-              <p className="text-xs text-gray-500 mt-1">{event.date} • {event.points}</p>
+              <div className="text-right">
+                <p className="text-2xl font-extrabold tabular-nums">{progress.current}</p>
+                <p className="text-xs text-white/65">qualifying cups / 180 days</p>
+              </div>
             </div>
-          ))}
+            <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-black/30">
+              <div className="h-full rounded-full bg-[#E07A5F]" style={{ width: `${progress.percentage}%` }} />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs text-white/75">
+              <span>{isMaxTier ? 'Highest active tier reached' : `${progress.remaining} cups remaining`}</span>
+              <span>{isMaxTier ? 'Max Tier' : `Next: ${progress.nextTier} at ${progress.target}`}</span>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <Award size={20} className="mt-0.5 shrink-0 text-[#E07A5F]" />
+            <div>
+              <p className="text-sm font-bold text-gray-900">How this rank is calculated</p>
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                Tier progress uses the customer&apos;s persisted qualifying-cup total for the rolling 180-day window. It does not use total orders, C2 Credit balance, or fabricated history events.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

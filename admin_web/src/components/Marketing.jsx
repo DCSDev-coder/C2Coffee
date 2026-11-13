@@ -377,6 +377,7 @@ const Marketing = () => {
   const [marketingDrinkRows, setMarketingDrinkRows] = useState([]);
   const [marketingDrinkLoading, setMarketingDrinkLoading] = useState(true);
   const [marketingDrinkMonth, setMarketingDrinkMonth] = useState(localYearMonth);
+  const [marketingPanel, setMarketingPanel] = useState(null);
 
   useEffect(() => {
     if (!selectedImageFile) {
@@ -1073,6 +1074,75 @@ const Marketing = () => {
         </div>
 
         <section className="rounded-2xl border border-gray-200/80 bg-white p-4 sm:p-5 shadow-xs">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400">Operational tools</p>
+              <p className="mt-1 text-xs text-gray-500">Open audits, service notices, and customer broadcasts only when you need them.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:min-w-[650px]">
+              <button type="button" onClick={() => setMarketingPanel("audit")} className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-left hover:border-[#2E5E58] hover:bg-[#F5FBF9]">
+                <RefreshCw size={15} className="text-[#2E5E58]" />
+                <span><span className="block text-xs font-bold text-gray-800">Complimentary drinks</span><span className="block text-[11px] text-gray-500">Monthly usage audit</span></span>
+              </button>
+              <button type="button" onClick={() => setMarketingPanel("payment")} className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-left hover:border-[#2E5E58] hover:bg-[#F5FBF9]">
+                <Bell size={15} className="text-[#2E5E58]" />
+                <span><span className="block text-xs font-bold text-gray-800">Payment notices</span><span className="block text-[11px] text-gray-500">Schedule downtime alerts</span></span>
+              </button>
+              <button type="button" onClick={() => setMarketingPanel("broadcast")} className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-left hover:border-[#2E5E58] hover:bg-[#F5FBF9]">
+                <MessageSquare size={15} className="text-[#2E5E58]" />
+                <span><span className="block text-xs font-bold text-gray-800">Customer broadcast</span><span className="block text-[11px] text-gray-500">Send in-app + push message</span></span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {marketingPanel && createPortal((
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-gray-950/40 p-3 sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMarketingPanel(null); }}>
+            <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="marketing-panel-title">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:px-5">
+                <div>
+                  <h2 id="marketing-panel-title" className="text-sm font-bold text-gray-900">{marketingPanel === "audit" ? "Complimentary Drink Audit" : marketingPanel === "payment" ? "Payment Service Notices" : "Customer Broadcast"}</h2>
+                  <p className="mt-0.5 text-xs text-gray-500">{marketingPanel === "audit" ? "Review and reverse posted marketing usage." : marketingPanel === "payment" ? "Publish scheduled FPX or DuitNow QR downtime notices." : "Send an in-app and push notification to active customers."}</p>
+                </div>
+                <button type="button" onClick={() => setMarketingPanel(null)} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900" aria-label="Close panel"><X size={18} /></button>
+              </div>
+              <div className="p-4 sm:p-5">
+                {marketingPanel === "audit" && (
+                  <section>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs text-gray-500">These are not sales, vouchers, employee credits, or loyalty cups.</p>
+                      <div className="flex items-center gap-2">
+                        <label className="sr-only" htmlFor="marketing-drink-month">Audit month</label>
+                        <input id="marketing-drink-month" type="month" value={marketingDrinkMonth} max={localYearMonth()} onChange={(event) => setMarketingDrinkMonth(event.target.value || localYearMonth())} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700" />
+                        <button type="button" onClick={() => void loadMarketingDrinkAudit()} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"><RefreshCw size={14} /> Refresh audit</button>
+                      </div>
+                    </div>
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full min-w-[900px] text-left text-xs">
+                        <thead className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-500"><tr><th className="px-3 py-2">Reference</th><th className="px-3 py-2">Outlet / Barista</th><th className="px-3 py-2">Purpose</th><th className="px-3 py-2">Items</th><th className="px-3 py-2">Recipe cost</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Action</th></tr></thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {marketingDrinkLoading ? <tr><td colSpan="7" className="px-3 py-5 text-center text-gray-500">Loading complimentary usage…</td></tr> : marketingUsageAudit.length === 0 ? <tr><td colSpan="7" className="px-3 py-5 text-center text-gray-500">No complimentary drinks recorded for this month.</td></tr> : marketingUsageAudit.map((row) => <tr key={row.id}><td className="px-3 py-3 font-mono font-semibold text-gray-800">{row.usage_ref}</td><td className="px-3 py-3 text-gray-700">{row.store_name}<br /><span className="text-gray-500">{row.barista_name}</span></td><td className="px-3 py-3 text-gray-700">{String(row.purpose_code).replaceAll("_", " ")}<br /><span className="text-gray-500">{row.campaign_name || row.reason_note}</span></td><td className="px-3 py-3 text-gray-700">{row.items.join(", ")}</td><td className="px-3 py-3 tabular-nums text-gray-700">RM {Number(row.inventory_cost_rm || 0).toFixed(2)}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${row.status === "posted" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>{row.status}</span></td><td className="px-3 py-3">{row.status === "posted" && <button type="button" onClick={() => void reverseMarketingDrinkUsage(row)} className="rounded-lg border border-red-200 px-2.5 py-1.5 font-bold text-red-700 hover:bg-red-50">Reverse</button>}</td></tr>)}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+                {marketingPanel === "payment" && <PaymentServiceNotices />}
+                {marketingPanel === "broadcast" && (
+                  <form onSubmit={sendCustomerMessage}>
+                    <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2E5E58]/10 text-[#2E5E58]"><MessageSquare size={16} /></div><div className="flex items-center gap-1.5"><h3 className="text-sm font-bold text-gray-900">Customer Broadcast</h3><InfoTooltip title="Broadcast Scope" content="Sends a push notification to active customers who enabled notifications, and records an announcement into their in-app Notifications tab." /></div></div><span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-bold text-gray-600">In-app + Push notification</span></div>
+                    <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]"><label className="text-xs font-semibold text-gray-700">Title<div className="mt-1 flex items-center gap-2"><input ref={customerMessageTitleRef} required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. A little reminder from C2 Coffee" className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" /><EmojiPicker inputRef={customerMessageTitleRef} value={customerMessage.title} onChange={(title) => setCustomerMessage((current) => ({ ...current, title }))} label="Add emoji to broadcast title" /></div></label><label className="text-xs font-semibold text-gray-700">Message<div className="mt-1 flex items-start gap-2"><textarea ref={customerMessageBodyRef} required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="e.g. Don't forget to come by and enjoy your favourite drink today." className="w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" /><EmojiPicker inputRef={customerMessageBodyRef} value={customerMessage.body} onChange={(body) => setCustomerMessage((current) => ({ ...current, body }))} label="Add emoji to broadcast message" /></div></label></div>
+                    {customerMessageRetrySeconds > 0 && <p className="mt-2 text-right text-xs font-semibold text-amber-700">Messages are temporarily rate-limited. Try again in <span className="font-mono tabular-nums">{formatRetryCountdown(customerMessageRetrySeconds)}</span>.</p>}
+                    <div className="mt-3 flex justify-end"><button type="submit" disabled={sendingCustomerMessage || customerMessageRetrySeconds > 0 || !customerMessage.title.trim() || !customerMessage.body.trim()} className="inline-flex items-center gap-1.5 rounded-xl bg-[#2E5E58] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#1F4B43] disabled:cursor-not-allowed disabled:opacity-50"><Bell size={14} />{sendingCustomerMessage ? "Sending..." : customerMessageRetrySeconds > 0 ? `Try again in ${formatRetryCountdown(customerMessageRetrySeconds)}` : "Send broadcast"}</button></div>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        ), document.body)}
+
+        {/* Poster management stays visible as the primary Marketing workflow. */}
+        {marketingPanel === "__legacy__" && <>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-bold text-gray-900">Complimentary Drink Audit</h2>
@@ -1117,8 +1187,6 @@ const Marketing = () => {
               </tbody>
             </table>
           </div>
-        </section>
-
         <PaymentServiceNotices />
 
         <form onSubmit={sendCustomerMessage} className="rounded-2xl border border-gray-200/80 bg-white p-4 sm:p-5 shadow-xs">
@@ -1162,6 +1230,7 @@ const Marketing = () => {
             </button>
           </div>
         </form>
+        </>}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
           {summaryCards.map((card) => (

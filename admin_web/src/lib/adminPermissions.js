@@ -12,7 +12,7 @@ const PAGE_ROLES = {
   Voucher: ['super_admin', 'marketing_admin'],
   'Gift Cards': ['super_admin', 'marketing_admin', 'support_admin'],
   'Referral Program': ['super_admin', 'marketing_admin'],
-  'Token Ledger': ['super_admin'],
+  'C2 Credit Ledger': ['super_admin'],
   'Tier Management': ['super_admin'],
   Finance: ['super_admin'],
   ProductReport: ['super_admin', 'marketing_admin'],

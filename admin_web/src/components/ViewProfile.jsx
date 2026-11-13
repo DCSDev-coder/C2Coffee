@@ -1,9 +1,7 @@
 import React from 'react';
 import { ArrowLeft, User, Mail, Phone, MapPin, Calendar } from 'lucide-react';
-import { resolveTierProgress } from './Customers';
 
-const ViewProfile = ({ customer, onBack }) => {
-  const progress = resolveTierProgress(customer);
+const ViewProfile = ({ customer, progress, avatar, onBack }) => {
   return (
     <div className="w-full min-w-0 max-w-full px-3 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
       <div className="mb-6 shrink-0">
@@ -25,6 +23,7 @@ const ViewProfile = ({ customer, onBack }) => {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 w-full min-w-0">
         <div className="w-full col-span-1 md:col-span-1 bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 flex flex-col items-center shadow-sm h-fit">
+          <div className="mb-3">{avatar}</div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">{customer.username}</h2>
           <p className="text-xs sm:text-sm text-gray-500 mb-6 break-all">{customer.email}</p>
           <div className="w-full bg-gray-50 rounded-xl p-4 border border-gray-100">
@@ -36,7 +35,7 @@ const ViewProfile = ({ customer, onBack }) => {
               <div className="bg-[#E07A5F] h-2 rounded-full" style={{ width: `${progress.percentage}%` }}></div>
             </div>
             <p className="text-[11px] sm:text-xs text-gray-500 text-center">
-              {progress.tier === 'Legend' ? 'Maximum tier reached' : `${progress.remaining} cups to ${progress.nextTier}`}
+              {progress.nextTier === 'Max Tier' ? 'Maximum tier reached' : `${progress.remaining} cups to ${progress.nextTier}`}
             </p>
           </div>
         </div>
@@ -62,16 +61,18 @@ const ViewProfile = ({ customer, onBack }) => {
               </div>
             </div>
           </div>
-          <div className="w-full bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-sm">
-            <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4 border-b border-gray-100 pb-3">Addresses</h3>
-            <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-              <MapPin className="text-[#2E5E58] mt-0.5 flex-shrink-0" size={18} />
-              <div>
-                <p className="text-sm font-bold text-gray-900">Home</p>
-                <p className="text-xs sm:text-sm text-gray-600 mt-1">123 Jalan Ampang, Kuala Lumpur, 50450, Malaysia</p>
+          {customer.address?.formatted && (
+            <div className="w-full bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-sm">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4 border-b border-gray-100 pb-3">Address</h3>
+              <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <MapPin className="text-[#2E5E58] mt-0.5 flex-shrink-0" size={18} />
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Saved address</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1">{customer.address.formatted}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

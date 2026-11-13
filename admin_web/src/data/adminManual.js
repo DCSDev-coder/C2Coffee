@@ -78,7 +78,7 @@ export const adminManualSections = [
   },
   {
     group: 'Marketing & loyalty',
-    page: 'Token Ledger',
+    page: 'C2 Credit Ledger',
     purpose: 'Review token additions, deductions, reversals, top-ups, and manual adjustments.',
     steps: ['Search by customer, transaction, or reference.', 'Confirm the reason and source of every manual adjustment.', 'Use the confirmation flow and record the business explanation.'],
     notes: 'Never use a manual ledger change to hide a payment or order error; use the correct refund or reconciliation process.'

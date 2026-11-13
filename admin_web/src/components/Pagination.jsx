@@ -28,14 +28,32 @@ const Pagination = ({
   }
 
   const showPaginationControls = !showAll && totalPages > 1;
+  const defaultRowsPerPageSelect = (
+    <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 whitespace-nowrap">
+      <span>Rows per page</span>
+      <select
+        value={itemsPerPage}
+        onChange={(event) => {
+          const nextSize = Number(event.target.value);
+          window.localStorage.setItem('admin-table-page-size', String(nextSize));
+          window.dispatchEvent(new CustomEvent('admin-table-page-size-change', { detail: nextSize }));
+          setCurrentPage(1);
+        }}
+        className="px-2 py-1 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#1F3A34] cursor-pointer"
+        aria-label="Rows per page"
+      >
+        {[5, 10, 25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+      </select>
+    </label>
+  );
 
   return (
     <div className="w-full flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs font-semibold text-gray-500">
       {/* Mobile Top Row / Desktop Left Side: Showing count + See more + Rows per page */}
       <div className="flex items-center justify-between sm:justify-start gap-2.5 sm:gap-3 w-full sm:w-auto">
-        {rowsPerPageSelect && (
+        {(rowsPerPageSelect || defaultRowsPerPageSelect) && (
           <div className="hidden sm:flex items-center shrink-0">
-            {rowsPerPageSelect}
+            {rowsPerPageSelect || defaultRowsPerPageSelect}
           </div>
         )}
         <span className="text-gray-600 font-medium whitespace-nowrap">

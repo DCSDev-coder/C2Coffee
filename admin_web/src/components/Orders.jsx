@@ -172,10 +172,10 @@ const getPaymentTypeBadge = (order) => {
 
   if (mode === 'token' || mode === 'tokens') {
     const label = subsidyTokens > 0 && personalTokens > 0
-      ? `Company subsidy · ${subsidyTokens} tokens | Personal · ${personalTokens} tokens`
+      ? `Company allowance · ${subsidyTokens} tokens | Personal C2 Credit · ${personalTokens} tokens`
       : subsidyTokens > 0
-        ? `Company subsidy · ${subsidyTokens} tokens`
-        : `Personal · ${personalTokens} tokens`;
+        ? `Company allowance · ${subsidyTokens} tokens`
+        : `Personal C2 Credit · ${personalTokens} tokens`;
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-[#E8F3F0] text-[#1E433A] border border-[#2E5E58]/20">
         <Coins size={12} className="text-[#2E5E58]" strokeWidth={2.3} />
@@ -235,7 +235,7 @@ const OrderValueStack = ({ tokenValue, rmValue, align = 'items-start' }) => (
   </div>
 );
 const STATUSES = ["All Status", "Order Received", "Pending Payment", "Preparing", "Ready for Pickup", "Collected", "Cancelled"];
-const PAYMENT_TYPES = ["All Payment Types", "Personal Tokens", "Company Subsidy", "Mixed Tokens", "Direct (RM)"];
+const PAYMENT_TYPES = ["All Payment Types", "Personal C2 Credit", "Company Allowance", "Mixed C2 Credit", "Direct (RM)"];
 
 // Sleek KPI Card matching DashboardHome & Menu standard
 const KPICard = ({ title, value, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]/10 text-[#2E5E58]" }) => {
@@ -349,7 +349,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
   ];
 
   return (
-    <div className={`print-section w-full ${isModal ? 'max-h-[85vh] border-0 shadow-none' : 'xl:w-[380px] border border-gray-200 shadow-sm'} bg-white rounded-2xl flex flex-col shrink-0 overflow-y-auto p-4 sm:p-5 space-y-4 print:overflow-visible print:w-full`}>
+    <div className={`print-section w-full ${isModal ? 'max-h-[85vh] border-0 shadow-none' : 'xl:w-[380px] xl:max-h-[calc(100dvh-2rem)] border border-gray-200 shadow-sm'} bg-white rounded-2xl flex flex-col shrink-0 overflow-y-auto p-4 sm:p-5 space-y-4 print:overflow-visible print:w-full`}>
       {/* Header */}
       <div className="border-b border-gray-100 pb-3">
         <div className="flex justify-between items-start">
@@ -500,7 +500,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
             </div>
             <div>
               <span className="text-xs font-semibold text-gray-900 block">
-                {(order.paymentMode || '').toLowerCase() === 'token' ? 'Loyalty Tokens' : 'Direct Payment (RM)'}
+                {(order.paymentMode || '').toLowerCase() === 'token' ? 'C2 Credit' : 'Direct Payment (RM)'}
               </span>
               {order.paymentProvider && formatPaymentLabel(order.paymentProvider) !== '-' && (
                 <span className="text-[10px] text-gray-400 block">{formatPaymentLabel(order.paymentProvider)}</span>
@@ -515,7 +515,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
         <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
           <div className="rounded-lg bg-gray-50 px-2.5 py-2">
             <span className="block text-gray-400">Payment method</span>
-            <span className="font-semibold text-gray-800">{order.paymentMethod ? formatPaymentLabel(order.paymentMethod) : 'Loyalty tokens'}</span>
+            <span className="font-semibold text-gray-800">{order.paymentMethod ? formatPaymentLabel(order.paymentMethod) : 'C2 Credit'}</span>
           </div>
           <div className="rounded-lg bg-gray-50 px-2.5 py-2">
             <span className="block text-gray-400">Order channel</span>
@@ -524,7 +524,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
         </div>
         {String(order.paymentMode || '').toLowerCase() === 'token' && (
           <div className="mt-2 rounded-lg bg-[#E8F3F0] px-2.5 py-2 text-[11px] text-[#1E433A]">
-            <span className="font-semibold">Token funding:</span> {formatTokens(Math.max(0, Number(order.tokenAmountCharged || 0) - Number(order.subsidyTokenAmount || 0)))} personal · {formatTokens(order.subsidyTokenAmount)} company subsidy
+            <span className="font-semibold">C2 Credit funding:</span> {formatTokens(Math.max(0, Number(order.tokenAmountCharged || 0) - Number(order.subsidyTokenAmount || 0)))} personal · {formatTokens(order.subsidyTokenAmount)} company allowance
           </div>
         )}
         {(order.voucherName || Number(order.discount || 0) > 0) && (
@@ -798,9 +798,9 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
 
       const matchPayment = (() => {
         if (paymentFilter === "All Payment Types" || paymentFilter === "All Payment Status") return true;
-        if (paymentFilter === "Personal Tokens") return isToken && subsidyTokens === 0;
-        if (paymentFilter === "Company Subsidy") return isToken && subsidyTokens > 0 && personalTokens === 0;
-        if (paymentFilter === "Mixed Tokens") return isToken && subsidyTokens > 0 && personalTokens > 0;
+        if (paymentFilter === "Personal C2 Credit") return isToken && subsidyTokens === 0;
+        if (paymentFilter === "Company Allowance") return isToken && subsidyTokens > 0 && personalTokens === 0;
+        if (paymentFilter === "Mixed C2 Credit") return isToken && subsidyTokens > 0 && personalTokens > 0;
         if (paymentFilter === "Direct (RM)") return isDirect;
         return true;
       })();
@@ -1098,9 +1098,9 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                   <SortableHeader label="Username" columnKey="customer" />
                   <SortableHeader label="Outlet" columnKey="store" />
                   <SortableHeader label="Items" columnKey="items" />
-                  <SortableHeader label="Total" columnKey="total" info="Order amount charged in Loyalty Tokens and MYR." />
+                  <SortableHeader label="Total" columnKey="total" info="Order amount charged in C2 Credit and MYR." />
                   <SortableHeader label="Status" columnKey="status" info="Live order fulfillment stage." />
-                  <SortableHeader label="Payment Type" columnKey="paymentType" info="Payment method used: Loyalty Tokens or Direct RM." />
+                  <SortableHeader label="Payment Type" columnKey="paymentType" info="Payment method used: C2 Credit or Direct RM." />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
@@ -1217,7 +1217,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
 
         {/* Desktop Side Panel (>= xl) */}
         {selectedOrder && (
-          <div className="hidden xl:flex flex-col shrink-0">
+          <div className="hidden xl:flex flex-col shrink-0 self-start sticky top-4">
             <OrderDetailPanel
               order={selectedOrder}
               onClose={() => setSelectedOrder(null)}
@@ -1283,7 +1283,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                   <div className="rounded-xl bg-emerald-50 p-3"><p className="text-[10px] uppercase text-emerald-700">Suggested net</p><p className="font-bold text-emerald-900">{formatTokens(correctionPreview.suggestedCorrectedTokenAmount)}</p></div>
                 </div>
 
-                <p className="mt-3 text-xs text-gray-600">Original funding: {formatTokens(correctionPreview.originalSubsidyTokenAmount)} company subsidy and {formatTokens(correctionPreview.originalPersonalTokenAmount)} personal C2 Credit.</p>
+                <p className="mt-3 text-xs text-gray-600">Original funding: {formatTokens(correctionPreview.originalSubsidyTokenAmount)} company allowance and {formatTokens(correctionPreview.originalPersonalTokenAmount)} personal C2 Credit.</p>
 
                 <label className="mt-5 block text-xs font-bold text-gray-700">Corrected token charge</label>
                 <input type="number" min="0" max={Math.max(0, correctionPreview.originalTokenAmount - 1)} required value={correctionAmount} onChange={(event) => setCorrectionAmount(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#2E5E58]" />

@@ -1371,8 +1371,8 @@ const Menu = () => {
 
         {/* Desktop Side Panel (>= xl) */}
         {selectedItem && (
-          <div className="hidden xl:flex flex-col shrink-0">
-            <div className="w-full xl:w-[400px] 2xl:w-[420px] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+          <div className="hidden xl:flex flex-col shrink-0 self-start sticky top-4">
+            <div className="w-full xl:w-[400px] 2xl:w-[420px] xl:max-h-[calc(100dvh-2rem)] shrink-0 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
               <div className="p-5 flex flex-col h-full">
                 <div className="flex justify-between items-start mb-4 shrink-0">
                   <div className="flex gap-4">

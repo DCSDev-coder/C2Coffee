@@ -105,8 +105,8 @@ function AppContent({
         {currentPage === 'Voucher' && <Vouchers onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Gift Cards' && <GiftCards currentUser={currentUser} />}
         {currentPage === 'Referral Program' && <ReferralProgram />}
-        {currentPage === 'Token Ledger' && <LoyaltyTokens onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
-        {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('Token Ledger')} />}
+        {currentPage === 'C2 Credit Ledger' && <LoyaltyTokens onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('C2 Credit Ledger')} />}
         {currentPage === 'Menu' && <Menu onNavigate={navigateWithPrompt} />}
         {currentPage === 'Options & Nutrition' && <OptionsNutrition />}
         {currentPage === 'Inventory' && <Inventory />}

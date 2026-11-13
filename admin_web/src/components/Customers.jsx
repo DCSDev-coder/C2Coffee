@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Wallet, Users, Megaphone, Search, ChevronDown, Download, Upload, Plus,
+  Wallet, Search, ChevronDown, Download, Upload, Plus,
   X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3
 } from 'lucide-react';
 import Pagination from './Pagination';
@@ -17,6 +17,7 @@ import VoucherHistory from './VoucherHistory';
 import TiersHistory from './TiersHistory';
 import {
   loadAdminCustomers,
+  getAdminApiBaseUrl,
   createAdminCustomer,
   importAdminCustomers,
   updateAdminCustomer,
@@ -67,9 +68,16 @@ export const calculateTierProgress = (cupsStr, tiers = []) => {
 };
 
 // oxlint-disable-next-line react/only-export-components
-export const resolveTierProgress = (customer, tiers = []) => customer?.tierProgress ?? calculateTierProgress(customer?.cupsLast180d ?? customer?.orders, tiers);
+export const resolveTierProgress = (customer, tiers = []) => {
+  const persisted = customer?.tierProgress;
+  if (!persisted) return calculateTierProgress(customer?.cupsLast180d ?? 0, tiers);
 
-const hasPurchaseHistory = (customer) => Number(customer?.orderCount ?? customer?.orders ?? 0) > 0;
+  return {
+    ...persisted,
+    tier: persisted.tier ?? persisted.tierName ?? customer?.tier ?? 'Member',
+    nextTier: persisted.nextTier ?? 'Max Tier'
+  };
+};
 
 const KPICard = ({ title, value, change, badge, icon: Icon, iconBg, info }) => {
   const displayBadge = badge || change;
@@ -132,6 +140,22 @@ const formatTokens = (value) => {
 const subsidyRoleForCustomer = (customer) => customer?.subsidyRole || (customer?.isEmployee ? 'employee' : 'none');
 const subsidyRoleLabel = (role) => ({ employee: 'Employee', intern: 'Intern', boss: 'Boss', none: 'No subsidy' }[role] || 'No subsidy');
 
+const presetAvatarUrls = {
+  'dato.png': new URL('../../../mobile_app/assets/images/dato.png', import.meta.url).href,
+  'datin.png': new URL('../../../mobile_app/assets/images/datin.png', import.meta.url).href
+};
+
+const resolveAvatarUrl = (avatar, avatarType) => {
+  if (!avatar) return null;
+  if (/^(?:https?:|data:|blob:)/i.test(avatar)) return avatar;
+  if (avatarType === 'preset') {
+    const fileName = avatar.split('/').pop()?.toLowerCase();
+    return fileName ? presetAvatarUrls[fileName] ?? null : null;
+  }
+  const normalizedPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
+  return `${getAdminApiBaseUrl()}${normalizedPath}`;
+};
+
 const Avatar = ({ customer, size = 'md' }) => {
   const initials = String(customer?.username || 'C2')
     .split(/\s+/)
@@ -142,9 +166,11 @@ const Avatar = ({ customer, size = 'md' }) => {
     .toUpperCase();
   const sizeClass = size === 'lg' ? 'h-16 w-16 text-xl' : 'h-10 w-10 text-sm';
 
-  return customer?.avatar ? (
+  const avatarUrl = resolveAvatarUrl(customer?.avatar, customer?.avatarType);
+
+  return avatarUrl ? (
     <img
-      src={customer.avatar}
+      src={avatarUrl}
       alt={`${customer.username} profile`}
       className={`${sizeClass} shrink-0 rounded-full object-cover ring-1 ring-gray-200`}
       onError={(event) => {
@@ -193,10 +219,10 @@ const QuickLink = ({ icon: Icon, title, desc, iconBg, onClick }) => (
   </button>
 );
 
-const CustomerDetailPanel = ({ customer, onClose, canManageCustomers, onEditCustomer, setActiveView, isModal = false }) => {
-  const progress = calculateTierProgress(customer.cupsLast180d ?? customer.orders);
+const CustomerDetailPanel = ({ customer, tiers, onClose, canManageCustomers, onEditCustomer, setActiveView, isModal = false }) => {
+  const progress = resolveTierProgress(customer, tiers);
   return (
-    <div className={`w-full ${isModal ? 'max-h-[85vh] border-0 shadow-none p-4 sm:p-6' : 'xl:w-[380px] border border-gray-200 shadow-sm rounded-xl p-4 sm:p-6'} bg-white flex flex-col relative shrink-0 overflow-y-auto`}>
+    <div className={`w-full ${isModal ? 'max-h-[85vh] border-0 shadow-none p-4 sm:p-6' : 'xl:w-[380px] xl:max-h-[calc(100dvh-2rem)] border border-gray-200 shadow-sm rounded-xl p-4 sm:p-6'} bg-white flex flex-col relative shrink-0 overflow-y-auto`}>
       <div className="flex justify-between items-center mb-6">
         <h2 id="customer-detail-title" className="text-lg font-bold text-gray-900">Customer Overview</h2>
         <button
@@ -214,9 +240,7 @@ const CustomerDetailPanel = ({ customer, onClose, canManageCustomers, onEditCust
           <div className="min-w-0">
             <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">{customer.username}</h3>
-              {hasPurchaseHistory(customer) && (
-                <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(customer.tier)}`}>{customer.tier}</span>
-              )}
+              <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${getTierColor(customer.tier, customer.tierCode)}`}>{progress.tier}</span>
               {subsidyRoleForCustomer(customer) !== 'none' && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{subsidyRoleLabel(subsidyRoleForCustomer(customer))}</span>
               )}
@@ -230,7 +254,7 @@ const CustomerDetailPanel = ({ customer, onClose, canManageCustomers, onEditCust
 
       <div className="flex justify-between border-y border-gray-100 py-3 sm:py-4 mb-6 text-center shrink-0">
         <div>
-          <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">C2 Credit Tokens</p>
+          <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">C2 Credit Balance</p>
           <p className="font-bold text-gray-900">{customer.tokens}</p>
         </div>
         <div className="w-px bg-gray-100"></div>
@@ -240,52 +264,40 @@ const CustomerDetailPanel = ({ customer, onClose, canManageCustomers, onEditCust
         </div>
         <div className="w-px bg-gray-100"></div>
         <div>
-          <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Personal Tokens</p>
-          <p className="font-bold text-gray-900">{formatTokens(customer.totalPersonalTokens)}</p>
-          <p className="text-[11px] text-amber-700 mt-1">Subsidy: {formatTokens(customer.totalSubsidyTokens)}</p>
-          <p className="text-[11px] text-gray-500 mt-1">RM equivalent: {customer.spent}</p>
+          <p className="text-xs text-gray-500 flex items-center justify-center gap-1 mb-1">Top Item</p>
+          <p className="font-bold text-gray-900 truncate max-w-32" title={customer.favoriteItem || 'No completed orders'}>
+            {customer.favoriteItem || 'No completed orders'}
+          </p>
         </div>
       </div>
 
-      {!hasPurchaseHistory(customer) ? (
-        <div className="bg-[#1F3A34] rounded-xl p-4 sm:p-5 mb-6 sm:mb-8 text-white relative overflow-hidden shrink-0">
-          <div className="flex items-center space-x-3 relative z-10">
-            <Crown size={24} className="text-white/60 shrink-0" />
-            <div>
-              <p className="font-bold text-sm sm:text-base">No tier yet</p>
-              <p className="text-xs text-white/70">Complete your first eligible purchase to enter Sipper.</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-[#1F3A34] rounded-xl p-4 sm:p-5 mb-6 sm:mb-8 text-white relative overflow-hidden shrink-0">
+      <div className="bg-[#1F3A34] rounded-xl p-4 sm:p-5 mb-6 sm:mb-8 text-white relative overflow-hidden shrink-0">
           <div className="flex items-center justify-between mb-4 relative z-10">
             <div className="flex items-center space-x-3">
               <Crown size={24} className="text-yellow-400 shrink-0" />
               <div>
                 <p className="font-bold text-sm sm:text-base">{progress.tier}</p>
-                <p className="text-xs text-white/70">Until 31 Jan 2027</p>
+                <p className="text-xs text-white/70">{progress.current} qualifying cups in the rolling 180-day window</p>
               </div>
             </div>
             <div className="text-right">
               <p className="text-xs text-white/70 mb-1">Next: {progress.nextTier}</p>
-              <p className="font-bold text-xs sm:text-sm">{progress.tier === 'Legend' ? 'Max Tier' : `${progress.current}/${progress.target} cups`}</p>
+              <p className="font-bold text-xs sm:text-sm">{progress.nextTier === 'Max Tier' ? 'Max Tier' : `${progress.current}/${progress.target} cups`}</p>
             </div>
           </div>
           <div className="w-full bg-black/30 rounded-full h-2 relative z-10">
             <div className="bg-[#E07A5F] h-2 rounded-full transition-all duration-300" style={{ width: `${progress.percentage}%` }}></div>
           </div>
-        </div>
-      )}
+      </div>
 
       <div className="mb-4 shrink-0">
         <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2">Quick Links</h3>
         <div className="flex flex-col">
           <QuickLink icon={User} title="View Profile" desc="Personal details and contact information" iconBg="bg-[#1F3A2A]" onClick={() => { if (isModal) onClose(); setActiveView('profile'); }} />
           <QuickLink icon={ClipboardList} title="Order History" desc={`${customer.orders} order${Number(customer.orders) === 1 ? '' : 's'} · invoices and status`} iconBg="bg-[#2E5E58]" onClick={() => { if (isModal) onClose(); setActiveView('orders'); }} />
-          <QuickLink icon={Coins} title="Token Transactions" desc={`${formatTokens(customer.totalPersonalTokens)} personal · ${formatTokens(customer.totalSubsidyTokens)} subsidy`} iconBg="bg-[#B7CFCA]" onClick={() => { if (isModal) onClose(); setActiveView('tokens'); }} />
+          <QuickLink icon={Coins} title="C2 Credit Activity" desc="Balance changes and company allowance activity" iconBg="bg-[#B7CFCA]" onClick={() => { if (isModal) onClose(); setActiveView('tokens'); }} />
           <QuickLink icon={Ticket} title="Voucher History" desc="View claimed and used vouchers" iconBg="bg-[#E07A5F]" onClick={() => { if (isModal) onClose(); setActiveView('vouchers'); }} />
-          <QuickLink icon={BarChart3} title="Tier Progress" desc={hasPurchaseHistory(customer) ? `${customer.tier} progress and upgrades` : 'No tier activity yet'} iconBg="bg-[#D4AF7A]" onClick={() => { if (isModal) onClose(); setActiveView('tiers'); }} />
+          <QuickLink icon={BarChart3} title="Tier Progress" desc={`${progress.tier} progress and upgrades`} iconBg="bg-[#D4AF7A]" onClick={() => { if (isModal) onClose(); setActiveView('tiers'); }} />
         </div>
       </div>
 
@@ -542,11 +554,11 @@ const Customers = ({ currentUser }) => {
 
   const renderView = () => {
     switch (activeView) {
-      case 'profile': return <ViewProfile customer={selectedCustomer} onBack={() => setActiveView('list')} />;
+      case 'profile': return <ViewProfile customer={selectedCustomer} progress={resolveTierProgress(selectedCustomer, tiers)} avatar={<Avatar customer={selectedCustomer} size="lg" />} onBack={() => setActiveView('list')} />;
       case 'orders': return <OrderHistory customer={selectedCustomer} onBack={() => setActiveView('list')} />;
       case 'tokens': return <TokenTransaction customer={selectedCustomer} onBack={() => setActiveView('list')} />;
       case 'vouchers': return <VoucherHistory customer={selectedCustomer} onBack={() => setActiveView('list')} />;
-      case 'tiers': return <TiersHistory customer={selectedCustomer} onBack={() => setActiveView('list')} />;
+      case 'tiers': return <TiersHistory customer={selectedCustomer} progress={resolveTierProgress(selectedCustomer, tiers)} onBack={() => setActiveView('list')} />;
       default: return null;
     }
   };
@@ -759,17 +771,23 @@ const Customers = ({ currentUser }) => {
 
   const totalCustomers = filteredData.length;
   const activeTiers = tiers.filter((t) => t.isActive);
-  const baseTierName = activeTiers[0]?.name || 'Sipper';
-  const activeTierMembers = filteredData.filter((customer) => !resolveTierProgress(customer, tiers).isBaseTier).length;
-  const employeeCustomers = filteredData.filter((customer) => customer.isEmployee).length;
-  const nonEmployeeCustomers = filteredData.filter((customer) => !customer.isEmployee).length;
-  const totalSpendRm = filteredData.reduce((sum, customer) => sum + Number(customer.totalSpentRm || 0), 0);
-  const totalSpendTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalPersonalTokens || 0), 0);
-  const totalSubsidyTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalSubsidyTokens || 0), 0);
-  const totalOrders = filteredData.reduce((sum, customer) => sum + Number(customer.orderCount ?? customer.orders ?? 0), 0);
-  const totalOrderTokens = filteredData.reduce((sum, customer) => sum + Number(customer.totalSpentTokens || 0), 0);
-  const averageSpendRm = totalOrders > 0 ? totalSpendRm / totalOrders : 0;
-  const averageSpendTokens = totalOrders > 0 ? totalOrderTokens / totalOrders : 0;
+  const tierCounts = filteredData.reduce((counts, customer) => {
+    const tierName = customer.tier || resolveTierProgress(customer, tiers).tier || 'Unassigned';
+    counts[tierName] = (counts[tierName] || 0) + 1;
+    return counts;
+  }, {});
+  const tierBreakdown = activeTiers
+    .map((tier) => ({ name: tier.name, count: tierCounts[tier.name] || 0 }))
+    .filter((tier) => tier.count > 0);
+  Object.entries(tierCounts).forEach(([name, count]) => {
+    if (!tierBreakdown.some((tier) => tier.name === name)) tierBreakdown.push({ name, count });
+  });
+  const newcomerCutoff = new Date();
+  newcomerCutoff.setDate(newcomerCutoff.getDate() - 30);
+  const newcomerCount = filteredData.filter((customer) => {
+    const joinedAt = customer.joinedAt ? new Date(customer.joinedAt) : null;
+    return joinedAt && !Number.isNaN(joinedAt.getTime()) && joinedAt >= newcomerCutoff;
+  }).length;
 
   return (
     <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
@@ -786,11 +804,22 @@ const Customers = ({ currentUser }) => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
-        <KPICard title="Customers" value={totalCustomers.toLocaleString('en-US')} badge={`${employeeCustomers} employees · ${nonEmployeeCustomers} non-employees`} icon={Wallet} iconBg="bg-[#1F3A34]/10 text-[#1F3A34]" />
-        <KPICard title="Active Tier Members" value={activeTierMembers.toLocaleString('en-US')} badge={`Customers above ${baseTierName} tier`} icon={Users} iconBg="bg-[#6F9F96]/20 text-[#2E5E58]" />
-        <KPICard title="Token Usage" value={formatTokens(totalSpendTokens)} badge={`Subsidy: ${formatTokens(totalSubsidyTokens)}`} icon={Megaphone} iconBg="bg-[#E07A5F]/15 text-[#E07A5F]" />
-        <KPICard title="Average Order Tokens Spent" value={formatTokens(averageSpendTokens)} badge={`RM equivalent: ${formatRm(averageSpendRm)}`} icon={Users} iconBg="bg-amber-500/15 text-amber-700" />
+      <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.4fr_0.8fr] gap-4 mb-6 flex-shrink-0">
+        <KPICard title="Total Customers" value={totalCustomers.toLocaleString('en-US')} badge="All customer accounts" icon={Wallet} iconBg="bg-[#1F3A34]/10 text-[#1F3A34]" />
+        <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs min-w-0 card-reveal">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">Customers by tier</h2>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-[#6F9F96]/20 text-[#2E5E58]"><Crown size={15} strokeWidth={2.2} /></div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {tierBreakdown.length > 0 ? tierBreakdown.map((tier) => (
+              <span key={tier.name} className="rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                {tier.name}: {tier.count}
+              </span>
+            )) : <span className="text-sm text-gray-500">No tiered customers yet</span>}
+          </div>
+        </div>
+        <KPICard title="Newcomers" value={newcomerCount.toLocaleString('en-US')} badge="Joined in the last 30 days" icon={User} iconBg="bg-[#E07A5F]/15 text-[#E07A5F]" />
       </div>
 
       {/* Search, filters, and actions */}
@@ -805,7 +834,7 @@ const Customers = ({ currentUser }) => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-[#2E5E58] focus:border-[#2E5E58] sm:text-sm"
-            placeholder="Search customer by username, tokens balance..."
+            placeholder="Search by name, email, or C2 Credit balance..."
           />
           </div>
 
@@ -937,9 +966,9 @@ const Customers = ({ currentUser }) => {
                     Username
                   </th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tier</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">C2 Credit Tokens</th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">C2 Credit Balance</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Total Orders</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Personal / Subsidy</th>
+                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Top Item</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Last Order</th>
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Status</th>
                 </tr>
@@ -976,22 +1005,16 @@ const Customers = ({ currentUser }) => {
                       </div>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap">
-                      {hasPurchaseHistory(customer) ? (
-                        <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md ${getTierColor(customer.tier)}`}>
-                          {customer.tier}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-medium text-gray-400">No tier yet</span>
-                      )}
+                      <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md ${getTierColor(customer.tier, customer.tierCode)}`}>
+                        {resolveTierProgress(customer, tiers).tier}
+                      </span>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.tokens}</td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.orders}</td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
-                      <div className="flex flex-col">
-                        <span>Personal: {formatTokens(customer.totalPersonalTokens)}</span>
-                        <span className="text-xs text-amber-700">Subsidy: {formatTokens(customer.totalSubsidyTokens)}</span>
-                        <span className="text-xs text-gray-500">{customer.spent}</span>
-                      </div>
+                    <td className="px-6 py-3 text-sm text-gray-900 font-medium max-w-[220px]">
+                      <span className="block truncate" title={customer.favoriteItem || 'No completed orders'}>
+                        {customer.favoriteItem || 'No completed orders'}
+                      </span>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">{customer.lastOrder}</td>
                     <td className="px-6 py-3 whitespace-nowrap">
@@ -1031,9 +1054,10 @@ const Customers = ({ currentUser }) => {
 
         {/* Desktop Side Panel (>= xl) */}
         {selectedCustomer && (
-          <div className="hidden xl:flex flex-col shrink-0">
+          <div className="hidden xl:flex flex-col shrink-0 self-start sticky top-4">
             <CustomerDetailPanel
               customer={selectedCustomer}
+              tiers={tiers}
               onClose={() => setSelectedCustomer(null)}
               canManageCustomers={canManageCustomers}
               onEditCustomer={() => setEditingCustomer(selectedCustomer)}
@@ -1059,6 +1083,7 @@ const Customers = ({ currentUser }) => {
           >
             <CustomerDetailPanel
               customer={selectedCustomer}
+              tiers={tiers}
               onClose={() => setSelectedCustomer(null)}
               canManageCustomers={canManageCustomers}
               onEditCustomer={() => setEditingCustomer(selectedCustomer)}
@@ -1122,7 +1147,7 @@ const Customers = ({ currentUser }) => {
                 {importRows.length > 0 && (
                   <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
                     <div className="grid grid-cols-3 bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500">
-                      <span>Name</span><span>Phone</span><span>Subsidy role</span>
+                      <span>Name</span><span>Phone</span><span>Allowance role</span>
                     </div>
                     {importRows.slice(0, 5).map((customer) => (
                       <div key={customer.phone} className="grid grid-cols-3 border-t border-gray-100 px-4 py-2 text-sm text-gray-700">
@@ -1225,14 +1250,14 @@ const Customers = ({ currentUser }) => {
                 />
               </div>
               <label className="block rounded-lg border border-[#B7CFCA] bg-[#F3F7F6] p-3 text-sm text-gray-700">
-                <span className="block font-semibold text-gray-900">Company subsidy role</span>
-                <span className="block text-xs text-gray-500">Boss is unlimited for eligible drinks. Employee and Intern use the monthly policy configured in Token Ledger.</span>
+                <span className="block font-semibold text-gray-900">Company allowance role</span>
+                <span className="block text-xs text-gray-500">Boss is unlimited for eligible drinks. Employee and Intern use the monthly policy configured in C2 Credit Ledger.</span>
                 <select
                   name="subsidyRole"
                   defaultValue={subsidyRoleForCustomer(editingCustomer)}
                   className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-[#2E5E58] focus:border-[#2E5E58]"
                 >
-                  <option value="none">No subsidy</option>
+                  <option value="none">No company allowance</option>
                   <option value="employee">Employee</option>
                   <option value="intern">Intern</option>
                   <option value="boss">Boss (unlimited)</option>

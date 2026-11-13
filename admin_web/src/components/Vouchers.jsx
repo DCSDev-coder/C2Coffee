@@ -1883,7 +1883,7 @@ const Vouchers = ({ onNavigate }) => {
 
         {/* Desktop Voucher Detail Drawer (>= xl) */}
         {selectedVoucher && (
-          <div className="hidden xl:flex w-[360px] lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex-col shrink-0 overflow-y-auto animate-in fade-in duration-200">
+          <div className="hidden xl:flex w-[360px] lg:w-[380px] xl:max-h-[calc(100dvh-2rem)] sticky top-4 self-start bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex-col shrink-0 overflow-y-auto animate-in fade-in duration-200">
             <VoucherDetailPanel
               voucher={selectedVoucher}
               activeTab={activeTab}

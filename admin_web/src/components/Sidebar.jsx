@@ -24,7 +24,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Voucher', icon: Ticket, section: 'Marketing & loyalty' },
     { name: 'Gift Cards', icon: Gift, section: 'Marketing & loyalty' },
     { name: 'Referral Program', icon: Share2, section: 'Marketing & loyalty' },
-    { name: 'Token Ledger', icon: Coins, section: 'Marketing & loyalty' },
+    { name: 'C2 Credit Ledger', icon: Coins, section: 'Marketing & loyalty' },
     { name: 'Tier Management', icon: Crown, section: 'Marketing & loyalty' },
     { name: 'Finance', icon: LineChart, section: 'Reports' },
     { name: 'Product Report', icon: Package, section: 'Reports' },

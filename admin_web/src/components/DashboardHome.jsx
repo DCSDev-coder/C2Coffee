@@ -282,7 +282,7 @@ const DashboardHome = ({ setCurrentPage }) => {
           title="Token Order Value"
           value={formatRm(summary.tokenOrderValueRm)}
           detail={<div className="grid grid-cols-2 gap-x-2 gap-y-0.5"><span>Personal: <strong className="text-gray-700">{formatNumber(summary.personalTokensUsed)}</strong></span><span>Subsidy: <strong className="text-gray-700">{formatNumber(summary.subsidyUsedTokens)}</strong></span></div>}
-          info="RM-equivalent menu value of token-funded orders. The detail below shows how many tokens came from the customer and how many came from company subsidy. This is not cash revenue."
+          info="RM-equivalent menu value of C2 Credit-funded orders. The detail below shows how much came from personal C2 Credit and how much came from company allowance. This is not cash revenue."
           icon={CircleDollarSign}
           iconBg="bg-sky-50 text-sky-700"
           badge={periodLabel}
@@ -342,7 +342,7 @@ const DashboardHome = ({ setCurrentPage }) => {
             ['Gift cards', formatNumber(coverage.activeGiftCards), `${formatRm(coverage.giftCardValueRm)} RM value`, Wallet, 'bg-amber-50 text-amber-700'],
             ['Active menu', formatNumber(coverage.activeMenuItems), 'published items', Coffee, 'bg-emerald-50 text-emerald-700'],
             ['Low stock', formatNumber(coverage.lowStockItems), 'needs review', ShoppingBag, coverage.lowStockItems > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'],
-            ['Subsidy issued', formatNumber(coverage.subsidyIssuedTokens), `${formatNumber(coverage.subsidyConsumedTokens)} consumed`, CircleDollarSign, 'bg-sky-50 text-sky-700']
+            ['Allowance issued', formatNumber(coverage.subsidyIssuedTokens), `${formatNumber(coverage.subsidyConsumedTokens)} consumed`, CircleDollarSign, 'bg-sky-50 text-sky-700']
           ].map(([title, value, subtitle, Icon, iconBg]) => (
             <div key={title} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
               <div className="flex items-center gap-2"><div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}><Icon size={15} /></div><p className="text-xs font-bold text-gray-600">{title}</p></div>
@@ -458,7 +458,7 @@ const DashboardHome = ({ setCurrentPage }) => {
                             <span className="font-semibold">Direct (RM)</span>
                           ) : (
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-semibold">{order.subsidyTokenAmount > 0 ? 'Company subsidy + personal tokens' : 'Personal tokens'}</span>
+                              <span className="font-semibold">{order.subsidyTokenAmount > 0 ? 'Company allowance + personal C2 Credit' : 'Personal C2 Credit'}</span>
                               <span className="text-[11px] text-gray-500 tabular-nums">
                                 {order.subsidyTokenAmount > 0 ? `${formatNumber(order.subsidyTokenAmount)} subsidy · ${formatNumber(order.personalTokenAmount)} personal` : `${formatNumber(order.tokenAmount)} tokens`}
                               </span>
