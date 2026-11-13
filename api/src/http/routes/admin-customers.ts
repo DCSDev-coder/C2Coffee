@@ -77,6 +77,12 @@ const customerListQueryRowSchema = z.object({
   joined_at: z.union([z.string(), z.date()]),
   display_name: z.string().nullable(),
   email: z.string().nullable(),
+  house_line: z.string().nullable(),
+  street_line: z.string().nullable(),
+  postcode: z.string().nullable(),
+  city: z.string().nullable(),
+  state: z.string().nullable(),
+  avatar_type: z.enum(['preset', 'uploaded']).nullable(),
   avatar_value: z.string().nullable(),
   token_balance: z.number().nullable(),
   token_reserved: z.number().nullable(),
@@ -86,6 +92,7 @@ const customerListQueryRowSchema = z.object({
   total_spent_tokens: z.union([z.string(), z.number()]).nullable(),
   total_subsidy_tokens: z.union([z.string(), z.number()]).nullable(),
   total_personal_tokens: z.union([z.string(), z.number()]).nullable(),
+  favorite_item: z.string().nullable(),
   last_order_at: z.union([z.string(), z.date()]).nullable(),
   refund_count: z.number().nullable(),
   tier_code: z.string().nullable(),
@@ -130,6 +137,12 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
   const tier = tierConfig ? tierConfig.name : tierProgress.tierName;
   const joinedAt = row.joined_at instanceof Date ? row.joined_at : new Date(row.joined_at);
   const lastOrderAt = row.last_order_at ? (row.last_order_at instanceof Date ? row.last_order_at : new Date(row.last_order_at)) : null;
+  const addressParts = [
+    row.house_line,
+    row.street_line,
+    row.postcode ? `${row.postcode}${row.city ? ` ${row.city}` : ''}` : row.city,
+    row.state
+  ].map((part) => part?.trim()).filter((part): part is string => Boolean(part));
 
   return {
     id: row.id,
@@ -149,6 +162,7 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     totalSpentTokens,
     totalSubsidyTokens,
     totalPersonalTokens,
+    favoriteItem: row.favorite_item || null,
     totalSpentRm: totalSpent,
     cupsLast180d,
     lastOrder: formatDisplayDate(lastOrderAt),
@@ -157,7 +171,16 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     status: row.registration_status === 'imported'
       ? 'Pending signup'
       : row.user_status === 'active' ? 'Active' : 'Inactive',
+    avatarType: row.avatar_type || 'preset',
     avatar: row.avatar_value || null,
+    address: addressParts.length > 0 ? {
+      houseLine: row.house_line?.trim() || null,
+      streetLine: row.street_line?.trim() || null,
+      postcode: row.postcode?.trim() || null,
+      city: row.city?.trim() || null,
+      state: row.state?.trim() || null,
+      formatted: addressParts.join(', ')
+    } : null,
     userStatus: row.user_status,
     isEmployee: Number(row.is_employee) === 1,
     subsidyRole: row.subsidy_role || (Number(row.is_employee) === 1 ? 'employee' : 'none'),
@@ -224,6 +247,12 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.created_at AS joined_at,
             up.display_name,
             up.email,
+            up.house_line,
+            up.street_line,
+            up.postcode,
+            up.city,
+            up.state,
+            up.avatar_type,
             up.avatar_value,
             ta.balance_available AS token_balance,
             ta.balance_reserved AS token_reserved,
@@ -231,6 +260,23 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             COALESCE(os.order_count, 0) AS order_count,
             COALESCE(os.total_spent_rm, 0) AS total_spent_rm,
             COALESCE(os.total_spent_tokens, 0) AS total_spent_tokens,
+            COALESCE(os.total_subsidy_tokens, 0) AS total_subsidy_tokens,
+            COALESCE(os.total_personal_tokens, 0) AS total_personal_tokens,
+            (
+              SELECT oi_favorite.item_name_snapshot
+              FROM orders o_favorite
+              JOIN stores s_favorite
+                ON s_favorite.id = o_favorite.store_id
+               AND s_favorite.tenant_id = :tenantId
+              JOIN order_items oi_favorite ON oi_favorite.order_id = o_favorite.id
+              WHERE o_favorite.user_id = u.id
+                AND o_favorite.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+              GROUP BY oi_favorite.item_name_snapshot
+              ORDER BY SUM(oi_favorite.quantity) DESC,
+                       MAX(o_favorite.created_at) DESC,
+                       oi_favorite.item_name_snapshot ASC
+              LIMIT 1
+            ) AS favorite_item,
             os.last_order_at,
             COALESCE(os.refund_count, 0) AS refund_count,
             (
@@ -258,12 +304,27 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               COUNT(*) AS order_count,
               COALESCE(SUM(GREATEST(0, o.final_total_rm)), 0) AS total_spent_rm,
               COALESCE(SUM(o.token_amount_charged), 0) AS total_spent_tokens,
-              COALESCE(SUM(o.employee_allowance_tokens_used), 0) AS total_subsidy_tokens,
-              COALESCE(SUM(GREATEST(0, o.token_amount_charged - o.employee_allowance_tokens_used)), 0) AS total_personal_tokens,
+              COALESCE(SUM(GREATEST(0, LEAST(
+                o.token_amount_charged,
+                COALESCE(NULLIF(ledger.subsidy_spent, 0), NULLIF(o.employee_allowance_tokens_used, 0), 0)
+                  - COALESCE(o.employee_allowance_tokens_refunded, 0)
+              ))), 0) AS total_subsidy_tokens,
+              COALESCE(SUM(GREATEST(0, o.token_amount_charged - GREATEST(0, LEAST(
+                o.token_amount_charged,
+                COALESCE(NULLIF(ledger.subsidy_spent, 0), NULLIF(o.employee_allowance_tokens_used, 0), 0)
+                  - COALESCE(o.employee_allowance_tokens_refunded, 0)
+              )))), 0) AS total_personal_tokens,
               MAX(o.created_at) AS last_order_at,
               SUM(CASE WHEN o.status = 'refunded' THEN 1 ELSE 0 END) AS refund_count
             FROM orders o
             JOIN stores os_store ON os_store.id = o.store_id AND os_store.tenant_id = :tenantId
+            LEFT JOIN (
+              SELECT source_id AS order_id,
+                     SUM(CASE WHEN direction = 'debit' AND source_type = 'employee_allowance_spend' THEN amount ELSE 0 END) AS subsidy_spent
+                FROM token_ledger
+               WHERE source_type = 'employee_allowance_spend'
+               GROUP BY source_id
+            ) ledger ON ledger.order_id = o.id
             WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected', 'refunded')
             GROUP BY o.user_id
           ) os ON os.user_id = u.id
@@ -302,17 +363,29 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
       const [orderRows] = await connection.query<RowDataPacket[]>(
         `SELECT o.order_ref AS id, o.created_at, o.final_total_rm AS total_rm,
                 o.token_amount_charged AS tokens_charged,
-                o.employee_allowance_tokens_used AS subsidy_tokens,
+                GREATEST(0, LEAST(
+                  o.token_amount_charged,
+                  COALESCE(NULLIF(ledger.subsidy_spent, 0), NULLIF(o.employee_allowance_tokens_used, 0), 0)
+                    - COALESCE(o.employee_allowance_tokens_refunded, 0)
+                )) AS subsidy_tokens,
                 o.status, o.payment_mode, s.name AS store_name,
                 COUNT(oi.id) AS item_count,
                 GROUP_CONCAT(CONCAT(oi.quantity, 'x ', oi.item_name_snapshot) ORDER BY oi.id SEPARATOR ', ') AS items
            FROM orders o
            JOIN stores s ON s.id = o.store_id AND s.tenant_id = :tenantId
+           LEFT JOIN (
+             SELECT source_id AS order_id,
+                    SUM(CASE WHEN direction = 'debit' AND source_type = 'employee_allowance_spend' THEN amount ELSE 0 END) AS subsidy_spent
+               FROM token_ledger
+              WHERE source_type = 'employee_allowance_spend'
+              GROUP BY source_id
+           ) ledger ON ledger.order_id = o.id
            LEFT JOIN order_items oi ON oi.order_id = o.id
           WHERE o.user_id = :userId
             AND o.status IN ('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected', 'refunded', 'cancelled')
           GROUP BY o.id, o.order_ref, o.created_at, o.final_total_rm, o.token_amount_charged,
-                   o.employee_allowance_tokens_used, o.status, o.payment_mode, s.name
+                   o.employee_allowance_tokens_used, o.employee_allowance_tokens_refunded,
+                   ledger.subsidy_spent, o.status, o.payment_mode, s.name
           ORDER BY o.created_at DESC, o.id DESC`,
         { userId, tenantId: request.adminAuth.tenantId }
       );
@@ -488,6 +561,12 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.created_at AS joined_at,
             up.display_name,
             up.email,
+            up.house_line,
+            up.street_line,
+            up.postcode,
+            up.city,
+            up.state,
+            up.avatar_type,
             up.avatar_value,
             ta.balance_available AS token_balance,
             ta.balance_reserved AS token_reserved,
@@ -495,6 +574,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             0 AS order_count,
             0 AS total_spent_rm,
             0 AS total_spent_tokens,
+            0 AS total_subsidy_tokens,
+            0 AS total_personal_tokens,
+            NULL AS favorite_item,
             NULL AS last_order_at,
             0 AS refund_count,
             'kawan' AS tier_code,
@@ -820,6 +902,12 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             u.created_at AS joined_at,
             up.display_name,
             up.email,
+            up.house_line,
+            up.street_line,
+            up.postcode,
+            up.city,
+            up.state,
+            up.avatar_type,
             up.avatar_value,
             ta.balance_available AS token_balance,
             ta.balance_reserved AS token_reserved,
@@ -827,6 +915,23 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             COALESCE(os.order_count, 0) AS order_count,
             COALESCE(os.total_spent_rm, 0) AS total_spent_rm,
             COALESCE(os.total_spent_tokens, 0) AS total_spent_tokens,
+            COALESCE(os.total_subsidy_tokens, 0) AS total_subsidy_tokens,
+            COALESCE(os.total_personal_tokens, 0) AS total_personal_tokens,
+            (
+              SELECT oi_favorite.item_name_snapshot
+              FROM orders o_favorite
+              JOIN stores s_favorite
+                ON s_favorite.id = o_favorite.store_id
+               AND s_favorite.tenant_id = :tenantId
+              JOIN order_items oi_favorite ON oi_favorite.order_id = o_favorite.id
+              WHERE o_favorite.user_id = u.id
+                AND o_favorite.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+              GROUP BY oi_favorite.item_name_snapshot
+              ORDER BY SUM(oi_favorite.quantity) DESC,
+                       MAX(o_favorite.created_at) DESC,
+                       oi_favorite.item_name_snapshot ASC
+              LIMIT 1
+            ) AS favorite_item,
             os.last_order_at,
             COALESCE(os.refund_count, 0) AS refund_count,
             (
@@ -852,11 +957,29 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             SELECT
               o.user_id,
               COUNT(*) AS order_count,
-              COALESCE(SUM(GREATEST(0, o.subtotal_rm + o.modifier_total_rm - o.discount_total_rm)), 0) AS total_spent_rm,
+              COALESCE(SUM(GREATEST(0, o.final_total_rm)), 0) AS total_spent_rm,
               COALESCE(SUM(o.token_amount_charged), 0) AS total_spent_tokens,
+              COALESCE(SUM(GREATEST(0, LEAST(
+                o.token_amount_charged,
+                COALESCE(NULLIF(ledger.subsidy_spent, 0), NULLIF(o.employee_allowance_tokens_used, 0), 0)
+                  - COALESCE(o.employee_allowance_tokens_refunded, 0)
+              ))), 0) AS total_subsidy_tokens,
+              COALESCE(SUM(GREATEST(0, o.token_amount_charged - GREATEST(0, LEAST(
+                o.token_amount_charged,
+                COALESCE(NULLIF(ledger.subsidy_spent, 0), NULLIF(o.employee_allowance_tokens_used, 0), 0)
+                  - COALESCE(o.employee_allowance_tokens_refunded, 0)
+              )))), 0) AS total_personal_tokens,
               MAX(o.created_at) AS last_order_at,
               SUM(CASE WHEN o.status = 'refunded' THEN 1 ELSE 0 END) AS refund_count
             FROM orders o
+            JOIN stores os_store ON os_store.id = o.store_id AND os_store.tenant_id = :tenantId
+            LEFT JOIN (
+              SELECT source_id AS order_id,
+                     SUM(CASE WHEN direction = 'debit' AND source_type = 'employee_allowance_spend' THEN amount ELSE 0 END) AS subsidy_spent
+                FROM token_ledger
+               WHERE source_type = 'employee_allowance_spend'
+               GROUP BY source_id
+            ) ledger ON ledger.order_id = o.id
             WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected', 'refunded')
             GROUP BY o.user_id
           ) os ON os.user_id = u.id
