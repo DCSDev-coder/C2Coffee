@@ -1,12 +1,19 @@
 package com.c2coffeeandcandle.counter
 
 import android.media.AudioManager
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.PI
+import kotlin.math.sin
 
 class MainActivity : FlutterActivity() {
     private val soundChannel = "com.c2coffee.counter/barista_sounds"
@@ -50,6 +57,10 @@ class MainActivity : FlutterActivity() {
 
     private fun playBeeps(count: Int, volumePercent: Int, style: String) {
         if (volumePercent == 0) return
+        if (style == "new_order") {
+            playNewOrderChime(count, volumePercent)
+            return
+        }
         val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, volumePercent)
         val interval = when (style) {
             "long" -> 760L
@@ -80,5 +91,59 @@ class MainActivity : FlutterActivity() {
             }
         }
         soundHandler.postDelayed({ toneGenerator.release() }, count * interval + 200L)
+    }
+
+    private fun playNewOrderChime(count: Int, volumePercent: Int) {
+        val sampleRate = 44100
+        val noteDurationMs = 150
+        val gapMs = 35
+        val noteFrequencies = doubleArrayOf(659.25, 783.99, 987.77)
+        val chimeDurationMs = noteFrequencies.size * noteDurationMs + (noteFrequencies.size - 1) * gapMs
+        val repeatGapMs = 900
+        val totalDurationMs = count * chimeDurationMs + (count - 1) * repeatGapMs
+        val totalSamples = sampleRate * totalDurationMs / 1000
+        val pcm = ShortArray(totalSamples)
+        val amplitude = (Short.MAX_VALUE * (volumePercent.coerceIn(0, 100) / 100.0) * 0.32).toInt()
+
+        repeat(count) { repeatIndex ->
+            val repeatStartMs = repeatIndex * (chimeDurationMs + repeatGapMs)
+            noteFrequencies.forEachIndexed { noteIndex, frequency ->
+                val noteStartMs = repeatStartMs + noteIndex * (noteDurationMs + gapMs)
+                val startSample = sampleRate * noteStartMs / 1000
+                val noteSamples = sampleRate * noteDurationMs / 1000
+                repeat(noteSamples) { offset ->
+                    val progress = offset.toDouble() / noteSamples
+                    val envelope = when {
+                        progress < 0.08 -> progress / 0.08
+                        progress > 0.88 -> (1.0 - progress) / 0.12
+                        else -> 1.0
+                    }
+                    pcm[startSample + offset] = (sin(2.0 * PI * frequency * offset / sampleRate) * amplitude * envelope).toInt().toShort()
+                }
+            }
+        }
+
+        val bytes = ByteBuffer.allocate(pcm.size * 2).order(ByteOrder.LITTLE_ENDIAN)
+        pcm.forEach { bytes.putShort(it) }
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(bytes.capacity())
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .build()
+        track.write(bytes.array(), 0, bytes.capacity())
+        track.play()
+        soundHandler.postDelayed({ track.release() }, totalDurationMs + 150L)
     }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:counter_app/widgets/top_notice.dart';
 
 import '../services/api_service.dart';
@@ -103,9 +104,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   )
                 : status.baristas.where((item) => activeIds.contains(item.id)))
             .toList();
-    final action = await showModalBottomSheet<_AttendanceAction>(
+    final action = await showDialog<_AttendanceAction>(
       context: context,
-      isScrollControlled: true,
       builder: (_) => _AttendancePinSheet(clockIn: clockIn, baristas: choices),
     );
     if (action != null && mounted) {
@@ -124,10 +124,8 @@ class _SettingsPageState extends State<SettingsPage> {
               item.pinConfigured && (isReopen || activeIds.contains(item.id)),
         )
         .toList();
-    final action = await showModalBottomSheet<_EmergencyAction>(
+    final action = await showDialog<_EmergencyAction>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _EmergencySheet(
         baristas: choices,
         reopening: isReopen,
@@ -168,12 +166,17 @@ class _SettingsPageState extends State<SettingsPage> {
     final guides = await ApiService.fetchGuides();
     if (!mounted) return;
     final visible = guides.where((guide) => guide.type == type).toList();
-    await showModalBottomSheet<void>(
+    await showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(sheetContext).height * .82,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 1140,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.88,
+          ),
           child: _StaffGuidesSheet(title: title, guides: visible),
         ),
       ),
@@ -197,6 +200,341 @@ class _SettingsPageState extends State<SettingsPage> {
     widget.onSignedOut();
   }
 
+  Widget _buildAttendanceCard(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionLabel(label: 'SHIFT ATTENDANCE'),
+        const SizedBox(height: 12),
+        FutureBuilder<BaristaAttendanceStatus>(
+          future: _attendance,
+          builder: (context, snapshot) {
+            final status = snapshot.data;
+            final active =
+                status?.activeAttendance ?? const <BaristaAttendance>[];
+            final emergencyClosed = status?.emergencyClosure != null;
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: SettingsPage.ink.withValues(alpha: .10),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: active.isEmpty
+                              ? Colors.black.withValues(alpha: 0.05)
+                              : const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: active.isEmpty
+                                    ? Colors.black38
+                                    : const Color(0xFF16A34A),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              active.isEmpty
+                                  ? 'No barista clocked in'
+                                  : '${active.length} barista${active.length == 1 ? '' : 's'} clocked in',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: active.isEmpty
+                                    ? Colors.black54
+                                    : const Color(0xFF166534),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (emergencyClosed) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'Emergency closed',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFB3261E),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (active.isEmpty)
+                    Text(
+                      'Select your name and enter your six-digit PIN. The shared tablet stays signed in.',
+                      style: TextStyle(
+                        color: SettingsPage.ink.withValues(alpha: 0.72),
+                        height: 1.4,
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: active.map((item) {
+                        final time = TimeOfDay.fromDateTime(
+                          item.clockedInAt,
+                        ).format(context);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF6F8F7),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFDCE3EA)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircleAvatar(
+                                radius: 12,
+                                backgroundColor: SettingsPage.green.withValues(
+                                  alpha: 0.14,
+                                ),
+                                child: Text(
+                                  item.baristaName.isEmpty
+                                      ? '?'
+                                      : item.baristaName[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                    color: SettingsPage.green,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${item.baristaName} · since $time',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                  color: SettingsPage.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _attendanceUpdating || status == null
+                              ? null
+                              : () => _openAttendanceSheet(status, true),
+                          icon: _attendanceUpdating
+                              ? const SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.login_rounded),
+                          label: const Text('Clock in'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: SettingsPage.green,
+                            minimumSize: const Size.fromHeight(46),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed:
+                              _attendanceUpdating ||
+                                  status == null ||
+                                  active.isEmpty
+                              ? null
+                              : () => _openAttendanceSheet(status, false),
+                          icon: const Icon(Icons.logout_rounded),
+                          label: const Text('Clock out'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFB54E3D),
+                            minimumSize: const Size.fromHeight(46),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Divider(height: 1, color: Color(0xFFE5E7EB)),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _attendanceUpdating || status == null
+                          ? null
+                          : () => _openEmergencySheet(status),
+                      icon: Icon(
+                        !emergencyClosed
+                            ? Icons.emergency_outlined
+                            : Icons.lock_open_rounded,
+                      ),
+                      label: Text(
+                        !emergencyClosed
+                            ? 'Emergency close outlet'
+                            : 'Reopen outlet',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        foregroundColor: !emergencyClosed
+                            ? const Color(0xFFB3261E)
+                            : SettingsPage.green,
+                        side: BorderSide(
+                          color: !emergencyClosed
+                              ? const Color(0xFFFCA5A5)
+                              : SettingsPage.green,
+                        ),
+                        backgroundColor: !emergencyClosed
+                            ? const Color(0xFFFEF2F2)
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGuidesAndDeviceColumn(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionLabel(label: 'STAFF GUIDES'),
+        const SizedBox(height: 12),
+        _GuideLink(
+          title: 'Attire guide',
+          icon: Icons.checkroom_outlined,
+          onTap: () => _openGuides('attire', 'Attire guide'),
+        ),
+        const SizedBox(height: 10),
+        _GuideLink(
+          title: 'Store rules',
+          icon: Icons.rule_folder_outlined,
+          onTap: () => _openGuides('rules', 'Store rules'),
+        ),
+        const SizedBox(height: 10),
+        _GuideLink(
+          title: 'Drink SOPs',
+          icon: Icons.local_cafe_outlined,
+          onTap: () => _openGuides('drink', 'Drink SOPs'),
+        ),
+        const SizedBox(height: 22),
+        const _SectionLabel(label: 'SOUND CHECK'),
+        const SizedBox(height: 12),
+        _SoundCheckCard(),
+        const SizedBox(height: 22),
+        const _SectionLabel(label: 'DEVICE SESSION'),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: SettingsPage.ink.withValues(alpha: .10)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Workstation session',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Clears device authentication on this tablet.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: SettingsPage.ink.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () => _signOut(context),
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: const Text('Sign out from this device'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFB54E3D),
+                  side: const BorderSide(color: Color(0xFFB54E3D)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -205,7 +543,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
+              constraints: const BoxConstraints(maxWidth: 1180),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
                 children: [
@@ -217,174 +555,143 @@ class _SettingsPageState extends State<SettingsPage> {
                     refreshTooltip: 'Refresh workstation',
                   ),
                   const SizedBox(height: 22),
-                  const _SectionLabel(label: 'SHIFT ATTENDANCE'),
-                  const SizedBox(height: 12),
-                  FutureBuilder<BaristaAttendanceStatus>(
-                    future: _attendance,
-                    builder: (context, snapshot) {
-                      final status = snapshot.data;
-                      final active =
-                          status?.activeAttendance ??
-                          const <BaristaAttendance>[];
-                      return Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: SettingsPage.ink.withValues(alpha: .10),
-                          ),
-                        ),
-                        child: Column(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth >= 820) {
+                        return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              active.isEmpty
-                                  ? 'No barista clocked in'
-                                  : '${active.length} barista${active.length == 1 ? '' : 's'} clocked in',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
+                            Expanded(
+                              flex: 6,
+                              child: _buildAttendanceCard(context),
                             ),
-                            const SizedBox(height: 5),
-                            Text(
-                              active.isEmpty
-                                  ? 'Select your name and enter your six-digit PIN. The shared tablet stays signed in.'
-                                  : active
-                                        .map(
-                                          (item) =>
-                                              '${item.baristaName} since ${TimeOfDay.fromDateTime(item.clockedInAt).format(context)}',
-                                        )
-                                        .join('\n'),
-                            ),
-                            const SizedBox(height: 14),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: FilledButton.icon(
-                                    onPressed:
-                                        _attendanceUpdating || status == null
-                                        ? null
-                                        : () => _openAttendanceSheet(
-                                            status,
-                                            true,
-                                          ),
-                                    icon: _attendanceUpdating
-                                        ? const SizedBox.square(
-                                            dimension: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Icon(Icons.login_rounded),
-                                    label: const Text('Clock in'),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: SettingsPage.green,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: FilledButton.icon(
-                                    onPressed:
-                                        _attendanceUpdating ||
-                                            status == null ||
-                                            active.isEmpty
-                                        ? null
-                                        : () => _openAttendanceSheet(
-                                            status,
-                                            false,
-                                          ),
-                                    icon: const Icon(Icons.logout_rounded),
-                                    label: const Text('Clock out'),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: const Color(0xFFB54E3D),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _attendanceUpdating || status == null
-                                    ? null
-                                    : () => _openEmergencySheet(status),
-                                icon: Icon(
-                                  status?.emergencyClosure == null
-                                      ? Icons.emergency_outlined
-                                      : Icons.lock_open_rounded,
-                                ),
-                                label: Text(
-                                  status?.emergencyClosure == null
-                                      ? 'Emergency close outlet'
-                                      : 'Reopen outlet',
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor:
-                                      status?.emergencyClosure == null
-                                      ? const Color(0xFFB3261E)
-                                      : SettingsPage.green,
-                                  side: BorderSide(
-                                    color: status?.emergencyClosure == null
-                                        ? const Color(0xFFB3261E)
-                                        : SettingsPage.green,
-                                  ),
-                                ),
-                              ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              flex: 5,
+                              child: _buildGuidesAndDeviceColumn(context),
                             ),
                           ],
-                        ),
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildAttendanceCard(context),
+                          const SizedBox(height: 24),
+                          _buildGuidesAndDeviceColumn(context),
+                        ],
                       );
                     },
-                  ),
-                  const SizedBox(height: 24),
-                  const _SectionLabel(label: 'STAFF GUIDES'),
-                  const SizedBox(height: 12),
-                  _GuideLink(
-                    title: 'Attire guide',
-                    icon: Icons.checkroom_outlined,
-                    onTap: () => _openGuides('attire', 'Attire guide'),
-                  ),
-                  const SizedBox(height: 10),
-                  _GuideLink(
-                    title: 'Store rules',
-                    icon: Icons.rule_folder_outlined,
-                    onTap: () => _openGuides('rules', 'Store rules'),
-                  ),
-                  const SizedBox(height: 10),
-                  _GuideLink(
-                    title: 'Drink SOPs',
-                    icon: Icons.local_cafe_outlined,
-                    onTap: () => _openGuides('drink', 'Drink SOPs'),
-                  ),
-                  const SizedBox(height: 32),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _signOut(context),
-                      icon: const Icon(Icons.logout_rounded, size: 19),
-                      label: const Text('Sign out from this device'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFB54E3D),
-                        side: const BorderSide(color: Color(0xFFB54E3D)),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 13,
-                        ),
-                        shape: const StadiumBorder(),
-                        textStyle: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SoundCheckCard extends StatefulWidget {
+  @override
+  State<_SoundCheckCard> createState() => _SoundCheckCardState();
+}
+
+class _SoundCheckCardState extends State<_SoundCheckCard> {
+  BaristaSoundEvent? _playing;
+
+  Future<void> _preview(BaristaSoundEvent event) async {
+    if (_playing != null) return;
+    setState(() => _playing = event);
+    try {
+      await BaristaSoundService.instance.preview(event);
+    } finally {
+      if (mounted) setState(() => _playing = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const cues = <(BaristaSoundEvent, String, IconData)>[
+      (
+        BaristaSoundEvent.incomingOrder,
+        'New order',
+        Icons.receipt_long_outlined,
+      ),
+      (
+        BaristaSoundEvent.cancellation,
+        'Cancellation',
+        Icons.warning_amber_outlined,
+      ),
+      (BaristaSoundEvent.waitingOrder, 'Waiting order', Icons.hourglass_bottom),
+      (
+        BaristaSoundEvent.preparingTooLong,
+        'Preparing reminder',
+        Icons.timer_outlined,
+      ),
+      (BaristaSoundEvent.clockIn, 'Clock in', Icons.login_rounded),
+      (BaristaSoundEvent.clockOut, 'Clock out', Icons.logout_rounded),
+      (
+        BaristaSoundEvent.sideWork,
+        'Side work due',
+        Icons.cleaning_services_outlined,
+      ),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SettingsPage.ink.withValues(alpha: .10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Hear the configured sounds',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Tap a cue to hear it on this tablet. This is preview-only and does not change the sound setup.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.35,
+              color: SettingsPage.ink.withValues(alpha: .68),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: cues.map((cue) {
+              final event = cue.$1;
+              final isPlaying = _playing == event;
+              return OutlinedButton.icon(
+                onPressed: _playing == null ? () => _preview(event) : null,
+                icon: isPlaying
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(cue.$3, size: 17),
+                label: Text(cue.$2),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: SettingsPage.green,
+                  side: BorderSide(
+                    color: SettingsPage.green.withValues(alpha: .35),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 11,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -806,150 +1113,466 @@ class _EmergencySheetState extends State<_EmergencySheet> {
   String reasonCode = 'medical_emergency';
   String note = '';
 
+  static const _reasons = <(String, String)>[
+    ('medical_emergency', 'Medical emergency'),
+    ('safety_incident', 'Safety incident'),
+    ('power_outage', 'Power outage'),
+    ('equipment_failure', 'Equipment failure'),
+    ('other', 'Other'),
+  ];
+
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Container(
-      margin: const EdgeInsets.all(16),
-      padding: EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        24 + MediaQuery.viewInsetsOf(context).bottom,
+  void initState() {
+    super.initState();
+    if (widget.baristas.length == 1) {
+      selected = widget.baristas.first;
+    }
+  }
+
+  void _appendDigit(String digit) {
+    if (pin.length >= 6) return;
+    setState(() => pin += digit);
+  }
+
+  void _backspace() {
+    if (pin.isEmpty) return;
+    setState(() => pin = pin.substring(0, pin.length - 1));
+  }
+
+  void _clearPin() {
+    if (pin.isEmpty) return;
+    setState(() => pin = '');
+  }
+
+  void _submit() {
+    if (selected == null || pin.length != 6) return;
+    Navigator.pop(
+      context,
+      _EmergencyAction(
+        barista: selected!,
+        pin: pin,
+        reasonCode: reasonCode,
+        note: note.trim().isEmpty ? null : note.trim(),
       ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.reopening ? 'Reopen outlet' : 'Emergency close outlet',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.reopening
-                  ? 'Reopening resumes ordering and clocks the selected barista in.'
-                  : 'Preparing or ready-for-pickup orders will block closure. Earlier orders will be cancelled and refunded safely.',
-            ),
-            if (widget.expectedReopenAt != null) ...[
-              const SizedBox(height: 8),
-              Text('Automatic reopening: ${widget.expectedReopenAt}'),
-            ],
-            const SizedBox(height: 18),
-            DropdownButtonFormField<AttendanceBarista>(
-              initialValue: selected,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Barista',
-                border: OutlineInputBorder(),
-              ),
-              items: widget.baristas
-                  .map(
-                    (barista) => DropdownMenuItem(
-                      value: barista,
-                      child: Text(barista.name),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.reopening
+        ? SettingsPage.green
+        : const Color(0xFFB3261E);
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 740),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Branded Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 18, 20, 18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: widget.reopening
+                        ? const [Color(0xFF173F3A), Color(0xFF304A3A)]
+                        : const [Color(0xFF881B15), Color(0xFFB3261E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        widget.reopening
+                            ? Icons.lock_open_rounded
+                            : Icons.emergency_outlined,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => selected = value),
-            ),
-            if (!widget.reopening) ...[
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                initialValue: reasonCode,
-                decoration: const InputDecoration(
-                  labelText: 'Emergency reason',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'medical_emergency',
-                    child: Text('Medical emergency'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'safety_incident',
-                    child: Text('Safety incident'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'power_outage',
-                    child: Text('Power outage'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'equipment_failure',
-                    child: Text('Equipment failure'),
-                  ),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
-                ],
-                onChanged: (value) =>
-                    setState(() => reasonCode = value ?? reasonCode),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                maxLength: 500,
-                maxLines: 3,
-                onChanged: (value) => note = value,
-                decoration: const InputDecoration(
-                  labelText: 'Internal note (optional)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-            const SizedBox(height: 14),
-            TextField(
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              onChanged: (value) =>
-                  setState(() => pin = value.replaceAll(RegExp(r'[^0-9]'), '')),
-              decoration: const InputDecoration(
-                labelText: 'Six-digit PIN',
-                border: OutlineInputBorder(),
-                counterText: '',
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 10),
-                FilledButton(
-                  onPressed: selected == null || pin.length != 6
-                      ? null
-                      : () => Navigator.pop(
-                          context,
-                          _EmergencyAction(
-                            barista: selected!,
-                            pin: pin,
-                            reasonCode: reasonCode,
-                            note: note.trim().isEmpty ? null : note.trim(),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.reopening
+                                ? 'Reopen outlet'
+                                : 'Emergency close outlet',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
+                          Text(
+                            widget.reopening
+                                ? 'Reopening resumes ordering and clocks the selected barista in.'
+                                : 'Preparing or ready orders block closure. Earlier orders are cancelled and refunded safely.',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.88),
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          if (widget.expectedReopenAt != null) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              'Automatic reopening: ${widget.expectedReopenAt}',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.92),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (widget.baristas.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'No eligible barista profiles are available. Ask an administrator to set up the profile PIN.',
+                      ),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Close'),
                         ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: widget.reopening
-                        ? SettingsPage.green
-                        : const Color(0xFFB3261E),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    widget.reopening
-                        ? 'Reopen outlet'
-                        : 'Confirm emergency closure',
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final leftColumn = Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '1. SELECT BARISTA',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.3,
+                              color: SettingsPage.ink.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 150),
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: widget.baristas.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 6),
+                              itemBuilder: (_, index) {
+                                final barista = widget.baristas[index];
+                                final isSelected = selected?.id == barista.id;
+                                return Material(
+                                  color: isSelected
+                                      ? accent.withValues(alpha: 0.08)
+                                      : const Color(0xFFF8FAF9),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () =>
+                                        setState(() => selected = barista),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 9,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? accent
+                                              : const Color(0xFFDCE3EA),
+                                          width: isSelected ? 1.8 : 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 15,
+                                            backgroundColor: isSelected
+                                                ? accent
+                                                : accent.withValues(
+                                                    alpha: 0.14,
+                                                  ),
+                                            child: Text(
+                                              barista.name.isEmpty
+                                                  ? '?'
+                                                  : barista.name[0]
+                                                        .toUpperCase(),
+                                              style: TextStyle(
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : accent,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              barista.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w800,
+                                                color: isSelected
+                                                    ? accent
+                                                    : SettingsPage.ink,
+                                              ),
+                                            ),
+                                          ),
+                                          if (isSelected)
+                                            Icon(
+                                              Icons.check_circle_rounded,
+                                              color: accent,
+                                              size: 18,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          if (!widget.reopening) ...[
+                            const SizedBox(height: 14),
+                            Text(
+                              '2. EMERGENCY REASON',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.3,
+                                color: SettingsPage.ink.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: _reasons.map((item) {
+                                final active = reasonCode == item.$1;
+                                return ChoiceChip(
+                                  label: Text(item.$2),
+                                  visualDensity: VisualDensity.compact,
+                                  selected: active,
+                                  selectedColor: accent.withValues(alpha: 0.14),
+                                  labelStyle: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: active ? accent : SettingsPage.ink,
+                                  ),
+                                  onSelected: (_) =>
+                                      setState(() => reasonCode = item.$1),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              scrollPadding: const EdgeInsets.only(bottom: 120),
+                              maxLength: 500,
+                              maxLines: 2,
+                              onChanged: (value) => note = value,
+                              decoration: InputDecoration(
+                                labelText: 'Internal note (optional)',
+                                isDense: true,
+                                counterText: '',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+
+                      final pinPad = Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            widget.reopening
+                                ? '2. ENTER 6-DIGIT PIN'
+                                : '3. ENTER 6-DIGIT PIN',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.3,
+                              color: SettingsPage.ink.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAF9),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFDCE3EA),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(6, (index) {
+                                final filled = index < pin.length;
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 120),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                  ),
+                                  width: 14,
+                                  height: 14,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: filled ? accent : Colors.transparent,
+                                    border: Border.all(
+                                      color: filled ? accent : Colors.black26,
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          for (final row in const [
+                            ['1', '2', '3'],
+                            ['4', '5', '6'],
+                            ['7', '8', '9'],
+                          ]) ...[
+                            Row(
+                              children: [
+                                for (var i = 0; i < row.length; i++) ...[
+                                  if (i > 0) const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _PinKeypadButton(
+                                      label: row[i],
+                                      onTap: () => _appendDigit(row[i]),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _PinKeypadButton(
+                                  label: 'Clear',
+                                  isAction: true,
+                                  onTap: _clearPin,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _PinKeypadButton(
+                                  label: '0',
+                                  onTap: () => _appendDigit('0'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _PinKeypadButton(
+                                  icon: Icons.backspace_outlined,
+                                  isAction: true,
+                                  onTap: _backspace,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          FilledButton(
+                            onPressed: selected == null || pin.length != 6
+                                ? null
+                                : _submit,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: accent,
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            child: Text(
+                              widget.reopening
+                                  ? 'Reopen outlet'
+                                  : 'Confirm emergency closure',
+                            ),
+                          ),
+                        ],
+                      );
+
+                      if (constraints.maxWidth >= 560) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 6, child: leftColumn),
+                            const SizedBox(width: 20),
+                            Expanded(flex: 5, child: pinPad),
+                          ],
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          leftColumn,
+                          const SizedBox(height: 18),
+                          pinPad,
+                        ],
+                      );
+                    },
                   ),
                 ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _AttendanceAction {
@@ -969,92 +1592,493 @@ class _AttendancePinSheet extends StatefulWidget {
 class _AttendancePinSheetState extends State<_AttendancePinSheet> {
   AttendanceBarista? selected;
   String pin = '';
+  final FocusNode _focusNode = FocusNode();
+
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: Padding(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        24 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.clockIn ? 'Clock in' : 'Clock out',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            widget.clockIn
-                ? 'Select your name, then enter your six-digit PIN.'
-                : 'Confirm your name and PIN to end your shift.',
-          ),
-          const SizedBox(height: 18),
-          if (widget.baristas.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 18),
-              child: Text(
-                'No eligible barista profiles are available. Ask an administrator to set up the profile PIN.',
-              ),
-            )
-          else ...[
-            DropdownButtonFormField<AttendanceBarista>(
-              initialValue: selected,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Your name',
-                border: OutlineInputBorder(),
-              ),
-              items: widget.baristas
-                  .map(
-                    (barista) => DropdownMenuItem(
-                      value: barista,
-                      child: Text(barista.name),
+  void initState() {
+    super.initState();
+    if (widget.baristas.length == 1) {
+      selected = widget.baristas.first;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _appendDigit(String digit) {
+    if (pin.length >= 6) return;
+    setState(() => pin += digit);
+  }
+
+  void _backspace() {
+    if (pin.isEmpty) return;
+    setState(() => pin = pin.substring(0, pin.length - 1));
+  }
+
+  void _clearPin() {
+    if (pin.isEmpty) return;
+    setState(() => pin = '');
+  }
+
+  void _submit() {
+    if (selected == null || pin.length != 6) return;
+    Navigator.pop(context, _AttendanceAction(selected!, pin));
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.backspace) {
+      _backspace();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      _submit();
+      return KeyEventResult.handled;
+    }
+    final char = event.character;
+    if (char != null && RegExp(r'^[0-9]$').hasMatch(char)) {
+      _appendDigit(char);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = widget.clockIn
+        ? SettingsPage.green
+        : const Color(0xFFB54E3D);
+    final nowLabel = TimeOfDay.fromDateTime(DateTime.now()).format(context);
+
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Branded Header
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 18, 20, 18),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: widget.clockIn
+                          ? const [Color(0xFF173F3A), Color(0xFF304A3A)]
+                          : const [Color(0xFF933728), Color(0xFFB54E3D)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          widget.clockIn
+                              ? Icons.login_rounded
+                              : Icons.logout_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.clockIn ? 'Clock in' : 'Clock out',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              widget.clockIn
+                                  ? 'Select your profile and tap your 6-digit PIN'
+                                  : 'Confirm your profile and PIN to end shift',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          nowLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (widget.baristas.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'No eligible barista profiles are available. Ask an administrator to set up the profile PIN.',
+                        ),
+                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
+                        ),
+                      ],
                     ),
                   )
-                  .toList(),
-              onChanged: (value) => setState(() => selected = value),
+                else
+                  Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final baristaSelector = Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              '1. SELECT BARISTA',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.3,
+                                color: SettingsPage.ink.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 260),
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: widget.baristas.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (_, index) {
+                                  final barista = widget.baristas[index];
+                                  final isSelected = selected?.id == barista.id;
+                                  return Material(
+                                    color: isSelected
+                                        ? accent.withValues(alpha: 0.08)
+                                        : const Color(0xFFF8FAF9),
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () =>
+                                          setState(() => selected = barista),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? accent
+                                                : const Color(0xFFDCE3EA),
+                                            width: isSelected ? 1.8 : 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 17,
+                                              backgroundColor: isSelected
+                                                  ? accent
+                                                  : accent.withValues(
+                                                      alpha: 0.14,
+                                                    ),
+                                              child: Text(
+                                                barista.name.isEmpty
+                                                    ? '?'
+                                                    : barista.name[0]
+                                                          .toUpperCase(),
+                                                style: TextStyle(
+                                                  color: isSelected
+                                                      ? Colors.white
+                                                      : accent,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                barista.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: isSelected
+                                                      ? accent
+                                                      : SettingsPage.ink,
+                                                ),
+                                              ),
+                                            ),
+                                            if (isSelected)
+                                              Icon(
+                                                Icons.check_circle_rounded,
+                                                color: accent,
+                                                size: 20,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+
+                        final pinPad = Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              '2. ENTER 6-DIGIT PIN',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.3,
+                                color: SettingsPage.ink.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAF9),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFDCE3EA),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(6, (index) {
+                                  final filled = index < pin.length;
+                                  return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 120),
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                    ),
+                                    width: 14,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: filled
+                                          ? accent
+                                          : Colors.transparent,
+                                      border: Border.all(
+                                        color: filled ? accent : Colors.black26,
+                                        width: 1.6,
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            for (final row in const [
+                              ['1', '2', '3'],
+                              ['4', '5', '6'],
+                              ['7', '8', '9'],
+                            ]) ...[
+                              Row(
+                                children: [
+                                  for (var i = 0; i < row.length; i++) ...[
+                                    if (i > 0) const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _PinKeypadButton(
+                                        label: row[i],
+                                        onTap: () => _appendDigit(row[i]),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _PinKeypadButton(
+                                    label: 'Clear',
+                                    isAction: true,
+                                    onTap: _clearPin,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _PinKeypadButton(
+                                    label: '0',
+                                    onTap: () => _appendDigit('0'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _PinKeypadButton(
+                                    icon: Icons.backspace_outlined,
+                                    isAction: true,
+                                    onTap: _backspace,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            FilledButton.icon(
+                              onPressed: selected == null || pin.length != 6
+                                  ? null
+                                  : _submit,
+                              icon: Icon(
+                                widget.clockIn
+                                    ? Icons.login_rounded
+                                    : Icons.logout_rounded,
+                              ),
+                              label: Text(
+                                widget.clockIn
+                                    ? 'Clock in now'
+                                    : 'Clock out now',
+                              ),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: accent,
+                                minimumSize: const Size.fromHeight(48),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+
+                        if (constraints.maxWidth >= 520) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(flex: 5, child: baristaSelector),
+                              const SizedBox(width: 20),
+                              Expanded(flex: 6, child: pinPad),
+                            ],
+                          );
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            baristaSelector,
+                            const SizedBox(height: 18),
+                            pinPad,
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 14),
-            TextField(
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 6,
-              onChanged: (value) =>
-                  setState(() => pin = value.replaceAll(RegExp(r'[^0-9]'), '')),
-              decoration: const InputDecoration(
-                labelText: 'Six-digit PIN',
-                border: OutlineInputBorder(),
-                counterText: '',
-              ),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: selected == null || pin.length != 6
-                    ? null
-                    : () => Navigator.pop(
-                        context,
-                        _AttendanceAction(selected!, pin),
-                      ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: widget.clockIn
-                      ? SettingsPage.green
-                      : const Color(0xFFB54E3D),
-                ),
-                child: Text(widget.clockIn ? 'Clock in now' : 'Clock out now'),
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-        ],
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _PinKeypadButton extends StatelessWidget {
+  const _PinKeypadButton({
+    this.label,
+    this.icon,
+    this.isAction = false,
+    required this.onTap,
+  });
+
+  final String? label;
+  final IconData? icon;
+  final bool isAction;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isAction ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAF9),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFDCE3EA)),
+          ),
+          child: icon != null
+              ? Icon(icon, size: 19, color: SettingsPage.ink)
+              : Text(
+                  label ?? '',
+                  style: TextStyle(
+                    fontSize: isAction ? 13 : 18,
+                    fontWeight: isAction ? FontWeight.w700 : FontWeight.w800,
+                    color: isAction ? Colors.black54 : SettingsPage.ink,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SideWorkPinSheet extends StatefulWidget {
@@ -1367,6 +2391,72 @@ class _StaffGuidesSheet extends StatefulWidget {
 class _StaffGuidesSheetState extends State<_StaffGuidesSheet> {
   String _searchQuery = '';
 
+  void _openLightbox(BuildContext context, String title, String url) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.black.withValues(alpha: 0.92),
+        insetPadding: const EdgeInsets.all(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: InteractiveViewer(
+                      minScale: 0.8,
+                      maxScale: 4.0,
+                      child: Center(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            url,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.broken_image_outlined,
+                              color: Colors.white54,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDrinkLibrary = widget.title == 'Drink SOPs';
@@ -1381,95 +2471,255 @@ class _StaffGuidesSheetState extends State<_StaffGuidesSheet> {
               .toList()
         : widget.guides;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.title,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          const Text('Images are maintained by your operations administrator.'),
-          ...[
-            const SizedBox(height: 16),
-            TextField(
-              onChanged: (value) => setState(() => _searchQuery = value),
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: isDrinkLibrary
-                    ? 'Search drink SOPs'
-                    : 'Search guides',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _searchQuery.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        onPressed: () => setState(() => _searchQuery = ''),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wideHeader = constraints.maxWidth >= 680;
+              final titleBlock = Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              widget.title,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: SettingsPage.ink,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: SettingsPage.ink.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${visibleGuides.length}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: SettingsPage.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        const Text(
+                          'Images are maintained by your operations administrator. Tap any guide to zoom.',
+                          style: TextStyle(color: Colors.black54, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!wideHeader)
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                ],
+              );
+
+              final searchField = TextField(
+                onChanged: (value) => setState(() => _searchQuery = value),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: isDrinkLibrary
+                      ? 'Search drink SOPs'
+                      : 'Search guides',
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _searchQuery.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () => setState(() => _searchQuery = ''),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
-              ),
-            ),
-          ],
+              );
+
+              if (wideHeader) {
+                return Row(
+                  children: [
+                    Expanded(child: titleBlock),
+                    const SizedBox(width: 16),
+                    SizedBox(width: 300, child: searchField),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [titleBlock, const SizedBox(height: 14), searchField],
+              );
+            },
+          ),
           const SizedBox(height: 18),
           Expanded(
             child: visibleGuides.isEmpty
                 ? const Center(
                     child: Text('No matching guide images were found.'),
                   )
-                : ListView.separated(
-                    itemCount: visibleGuides.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 16),
-                    itemBuilder: (_, index) {
-                      final guide = visibleGuides[index];
-                      final url = ApiService.resolveAssetUrl(guide.imageUrl);
-                      final guideTitle =
-                          guide.menuItemName ??
-                          guide.guideTitle ??
-                          widget.title;
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: SettingsPage.ink.withValues(alpha: .12),
-                          ),
-                          borderRadius: BorderRadius.circular(16),
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxCols = visibleGuides.length == 1
+                          ? 1
+                          : constraints.maxWidth >= 900
+                          ? 3
+                          : constraints.maxWidth >= 560
+                          ? 2
+                          : 1;
+
+                      if (maxCols == 1) {
+                        return ListView.separated(
+                          itemCount: visibleGuides.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 16),
+                          itemBuilder: (_, index) {
+                            final guide = visibleGuides[index];
+                            final url = ApiService.resolveAssetUrl(
+                              guide.imageUrl,
+                            );
+                            final guideTitle =
+                                guide.menuItemName ??
+                                guide.guideTitle ??
+                                widget.title;
+                            return _GuideImageCard(
+                              title: guideTitle,
+                              imageUrl: url,
+                              onTap: () =>
+                                  _openLightbox(context, guideTitle, url),
+                            );
+                          },
+                        );
+                      }
+
+                      return GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: maxCols,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.78,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              guideTitle,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                url,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, _, _) => const SizedBox(
-                                  height: 180,
-                                  child: Center(
-                                    child: Icon(Icons.broken_image_outlined),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        itemCount: visibleGuides.length,
+                        itemBuilder: (_, index) {
+                          final guide = visibleGuides[index];
+                          final url = ApiService.resolveAssetUrl(
+                            guide.imageUrl,
+                          );
+                          final guideTitle =
+                              guide.menuItemName ??
+                              guide.guideTitle ??
+                              widget.title;
+                          return _GuideImageCard(
+                            title: guideTitle,
+                            imageUrl: url,
+                            expandImage: true,
+                            onTap: () =>
+                                _openLightbox(context, guideTitle, url),
+                          );
+                        },
                       );
                     },
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GuideImageCard extends StatelessWidget {
+  const _GuideImageCard({
+    required this.title,
+    required this.imageUrl,
+    required this.onTap,
+    this.expandImage = false,
+  });
+
+  final String title;
+  final String imageUrl;
+  final VoidCallback onTap;
+  final bool expandImage;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => const SizedBox(
+          height: 180,
+          child: Center(child: Icon(Icons.broken_image_outlined)),
+        ),
+      ),
+    );
+
+    return Material(
+      color: const Color(0xFFFAFBFC),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            border: Border.all(color: SettingsPage.ink.withValues(alpha: .12)),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: SettingsPage.ink,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.zoom_in_rounded,
+                    size: 18,
+                    color: SettingsPage.ink.withValues(alpha: 0.45),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (expandImage) Expanded(child: image) else image,
+            ],
+          ),
+        ),
       ),
     );
   }

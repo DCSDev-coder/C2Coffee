@@ -238,10 +238,15 @@ const STATUSES = ["All Status", "Order Received", "Pending Payment", "Preparing"
 const PAYMENT_TYPES = ["All Payment Types", "Personal C2 Credit", "Company Allowance", "Mixed C2 Credit", "Direct (RM)"];
 
 // Sleek KPI Card matching DashboardHome & Menu standard
-const KPICard = ({ title, value, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]/10 text-[#2E5E58]" }) => {
+const KPICard = ({ title, value, detail, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]/10 text-[#2E5E58]", onClick, active = false }) => {
   const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={`text-left bg-white p-3.5 sm:p-5 rounded-2xl border ${active ? 'border-[#2E5E58] ring-2 ring-[#2E5E58]/15' : 'border-gray-200/80'} shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift ${onClick ? 'cursor-pointer hover:border-[#2E5E58]/40' : 'cursor-default'} transition-all`}
+    >
       <div className="flex items-center justify-between gap-1.5 sm:gap-2">
         <div className="flex items-center gap-1 min-w-0">
           <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
@@ -251,17 +256,18 @@ const KPICard = ({ title, value, badge, info, icon: Icon, iconBg = "bg-[#2E5E58]
           <Icon size={15} strokeWidth={2.2} />
         </div>
       </div>
-      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1">
         <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {detail && <p className="text-[11px] font-semibold text-gray-500 truncate">{detail}</p>}
         {badge && (
-          <div className="flex">
+          <div className="flex mt-0.5">
             <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
               {badge}
             </span>
           </div>
         )}
       </div>
-    </div>
+    </Tag>
   );
 };
 
@@ -907,12 +913,20 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
       let rangeStart = null;
       let rangeEnd = null;
       if (selectedPeriod === "today") rangeStart = startOfToday;
+      if (selectedPeriod === "yesterday") {
+        const yStart = new Date(startOfToday);
+        yStart.setDate(yStart.getDate() - 1);
+        const yEnd = new Date(startOfToday.getTime() - 1);
+        rangeStart = yStart;
+        rangeEnd = yEnd;
+      }
       if (selectedPeriod === "this_week") rangeStart = startOfWeek;
       if (selectedPeriod === "this_month") rangeStart = startOfMonth;
       if (selectedPeriod === "this_year") rangeStart = startOfYear;
+      if (selectedPeriod === "all") rangeStart = null;
       if (selectedPeriod === "custom") {
-        rangeStart = selectedDateRange[0] ? new Date(selectedDateRange[0].setHours(0, 0, 0, 0)) : null;
-        rangeEnd = selectedDateRange[1] ? new Date(selectedDateRange[1].setHours(23, 59, 59, 999)) : rangeStart;
+        rangeStart = selectedDateRange[0] ? new Date(new Date(selectedDateRange[0]).setHours(0, 0, 0, 0)) : null;
+        rangeEnd = selectedDateRange[1] ? new Date(new Date(selectedDateRange[1]).setHours(23, 59, 59, 999)) : rangeStart;
       }
       const matchDate = !orderDate || !rangeStart || (orderDate >= rangeStart && (!rangeEnd ? orderDate <= now : orderDate <= rangeEnd));
       return matchSearch && matchStatus && matchPayment && matchDate;
@@ -999,14 +1013,39 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const totalPages = Math.max(1, Math.ceil(sortedOrders.length / itemsPerPage));
   const paginated = showAllOrders ? sortedOrders : sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // KPI counts based on active list
+  // KPI counts & values based on active list
   const totalCount = filtered.length;
-  const collected = filtered.filter(o => normalizeOrderStatus(o.status) === "Collected").length;
-  const cancelled = filtered.filter(o => normalizeOrderStatus(o.status) === "Cancelled").length;
-  const refunds = filtered.filter(o => {
+  const totalValueRm = filtered
+    .filter((o) => !['Cancelled', 'Refunded'].includes(normalizeOrderStatus(o.status)))
+    .reduce((sum, o) => sum + Number(o.total || 0), 0);
+  const validOrderCount = filtered.filter((o) => !['Cancelled', 'Refunded'].includes(normalizeOrderStatus(o.status))).length;
+  const avgOrderValueRm = validOrderCount > 0 ? totalValueRm / validOrderCount : 0;
+
+  const collectedOrders = filtered.filter((o) => normalizeOrderStatus(o.status) === "Collected");
+  const collected = collectedOrders.length;
+  const collectedValueRm = collectedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+  const cancelledOrders = filtered.filter((o) => normalizeOrderStatus(o.status) === "Cancelled");
+  const cancelled = cancelledOrders.length;
+  const cancelledValueRm = cancelledOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+  const refundOrders = filtered.filter((o) => {
     const s = normalizeOrderStatus(o.status);
     return s === "Refund Requested" || s === "Refunded";
-  }).length;
+  });
+  const refunds = refundOrders.length;
+  const refundValueRm = refundOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+  const stageCounts = {
+    'All Status': totalCount,
+    'Pending Payment': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Pending Payment').length,
+    'Order Received': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Order Received').length,
+    'Preparing': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Preparing').length,
+    'Ready for Pickup': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Ready for Pickup').length,
+    'Collected': collected,
+    'Cancelled': cancelled,
+  };
+  const hasActiveFilters = search.trim() !== '' || statusFilter !== 'All Status' || paymentFilter !== 'All Payment Types';
 
   const SortableHeader = ({ label, columnKey, info, className = "" }) => {
     const isSorted = sortKey === columnKey;
@@ -1060,39 +1099,51 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
       {loadError && <div role="alert" className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700 shadow-2xs">{loadError}</div>}
 
       {/* Operational KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5 shrink-0">
         <KPICard
           title="Total Orders"
           value={totalCount}
-          info="Total orders recorded across all outlets."
+          detail={`${formatRm(totalValueRm)} · Avg ${formatRm(avgOrderValueRm)}`}
+          info="Total orders recorded across selected outlets and period."
           icon={ShoppingBag}
           iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
+          active={statusFilter === "All Status"}
+          onClick={() => { setStatusFilter("All Status"); resetPage(); }}
         />
         <KPICard
           title="Collected"
           value={collected}
+          detail={`${formatRm(collectedValueRm)}${totalCount > 0 ? ` · ${Math.round((collected / totalCount) * 100)}%` : ''}`}
           info="Orders successfully prepared and collected by customers."
           icon={Clock}
           iconBg="bg-emerald-500/10 text-emerald-700"
+          active={statusFilter === "Collected"}
+          onClick={() => { setStatusFilter(statusFilter === "Collected" ? "All Status" : "Collected"); resetPage(); }}
         />
         <KPICard
           title="Cancelled"
           value={cancelled}
+          detail={`${formatRm(cancelledValueRm)} voided`}
           info="Orders cancelled by the customer or counter before preparation."
           icon={Ban}
           iconBg="bg-rose-500/10 text-rose-600"
+          active={statusFilter === "Cancelled"}
+          onClick={() => { setStatusFilter(statusFilter === "Cancelled" ? "All Status" : "Cancelled"); resetPage(); }}
         />
         <KPICard
           title="Refunds"
           value={refunds}
+          detail={`${formatRm(refundValueRm)} affected`}
           info="Orders currently under refund request or already refunded."
           icon={RotateCcw}
           iconBg="bg-amber-500/15 text-amber-700"
+          active={statusFilter === "Refund Requested"}
+          onClick={() => { setStatusFilter(statusFilter === "Refund Requested" ? "All Status" : "Refund Requested"); resetPage(); }}
         />
       </div>
 
       {/* Filters and Actions Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4 shrink-0">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-4 shrink-0">
         <OutletFilter value={selectedStoreId} onChange={(value) => { setSelectedStoreId(value); resetPage(); }} />
         {/* Search */}
         <div className="relative w-full max-w-[380px]">
@@ -1154,12 +1205,28 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
               className="pl-4 pr-10 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none appearance-none cursor-pointer shadow-2xs whitespace-nowrap"
             >
               <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
               <option value="this_week">This week</option>
               <option value="this_month">This month</option>
               <option value="this_year">This year</option>
+              <option value="all">All time</option>
               <option value="custom">Choose dates</option>
             </select>
           </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('All Status');
+                setPaymentFilter('All Payment Types');
+                resetPage();
+              }}
+              className="shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-50 cursor-pointer"
+            >
+              Reset
+            </button>
+          )}
           {selectedPeriod === "custom" && (
             <div className="relative shrink-0">
               <DatePicker
@@ -1175,6 +1242,30 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
             </div>
           )}
         </div>
+      </div>
+
+      {/* Stage Quick Filter Chips */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 shrink-0">
+        {Object.entries(stageCounts).map(([stage, count]) => {
+          const active = statusFilter === stage;
+          return (
+            <button
+              key={stage}
+              type="button"
+              onClick={() => { setStatusFilter(stage); resetPage(); }}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                active
+                  ? 'border-[#1F3A34] bg-[#1F3A34] text-white shadow-2xs'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>{stage === 'All Status' ? 'All' : stage}</span>
+              <span className={`rounded-full px-1.5 py-0.2 text-[10px] tabular-nums ${active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Content Area: Table + Side Details Panel */}

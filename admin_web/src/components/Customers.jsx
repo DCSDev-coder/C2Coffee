@@ -2,7 +2,8 @@ import React, { useState, forwardRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Wallet, Search, ChevronDown, Download, Upload, Plus,
-  X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3
+  X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3,
+  ArrowUp, ArrowDown, ArrowUpDown, Users
 } from 'lucide-react';
 import Pagination from './Pagination';
 import InfoTooltip from './InfoTooltip';
@@ -92,11 +93,16 @@ export const resolveTierProgress = (customer, tiers = []) => {
   };
 };
 
-const KPICard = ({ title, value, change, badge, icon: Icon, iconBg, info }) => {
+const KPICard = ({ title, value, detail, change, badge, icon: Icon, iconBg, info, onClick, active = false }) => {
   const displayBadge = badge || change;
   const bg = iconBg || 'bg-[#2E5E58]/10 text-[#2E5E58]';
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift cursor-default transition-all">
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={`text-left bg-white p-3.5 sm:p-5 rounded-2xl border ${active ? 'border-[#2E5E58] ring-2 ring-[#2E5E58]/15' : 'border-gray-200/80'} shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift ${onClick ? 'cursor-pointer hover:border-[#2E5E58]/40' : 'cursor-default'} transition-all`}
+    >
       <div className="flex items-center justify-between gap-1.5 sm:gap-2">
         <div className="flex items-center gap-1 min-w-0">
           <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">{title}</h2>
@@ -106,17 +112,18 @@ const KPICard = ({ title, value, change, badge, icon: Icon, iconBg, info }) => {
           <Icon size={15} strokeWidth={2.2} />
         </div>
       </div>
-      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1.5">
+      <div className="mt-2.5 sm:mt-3 flex flex-col gap-1">
         <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+        {detail && <p className="text-[11px] font-semibold text-gray-500 truncate">{detail}</p>}
         {displayBadge && (
-          <div className="flex">
+          <div className="flex mt-0.5">
             <span className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 truncate max-w-full">
               {displayBadge}
             </span>
           </div>
         )}
       </div>
-    </div>
+    </Tag>
   );
 };
 
@@ -499,6 +506,8 @@ const Customers = ({ currentUser }) => {
   const [importResult, setImportResult] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const [showAllCustomers, setShowAllCustomers] = useState(false);
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDirection, setSortDirection] = useState(null);
   const itemsPerPage = useResponsivePageSize(5, 10);
 
   useEffect(() => {
@@ -617,9 +626,42 @@ const Customers = ({ currentUser }) => {
     return matchesSearch && matchesTier && matchesStatus && matchesEmployment && matchesDate;
   });
 
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortKey(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const sortedData = !sortKey || !sortDirection
+    ? filteredData
+    : [...filteredData].sort((a, b) => {
+        let comparison = 0;
+        if (sortKey === 'username') {
+          comparison = String(a.username || '').localeCompare(String(b.username || ''), undefined, { sensitivity: 'base' });
+        } else if (sortKey === 'tokens') {
+          comparison = Number(a.tokenBalance || 0) - Number(b.tokenBalance || 0);
+        } else if (sortKey === 'orders') {
+          comparison = Number(a.orders || 0) - Number(b.orders || 0);
+        } else if (sortKey === 'lastOrder') {
+          const tA = a.lastOrderAt ? new Date(a.lastOrderAt).getTime() : 0;
+          const tB = b.lastOrderAt ? new Date(b.lastOrderAt).getTime() : 0;
+          comparison = tA - tB;
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+
   // Pagination Logic
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const paginatedData = showAllCustomers ? filteredData : filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+  const paginatedData = showAllCustomers ? sortedData : sortedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleExport = () => {
     const rows = [
@@ -801,6 +843,36 @@ const Customers = ({ currentUser }) => {
     const joinedAt = customer.joinedAt ? new Date(customer.joinedAt) : null;
     return joinedAt && !Number.isNaN(joinedAt.getTime()) && joinedAt >= newcomerCutoff;
   }).length;
+  const totalTokensHeld = filteredData.reduce((sum, c) => sum + Number(c.tokenBalance || 0), 0);
+  const avgTokensHeld = totalCustomers > 0 ? Math.round(totalTokensHeld / totalCustomers) : 0;
+  const activeCount = filteredData.filter((c) => getCustomerActivityStatus(c) === 'Active').length;
+  const employeeCount = filteredData.filter((c) => subsidyRoleForCustomer(c) !== 'none').length;
+  const hasActiveCustomerFilters =
+    searchQuery.trim() !== '' ||
+    selectedTier !== 'All Tiers' ||
+    selectedStatus !== 'All Status' ||
+    selectedEmployment !== 'All Customers' ||
+    selectedPeriod !== 'all';
+
+  const SortableCustomerHeader = ({ label, columnKey }) => {
+    const isSorted = sortKey === columnKey;
+    return (
+      <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900 whitespace-nowrap">
+        <button
+          type="button"
+          onClick={() => handleSort(columnKey)}
+          className={`inline-flex items-center gap-1.5 hover:text-[#2E5E58] cursor-pointer transition-colors ${isSorted ? 'text-[#2E5E58]' : ''}`}
+        >
+          <span>{label}</span>
+          {isSorted ? (
+            sortDirection === 'asc' ? <ArrowUp size={13} /> : <ArrowDown size={13} />
+          ) : (
+            <ArrowUpDown size={12} className="text-gray-300" />
+          )}
+        </button>
+      </th>
+    );
+  };
 
   return (
     <div className="px-4 sm:px-6 md:px-8 pb-8 pt-2 h-full flex flex-col">
@@ -817,22 +889,69 @@ const Customers = ({ currentUser }) => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.4fr_0.8fr] gap-4 mb-6 flex-shrink-0">
-        <KPICard title="Total Customers" value={totalCustomers.toLocaleString('en-US')} badge="All customer accounts" icon={Wallet} iconBg="bg-[#1F3A34]/10 text-[#1F3A34]" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5 flex-shrink-0">
+        <KPICard
+          title="Total Customers"
+          value={totalCustomers.toLocaleString('en-US')}
+          detail={`${activeCount} active · ${employeeCount} employees`}
+          badge="Click to show all"
+          icon={Users}
+          iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
+          active={!hasActiveCustomerFilters}
+          onClick={() => {
+            setSearchQuery('');
+            setSelectedTier('All Tiers');
+            setSelectedStatus('All Status');
+            setSelectedEmployment('All Customers');
+            setSelectedPeriod('all');
+            setSelectedDateRange([null, null]);
+            setCurrentPage(1);
+          }}
+        />
         <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs min-w-0 card-reveal">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-gray-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">Customers by tier</h2>
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center bg-[#6F9F96]/20 text-[#2E5E58]"><Crown size={15} strokeWidth={2.2} /></div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {tierBreakdown.length > 0 ? tierBreakdown.map((tier) => (
-              <span key={tier.name} className="rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-                {tier.name}: {tier.count}
-              </span>
-            )) : <span className="text-sm text-gray-500">No tiered customers yet</span>}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {tierBreakdown.length > 0 ? tierBreakdown.map((tier) => {
+              const isTierActive = selectedTier === tier.name;
+              return (
+                <button
+                  key={tier.name}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTier(isTierActive ? 'All Tiers' : tier.name);
+                    setCurrentPage(1);
+                  }}
+                  className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                    isTierActive
+                      ? 'bg-[#1F3A34] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {tier.name}: {tier.count}
+                </button>
+              );
+            }) : <span className="text-sm text-gray-500">No tiered customers yet</span>}
           </div>
         </div>
-        <KPICard title="Newcomers" value={newcomerCount.toLocaleString('en-US')} badge="Joined in the last 30 days" icon={User} iconBg="bg-[#E07A5F]/15 text-[#E07A5F]" />
+        <KPICard
+          title="C2 Credit Held"
+          value={totalTokensHeld.toLocaleString('en-US')}
+          detail={`Avg ${avgTokensHeld.toLocaleString('en-US')} tokens / customer`}
+          badge="Current balance"
+          icon={Coins}
+          iconBg="bg-sky-50 text-sky-700"
+        />
+        <KPICard
+          title="Newcomers"
+          value={newcomerCount.toLocaleString('en-US')}
+          detail="Joined in the last 30 days"
+          badge="Recent signups"
+          icon={User}
+          iconBg="bg-[#E07A5F]/15 text-[#E07A5F]"
+        />
       </div>
 
       {/* Search, filters, and actions */}
@@ -965,7 +1084,45 @@ const Customers = ({ currentUser }) => {
               />
             </div>
           )}
+          {hasActiveCustomerFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedTier('All Tiers');
+                setSelectedStatus('All Status');
+                setSelectedEmployment('All Customers');
+                setSelectedPeriod('all');
+                setSelectedDateRange([null, null]);
+                setCurrentPage(1);
+              }}
+              className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 cursor-pointer"
+            >
+              Reset
+            </button>
+          )}
         </div>
+      </div>
+
+      {/* Quick Status Chips */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 shrink-0">
+        {['All Status', 'Active', 'No orders yet', 'Pending signup', 'Inactive'].map((status) => {
+          const active = selectedStatus === status;
+          return (
+            <button
+              key={status}
+              type="button"
+              onClick={() => { setSelectedStatus(status); setCurrentPage(1); }}
+              className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors cursor-pointer ${
+                active
+                  ? 'border-[#1F3A34] bg-[#1F3A34] text-white shadow-2xs'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {status === 'All Status' ? 'All' : status}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex flex-col xl:flex-row gap-6 flex-1 min-h-0">
@@ -975,14 +1132,12 @@ const Customers = ({ currentUser }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">
-                    Username
-                  </th>
+                  <SortableCustomerHeader label="Username" columnKey="username" />
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Tier</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">C2 Credit Balance</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Total Orders</th>
+                  <SortableCustomerHeader label="C2 Credit Balance" columnKey="tokens" />
+                  <SortableCustomerHeader label="Total Orders" columnKey="orders" />
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Top Item</th>
-                  <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Last Order</th>
+                  <SortableCustomerHeader label="Last Order" columnKey="lastOrder" />
                   <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-900">Status</th>
                 </tr>
               </thead>

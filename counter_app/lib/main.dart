@@ -1178,7 +1178,16 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     return item.priceRm + counterCartModifierTotal(modifiers);
   }
 
-  List<String> _getCartItemDisplayModifiers(Map<String, dynamic> cartItem) {
+  String _shortModifierGroupLabel(String rawGroup) {
+    final trimmed = rawGroup.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed
+        .replaceFirst(RegExp(r'^choice of\s+', caseSensitive: false), '')
+        .trim();
+  }
+
+  List<({String group, String option, double priceDelta})>
+  _getCartItemModifierDetails(Map<String, dynamic> cartItem) {
     final item = cartItem['item'] as CounterMenuItem;
     final customization =
         cartItem['customization'] as Map<String, dynamic>? ?? {};
@@ -1191,15 +1200,25 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     return modifiers
         .where((m) => m['group_name']?.toString().toLowerCase() != 'order type')
         .map((m) {
-          final name = m['option_name']?.toString().trim() ?? '';
+          final group = _shortModifierGroupLabel(
+            m['group_name']?.toString() ?? '',
+          );
+          final option = m['option_name']?.toString().trim() ?? '';
           final priceDelta = (m['price_delta_rm'] as num?)?.toDouble() ?? 0.0;
-          if (priceDelta > 0) {
-            return '$name (+RM ${priceDelta.toStringAsFixed(2)})';
-          }
-          return name;
+          return (group: group, option: option, priceDelta: priceDelta);
         })
-        .where((name) => name.isNotEmpty)
+        .where((entry) => entry.option.isNotEmpty)
         .toList();
+  }
+
+  List<String> _getCartItemDisplayModifiers(Map<String, dynamic> cartItem) {
+    return _getCartItemModifierDetails(cartItem).map((m) {
+      final label = m.group.isNotEmpty ? '${m.group}: ${m.option}' : m.option;
+      if (m.priceDelta > 0) {
+        return '$label (+RM ${m.priceDelta.toStringAsFixed(2)})';
+      }
+      return label;
+    }).toList();
   }
 
   @override
@@ -1496,84 +1515,187 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           child: _cart.isEmpty
               ? const Center(child: Text('Basket is empty'))
               : ListView.separated(
+                  padding: const EdgeInsets.all(12),
                   itemCount: _cart.length,
                   separatorBuilder: (context, index) =>
-                      const Divider(height: 1),
+                      const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final cartItem = _cart[index];
                     final item = cartItem['item'] as CounterMenuItem;
                     final qty = cartItem['quantity'] as int;
                     final price = _getCartItemPrice(cartItem);
+                    final modDetails = _getCartItemModifierDetails(cartItem);
 
-                    final displayMods = _getCartItemDisplayModifiers(cartItem);
-
-                    return ListTile(
-                      title: Text(
-                        item.name,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontWeight: FontWeight.bold,
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FBFA),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.secondary.withValues(alpha: 0.25),
                         ),
                       ),
-                      subtitle: Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (displayMods.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2, bottom: 4),
-                              child: Text(
-                                displayMods.join(' • '),
-                                style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 13.5,
-                                  color: Colors.grey.shade700,
-                                  height: 1.25,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.name,
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primary,
+                                  ),
                                 ),
                               ),
-                            ),
-                          Text(
-                            'RM ${(price * qty).toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'RM ${(price * qty).toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed: () {
-                              setState(() {
-                                if (qty > 1) {
-                                  cartItem['quantity'] = qty - 1;
-                                } else {
-                                  _removeFromCart(index);
-                                }
-                              });
-                            },
-                            color: Colors.red,
-                          ),
-                          Text(
-                            '$qty',
-                            style: const TextStyle(
-                              fontFamily: 'Afacad',
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          if (modDetails.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: modDetails.map((mod) {
+                                final isNo =
+                                    mod.option.toLowerCase() == 'no' ||
+                                    mod.option.toLowerCase() == 'none';
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isNo
+                                        ? const Color(0xFFF1F5F9)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isNo
+                                          ? const Color(0xFFCBD5E1)
+                                          : AppColors.secondary.withValues(
+                                              alpha: 0.35,
+                                            ),
+                                    ),
+                                  ),
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: const TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 12.5,
+                                        color: AppColors.charcoal,
+                                      ),
+                                      children: [
+                                        if (mod.group.isNotEmpty)
+                                          TextSpan(
+                                            text: '${mod.group}: ',
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        TextSpan(
+                                          text: mod.option,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            color: isNo
+                                                ? Colors.black54
+                                                : AppColors.primary,
+                                          ),
+                                        ),
+                                        if (mod.priceDelta > 0)
+                                          TextSpan(
+                                            text:
+                                                ' (+RM ${mod.priceDelta.toStringAsFixed(2)})',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF8C5A1E),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                             ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: () {
-                              setState(() {
-                                cartItem['quantity'] = qty + 1;
-                              });
-                            },
-                            color: AppColors.primary,
+                          ],
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: AppColors.secondary.withValues(
+                                      alpha: 0.3,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          if (qty > 1) {
+                                            cartItem['quantity'] = qty - 1;
+                                          } else {
+                                            _removeFromCart(index);
+                                          }
+                                        });
+                                      },
+                                      color: Colors.red,
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                      child: Text(
+                                        '$qty',
+                                        style: const TextStyle(
+                                          fontFamily: 'Afacad',
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          cartItem['quantity'] = qty + 1;
+                                        });
+                                      },
+                                      color: AppColors.primary,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -1770,119 +1892,156 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     required String subtitle,
     required Widget body,
   }) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
-        child: Material(
-          color: Colors.white,
-          elevation: 18,
-          shadowColor: AppColors.primary.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(28),
-          clipBehavior: Clip.antiAlias,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(28, 24, 28, 22),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF173F3A), AppColors.primary],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Icon(icon, color: Colors.white, size: 31),
+    return Builder(
+      builder: (context) {
+        final media = MediaQuery.of(context);
+        final keyboardOpen = media.viewInsets.bottom > 0;
+        final isCompact = keyboardOpen || media.size.height < 640;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: isCompact ? 10 : 24,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Material(
+              color: Colors.white,
+              elevation: 18,
+              shadowColor: AppColors.primary.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(isCompact ? 22 : 28),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.fromLTRB(
+                        isCompact ? 20 : 28,
+                        isCompact ? 14 : 24,
+                        isCompact ? 20 : 28,
+                        isCompact ? 14 : 22,
                       ),
-                      const SizedBox(width: 18),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              eyebrow.toUpperCase(),
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 13,
-                                letterSpacing: 1.7,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFBFE6DE),
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontFamily: 'Recoleta',
-                                fontSize: 29,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                height: 1.05,
-                              ),
-                            ),
-                          ],
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF173F3A), AppColors.primary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
+                      child: Row(
                         children: [
-                          _checkoutStep(
-                            1,
-                            'Customer',
-                            active: activeStep == 1,
-                            completed: activeStep > 1,
+                          Container(
+                            width: isCompact ? 42 : 58,
+                            height: isCompact ? 42 : 58,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(
+                                isCompact ? 12 : 18,
+                              ),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Icon(
+                              icon,
+                              color: Colors.white,
+                              size: isCompact ? 22 : 31,
+                            ),
                           ),
-                          _checkoutStep(
-                            2,
-                            'Savings',
-                            active: activeStep == 2,
-                            completed: activeStep > 2,
+                          SizedBox(width: isCompact ? 14 : 18),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (!isCompact) ...[
+                                  Text(
+                                    eyebrow.toUpperCase(),
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 13,
+                                      letterSpacing: 1.7,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFFBFE6DE),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                ],
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: isCompact ? 22 : 29,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    height: 1.05,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          _checkoutStep(3, 'Payment', active: activeStep == 3),
                         ],
                       ),
-                      const SizedBox(height: 22),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 18,
-                          color: Colors.black54,
-                          height: 1.35,
-                        ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isCompact ? 20 : 28,
+                        isCompact ? 14 : 22,
+                        isCompact ? 20 : 28,
+                        isCompact ? 16 : 28,
                       ),
-                      const SizedBox(height: 22),
-                      body,
-                    ],
-                  ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!isCompact) ...[
+                            Row(
+                              children: [
+                                _checkoutStep(
+                                  1,
+                                  'Customer',
+                                  active: activeStep == 1,
+                                  completed: activeStep > 1,
+                                ),
+                                _checkoutStep(
+                                  2,
+                                  'Savings',
+                                  active: activeStep == 2,
+                                  completed: activeStep > 2,
+                                ),
+                                _checkoutStep(
+                                  3,
+                                  'Payment',
+                                  active: activeStep == 3,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: isCompact ? 16 : 18,
+                              color: Colors.black54,
+                              height: 1.3,
+                            ),
+                          ),
+                          SizedBox(height: isCompact ? 12 : 20),
+                          body,
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1890,119 +2049,20 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     _phoneController.clear();
     final result = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => _checkoutDialog(
-        activeStep: 1,
-        icon: Icons.loyalty_outlined,
-        eyebrow: 'Checkout · Step 1 of 3',
-        title: 'Customer Account',
-        subtitle: 'Enter a phone number to collect points.',
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.secondary.withValues(alpha: 0.28),
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.stars_rounded, color: AppColors.primary),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Points apply automatically at checkout.',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.charcoal,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: 'Phone number',
-                hintText: '+6012 345 6789',
-                prefixIcon: const Icon(Icons.phone_iphone_rounded),
-                filled: true,
-                fillColor: const Color(0xFFF8FAF9),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: AppColors.secondary.withValues(alpha: 0.35),
-                  ),
-                ),
-              ),
-              onSubmitted: (_) {
-                final phone = _phoneController.text.trim();
-                if (phone.isNotEmpty) Navigator.pop(dialogContext, phone);
-              },
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: () {
-                final phone = _phoneController.text.trim();
-                if (phone.isNotEmpty) Navigator.pop(dialogContext, phone);
-              },
-              icon: const Icon(Icons.check_circle_outline_rounded),
-              label: const Text('Enter'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(54),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                textStyle: const TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(dialogContext, 'guest'),
-              icon: const Icon(Icons.person_outline_rounded),
-              label: const Text('Continue as guest'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-                foregroundColor: AppColors.primary,
-                side: BorderSide(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                textStyle: const TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Return'),
-            ),
-          ],
-        ),
-      ),
+      builder: (dialogContext) {
+        return _checkoutDialog(
+          activeStep: 1,
+          icon: Icons.loyalty_outlined,
+          eyebrow: 'Checkout · Step 1 of 3',
+          title: 'Customer Account',
+          subtitle: 'Enter a phone number to collect points.',
+          body: _CheckoutPhoneBody(
+            onSubmit: (phone) => Navigator.pop(dialogContext, phone),
+            onGuest: () => Navigator.pop(dialogContext, 'guest'),
+            onReturn: () => Navigator.pop(dialogContext),
+          ),
+        );
+      },
     );
     _phoneController.clear();
     return result;
@@ -2161,6 +2221,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Voucher Verification'),
         content: SizedBox(
           width: 380,
@@ -4521,6 +4582,371 @@ class _SuccessDialogState extends State<SuccessDialog>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckoutPhoneBody extends StatefulWidget {
+  const _CheckoutPhoneBody({
+    required this.onSubmit,
+    required this.onGuest,
+    required this.onReturn,
+  });
+
+  final ValueChanged<String> onSubmit;
+  final VoidCallback onGuest;
+  final VoidCallback onReturn;
+
+  @override
+  State<_CheckoutPhoneBody> createState() => _CheckoutPhoneBodyState();
+}
+
+class _CheckoutPhoneBodyState extends State<_CheckoutPhoneBody> {
+  String _phone = '';
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _append(String char) {
+    if (_phone.length >= 18) return;
+    if (char == '+' && _phone.isNotEmpty) return;
+    setState(() => _phone += char);
+  }
+
+  void _setPrefix(String prefix) {
+    setState(() {
+      if (_phone.isEmpty) {
+        _phone = prefix;
+      } else if (!_phone.startsWith(prefix)) {
+        _phone = '$prefix${_phone.replaceFirst(RegExp(r'^(\+60|01)'), '')}';
+      }
+    });
+  }
+
+  void _backspace() {
+    if (_phone.isEmpty) return;
+    setState(() => _phone = _phone.substring(0, _phone.length - 1));
+  }
+
+  void _clear() {
+    if (_phone.isEmpty) return;
+    setState(() => _phone = '');
+  }
+
+  void _submit() {
+    final trimmed = _phone.trim();
+    if (trimmed.isEmpty) return;
+    widget.onSubmit(trimmed);
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.backspace) {
+      _backspace();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter) {
+      _submit();
+      return KeyEventResult.handled;
+    }
+    final char = event.character;
+    if (char != null && RegExp(r'^[0-9+]$').hasMatch(char)) {
+      _append(char);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final leftColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAF9),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _phone.isEmpty
+                        ? AppColors.secondary.withValues(alpha: 0.35)
+                        : AppColors.primary,
+                    width: _phone.isEmpty ? 1.2 : 2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.phone_iphone_rounded,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _phone.isEmpty ? '+6012 345 6789' : _phone,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4,
+                          color: _phone.isEmpty
+                              ? Colors.black38
+                              : AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    if (_phone.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Clear',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: _clear,
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    'Quick prefix:',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  ActionChip(
+                    label: const Text('+60'),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _setPrefix('+60'),
+                  ),
+                  ActionChip(
+                    label: const Text('01'),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _setPrefix('01'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.secondary.withValues(alpha: 0.28),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.stars_rounded,
+                      color: AppColors.primary,
+                      size: 19,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Points apply automatically at checkout.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.charcoal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: widget.onGuest,
+                icon: const Icon(Icons.person_outline_rounded, size: 19),
+                label: const Text('Continue as guest'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextButton(onPressed: widget.onReturn, child: const Text('Return')),
+            ],
+          );
+
+          final keypadColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final row in const [
+                ['1', '2', '3'],
+                ['4', '5', '6'],
+                ['7', '8', '9'],
+              ]) ...[
+                Row(
+                  children: [
+                    for (var i = 0; i < row.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(
+                        child: _PhoneKeypadButton(
+                          label: row[i],
+                          onTap: () => _append(row[i]),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: _PhoneKeypadButton(
+                      label: '+',
+                      isAction: true,
+                      onTap: () => _append('+'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _PhoneKeypadButton(
+                      label: '0',
+                      onTap: () => _append('0'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _PhoneKeypadButton(
+                      icon: Icons.backspace_outlined,
+                      isAction: true,
+                      onTap: _backspace,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: _phone.trim().isEmpty ? null : _submit,
+                icon: const Icon(Icons.check_circle_outline_rounded, size: 19),
+                label: const Text('Enter'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          );
+
+          if (constraints.maxWidth >= 460) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 6, child: leftColumn),
+                const SizedBox(width: 18),
+                Expanded(flex: 5, child: keypadColumn),
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              leftColumn,
+              const SizedBox(height: 16),
+              keypadColumn,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PhoneKeypadButton extends StatelessWidget {
+  const _PhoneKeypadButton({
+    this.label,
+    this.icon,
+    this.isAction = false,
+    required this.onTap,
+  });
+
+  final String? label;
+  final IconData? icon;
+  final bool isAction;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isAction ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAF9),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.secondary.withValues(alpha: 0.3),
+            ),
+          ),
+          child: icon != null
+              ? Icon(icon, size: 19, color: AppColors.primary)
+              : Text(
+                  label ?? '',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: isAction ? 18 : 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
         ),
       ),
     );

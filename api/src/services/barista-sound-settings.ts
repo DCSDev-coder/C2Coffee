@@ -10,7 +10,7 @@ export type BaristaSoundSettings = {
   side_work_beeps: number;
   side_work_style: BaristaSoundStyle;
   incoming_order_beeps: number;
-  incoming_order_style: BaristaSoundStyle;
+  incoming_order_style: IncomingOrderSoundStyle;
   cancellation_alert_enabled: number;
   cancellation_alert_beeps: number;
   cancellation_alert_style: BaristaSoundStyle;
@@ -27,6 +27,7 @@ export type BaristaSoundSettings = {
 };
 
 export type BaristaSoundStyle = 'short' | 'long' | 'two_tone';
+export type IncomingOrderSoundStyle = BaristaSoundStyle | 'new_order';
 
 export const defaultBaristaSoundSettings: BaristaSoundSettings = {
   volume_percent: 70,
@@ -38,7 +39,7 @@ export const defaultBaristaSoundSettings: BaristaSoundSettings = {
   side_work_beeps: 3,
   side_work_style: 'two_tone',
   incoming_order_beeps: 4,
-  incoming_order_style: 'two_tone',
+  incoming_order_style: 'new_order',
   cancellation_alert_enabled: 1,
   cancellation_alert_beeps: 5,
   cancellation_alert_style: 'two_tone',
@@ -85,7 +86,7 @@ export async function loadBaristaSoundSettings(
     side_work_beeps: Number(row.side_work_beeps),
     side_work_style: row.side_work_style as BaristaSoundStyle,
     incoming_order_beeps: Number(row.incoming_order_beeps),
-    incoming_order_style: row.incoming_order_style as BaristaSoundStyle,
+    incoming_order_style: row.incoming_order_style as IncomingOrderSoundStyle,
     cancellation_alert_enabled: Number(row.cancellation_alert_enabled),
     cancellation_alert_beeps: Number(row.cancellation_alert_beeps),
     cancellation_alert_style: row.cancellation_alert_style as BaristaSoundStyle,

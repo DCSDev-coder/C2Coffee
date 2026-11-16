@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
@@ -28,6 +28,40 @@ const formatRm = (value) => `RM ${Number(value || 0).toLocaleString('en-MY', {
 })}`;
 
 const formatNumber = (value) => Number(value || 0).toLocaleString('en-MY');
+
+function useAnimatedNumber(targetValue, durationMs = 450) {
+  const numericTarget = Number(targetValue || 0);
+  const [displayValue, setDisplayValue] = useState(numericTarget);
+  const previousRef = useRef(numericTarget);
+
+  useEffect(() => {
+    const startValue = previousRef.current;
+    if (startValue === numericTarget) return;
+    let rafId = 0;
+    const startTime = performance.now();
+
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = startValue + (numericTarget - startValue) * eased;
+      setDisplayValue(next);
+      if (progress < 1) {
+        rafId = window.requestAnimationFrame(tick);
+      } else {
+        previousRef.current = numericTarget;
+      }
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      previousRef.current = numericTarget;
+    };
+  }, [numericTarget, durationMs]);
+
+  return displayValue;
+}
 
 const toDateKey = (date) => {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
@@ -74,45 +108,84 @@ const StatCard = ({ title, value, detail, info, icon: Icon, iconBg, badge, highl
   </button>
 );
 
-const CombinedTrendCard = ({ title, value, subtitle, data, info }) => (
-  <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col h-80 sm:h-96 card-reveal hover-lift">
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1.5 min-w-0">
-        <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight truncate">{title}</h2>
-        {info && <InfoTooltip content={info} title={title} />}
+const CombinedTrendCard = ({ title, value, subtitle, data, info }) => {
+  const [chartMode, setChartMode] = useState('trend');
+
+  return (
+    <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col h-80 sm:h-96 card-reveal hover-lift">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight truncate">{title}</h2>
+          {info && <InfoTooltip content={info} title={title} />}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setChartMode('trend')}
+              className={`rounded-md px-2.5 py-1 transition-colors cursor-pointer ${chartMode === 'trend' ? 'bg-[#1F3A34] text-white' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Value & Orders
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartMode('split')}
+              className={`rounded-md px-2.5 py-1 transition-colors cursor-pointer ${chartMode === 'split' ? 'bg-[#1F3A34] text-white' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Direct vs Credit
+            </button>
+          </div>
+          <p className="text-xs font-medium text-gray-500 hidden sm:block">{subtitle}</p>
+        </div>
       </div>
-      <p className="text-xs font-medium text-gray-500 shrink-0">{subtitle}</p>
-    </div>
-    <div className="mt-2 flex items-baseline gap-3">
-      <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
-    </div>
-    <div className="flex-1 mt-3 min-h-0 overflow-x-auto overflow-y-hidden touch-pan-x pb-1">
-      <div className="h-full min-w-[520px] sm:min-w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="dashboardCombinedRevenue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.22} />
-                <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="time" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={10} />
-            <YAxis yAxisId="value" axisLine={false} tick={false} width={8} />
-            <YAxis yAxisId="orders" orientation="right" axisLine={false} tick={false} width={8} allowDecimals={false} />
-            <Tooltip
-              formatter={(amount, name) => [name === 'Order value' ? formatRm(amount) : formatNumber(amount), name]}
-              contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-              itemStyle={{ color: '#fff' }}
-            />
-            <Legend verticalAlign="top" align="right" height={28} iconType="line" wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
-            <Area yAxisId="value" type="monotone" name="Order value" dataKey="revenue" stroke="#2E5E58" strokeWidth={2} fillOpacity={1} fill="url(#dashboardCombinedRevenue)" />
-            <Line yAxisId="orders" type="monotone" name="Orders" dataKey="orders" stroke="#D4AF7A" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
-          </AreaChart>
-        </ResponsiveContainer>
+      <div className="mt-2 flex items-baseline gap-3">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight tabular-nums">{value}</p>
+      </div>
+      <div className="flex-1 mt-3 min-h-0 overflow-x-auto overflow-y-hidden touch-pan-x pb-1">
+        <div className="h-full min-w-[520px] sm:min-w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            {chartMode === 'trend' ? (
+              <AreaChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="dashboardCombinedRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2E5E58" stopOpacity={0.22} />
+                    <stop offset="95%" stopColor="#2E5E58" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis dataKey="time" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={10} />
+                <YAxis yAxisId="value" axisLine={false} tick={false} width={8} />
+                <YAxis yAxisId="orders" orientation="right" axisLine={false} tick={false} width={8} allowDecimals={false} />
+                <Tooltip
+                  formatter={(amount, name) => [name === 'Order value' ? formatRm(amount) : formatNumber(amount), name]}
+                  contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Legend verticalAlign="top" align="right" height={28} iconType="line" wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                <Area yAxisId="value" type="monotone" name="Order value" dataKey="revenue" stroke="#2E5E58" strokeWidth={2.2} fillOpacity={1} fill="url(#dashboardCombinedRevenue)" isAnimationActive animationDuration={500} />
+                <Line yAxisId="orders" type="monotone" name="Orders" dataKey="orders" stroke="#D4AF7A" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} isAnimationActive animationDuration={500} />
+              </AreaChart>
+            ) : (
+              <BarChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <XAxis dataKey="time" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `RM ${v}`} width={54} />
+                <Tooltip
+                  formatter={(amount, name) => [formatRm(amount), name]}
+                  contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Legend verticalAlign="top" align="right" height={28} wrapperStyle={{ fontSize: '11px', fontWeight: 600 }} />
+                <Bar dataKey="directRevenue" name="Direct (RM)" stackId="sales" fill="#2E5E58" radius={[0, 0, 0, 0]} isAnimationActive animationDuration={500} />
+                <Bar dataKey="tokenRevenue" name="C2 Credit (RM)" stackId="sales" fill="#D4AF7A" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={500} />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const PaymentMixCard = ({ data, total, periodLabel }) => (
   <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col min-h-80 card-reveal hover-lift">
@@ -279,6 +352,7 @@ const DashboardHome = ({ setCurrentPage }) => {
     personalTokensUsed: 0,
     pendingPaymentValueRm: 0,
     customersServed: 0,
+    newCustomersRegistered: 0,
     pendingRefunds: 0,
     coverage: {}
   };
@@ -297,6 +371,18 @@ const DashboardHome = ({ setCurrentPage }) => {
   const [showAllOrders, setShowAllOrders] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [showAllTopItems, setShowAllTopItems] = useState(false);
+  const [topItemsMetric, setTopItemsMetric] = useState('unitsSold');
+
+  const animCash = useAnimatedNumber(summary.cashCollectedRm);
+  const animTokenValue = useAnimatedNumber(summary.tokenOrderValueRm);
+  const animOrders = useAnimatedNumber(summary.ordersToday);
+  const animPending = useAnimatedNumber(summary.pendingPaymentValueRm);
+  const animRefunds = useAnimatedNumber(summary.pendingRefunds);
+  const animCustomers = useAnimatedNumber(summary.customersServed);
+  const animTotalSales = useAnimatedNumber(summary.salesToday);
+  const averageOrderValueRm = summary.averageOrderValueRm ?? (summary.ordersToday > 0 ? summary.salesToday / summary.ordersToday : 0);
+  const directSharePct = summary.salesToday > 0 ? Math.round((Number(summary.cashCollectedRm || 0) / Number(summary.salesToday)) * 100) : 0;
+  const creditSharePct = summary.salesToday > 0 ? 100 - directSharePct : 0;
 
   const visibleOutlets = showAllOutlets ? outletBreakdown : outletBreakdown.slice(0, 5);
   const visibleOrders = showAllOrders ? recentOrders : recentOrders.slice(0, 5);
@@ -356,7 +442,8 @@ const DashboardHome = ({ setCurrentPage }) => {
       <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3 sm:gap-4 mb-6">
         <StatCard
           title="Direct Payments"
-          value={formatRm(summary.cashCollectedRm)}
+          value={formatRm(animCash)}
+          detail={`${formatNumber(summary.directOrderCount)} direct orders`}
           info="Direct RM payments collected during the selected timeframe."
           icon={Wallet}
           iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
@@ -365,18 +452,19 @@ const DashboardHome = ({ setCurrentPage }) => {
         />
         <StatCard
           title="Token Order Value"
-          value={formatRm(summary.tokenOrderValueRm)}
+          value={formatRm(animTokenValue)}
           detail={<div className="grid grid-cols-2 gap-x-2 gap-y-0.5"><span>Personal: <strong className="text-gray-700">{formatNumber(summary.personalTokensUsed)}</strong></span><span>Subsidy: <strong className="text-gray-700">{formatNumber(summary.subsidyUsedTokens)}</strong></span></div>}
           info="RM-equivalent menu value of C2 Credit-funded orders. The detail below shows how much came from personal C2 Credit and how much came from company allowance. This is not cash revenue."
           icon={CircleDollarSign}
           iconBg="bg-sky-50 text-sky-700"
-          badge={periodLabel}
+          badge={`${formatNumber(summary.tokenOrderCount)} credit orders`}
           onClick={() => setCurrentPage?.('Finance')}
         />
         <StatCard
           title="Orders"
-          value={formatNumber(summary.ordersToday)}
-          info="Total number of valid customer orders completed or active during this period."
+          value={formatNumber(Math.round(animOrders))}
+          detail={<span>Avg <strong className="text-gray-700">{formatRm(averageOrderValueRm)}</strong> / order</span>}
+          info="Total number of valid customer orders completed or active during this period, with Average Order Value (AOV)."
           icon={ShoppingBag}
           iconBg="bg-[#2E5E58]/10 text-[#2E5E58]"
           badge={periodLabel}
@@ -384,7 +472,7 @@ const DashboardHome = ({ setCurrentPage }) => {
         />
         <StatCard
           title="Pending Payments"
-          value={formatRm(summary.pendingPaymentValueRm)}
+          value={formatRm(animPending)}
           info="RM value of orders waiting for payment confirmation."
           icon={Clock3}
           iconBg="bg-amber-50 text-amber-700"
@@ -393,7 +481,7 @@ const DashboardHome = ({ setCurrentPage }) => {
         />
         <StatCard
           title="Refund Reviews"
-          value={formatNumber(summary.pendingRefunds)}
+          value={formatNumber(Math.round(animRefunds))}
           info="Pending refund requests awaiting customer service decision or approval."
           icon={CircleDollarSign}
           iconBg={summary.pendingRefunds > 0 ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500"}
@@ -403,8 +491,13 @@ const DashboardHome = ({ setCurrentPage }) => {
         />
         <StatCard
           title="Customers"
-          value={formatNumber(summary.customersServed)}
-          detail={<div className="grid grid-cols-2 gap-x-2 gap-y-0.5"><span>Employees: <strong className="text-gray-700">{formatNumber(summary.employeeCustomersServed)}</strong></span><span>Non-employees: <strong className="text-gray-700">{formatNumber(summary.nonEmployeeCustomersServed)}</strong></span></div>}
+          value={formatNumber(Math.round(animCustomers))}
+          detail={
+            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+              <span>Employees: <strong className="text-gray-700">{formatNumber(summary.employeeCustomersServed)}</strong></span>
+              <span>Non-employees: <strong className="text-gray-700">{formatNumber(summary.nonEmployeeCustomersServed)}</strong></span>
+            </div>
+          }
           info="Distinct customers who placed eligible orders during this period, split between employee/intern accounts and non-employee customers."
           icon={Users}
           iconBg="bg-[#6F9F96]/15 text-[#2E5E58]"
@@ -412,6 +505,67 @@ const DashboardHome = ({ setCurrentPage }) => {
           onClick={() => setCurrentPage?.('Customers')}
         />
       </div>
+
+      {/* Sales Mix & Audit Summary */}
+      <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 mb-6">
+        <div className="xl:col-span-5 bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-sm font-bold text-gray-900">Combined Sales & Payment Split</h2>
+                <InfoTooltip content="Total RM-equivalent sales combining direct RM payments and C2 Credit order value for the selected period." title="Combined Sales" />
+              </div>
+              <p className="mt-1.5 text-2xl font-extrabold text-gray-900 tabular-nums">{formatRm(animTotalSales)}</p>
+            </div>
+            <span className="rounded-lg bg-[#2E5E58]/10 px-2.5 py-1 text-xs font-bold text-[#2E5E58] tabular-nums">
+              AOV {formatRm(averageOrderValueRm)}
+            </span>
+          </div>
+          <div className="mt-4">
+            <div className="flex justify-between text-[11px] font-bold text-gray-600 mb-1.5">
+              <span>Direct: {directSharePct}% ({formatRm(summary.cashCollectedRm)})</span>
+              <span>C2 Credit: {creditSharePct}% ({formatRm(summary.tokenOrderValueRm)})</span>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100 flex">
+              <div className="h-full bg-[#2E5E58] transition-all duration-500" style={{ width: `${directSharePct}%` }} />
+              <div className="h-full bg-[#D4AF7A] transition-all duration-500" style={{ width: `${creditSharePct}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="xl:col-span-7 bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-gray-900">Order Pipeline & Audit Watch</h2>
+              <InfoTooltip content="Live order stage distribution alongside discounts given and cancelled/voided orders for quick auditing." title="Order Pipeline & Audit Watch" />
+            </div>
+            <button type="button" onClick={() => setCurrentPage?.('Orders')} className="text-xs font-bold text-[#2E5E58] hover:underline cursor-pointer inline-flex items-center gap-1">
+              Inspect orders <ArrowRight size={13} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {[
+              ['Awaiting prep', formatNumber(summary.awaitingPreparation), 'Paid / accepted', 'bg-violet-50 text-violet-700 border-violet-200/60'],
+              ['Preparing', formatNumber(summary.preparing), 'In kitchen', 'bg-amber-50 text-amber-700 border-amber-200/60'],
+              ['Ready', formatNumber(summary.readyForPickup), 'For pickup', 'bg-sky-50 text-sky-700 border-sky-200/60'],
+              ['Completed', formatNumber(summary.collectedCount), 'Collected', 'bg-emerald-50 text-emerald-700 border-emerald-200/60'],
+              ['Discounts', formatRm(summary.totalDiscountRm), `${formatNumber(summary.discountedOrderCount)} orders`, 'bg-slate-50 text-slate-800 border-slate-200'],
+              ['Cancelled', formatNumber(summary.cancelledCount), formatRm(summary.cancelledValueRm), Number(summary.cancelledCount || 0) > 0 ? 'bg-red-50 text-red-700 border-red-200/80' : 'bg-slate-50 text-slate-600 border-slate-200']
+            ].map(([label, val, sub, tone]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setCurrentPage?.('Orders')}
+                className={`rounded-xl border p-2.5 text-left transition-transform hover:-translate-y-0.5 cursor-pointer ${tone}`}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">{label}</p>
+                <p className="mt-1 text-base font-extrabold tabular-nums">{val}</p>
+                <p className="mt-0.5 text-[10px] font-semibold opacity-75 truncate">{sub}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -422,18 +576,23 @@ const DashboardHome = ({ setCurrentPage }) => {
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {[
-            ['Customers', formatNumber(coverage.activeCustomers), `${formatNumber(coverage.pendingCustomers)} pending`, Users, 'bg-[#6F9F96]/15 text-[#2E5E58]'],
-            ['Vouchers', formatNumber(coverage.activeVouchers), `${formatNumber(coverage.voucherRedemptions)} redeemed`, PackageCheck, 'bg-violet-50 text-violet-700'],
-            ['Gift cards', formatNumber(coverage.activeGiftCards), `${formatRm(coverage.giftCardValueRm)} RM value`, Wallet, 'bg-amber-50 text-amber-700'],
-            ['Active menu', formatNumber(coverage.activeMenuItems), 'published items', Coffee, 'bg-emerald-50 text-emerald-700'],
-            ['Low stock', formatNumber(coverage.lowStockItems), 'needs review', ShoppingBag, coverage.lowStockItems > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'],
-            ['Allowance issued', formatNumber(coverage.subsidyIssuedTokens), `${formatNumber(coverage.subsidyConsumedTokens)} consumed`, CircleDollarSign, 'bg-sky-50 text-sky-700']
-          ].map(([title, value, subtitle, Icon, iconBg]) => (
-            <div key={title} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+            ['Customers', formatNumber(coverage.activeCustomers), `${formatNumber(summary.newCustomersRegistered)} new · ${formatNumber(coverage.pendingCustomers)} pending`, Users, 'bg-[#6F9F96]/15 text-[#2E5E58]', 'Customers'],
+            ['Vouchers', formatNumber(coverage.activeVouchers), `${formatNumber(coverage.voucherRedemptions)} redeemed`, PackageCheck, 'bg-violet-50 text-violet-700', 'Voucher'],
+            ['Gift cards', formatNumber(coverage.activeGiftCards), `${formatRm(coverage.giftCardValueRm)} value`, Wallet, 'bg-amber-50 text-amber-700', 'Gift Cards'],
+            ['Active menu', formatNumber(coverage.activeMenuItems), 'published items', Coffee, 'bg-emerald-50 text-emerald-700', 'Menu'],
+            ['Low stock', formatNumber(coverage.lowStockItems), 'needs review', ShoppingBag, coverage.lowStockItems > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500', 'Inventory'],
+            ['Allowance issued', formatNumber(coverage.subsidyIssuedTokens), `${formatNumber(coverage.subsidyConsumedTokens)} consumed`, CircleDollarSign, 'bg-sky-50 text-sky-700', 'C2 Credit Ledger']
+          ].map(([title, value, subtitle, Icon, iconBg, targetPage]) => (
+            <button
+              key={title}
+              type="button"
+              onClick={() => setCurrentPage?.(targetPage)}
+              className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-left transition-colors hover:border-gray-200 hover:bg-gray-100/70 cursor-pointer"
+            >
               <div className="flex items-center gap-2"><div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}><Icon size={15} /></div><p className="text-xs font-bold text-gray-600">{title}</p></div>
               <p className="mt-3 text-xl font-extrabold tabular-nums text-gray-900">{value}</p>
               <p className="mt-1 text-[11px] text-gray-500">{subtitle}</p>
-            </div>
+            </button>
           ))}
         </div>
       </section>
@@ -634,25 +793,58 @@ const DashboardHome = ({ setCurrentPage }) => {
 
       {/* Best-Selling Items */}
       <section className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
           <div className="flex items-center gap-1.5 min-w-0">
             <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Best-Selling Items</h2>
             <InfoTooltip content="Top ranking catalog items ordered across all branches for the selected period." title="Best-Selling Items" />
           </div>
-          <button onClick={() => setCurrentPage?.('Menu')} className="text-xs font-bold text-[#2E5E58] hover:underline cursor-pointer inline-flex items-center gap-1 shrink-0">
-            Manage menu <ArrowRight size={14} />
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setTopItemsMetric('unitsSold')}
+                className={`rounded-md px-2.5 py-1 transition-colors cursor-pointer ${topItemsMetric === 'unitsSold' ? 'bg-[#1F3A34] text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                Units Sold
+              </button>
+              <button
+                type="button"
+                onClick={() => setTopItemsMetric('revenue')}
+                className={`rounded-md px-2.5 py-1 transition-colors cursor-pointer ${topItemsMetric === 'revenue' ? 'bg-[#1F3A34] text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                Revenue (RM)
+              </button>
+            </div>
+            <button onClick={() => setCurrentPage?.('Product Report')} className="text-xs font-bold text-[#2E5E58] hover:underline cursor-pointer inline-flex items-center gap-1 shrink-0">
+              Product report <ArrowRight size={14} />
+            </button>
+          </div>
         </div>
         {loading && !dashboard ? <EmptyState>Loading sales data...</EmptyState> : topItems.length === 0 ? <EmptyState>No item sales for this period yet.</EmptyState> : (
-          <div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+            <div className="lg:col-span-5 h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={visibleTopItems} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+                  <CartesianGrid horizontal={false} stroke="#F1F5F9" />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => topItemsMetric === 'revenue' ? `RM ${v}` : v} />
+                  <YAxis type="category" dataKey="name" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#374151', fontWeight: 600 }} />
+                  <Tooltip
+                    formatter={(val) => [topItemsMetric === 'revenue' ? formatRm(val) : `${formatNumber(val)} sold`, topItemsMetric === 'revenue' ? 'Revenue' : 'Units']}
+                    contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey={topItemsMetric} fill={topItemsMetric === 'revenue' ? '#2E5E58' : '#D4AF7A'} radius={[0, 6, 6, 0]} barSize={18} isAnimationActive animationDuration={500} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {visibleTopItems.map((item, index) => (
                 <div key={item.name} className="border border-gray-100 rounded-xl p-3.5 bg-gray-50/50 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center justify-between">
                     <span className="w-6 h-6 rounded-md bg-[#2E5E58]/10 text-[#2E5E58] text-xs font-bold inline-flex items-center justify-center">#{index + 1}</span>
                     <Coffee size={16} className="text-gray-400" />
                   </div>
-                  <p className="mt-3 text-xs font-bold text-gray-900 truncate" title={item.name}>{item.name}</p>
+                  <p className="mt-2.5 text-xs font-bold text-gray-900 truncate" title={item.name}>{item.name}</p>
                   <div className="mt-1 flex items-center justify-between text-xs">
                     <span className="text-gray-500 text-[11px]">{formatNumber(item.unitsSold)} sold</span>
                     <span className="font-bold text-[#2E5E58] tabular-nums">{formatRm(item.revenue)}</span>
@@ -660,24 +852,6 @@ const DashboardHome = ({ setCurrentPage }) => {
                 </div>
               ))}
             </div>
-            {topItems.length > 5 && (
-              <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-gray-500 font-medium">
-                  Showing top {visibleTopItems.length} of {topItems.length} items
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowAllTopItems(!showAllTopItems)}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2E5E58] hover:text-[#1F3A34] px-3 py-1.5 rounded-lg hover:bg-[#2E5E58]/10 transition-colors cursor-pointer border border-[#2E5E58]/20"
-                >
-                  {showAllTopItems ? (
-                    <>Show top 5 only <ChevronUp size={14} /></>
-                  ) : (
-                    <>Click for more ({topItems.length - 5} remaining) <ChevronDown size={14} /></>
-                  )}
-                </button>
-              </div>
-            )}
           </div>
         )}
       </section>

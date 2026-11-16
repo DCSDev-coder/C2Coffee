@@ -99,22 +99,42 @@ class OrderCard extends StatelessWidget {
             paymentMethod == 'manual_terminal' ||
             paymentMethod == 'manual_cash');
 
+    final Color statusBg;
+    final Color statusFg;
+    final Color cardBorder;
+    if (isReadyForPickup) {
+      statusBg = const Color(0xFFDCFCE7);
+      statusFg = const Color(0xFF166534);
+      cardBorder = const Color(0xFF86EFAC);
+    } else if (isPreparing) {
+      statusBg = darkGreen;
+      statusFg = Colors.white;
+      cardBorder = darkGreen.withValues(alpha: 0.18);
+    } else {
+      statusBg = const Color(0xFFFEF3C7);
+      statusFg = const Color(0xFF92400E);
+      cardBorder = const Color(0xFFFCD34D);
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16.0),
+        margin: const EdgeInsets.only(bottom: 12.0),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18.0),
+          borderRadius: BorderRadius.circular(16.0),
           border: Border.all(
-            color: const Color(0xFF203E32).withValues(alpha: 0.12),
-            width: 1.0,
+            color: isHistory
+                ? const Color(0xFF203E32).withValues(alpha: 0.12)
+                : cardBorder,
+            width: isHistory ? 1.0 : 1.3,
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(18.0),
+          padding: const EdgeInsets.all(14.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               // Top Row: Date/Time and Status Pill
               Row(
@@ -138,11 +158,11 @@ class OrderCard extends StatelessWidget {
                         color: Colors.transparent,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
+                            horizontal: 12.0,
                             vertical: 4.0,
                           ),
                           decoration: BoxDecoration(
-                            color: darkGreen,
+                            color: statusBg,
                             borderRadius: BorderRadius.circular(20.0),
                           ),
                           child: Text(
@@ -150,11 +170,13 @@ class OrderCard extends StatelessWidget {
                                 ? 'Ready for pickup'
                                 : isPreparing
                                 ? 'Preparing'
+                                : isManualPaymentPending
+                                ? 'Pay at counter'
                                 : 'New',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: statusFg,
                               fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -162,34 +184,36 @@ class OrderCard extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 8.0),
+              const SizedBox(height: 6.0),
               if (cancellationRequestStatus == 'pending' ||
                   cancellationRequestStatus == 'refund_pending')
                 Container(
                   width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 10),
+                  margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                    horizontal: 10,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF4D6),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     cancellationRequestStatus == 'refund_pending'
                         ? 'Cancellation approved — refund pending; do not prepare'
                         : 'Cancellation requested — review before preparing',
-                    style: TextStyle(
+                    style: const TextStyle(
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF8A5A00),
                     ),
                   ),
                 ),
 
-              // Order ID & Chevron
+              // Order ID & Total on same row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
                     child: FittedBox(
@@ -203,8 +227,8 @@ class OrderCard extends StatelessWidget {
                             orderId,
                             maxLines: 1,
                             style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
                               color: Colors.black,
                             ),
                           ),
@@ -212,14 +236,26 @@ class OrderCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (isHistory)
+                  const SizedBox(width: 8),
+                  Text(
+                    'RM ${total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Color(0xFF203E32),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (isHistory) ...[
+                    const SizedBox(width: 4),
                     const Icon(
                       Icons.chevron_right,
-                      size: 32,
+                      size: 24,
                       color: Colors.black,
                     ),
+                  ],
                 ],
               ),
+              const SizedBox(height: 2),
 
               // Customer Details
               Hero(
@@ -230,7 +266,7 @@ class OrderCard extends StatelessWidget {
                     customerDetails,
                     style: TextStyle(
                       color: const Color(0xFF203E32).withValues(alpha: 0.65),
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -238,134 +274,123 @@ class OrderCard extends StatelessWidget {
               ),
               if (voucherName != null && voucherName!.trim().isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     'Voucher: ${voucherName!.trim()}${discount > 0 ? ' • Discount RM ${discount.toStringAsFixed(2)}' : ''}',
                     style: const TextStyle(
                       color: Color(0xFF6B1A5B),
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
 
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Total: RM ${total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: Color(0xFF203E32),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: Divider(color: Colors.grey, thickness: 0.5),
+                padding: EdgeInsets.symmetric(vertical: 10.0),
+                child: Divider(color: Color(0xFFE5E7EB), thickness: 1),
               ),
 
               // Order Items
               ...items.map((item) => _buildOrderItem(item, darkGreen)),
 
-              const SizedBox(height: 8.0),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: isPrintLoading ? null : onPrintPressed,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: darkGreen,
-                    side: const BorderSide(color: darkGreen, width: 1.4),
-                    padding: const EdgeInsets.symmetric(vertical: 13.0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                  ),
-                  icon: isPrintLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.3,
-                            color: darkGreen,
-                          ),
-                        )
-                      : const Icon(Icons.print_outlined),
-                  label: Text(
-                    isHistory ? 'Reprint receipt' : 'Print receipt',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 6.0),
 
-              // Action Button (Only if not history or ready)
-              if (!isHistory && !isReadyForPickup) ...[
-                const SizedBox(height: 16.0),
-                if (onCancelPressed != null)
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: isActionLoading ? null : onCancelPressed,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF9B2C2C),
-                        side: const BorderSide(color: Color(0xFF9B2C2C)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+              // Compact Action Row
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: isPrintLoading ? null : onPrintPressed,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: darkGreen,
+                      side: const BorderSide(color: darkGreen, width: 1.2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 11,
                       ),
-                      child: const Text(
-                        'Cancel order',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (onCancelPressed != null) const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isActionLoading ? null : onActionPressed,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isPreparing
-                          ? const Color(0xFF2E5E58)
-                          : darkGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14.0),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12.0),
+                        borderRadius: BorderRadius.circular(10.0),
                       ),
-                      elevation: 0,
                     ),
-                    child: isActionLoading
+                    icon: isPrintLoading
                         ? const SizedBox(
-                            height: 22,
-                            width: 22,
+                            height: 16,
+                            width: 16,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
+                              strokeWidth: 2,
+                              color: darkGreen,
                             ),
                           )
-                        : Text(
-                            isManualPaymentPending
-                                ? 'Payment Received'
-                                : (isPreparing
-                                      ? 'Mark as Ready'
-                                      : 'Start Preparing'),
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                        : const Icon(Icons.print_outlined, size: 18),
+                    label: Text(
+                      isHistory ? 'Reprint receipt' : 'Print receipt',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  if (!isHistory && !isReadyForPickup && onCancelPressed != null) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Cancel order',
+                      onPressed: isActionLoading ? null : onCancelPressed,
+                      style: IconButton.styleFrom(
+                        foregroundColor: const Color(0xFF9B2C2C),
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        backgroundColor: const Color(0xFFFEF2F2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      icon: const Icon(Icons.close_rounded, size: 19),
+                    ),
+                  ],
+                  if (!isHistory && !isReadyForPickup) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: isActionLoading ? null : onActionPressed,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isPreparing
+                              ? const Color(0xFF2E5E58)
+                              : darkGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: isActionLoading
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                isManualPaymentPending
+                                    ? 'Payment Received'
+                                    : (isPreparing
+                                          ? 'Mark as Ready'
+                                          : 'Start Preparing'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
         ),
@@ -375,33 +400,33 @@ class OrderCard extends StatelessWidget {
 
   Widget _buildOrderItem(OrderItem item, Color darkGreen) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+      padding: const EdgeInsets.only(bottom: 10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             item.title,
             style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
               color: Colors.black,
             ),
           ),
           if (item.tags.isNotEmpty) ...[
-            const SizedBox(height: 8.0),
+            const SizedBox(height: 5.0),
             Wrap(
-              spacing: 6.0,
-              runSpacing: 6.0,
+              spacing: 5.0,
+              runSpacing: 5.0,
               children: item.tags
                   .map(
                     (tag) => Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10.0,
-                        vertical: 6.0,
+                        horizontal: 8.0,
+                        vertical: 4.0,
                       ),
                       decoration: BoxDecoration(
                         color: darkGreen.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(8.0),
+                        borderRadius: BorderRadius.circular(7.0),
                         border: Border.all(
                           color: darkGreen.withValues(alpha: 0.1),
                         ),
@@ -410,7 +435,7 @@ class OrderCard extends StatelessWidget {
                         tag,
                         style: TextStyle(
                           color: darkGreen,
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

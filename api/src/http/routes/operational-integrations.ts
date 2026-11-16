@@ -87,6 +87,7 @@ const attendanceQuerySchema = z.object({
 });
 const workstationKeyPattern = /^C2-[A-Z0-9]{12}$/;
 const baristaSoundStyle = z.enum(['short', 'long', 'two_tone']);
+const incomingOrderSoundStyle = z.enum(['short', 'long', 'two_tone', 'new_order']);
 const baristaSoundSettingsSchema = z.object({
   volume_percent: z.coerce.number().int().min(0).max(100),
   incoming_order_enabled: z.coerce.boolean().default(true),
@@ -97,7 +98,7 @@ const baristaSoundSettingsSchema = z.object({
   side_work_beeps: z.coerce.number().int().min(1).max(5),
   side_work_style: baristaSoundStyle.optional().default('two_tone'),
   incoming_order_beeps: z.coerce.number().int().min(1).max(5),
-  incoming_order_style: baristaSoundStyle.optional().default('two_tone'),
+  incoming_order_style: incomingOrderSoundStyle.optional().default('new_order'),
   cancellation_alert_enabled: z.coerce.boolean().default(true),
   cancellation_alert_beeps: z.coerce.number().int().min(1).max(5),
   cancellation_alert_style: baristaSoundStyle.optional().default('two_tone'),

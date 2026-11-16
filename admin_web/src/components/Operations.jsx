@@ -9,6 +9,7 @@ import {
   saveAdminShiftSchedule
 } from '../lib/adminApi';
 import InfoTooltip from './InfoTooltip';
+import AttendanceTimetable from './AttendanceTimetable';
 
 function SortableHeader({ label, columnKey, currentKey, direction, onSort, info, className = "" }) {
   const isSorted = currentKey === columnKey;
@@ -48,7 +49,7 @@ const initialSoundSettings = {
   volume_percent: 70,
   incoming_order_enabled: true,
   incoming_order_beeps: 4,
-  incoming_order_style: 'two_tone',
+  incoming_order_style: 'new_order',
   clock_in_beeps: 1,
   clock_in_style: 'short',
   clock_out_beeps: 2,
@@ -76,12 +77,17 @@ const soundStyleLabels = {
   two_tone: 'Two-tone beep'
 };
 
+const incomingSoundStyleLabels = {
+  ...soundStyleLabels,
+  new_order: 'New order chime'
+};
+
 function previewBeeps(count, volumePercent, style) {
   const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextConstructor) return;
   const context = new AudioContextConstructor();
   const volume = Math.max(0, Math.min(100, Number(volumePercent))) / 100;
-  const interval = style === 'long' ? 0.76 : style === 'two_tone' ? 0.52 : 0.24;
+  const interval = style === 'new_order' ? 0.9 : style === 'long' ? 0.76 : style === 'two_tone' ? 0.52 : 0.24;
   const scheduleTone = (startsAt, frequency, duration) => {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
@@ -98,7 +104,11 @@ function previewBeeps(count, volumePercent, style) {
   };
   Array.from({ length: Number(count) }, (_, index) => index).forEach((index) => {
     const startsAt = context.currentTime + index * interval;
-    if (style === 'long') {
+    if (style === 'new_order') {
+      scheduleTone(startsAt, 659, 0.15);
+      scheduleTone(startsAt + 0.18, 784, 0.15);
+      scheduleTone(startsAt + 0.36, 988, 0.22);
+    } else if (style === 'long') {
       scheduleTone(startsAt, 780, 0.65);
     } else if (style === 'two_tone') {
       scheduleTone(startsAt, 880, 0.16);
@@ -285,7 +295,7 @@ export default function Operations() {
           volume_percent: Number(selected.volume_percent),
           incoming_order_enabled: selected.incoming_order_enabled !== false && Number(selected.incoming_order_enabled) !== 0,
           incoming_order_beeps: Number(selected.incoming_order_beeps || 4),
-          incoming_order_style: selected.incoming_order_style || 'two_tone',
+          incoming_order_style: selected.incoming_order_style || 'new_order',
           clock_in_beeps: Number(selected.clock_in_beeps),
           clock_in_style: selected.clock_in_style || 'short',
           clock_out_beeps: Number(selected.clock_out_beeps),
@@ -494,7 +504,7 @@ export default function Operations() {
       volume_percent: Number(outlet.volume_percent),
       incoming_order_enabled: outlet.incoming_order_enabled !== false && Number(outlet.incoming_order_enabled) !== 0,
       incoming_order_beeps: Number(outlet.incoming_order_beeps || 4),
-      incoming_order_style: outlet.incoming_order_style || 'two_tone',
+      incoming_order_style: outlet.incoming_order_style || 'new_order',
       clock_in_beeps: Number(outlet.clock_in_beeps),
       clock_in_style: outlet.clock_in_style || 'short',
       clock_out_beeps: Number(outlet.clock_out_beeps),
@@ -727,10 +737,10 @@ export default function Operations() {
 
         {activeTab === 'sounds' && <section className="mt-6">
           <form onSubmit={saveSoundSettings} className="max-w-3xl rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><Volume2 size={22} /></div><div><h2 className="text-lg font-bold text-slate-900">Barista beep patterns</h2><p className="mt-1 text-sm leading-6 text-slate-500">Configure the sound played on the C2 Store device when a new order is claimed for printing, plus clock-in, clock-out, and side-work reminders. The printer still prints at the same time. The tablet's media volume remains the final hardware limit.</p></div></div>
+            <div className="flex items-start gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F0F8F6] text-[#1F3A34]"><Volume2 size={22} /></div><div><h2 className="text-lg font-bold text-slate-900">Barista sound patterns</h2><p className="mt-1 text-sm leading-6 text-slate-500">Configure the sound played on the C2 Store device when a new order is claimed for printing, plus clock-in, clock-out, and side-work reminders. The new-order chime is a distinct three-note cue so baristas can recognize it without looking at the screen.</p></div></div>
             <label className="mt-6 block text-sm font-bold text-slate-700">Outlet<select value={selectedSoundStoreId} onChange={(event) => chooseSoundOutlet(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm" disabled={!soundOutlets.length}>{soundOutlets.map((outlet) => <option key={outlet.store_id} value={outlet.store_id}>{outlet.store_name}</option>)}</select></label>
-            <label className="mt-5 block text-sm font-bold text-slate-700"><span className="flex items-center justify-between"><span>Beep volume</span><span className="text-[#2E5E58]">{soundForm.volume_percent}%</span></span><input type="range" min="0" max="100" step="5" value={soundForm.volume_percent} onChange={(event) => setSoundForm((current) => ({ ...current, volume_percent: Number(event.target.value) }))} className="mt-3 w-full accent-[#2E5E58]" /></label>
-            <label className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><input type="checkbox" checked={Boolean(soundForm.incoming_order_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, incoming_order_enabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Beep when an incoming order prints</span><span className="mt-1 block text-xs leading-5 text-amber-800">The beep and printer job start together when the device claims a new order.</span></span></label>
+            <label className="mt-5 block text-sm font-bold text-slate-700"><span className="flex items-center justify-between"><span>Sound volume</span><span className="text-[#2E5E58]">{soundForm.volume_percent}%</span></span><input type="range" min="0" max="100" step="5" value={soundForm.volume_percent} onChange={(event) => setSoundForm((current) => ({ ...current, volume_percent: Number(event.target.value) }))} className="mt-3 w-full accent-[#2E5E58]" /></label>
+            <label className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><input type="checkbox" checked={Boolean(soundForm.incoming_order_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, incoming_order_enabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Play the new-order sound when an incoming order prints</span><span className="mt-1 block text-xs leading-5 text-amber-800">The chime and printer job start together when the device claims a new order.</span></span></label>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div className="rounded-xl border border-red-200 bg-red-50 p-4">
                 <label className="flex items-start gap-3 text-sm text-red-950"><input type="checkbox" checked={Boolean(soundForm.cancellation_alert_enabled)} onChange={(event) => setSoundForm((current) => ({ ...current, cancellation_alert_enabled: event.target.checked }))} className="mt-0.5 h-4 w-4 accent-[#2E5E58]" /><span><span className="font-bold">Beep for customer cancellation requests</span><span className="mt-1 block text-xs leading-5 text-red-800">Alerts once when a request changes status. The order remains protected until reviewed.</span></span></label>
@@ -744,9 +754,9 @@ export default function Operations() {
               ['Clock in', 'clock_in_beeps', 'clock_in_style'],
               ['Clock out', 'clock_out_beeps', 'clock_out_style'],
               ['Side work due', 'side_work_beeps', 'side_work_style']
-            ].map(([label, countKey, styleKey]) => <div key={countKey} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-bold text-slate-800">{label}</p><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sound style<select value={soundForm[styleKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [styleKey]: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{Object.entries(soundStyleLabels).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Repeat<select value={soundForm[countKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [countKey]: Number(event.target.value) }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} time{count === 1 ? '' : 's'}</option>)}</select></label><button type="button" onClick={() => previewBeeps(soundForm[countKey], soundForm.volume_percent, soundForm[styleKey])} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#5C867F] px-3 py-2 text-sm font-bold text-[#2E5E58] hover:bg-white cursor-pointer"><Volume2 size={15} /> Preview</button></div>)}</div>
+            ].map(([label, countKey, styleKey]) => <div key={countKey} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-bold text-slate-800">{label}</p><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Sound style<select value={soundForm[styleKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [styleKey]: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{Object.entries(styleKey === 'incoming_order_style' ? incomingSoundStyleLabels : soundStyleLabels).map(([value, optionLabel]) => <option key={value} value={value}>{optionLabel}</option>)}</select></label><label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500">Repeat<select value={soundForm[countKey]} onChange={(event) => setSoundForm((current) => ({ ...current, [countKey]: Number(event.target.value) }))} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm normal-case tracking-normal text-slate-800">{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} time{count === 1 ? '' : 's'}</option>)}</select></label><button type="button" onClick={() => previewBeeps(soundForm[countKey], soundForm.volume_percent, soundForm[styleKey])} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#5C867F] px-3 py-2 text-sm font-bold text-[#2E5E58] hover:bg-white cursor-pointer"><Volume2 size={15} /> Preview</button></div>)}</div>
             <p className="mt-4 text-xs leading-5 text-slate-500">Each event must use a different count so staff can identify it without looking at the screen. Setting volume to 0% mutes all patterns, including incoming-order alerts.</p>
-            <button type="submit" disabled={savingSound || !selectedSoundStoreId} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] hover:bg-[#2E5E58] px-5 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs"><Save size={16} />{savingSound ? 'Saving...' : 'Save beep patterns'}</button>
+            <button type="submit" disabled={savingSound || !selectedSoundStoreId} className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] hover:bg-[#2E5E58] px-5 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs"><Save size={16} />{savingSound ? 'Saving...' : 'Save sound patterns'}</button>
           </form>
         </section>}
 
@@ -783,12 +793,7 @@ export default function Operations() {
               {monthlyHours.length === 0 && <p className="text-sm text-slate-500">No monthly attendance totals for the selected staff.</p>}
             </div>
           </div>
-          <div>
-            <div className="mb-3 flex items-center justify-between"><div><h2 className="text-lg font-bold text-slate-900">Timetable</h2><p className="mt-1 text-sm text-slate-500">Each card shows who worked, their clock-in/out time, and total duration.</p></div></div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              {attendanceByDate.map(([date, records]) => <article key={date} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-2xs"><div className="flex items-center justify-between"><h3 className="font-extrabold text-slate-900">{date}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{records.length} shift{records.length === 1 ? '' : 's'}</span></div><div className="mt-4 space-y-3">{records.map((record) => <div key={record.id} className="rounded-xl bg-slate-50 px-4 py-3"><div className="flex items-center justify-between gap-3"><span className="font-bold text-slate-900">{record.barista_name}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${record.status === 'needs_review' || record.status === 'missing_clock_out' ? 'bg-red-50 text-red-700' : record.clocked_out_at ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{record.status === 'needs_review' || record.status === 'missing_clock_out' ? 'Needs review' : record.clocked_out_at ? 'Completed' : 'Still clocked in'}</span></div><div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500"><span>In<br /><strong className="text-sm text-slate-700">{record.clocked_in_at ? new Date(record.clocked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}</strong></span><span>Out<br /><strong className="text-sm text-slate-700">{record.clocked_out_at ? new Date(record.clocked_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--'}</strong></span><span>Duration<br /><strong className="text-sm text-slate-700">{record.duration_minutes == null ? '--' : `${Math.floor(record.duration_minutes / 60)}h ${record.duration_minutes % 60}m`}</strong></span></div></div>)}</div></article>)}
-            </div>
-          </div>
+          <AttendanceTimetable attendance={attendance} attendanceByDate={attendanceByDate} />
           <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
             <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">Detailed attendance records</h2><p className="mt-1 text-sm text-slate-500">Use the table for sorting and checking individual records.</p></div>
             <table className="min-w-[850px] w-full text-left text-sm">

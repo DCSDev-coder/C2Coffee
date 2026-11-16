@@ -4,7 +4,15 @@ import 'package:flutter/services.dart';
 
 import 'api_service.dart';
 
-enum BaristaSoundEvent { incomingOrder, cancellation, waitingOrder, preparingTooLong, clockIn, clockOut, sideWork }
+enum BaristaSoundEvent {
+  incomingOrder,
+  cancellation,
+  waitingOrder,
+  preparingTooLong,
+  clockIn,
+  clockOut,
+  sideWork,
+}
 
 class BaristaSoundService {
   BaristaSoundService._();
@@ -21,12 +29,27 @@ class BaristaSoundService {
   }
 
   Future<void> play(BaristaSoundEvent event) async {
-    if (event == BaristaSoundEvent.incomingOrder && !_settings.incomingOrderEnabled ||
-        event == BaristaSoundEvent.cancellation && !_settings.cancellationAlertEnabled ||
-        event == BaristaSoundEvent.waitingOrder && !_settings.waitingAlertEnabled ||
-        event == BaristaSoundEvent.preparingTooLong && !_settings.preparingAlertEnabled) {
+    if (event == BaristaSoundEvent.incomingOrder &&
+            !_settings.incomingOrderEnabled ||
+        event == BaristaSoundEvent.cancellation &&
+            !_settings.cancellationAlertEnabled ||
+        event == BaristaSoundEvent.waitingOrder &&
+            !_settings.waitingAlertEnabled ||
+        event == BaristaSoundEvent.preparingTooLong &&
+            !_settings.preparingAlertEnabled) {
       return;
     }
+    await _playConfigured(event);
+  }
+
+  /// Plays the configured cue on demand so baristas can learn each sound.
+  /// This intentionally ignores the event's enabled flag; it never changes
+  /// the Admin Web configuration or the device settings.
+  Future<void> preview(BaristaSoundEvent event) async {
+    await _playConfigured(event);
+  }
+
+  Future<void> _playConfigured(BaristaSoundEvent event) async {
     final count = switch (event) {
       BaristaSoundEvent.incomingOrder => _settings.incomingOrderBeeps,
       BaristaSoundEvent.cancellation => _settings.cancellationAlertBeeps,
@@ -69,7 +92,13 @@ class BaristaSoundService {
       await SystemSound.play(SystemSoundType.alert);
       if (index < count - 1) {
         await Future<void>.delayed(
-          Duration(milliseconds: style == 'long' ? 760 : 240),
+          Duration(
+            milliseconds: style == 'long'
+                ? 760
+                : style == 'new_order'
+                ? 900
+                : 240,
+          ),
         );
       }
     }

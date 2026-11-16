@@ -18,10 +18,14 @@ class CurrentOrderPage extends StatefulWidget {
   State<CurrentOrderPage> createState() => _CurrentOrderPageState();
 }
 
+enum _OrderQueueFilter { all, newOrders, preparing, ready }
+
 class _CurrentOrderPageState extends State<CurrentOrderPage> {
   final Color darkGreen = const Color(0xFF304A3A);
   final Set<String> _updatingOrderIds = <String>{};
   final Set<String> _printingOrderIds = <String>{};
+  _OrderQueueFilter _stageFilter = _OrderQueueFilter.all;
+  bool _gridView = true;
 
   Future<void> _refreshOrders() async {
     final result = await ApiService.fetchOrders();
@@ -183,12 +187,72 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
     );
   }
 
+  Widget _buildOrderCard(CurrentOrder order) {
+    return OrderCard(
+      timeDate: order.timeDate,
+      status: order.status,
+      orderId: order.orderId,
+      customerDetails: order.customerDetails,
+      items: order.items,
+      voucherName: order.voucherName,
+      voucherType: order.voucherType,
+      discount: order.discount,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      total: order.total,
+      cancellationRequestStatus: order.cancellationRequestStatus,
+      isActionLoading: _updatingOrderIds.contains(order.orderId),
+      isPrintLoading: _printingOrderIds.contains(order.orderId),
+      onPrintPressed: () => _printReceipt(order),
+      onCancelPressed:
+          order.status == OrderStatus.newOrder ||
+              order.paymentStatus == 'pending'
+          ? () => _cancelOrder(order)
+          : null,
+      onActionPressed: () {
+        if (order.paymentStatus == 'pending' &&
+            (order.paymentMethod == 'manual_counter' ||
+                order.paymentMethod == 'manual_terminal' ||
+                order.paymentMethod == 'manual_cash')) {
+          _confirmPayment(order);
+        } else if (order.status == OrderStatus.newOrder &&
+            order.cancellationRequestStatus == null) {
+          _startPreparing(order);
+        } else {
+          _openOrderDetails(order);
+        }
+      },
+      onTap: () => _openOrderDetails(order),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<CurrentOrder>>(
       valueListenable: globalCurrentOrders,
       builder: (context, allOrders, _) {
-        final filteredOrders = allOrders.toList();
+        final newCount = allOrders
+            .where((o) => o.status == OrderStatus.newOrder)
+            .length;
+        final preparingCount = allOrders
+            .where((o) => o.status == OrderStatus.preparing)
+            .length;
+        final readyCount = allOrders
+            .where((o) => o.status == OrderStatus.readyForPickup)
+            .length;
+
+        final filteredOrders = allOrders.where((order) {
+          switch (_stageFilter) {
+            case _OrderQueueFilter.all:
+              return true;
+            case _OrderQueueFilter.newOrders:
+              return order.status == OrderStatus.newOrder;
+            case _OrderQueueFilter.preparing:
+              return order.status == OrderStatus.preparing;
+            case _OrderQueueFilter.ready:
+              return order.status == OrderStatus.readyForPickup;
+          }
+        }).toList();
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -196,7 +260,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
             children: [
               Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1120),
+                  constraints: const BoxConstraints(maxWidth: 1240),
                   child: Container(
                     color: Colors.white,
                     child: RefreshIndicator(
@@ -273,7 +337,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 22.0),
+                              const SizedBox(height: 18.0),
                               ValueListenableBuilder<String?>(
                                 valueListenable: globalOrderSyncError,
                                 builder: (context, syncError, _) {
@@ -311,8 +375,70 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                   );
                                 },
                               ),
-                              const BaristaSectionLabel(label: 'LIVE QUEUE'),
-                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      for (final entry in [
+                                        (
+                                          _OrderQueueFilter.all,
+                                          'All (${allOrders.length})',
+                                        ),
+                                        (
+                                          _OrderQueueFilter.newOrders,
+                                          'New ($newCount)',
+                                        ),
+                                        (
+                                          _OrderQueueFilter.preparing,
+                                          'Preparing ($preparingCount)',
+                                        ),
+                                        (
+                                          _OrderQueueFilter.ready,
+                                          'Ready ($readyCount)',
+                                        ),
+                                      ])
+                                        ChoiceChip(
+                                          label: Text(entry.$2),
+                                          selected: _stageFilter == entry.$1,
+                                          onSelected: (_) => setState(
+                                            () => _stageFilter = entry.$1,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  SegmentedButton<bool>(
+                                    segments: const [
+                                      ButtonSegment(
+                                        value: true,
+                                        icon: Icon(
+                                          Icons.grid_view_rounded,
+                                          size: 18,
+                                        ),
+                                        label: Text('Board'),
+                                      ),
+                                      ButtonSegment(
+                                        value: false,
+                                        icon: Icon(
+                                          Icons.view_agenda_outlined,
+                                          size: 18,
+                                        ),
+                                        label: Text('List'),
+                                      ),
+                                    ],
+                                    selected: {_gridView},
+                                    onSelectionChanged: (selection) => setState(
+                                      () => _gridView = selection.first,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
                               if (filteredOrders.isEmpty)
                                 BaristaCard(
                                   padding: const EdgeInsets.symmetric(
@@ -341,7 +467,9 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
-                                          'New incoming orders will appear here automatically.',
+                                          _stageFilter == _OrderQueueFilter.all
+                                              ? 'New incoming orders will appear here automatically.'
+                                              : 'Try switching to All to see other orders.',
                                           style: TextStyle(
                                             color: const Color(
                                               0xFF203E32,
@@ -353,55 +481,41 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                                     ),
                                   ),
                                 )
+                              else if (!_gridView)
+                                ...filteredOrders.map(_buildOrderCard)
                               else
-                                ...filteredOrders.map((order) {
-                                  return OrderCard(
-                                    timeDate: order.timeDate,
-                                    status: order.status,
-                                    orderId: order.orderId,
-                                    customerDetails: order.customerDetails,
-                                    items: order.items,
-                                    voucherName: order.voucherName,
-                                    voucherType: order.voucherType,
-                                    discount: order.discount,
-                                    paymentMethod: order.paymentMethod,
-                                    paymentStatus: order.paymentStatus,
-                                    total: order.total,
-                                    cancellationRequestStatus:
-                                        order.cancellationRequestStatus,
-                                    isActionLoading: _updatingOrderIds.contains(
-                                      order.orderId,
-                                    ),
-                                    isPrintLoading: _printingOrderIds.contains(
-                                      order.orderId,
-                                    ),
-                                    onPrintPressed: () => _printReceipt(order),
-                                    onCancelPressed:
-                                        order.status == OrderStatus.newOrder ||
-                                            order.paymentStatus == 'pending'
-                                        ? () => _cancelOrder(order)
-                                        : null,
-                                    onActionPressed: () {
-                                      if (order.paymentStatus == 'pending' &&
-                                          (order.paymentMethod ==
-                                                  'manual_counter' ||
-                                              order.paymentMethod ==
-                                                  'manual_terminal' ||
-                                              order.paymentMethod ==
-                                                  'manual_cash')) {
-                                        _confirmPayment(order);
-                                      } else if (order.status ==
-                                              OrderStatus.newOrder &&
-                                          order.cancellationRequestStatus ==
-                                              null) {
-                                        _startPreparing(order);
-                                      } else {
-                                        _openOrderDetails(order);
-                                      }
-                                    },
-                                    onTap: () => _openOrderDetails(order),
-                                  );
-                                }),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final columns = constraints.maxWidth >= 1020
+                                        ? 3
+                                        : constraints.maxWidth >= 660
+                                        ? 2
+                                        : 1;
+                                    if (columns == 1) {
+                                      return Column(
+                                        children: filteredOrders
+                                            .map(_buildOrderCard)
+                                            .toList(),
+                                      );
+                                    }
+                                    const spacing = 14.0;
+                                    final cardWidth =
+                                        (constraints.maxWidth -
+                                            spacing * (columns - 1)) /
+                                        columns;
+                                    return Wrap(
+                                      spacing: spacing,
+                                      runSpacing: 2,
+                                      children: [
+                                        for (final order in filteredOrders)
+                                          SizedBox(
+                                            width: cardWidth,
+                                            child: _buildOrderCard(order),
+                                          ),
+                                      ],
+                                    );
+                                  },
+                                ),
                             ],
                           ),
                         ],
@@ -474,98 +588,215 @@ class _PaymentConfirmationDialogState
       0,
       double.infinity,
     );
-    return AlertDialog(
-      title: const Text('Confirm counter payment'),
-      content: SizedBox(
-        width: 440,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Order ${widget.order.orderId}'),
-              const SizedBox(height: 6),
-              Text(
-                'Order total: RM ${widget.order.total.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 16),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Apply card promotion discount'),
-                subtitle: Text(
-                  widget.order.voucherName?.trim().isNotEmpty == true
-                      ? 'Unavailable because this order already uses a voucher.'
-                      : 'Use only after checking the customer\'s eligible card.',
-                ),
-                value: _applyDiscount,
-                onChanged: widget.order.voucherName?.trim().isNotEmpty == true
-                    ? null
-                    : (value) => setState(() => _applyDiscount = value),
-              ),
-              if (_applyDiscount) ...[
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _percentController,
-                  autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                      RegExp(r'^\d{0,3}(\.\d{0,2})?'),
+    final hasVoucher = widget.order.voucherName?.trim().isNotEmpty == true;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 580),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Confirm counter payment',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Order ${widget.order.orderId}  •  Total: RM ${widget.order.total.toStringAsFixed(2)}',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Collect RM ${finalTotal.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
                     ),
                   ],
-                  decoration: const InputDecoration(
-                    labelText: 'Discount percentage',
-                    suffixText: '%',
-                    hintText: '20',
-                  ),
-                  onChanged: (_) => setState(() {}),
-                  validator: (value) {
-                    if (!_applyDiscount) return null;
-                    final percent = double.tryParse(value?.trim() ?? '');
-                    if (percent == null || percent <= 0 || percent > 100) {
-                      return 'Enter a percentage from 0.01 to 100.';
-                    }
-                    return null;
-                  },
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _remarksController,
-                  maxLength: 500,
-                  decoration: const InputDecoration(
-                    labelText: 'Remarks',
-                    hintText: 'Maybank card promotion',
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text(
+                    'Apply card promotion discount',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  validator: (value) {
-                    if (!_applyDiscount) return null;
-                    if ((value ?? '').trim().length < 3) {
-                      return 'Enter the card or promotion used.';
-                    }
-                    return null;
-                  },
+                  subtitle: Text(
+                    hasVoucher
+                        ? 'Unavailable because this order already uses a voucher.'
+                        : 'Use only after checking the customer\'s eligible card.',
+                  ),
+                  value: _applyDiscount,
+                  onChanged: hasVoucher
+                      ? null
+                      : (value) => setState(() => _applyDiscount = value),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Discount: RM ${_discountAmount.toStringAsFixed(2)}  •  '
-                  'Collect: RM ${finalTotal.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                if (_applyDiscount) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text(
+                        'Quick %:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      for (final preset in const ['10', '15', '20', '25'])
+                        ChoiceChip(
+                          label: Text('$preset%'),
+                          visualDensity: VisualDensity.compact,
+                          selected: _percentController.text.trim() == preset,
+                          onSelected: (_) {
+                            setState(() {
+                              _percentController.text = preset;
+                              _percentController.selection =
+                                  TextSelection.collapsed(
+                                    offset: preset.length,
+                                  );
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final percentField = TextFormField(
+                        controller: _percentController,
+                        scrollPadding: const EdgeInsets.only(bottom: 120),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d{0,3}(\.\d{0,2})?'),
+                          ),
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Discount %',
+                          suffixText: '%',
+                          hintText: '20',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        validator: (value) {
+                          if (!_applyDiscount) return null;
+                          final percent = double.tryParse(value?.trim() ?? '');
+                          if (percent == null ||
+                              percent <= 0 ||
+                              percent > 100) {
+                            return 'Enter 0.01 to 100.';
+                          }
+                          return null;
+                        },
+                      );
+                      final remarksField = TextFormField(
+                        controller: _remarksController,
+                        scrollPadding: const EdgeInsets.only(bottom: 120),
+                        maxLength: 500,
+                        decoration: const InputDecoration(
+                          labelText: 'Remarks',
+                          hintText: 'Maybank card promotion',
+                          isDense: true,
+                          counterText: '',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (!_applyDiscount) return null;
+                          if ((value ?? '').trim().length < 3) {
+                            return 'Enter card or promotion.';
+                          }
+                          return null;
+                        },
+                      );
+
+                      if (constraints.maxWidth >= 420) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 2, child: percentField),
+                            const SizedBox(width: 12),
+                            Expanded(flex: 3, child: remarksField),
+                          ],
+                        );
+                      }
+                      return Column(
+                        children: [
+                          percentField,
+                          const SizedBox(height: 10),
+                          remarksField,
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Discount: RM ${_discountAmount.toStringAsFixed(2)}  •  '
+                    'Collect: RM ${finalTotal.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _submit,
+                      child: const Text('Confirm payment'),
+                    ),
+                  ],
                 ),
               ],
-            ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('Confirm payment')),
-      ],
     );
   }
 }

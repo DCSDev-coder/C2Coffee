@@ -70,6 +70,77 @@ function clearLastAdminPage() {
   }
 }
 
+class AdminPageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  componentDidCatch(error) {
+    const msg = String(error?.message || '');
+    const isChunkError =
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('Importing a module script failed') ||
+      msg.includes('ChunkLoadError');
+    if (isChunkError) {
+      try {
+        const key = 'c2_admin_chunk_reload';
+        if (!window.sessionStorage.getItem(key)) {
+          window.sessionStorage.setItem(key, '1');
+          window.location.reload();
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="mx-auto my-12 max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <h2 className="text-base font-bold text-gray-900">Unable to load this page</h2>
+          <p className="mt-1.5 text-xs text-gray-500">
+            A new build may be available or the page encountered an unexpected error.
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-xl bg-[#1F3A34] px-4 py-2 text-xs font-bold text-white hover:bg-[#2E5E58] cursor-pointer"
+            >
+              Reload app
+            </button>
+            {this.props.onGoDashboard && (
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ error: null });
+                  this.props.onGoDashboard();
+                }}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
+                Back to Dashboard
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AppContent({
   layoutCurrentPage,
   currentPage,
@@ -90,6 +161,10 @@ function AppContent({
       currentTenant={currentTenant}
       currentUser={currentUser}
     >
+      <AdminPageErrorBoundary
+        resetKey={currentPage}
+        onGoDashboard={() => navigateWithPrompt('Dashboard')}
+      >
       <Suspense fallback={<div className="flex min-h-[320px] items-center justify-center text-sm font-semibold text-[#2E5E58]">Loading page...</div>}>
         {currentPage === 'Barista Console' && <BaristaConsole currentUser={currentUser} />}
         {currentPage === 'Barista Workspace' && <BaristaConsole currentUser={currentUser} view="workspace" />}
@@ -129,6 +204,7 @@ function AppContent({
         {currentPage === 'Deployment' && <PlatformTenants currentUser={currentUser} />}
         {currentPage === 'Data Retention' && <DataRetention />}
       </Suspense>
+      </AdminPageErrorBoundary>
     </Layout>
   );
 }

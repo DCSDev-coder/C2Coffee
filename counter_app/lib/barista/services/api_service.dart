@@ -1401,7 +1401,11 @@ class BaristaSoundSettings {
     volumePercent: (json['volume_percent'] as num?)?.toInt() ?? 70,
     incomingOrderEnabled: _soundEnabled(json['incoming_order_enabled']),
     incomingOrderBeeps: (json['incoming_order_beeps'] as num?)?.toInt() ?? 4,
-    incomingOrderStyle: _soundStyle(json['incoming_order_style'], 'two_tone'),
+    incomingOrderStyle: _soundStyle(
+      json['incoming_order_style'],
+      'new_order',
+      allowNewOrder: true,
+    ),
     clockInBeeps: (json['clock_in_beeps'] as num?)?.toInt() ?? 1,
     clockInStyle: _soundStyle(json['clock_in_style'], 'short'),
     clockOutBeeps: (json['clock_out_beeps'] as num?)?.toInt() ?? 2,
@@ -1431,9 +1435,16 @@ class BaristaSoundSettings {
     preparingAlertStyle: _soundStyle(json['preparing_alert_style'], 'short'),
   );
 
-  static String _soundStyle(Object? value, String fallback) {
+  static String _soundStyle(
+    Object? value,
+    String fallback, {
+    bool allowNewOrder = false,
+  }) {
     final style = value?.toString();
-    return const {'short', 'long', 'two_tone'}.contains(style)
+    final allowed = allowNewOrder
+        ? const {'short', 'long', 'two_tone', 'new_order'}
+        : const {'short', 'long', 'two_tone'};
+    return allowed.contains(style)
         ? style!
         : fallback;
   }

@@ -31,6 +31,7 @@ type DashboardOrderRow = RowDataPacket & {
   status: string;
   payment_mode: string;
   final_total_rm: string | number;
+  discount_total_rm: string | number | null;
   token_amount_charged: number;
   employee_allowance_tokens_used: number;
   created_at: Date;
@@ -205,6 +206,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       low_stock_items: number;
       subsidy_issued_tokens: string | number;
       subsidy_consumed_tokens: string | number;
+      new_customer_registrations: number;
     }>>(
       `SELECT
          (SELECT COUNT(*) FROM users u JOIN customer_tenant_memberships ctm ON ctm.user_id = u.id JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND u.status = 'active') AS active_customers,
@@ -216,6 +218,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
          (SELECT COALESCE(SUM(CASE WHEN gc.currency = 'token' THEN gc.remaining_amount ELSE 0 END), 0) FROM gift_cards gc JOIN admin_tenants t ON t.id = gc.tenant_id WHERE t.code = :tenantCode AND gc.status = 'active') AS gift_card_value_tokens,
          (SELECT COUNT(*) FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id JOIN admin_tenants t ON t.code = :tenantCode WHERE mi.is_active = 1 AND mc.is_active = 1) AS active_menu_items,
          (SELECT COUNT(DISTINCT iss.inventory_item_id) FROM inventory_store_stocks iss JOIN admin_tenants t ON t.id = iss.tenant_id WHERE t.code = :tenantCode AND (:storeId IS NULL OR iss.store_id = :storeId) AND iss.on_hand_quantity - iss.reserved_quantity <= iss.reorder_level) AS low_stock_items,
+         (SELECT COUNT(DISTINCT ctm.user_id) FROM customer_tenant_memberships ctm JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND ctm.registration_status = 'registered' AND ctm.registered_at >= :start AND ctm.registered_at < :end) AS new_customer_registrations,
          (SELECT COALESCE(SUM(CASE WHEN tl.direction = 'credit' AND tl.source_type LIKE 'employee_allowance%' THEN tl.amount ELSE 0 END), 0) FROM token_ledger tl JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND tl.created_at >= :start AND tl.created_at < :end) AS subsidy_issued_tokens,
          (SELECT COALESCE(SUM(CASE WHEN tl.direction = 'debit' AND tl.source_type = 'order_spend' THEN tl.amount ELSE 0 END), 0) FROM token_ledger tl JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id JOIN admin_tenants t ON t.id = ctm.tenant_id WHERE t.code = :tenantCode AND tl.created_at >= :start AND tl.created_at < :end AND tl.remarks LIKE '%allowance%') AS subsidy_consumed_tokens`,
       queryParams
@@ -232,6 +235,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
           o.status,
           o.payment_mode,
           o.final_total_rm,
+          o.discount_total_rm,
           o.token_amount_charged,
           o.employee_allowance_tokens_used,
           o.created_at,
@@ -345,6 +349,8 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       hour: index * 2,
       label: `${String(index * 2).padStart(2, '0')}:00`,
       revenue: 0,
+      directRevenue: 0,
+      tokenRevenue: 0,
       orders: 0
     }));
 
@@ -359,6 +365,12 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     let pendingPaymentValueRm = 0;
     let awaitingPreparation = 0;
     let preparing = 0;
+    let readyForPickup = 0;
+    let collectedCount = 0;
+    let cancelledCount = 0;
+    let cancelledValueRm = 0;
+    let totalDiscountRm = 0;
+    let discountedOrderCount = 0;
     const paymentBreakdown = new Map<string, { label: string; sales: number; orders: number }>();
     const outletBreakdown = new Map<number, {
       storeId: number;
@@ -367,12 +379,14 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       orders: number;
       customers: Set<number>;
     }>();
-    const daily = new Map<string, { label: string; revenue: number; orders: number }>();
+    const daily = new Map<string, { label: string; revenue: number; directRevenue: number; tokenRevenue: number; orders: number }>();
     if (!isSingleDay) {
       for (let dateKey = rangeStartDate; dateKey <= rangeEndDate; dateKey = nextDateKey(dateKey)) {
         daily.set(dateKey, {
           label: formatTrendDateKey(dateKey, timeZone, trendIncludesYear),
           revenue: 0,
+          directRevenue: 0,
+          tokenRevenue: 0,
           orders: 0
         });
       }
@@ -381,22 +395,33 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     for (const order of rangeOrders) {
       const status = String(order.status || '').toLowerCase();
       if (status === 'pending_payment') pendingPaymentValueRm += Number(order.final_total_rm || 0);
+      if (status === 'cancelled' || status === 'voided') {
+        cancelledCount += 1;
+        cancelledValueRm += Number(order.final_total_rm || 0);
+      }
       const isRevenueOrder = revenueStatuses.has(status);
       if (isRevenueOrder) {
-        salesToday += Number(order.final_total_rm || 0);
+        const orderTotal = Number(order.final_total_rm || 0);
+        const orderDiscount = Number(order.discount_total_rm || 0);
+        const isDirect = String(order.payment_mode).toLowerCase() === 'direct';
+        salesToday += orderTotal;
         ordersToday += 1;
-        if (String(order.payment_mode).toLowerCase() === 'direct') {
-          cashCollectedRm += Number(order.final_total_rm || 0);
+        if (orderDiscount > 0) {
+          totalDiscountRm += orderDiscount;
+          discountedOrderCount += 1;
+        }
+        if (isDirect) {
+          cashCollectedRm += orderTotal;
           directOrderCount += 1;
           const direct = paymentBreakdown.get('direct') ?? { label: 'Direct payments', sales: 0, orders: 0 };
-          direct.sales += Number(order.final_total_rm || 0);
+          direct.sales += orderTotal;
           direct.orders += 1;
           paymentBreakdown.set('direct', direct);
         } else {
-          tokenOrderValueRm += Number(order.final_total_rm || 0);
+          tokenOrderValueRm += orderTotal;
           tokenOrderCount += 1;
           const credit = paymentBreakdown.get('credit') ?? { label: 'C2 Credit', sales: 0, orders: 0 };
-          credit.sales += Number(order.final_total_rm || 0);
+          credit.sales += orderTotal;
           credit.orders += 1;
           paymentBreakdown.set('credit', credit);
           const subsidyTokens = Math.min(Number(order.token_amount_charged || 0), Number(order.employee_allowance_tokens_used || 0));
@@ -410,7 +435,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
           orders: 0,
           customers: new Set<number>()
         };
-        outlet.sales += Number(order.final_total_rm || 0);
+        outlet.sales += orderTotal;
         outlet.orders += 1;
         if (order.user_id) outlet.customers.add(order.user_id);
         outletBreakdown.set(order.store_id, outlet);
@@ -421,7 +446,9 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
             hourCycle: 'h23'
           }).format(new Date(order.created_at)));
           const bucket = hourly[Math.min(Math.floor(localHour / 2), hourly.length - 1)];
-          bucket.revenue += Number(order.final_total_rm || 0);
+          bucket.revenue += orderTotal;
+          if (isDirect) bucket.directRevenue += orderTotal;
+          else bucket.tokenRevenue += orderTotal;
           bucket.orders += 1;
         } else {
           const orderDate = new Date(order.created_at);
@@ -429,16 +456,24 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
           const bucket = daily.get(key) ?? {
             label: formatTrendDateKey(key, timeZone, trendIncludesYear),
             revenue: 0,
+            directRevenue: 0,
+            tokenRevenue: 0,
             orders: 0
           };
-          bucket.revenue += Number(order.final_total_rm || 0);
+          bucket.revenue += orderTotal;
+          if (isDirect) bucket.directRevenue += orderTotal;
+          else bucket.tokenRevenue += orderTotal;
           bucket.orders += 1;
           daily.set(key, bucket);
         }
       }
       if (status === 'paid' || status === 'accepted') awaitingPreparation += 1;
       if (status === 'preparing') preparing += 1;
+      if (status === 'ready_for_pickup') readyForPickup += 1;
+      if (status === 'collected' || status === 'completed') collectedCount += 1;
     }
+
+    const averageOrderValueRm = ordersToday > 0 ? Number((salesToday / ordersToday).toFixed(2)) : 0;
 
     return {
       businessDate,
@@ -452,6 +487,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       summary: {
         salesToday,
         ordersToday,
+        averageOrderValueRm,
         cashCollectedRm,
         tokenOrderValueRm,
         directOrderCount,
@@ -461,9 +497,16 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         pendingPaymentValueRm,
         awaitingPreparation,
         preparing,
+        readyForPickup,
+        collectedCount,
+        cancelledCount,
+        cancelledValueRm: Number(cancelledValueRm.toFixed(2)),
+        totalDiscountRm: Number(totalDiscountRm.toFixed(2)),
+        discountedOrderCount,
         customersServed: Number(customerRows[0]?.customer_count || 0),
         employeeCustomersServed: Number(customerRows[0]?.employee_customer_count || 0),
         nonEmployeeCustomersServed: Number(customerRows[0]?.non_employee_customer_count || 0),
+        newCustomersRegistered: Number(coverageRows[0]?.new_customer_registrations || 0),
         pendingRefunds: Number(refundRows[0]?.pending_refunds || 0),
         coverage: {
           activeCustomers: Number(coverageRows[0]?.active_customers || 0),
@@ -484,6 +527,8 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         .map(([, bucket]) => bucket)).map((bucket) => ({
         time: bucket.label,
         revenue: Number(bucket.revenue.toFixed(2)),
+        directRevenue: Number(bucket.directRevenue.toFixed(2)),
+        tokenRevenue: Number(bucket.tokenRevenue.toFixed(2)),
         orders: bucket.orders
       })),
       outletBreakdown: Array.from(outletBreakdown.values())
