@@ -107,6 +107,101 @@ class MarketingDrinkPrintSlip {
   final List<DirectPrintItem> items;
 }
 
+class ShiftReportPrintSlip {
+  const ShiftReportPrintSlip({
+    required this.config,
+    required this.attendanceId,
+    required this.baristaName,
+    required this.clockedInAt,
+    required this.clockedOutAt,
+    required this.orderCount,
+    required this.grossSales,
+    required this.refunded,
+    required this.netSales,
+    required this.orders,
+    required this.items,
+  });
+
+  factory ShiftReportPrintSlip.fromJson(
+    DirectPrinterConfig config,
+    Map<String, dynamic> json,
+  ) {
+    double money(Object? value) =>
+        double.tryParse(value?.toString() ?? '') ?? 0;
+    return ShiftReportPrintSlip(
+      config: config,
+      attendanceId: int.tryParse(json['attendance_id']?.toString() ?? '') ?? 0,
+      baristaName: json['barista_name']?.toString() ?? 'Barista',
+      clockedInAt: DateTime.parse(json['clocked_in_at'].toString()),
+      clockedOutAt: DateTime.parse(json['clocked_out_at'].toString()),
+      orderCount: int.tryParse(json['order_count']?.toString() ?? '') ?? 0,
+      grossSales: money(json['gross_sales_rm']),
+      refunded: money(json['refunded_rm']),
+      netSales: money(json['net_sales_rm']),
+      orders: (json['orders'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (order) => ShiftReportOrder(
+              orderRef: order['order_ref']?.toString() ?? '',
+              dailyOrderNumber:
+                  int.tryParse(order['daily_order_number']?.toString() ?? '') ??
+                  0,
+              status: order['status']?.toString() ?? '',
+              paymentMethod: order['payment_method']?.toString(),
+              finalTotal: money(order['final_total_rm']),
+              discount: money(order['discount_total_rm']),
+              refunded: money(order['refunded_rm']),
+              createdAt: DateTime.parse(order['created_at'].toString()),
+            ),
+          )
+          .toList(),
+      items: (json['items'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) => DirectPrintItem(
+              name: item['name']?.toString() ?? 'Item',
+              quantity: int.tryParse(item['quantity']?.toString() ?? '') ?? 0,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  final DirectPrinterConfig config;
+  final int attendanceId;
+  final String baristaName;
+  final DateTime clockedInAt;
+  final DateTime clockedOutAt;
+  final int orderCount;
+  final double grossSales;
+  final double refunded;
+  final double netSales;
+  final List<ShiftReportOrder> orders;
+  final List<DirectPrintItem> items;
+}
+
+class ShiftReportOrder {
+  const ShiftReportOrder({
+    required this.orderRef,
+    required this.dailyOrderNumber,
+    required this.status,
+    required this.paymentMethod,
+    required this.finalTotal,
+    required this.discount,
+    required this.refunded,
+    required this.createdAt,
+  });
+
+  final String orderRef;
+  final int dailyOrderNumber;
+  final String status;
+  final String? paymentMethod;
+  final double finalTotal;
+  final double discount;
+  final double refunded;
+  final DateTime createdAt;
+}
+
 /// Stores this tablet's printer and sends kitchen dockets over the outlet Wi-Fi.
 class DirectPrinterService {
   DirectPrinterService._();
@@ -259,6 +354,15 @@ class DirectPrinterService {
     await _send(slip.config, await _marketingDocket(slip));
   }
 
+  Future<void> printShiftReport(ShiftReportPrintSlip slip) async {
+    if (kIsWeb || !Platform.isAndroid) {
+      throw StateError(
+        'Direct receipt printing is available on an Android tablet.',
+      );
+    }
+    await _send(slip.config, await _shiftReportDocket(slip));
+  }
+
   Future<void> printTestReceipt(DirectPrinterConfig config) async {
     if (kIsWeb || !Platform.isAndroid) {
       throw StateError(
@@ -328,8 +432,15 @@ class DirectPrinterService {
     _writeWrapped(buffer, 'Customer: ${order.printedCustomerName}');
     if (order.voucherName != null && order.voucherName!.trim().isNotEmpty) {
       _writeWrapped(buffer, 'Voucher: ${order.voucherName}');
+      if (order.voucherType == 'Manual Discount' &&
+          order.voucherCode?.trim().isNotEmpty == true) {
+        _writeWrapped(buffer, 'Remarks: ${order.voucherCode!.trim()}');
+      }
       if (order.discount > 0) {
-        _writeWrapped(buffer, 'Discount: RM ${order.discount.toStringAsFixed(2)}');
+        _writeWrapped(
+          buffer,
+          'Discount: RM ${order.discount.toStringAsFixed(2)}',
+        );
       }
     }
     write('--------------------------------\n');
@@ -377,6 +488,76 @@ class DirectPrinterService {
     write('--------------------------------\n');
     buffer.add(const [0x1B, 0x61, 0x01]);
     write('Inventory recorded\n\n\n');
+    buffer.add(const [0x1D, 0x56, 0x00]);
+    return buffer.toBytes();
+  }
+
+  Future<List<int>> _shiftReportDocket(ShiftReportPrintSlip slip) async {
+    final buffer = BytesBuilder();
+    void write(String text) => buffer.add(latin1.encode(text));
+    buffer.add(const [0x1B, 0x40]);
+    buffer.add(const [0x1B, 0x61, 0x01]);
+    buffer.add(await _logoRaster());
+    write('\n\n');
+    buffer.add(const [0x1B, 0x45, 0x01]);
+    write('END OF SHIFT\n');
+    buffer.add(const [0x1B, 0x45, 0x00]);
+    write('Report #${slip.attendanceId}\n');
+    buffer.add(const [0x1B, 0x61, 0x00]);
+    _writeWrapped(buffer, 'Barista: ${slip.baristaName}');
+    _writeWrapped(buffer, 'Start: ${_formatPrintedTime(slip.clockedInAt)}');
+    _writeWrapped(buffer, 'End: ${_formatPrintedTime(slip.clockedOutAt)}');
+    write('--------------------------------\n');
+    _writeWrapped(buffer, 'Orders: ${slip.orderCount}');
+    _writeWrapped(
+      buffer,
+      'Sales after discounts: RM ${slip.grossSales.toStringAsFixed(2)}',
+    );
+    _writeWrapped(buffer, 'Refunds: RM ${slip.refunded.toStringAsFixed(2)}');
+    buffer.add(const [0x1B, 0x45, 0x01]);
+    _writeWrapped(buffer, 'Net sales: RM ${slip.netSales.toStringAsFixed(2)}');
+    buffer.add(const [0x1B, 0x45, 0x00]);
+    if (slip.orders.isNotEmpty) {
+      write('--------------------------------\nORDERS\n');
+      for (final order in slip.orders) {
+        final number = order.dailyOrderNumber > 0
+            ? '#${order.dailyOrderNumber}'
+            : order.orderRef;
+        _writeWrapped(
+          buffer,
+          '$number ${_formatPrintedTime(order.createdAt).substring(11)} '
+          'RM ${order.finalTotal.toStringAsFixed(2)}',
+        );
+        _writeWrapped(
+          buffer,
+          '${order.status} - ${order.paymentMethod ?? 'unpaid'}',
+          indent: '  ',
+        );
+        if (order.discount > 0) {
+          _writeWrapped(
+            buffer,
+            'Discount RM ${order.discount.toStringAsFixed(2)}',
+            indent: '  ',
+          );
+        }
+        if (order.refunded > 0) {
+          _writeWrapped(
+            buffer,
+            'Refunded RM ${order.refunded.toStringAsFixed(2)}',
+            indent: '  ',
+          );
+        }
+      }
+    }
+    if (slip.items.isNotEmpty) {
+      write('--------------------------------\nITEM SUMMARY\n');
+      for (final item in slip.items) {
+        _writeWrapped(buffer, '${item.quantity}x ${item.name}');
+      }
+    }
+    write('--------------------------------\n');
+    buffer.add(const [0x1B, 0x61, 0x01]);
+    write('Shift closed\n\n\n');
     buffer.add(const [0x1D, 0x56, 0x00]);
     return buffer.toBytes();
   }

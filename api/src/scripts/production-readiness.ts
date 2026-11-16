@@ -249,7 +249,8 @@ async function requireLatestSchema(): Promise<void> {
     '150_backfill_rolling_12m_loyalty_progress.sql',
     '151_enforce_first_order_tier_qualification.sql',
     '152_add_verified_admin_recovery.sql',
-    '153_separate_counter_exit_password.sql'
+    '153_separate_counter_exit_password.sql',
+    '154_create_order_manual_discounts.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,

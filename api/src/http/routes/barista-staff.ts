@@ -226,11 +226,26 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
   app.post('/v1/barista/orders/:orderRef/payment/confirm', { preHandler: authenticateAdminRequest }, async (request, reply) => {
     assertStaffAccess(request);
     const { orderRef } = z.object({ orderRef: z.string().trim().min(1).max(80) }).parse(request.params);
-    const { payment_method: paymentMethod } = z.object({ payment_method: z.enum(['manual_counter', 'manual_terminal', 'manual_cash']) }).parse(request.body);
+    const confirmation = z.object({
+      payment_method: z.enum(['manual_counter', 'manual_terminal', 'manual_cash']),
+      discount_percent: z.coerce.number().finite().min(0.01).max(100).nullish(),
+      discount_remarks: z.string().trim().min(3).max(500).nullish(),
+    }).superRefine((value, context) => {
+      const hasPercent = value.discount_percent != null;
+      const hasRemarks = value.discount_remarks != null;
+      if (hasPercent !== hasRemarks) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: hasPercent ? ['discount_remarks'] : ['discount_percent'],
+          message: 'Discount percentage and remarks are both required.'
+        });
+      }
+    }).parse(request.body);
+    const paymentMethod = confirmation.payment_method;
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
-      const [rows] = await connection.query<RowDataPacket[]>(`SELECT o.id, o.store_id, o.status, p.id AS payment_id, p.status AS payment_status, p.payment_method FROM orders o JOIN payments p ON p.order_id = o.id JOIN stores s ON s.id = o.store_id JOIN admin_tenants t ON t.id = s.tenant_id WHERE o.order_ref = :orderRef AND o.order_channel = 'counter' AND t.code = :tenantCode LIMIT 1 FOR UPDATE`, { orderRef, tenantCode: request.adminAuth.tenantCode });
+      const [rows] = await connection.query<RowDataPacket[]>(`SELECT o.id, o.store_id, o.status, o.voucher_id, o.subtotal_rm, o.modifier_total_rm, o.discount_total_rm, o.final_total_rm, s.tenant_id, p.id AS payment_id, p.status AS payment_status, p.payment_method FROM orders o JOIN payments p ON p.order_id = o.id JOIN stores s ON s.id = o.store_id JOIN admin_tenants t ON t.id = s.tenant_id WHERE o.order_ref = :orderRef AND o.order_channel = 'counter' AND t.code = :tenantCode LIMIT 1 FOR UPDATE`, { orderRef, tenantCode: request.adminAuth.tenantCode });
       const order = rows[0];
       if (!order) throw new ApiError(404, 'order_not_found', 'Order was not found.');
       const workstationStoreId = await resolveAttendanceStoreId(request);
@@ -238,14 +253,63 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       if (order.status === 'paid' && order.payment_status === 'paid') { await connection.rollback(); return reply.send({ order_ref: orderRef, status: 'paid', already_confirmed: true }); }
       if (order.status !== 'pending_payment' || order.payment_status !== 'pending' || !String(order.payment_method).startsWith('manual_')) throw new ApiError(409, 'manual_payment_not_pending', 'This order is not awaiting manual payment.');
       if (order.payment_method !== paymentMethod) throw new ApiError(409, 'manual_payment_method_mismatch', 'Confirm the payment method selected by the customer.');
-      await connection.execute(`UPDATE payments SET payment_method = :method, provider_payment_ref = :reference, status = 'paid', paid_at = UTC_TIMESTAMP() WHERE id = :paymentId AND status = 'pending'`, { paymentId: order.payment_id, method: paymentMethod, reference: `MANUAL-${randomUUID()}` });
-      await connection.execute(`UPDATE orders SET status = 'paid', paid_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'pending_payment'`, { orderId: order.id });
+      let finalTotalRm = Number(order.final_total_rm || 0);
+      let discountAmountRm = 0;
+      if (confirmation.discount_percent != null) {
+        if (order.voucher_id != null || Number(order.discount_total_rm || 0) > 0) {
+          throw new ApiError(409, 'manual_discount_stacking_not_allowed', 'Remove the existing voucher before applying a manual card discount.');
+        }
+        const grossTotalRm = Number(order.subtotal_rm || 0) + Number(order.modifier_total_rm || 0);
+        discountAmountRm = Math.min(
+          grossTotalRm,
+          Math.round((grossTotalRm * confirmation.discount_percent / 100) * 100) / 100
+        );
+        finalTotalRm = Math.max(0, Math.round((grossTotalRm - discountAmountRm) * 100) / 100);
+        await connection.execute(
+          `INSERT INTO order_manual_discounts
+             (tenant_id, order_id, discount_percent, discount_amount_rm, remarks, applied_by_admin_user_id)
+           VALUES (:tenantId, :orderId, :discountPercent, :discountAmount, :remarks, :adminUserId)`,
+          {
+            tenantId: order.tenant_id,
+            orderId: order.id,
+            discountPercent: confirmation.discount_percent.toFixed(2),
+            discountAmount: discountAmountRm.toFixed(2),
+            remarks: confirmation.discount_remarks!,
+            adminUserId: request.adminAuth.adminUserId,
+          }
+        );
+      }
+      await connection.execute(`UPDATE payments SET payment_method = :method, provider_payment_ref = :reference, amount_rm = :amountRm, status = 'paid', paid_at = UTC_TIMESTAMP() WHERE id = :paymentId AND status = 'pending'`, { paymentId: order.payment_id, method: paymentMethod, reference: `MANUAL-${randomUUID()}`, amountRm: finalTotalRm.toFixed(2) });
+      if (confirmation.discount_percent != null) {
+        await connection.execute(
+          `UPDATE orders
+              SET status = 'paid', discount_total_rm = :discountAmount,
+                  final_total_rm = :finalTotal, paid_at = UTC_TIMESTAMP(),
+                  updated_at = UTC_TIMESTAMP()
+            WHERE id = :orderId AND status = 'pending_payment'`,
+          {
+            orderId: order.id,
+            discountAmount: discountAmountRm.toFixed(2),
+            finalTotal: finalTotalRm.toFixed(2),
+          }
+        );
+      } else {
+        await connection.execute(
+          `UPDATE orders
+              SET status = 'paid', paid_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+            WHERE id = :orderId AND status = 'pending_payment'`,
+          { orderId: order.id }
+        );
+      }
       const confirmationReason = paymentMethod === 'manual_counter'
         ? 'Pay-at-counter payment confirmed by barista.'
         : paymentMethod === 'manual_terminal'
           ? 'Manual terminal payment confirmed by barista.'
           : 'Manual cashier payment confirmed by barista.';
-      await connection.execute(`INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at) VALUES (:orderId, 'pending_payment', 'paid', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`, { orderId: order.id, adminUserId: request.adminAuth.adminUserId, reason: confirmationReason });
+      const auditReason = confirmation.discount_percent == null
+        ? confirmationReason
+        : `${confirmationReason} Manual discount ${confirmation.discount_percent.toFixed(2)}%: ${confirmation.discount_remarks}`;
+      await connection.execute(`INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at) VALUES (:orderId, 'pending_payment', 'paid', 'admin', :adminUserId, :reason, UTC_TIMESTAMP())`, { orderId: order.id, adminUserId: request.adminAuth.adminUserId, reason: auditReason.slice(0, 255) });
       await connection.execute(
         `INSERT INTO print_jobs
            (job_ref, tenant_code, order_id, printer_target_id, requested_by_admin_user_id, request_type)
@@ -260,7 +324,15 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
             AND pt.direct_print_device_key IS NOT NULL
           LIMIT 1`, { jobRef: randomUUID(), adminUserId: request.adminAuth.adminUserId, orderId: order.id });
       await connection.commit();
-      return reply.send({ order_ref: orderRef, status: 'paid', payment_status: 'paid', payment_method: paymentMethod });
+      return reply.send({
+        order_ref: orderRef,
+        status: 'paid',
+        payment_status: 'paid',
+        payment_method: paymentMethod,
+        discount_percent: confirmation.discount_percent ?? null,
+        discount_amount_rm: discountAmountRm.toFixed(2),
+        final_total_rm: finalTotalRm.toFixed(2),
+      });
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   });
   app.post('/v1/barista/orders/:orderRef/cancel', { preHandler: authenticateAdminRequest }, async (request, reply) => {
@@ -732,7 +804,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         { storeId, tenantId: request.adminAuth.tenantId }
       );
       const [activeRows] = await connection.query<RowDataPacket[]>(
-        `SELECT id, barista_id FROM barista_attendance
+        `SELECT id, barista_id, clocked_in_at FROM barista_attendance
          WHERE tenant_id = :tenantId AND (store_id = :storeId OR store_id IS NULL)
            AND clocked_out_at IS NULL
          FOR UPDATE`,
@@ -796,8 +868,94 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
           storeId,
         }
       );
+      const [attendanceRows] = await connection.query<RowDataPacket[]>(
+        `SELECT a.id, a.clocked_in_at, a.clocked_out_at, b.name AS barista_name
+         FROM barista_attendance a
+         JOIN baristas b ON b.id = a.barista_id
+         WHERE a.id = :attendanceId
+         LIMIT 1`,
+        { attendanceId: selectedAttendance.id }
+      );
+      const attendance = attendanceRows[0];
+      const [shiftOrders] = await connection.query<RowDataPacket[]>(
+        `SELECT o.id, o.order_ref, o.daily_order_number, o.status, o.payment_mode,
+                CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+                CAST(o.discount_total_rm AS CHAR) AS discount_total_rm,
+                o.created_at,
+                (SELECT p.payment_method FROM payments p
+                 WHERE p.order_id = o.id ORDER BY p.id DESC LIMIT 1) AS payment_method,
+                COALESCE((SELECT SUM(r.refund_amount_rm) FROM refunds r
+                          WHERE r.order_id = o.id AND r.status = 'completed'), 0) AS refunded_rm
+         FROM orders o
+         WHERE o.store_id = :storeId
+           AND o.created_at >= :clockedInAt
+           AND o.created_at <= :clockedOutAt
+           AND o.status NOT IN ('draft', 'payment_failed')
+         ORDER BY o.created_at ASC, o.id ASC`,
+        {
+          storeId,
+          clockedInAt: attendance.clocked_in_at,
+          clockedOutAt: attendance.clocked_out_at,
+        }
+      );
+      const [itemSummary] = await connection.query<RowDataPacket[]>(
+        `SELECT oi.item_name_snapshot AS item_name, SUM(oi.quantity) AS quantity
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.store_id = :storeId
+           AND o.created_at >= :clockedInAt
+           AND o.created_at <= :clockedOutAt
+           AND o.status NOT IN ('draft', 'pending_payment', 'payment_failed', 'cancelled')
+         GROUP BY oi.item_name_snapshot
+         ORDER BY quantity DESC, item_name ASC`,
+        {
+          storeId,
+          clockedInAt: attendance.clocked_in_at,
+          clockedOutAt: attendance.clocked_out_at,
+        }
+      );
+      const grossSalesRm = shiftOrders.reduce(
+        (sum, order) => sum + (
+          ['cancelled', 'pending_payment'].includes(String(order.status))
+            ? 0
+            : Number(order.final_total_rm || 0)
+        ),
+        0
+      );
+      const refundedRm = shiftOrders.reduce(
+        (sum, order) => sum + Number(order.refunded_rm || 0),
+        0
+      );
       await connection.commit();
-      return reply.send({ success: true, unchanged: result.affectedRows === 0 });
+      return reply.send({
+        success: true,
+        unchanged: result.affectedRows === 0,
+        shift_report: {
+          attendance_id: Number(attendance.id),
+          barista_name: String(attendance.barista_name),
+          clocked_in_at: new Date(attendance.clocked_in_at).toISOString(),
+          clocked_out_at: new Date(attendance.clocked_out_at).toISOString(),
+          order_count: shiftOrders.length,
+          gross_sales_rm: grossSalesRm.toFixed(2),
+          refunded_rm: refundedRm.toFixed(2),
+          net_sales_rm: Math.max(0, grossSalesRm - refundedRm).toFixed(2),
+          orders: shiftOrders.map((order) => ({
+            order_ref: String(order.order_ref),
+            daily_order_number: Number(order.daily_order_number),
+            status: String(order.status),
+            payment_mode: String(order.payment_mode),
+            payment_method: order.payment_method ? String(order.payment_method) : null,
+            final_total_rm: Number(order.final_total_rm || 0).toFixed(2),
+            discount_total_rm: Number(order.discount_total_rm || 0).toFixed(2),
+            refunded_rm: Number(order.refunded_rm || 0).toFixed(2),
+            created_at: new Date(order.created_at).toISOString(),
+          })),
+          items: itemSummary.map((item) => ({
+            name: String(item.item_name),
+            quantity: Number(item.quantity),
+          })),
+        },
+      });
     } catch (error) {
       await connection.rollback();
       throw error;

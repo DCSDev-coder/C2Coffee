@@ -31,8 +31,6 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
   final Map<int, List<int>> _librarySelections = {};
   final Set<int> _missingRequiredGroups = {};
 
-
-
   bool _hasLibraryGroup(String keyword) =>
       counterHasLibraryGroup(widget.item, keyword);
 
@@ -450,10 +448,8 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                             height: 54,
                             width: 72,
                             fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) => const SizedBox(
-                              height: 54,
-                              width: 72,
-                            ),
+                            errorBuilder: (_, _, _) =>
+                                const SizedBox(height: 54, width: 72),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -597,34 +593,6 @@ class _ProductDetailModalState extends State<ProductDetailModal> {
                 groupValue: _milk,
                 onChanged: (v) => setState(() => _milk = v),
                 color: const Color(0xFF995C00),
-                textColor: Colors.white,
-              ),
-          ],
-        ),
-      ],
-
-      if (widget.item.allowSparklingMixer && !_hasLibraryGroup('sparkling')) ...[
-        _buildSectionTitle('Choice of Sparkling'),
-        _buildResponsiveGrid(
-          children: [
-            if (widget.item.isSparklingAvailable('Ginger Ade'))
-              _buildOptionCard(
-                title: 'Ginger Ade',
-                subtitle: '+ 0.00',
-                value: 'Ginger Ade',
-                groupValue: _sparklingMixer,
-                onChanged: (v) => setState(() => _sparklingMixer = v),
-                color: const Color(0xFFC76B26),
-                textColor: Colors.white,
-              ),
-            if (widget.item.isSparklingAvailable('Tonic Water'))
-              _buildOptionCard(
-                title: 'Tonic Water',
-                subtitle: '+ 0.00',
-                value: 'Tonic Water',
-                groupValue: _sparklingMixer,
-                onChanged: (v) => setState(() => _sparklingMixer = v),
-                color: const Color(0xFF007AEC),
                 textColor: Colors.white,
               ),
           ],

@@ -57,13 +57,33 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!result.isSuccess) {
       TopNotice.error(context, result.errorMessage!);
     } else {
+      String? printMessage;
+      if (!clockIn) {
+        final report = result.data?['shift_report'];
+        if (report is Map<String, dynamic>) {
+          try {
+            final config = await DirectPrinterService.instance.loadConfig();
+            if (config == null) {
+              printMessage =
+                  ' Shift report was not printed: configure a printer first.';
+            } else {
+              await DirectPrinterService.instance.printShiftReport(
+                ShiftReportPrintSlip.fromJson(config, report),
+              );
+              printMessage = ' Shift report printed.';
+            }
+          } catch (error) {
+            printMessage = ' Shift report could not be printed: $error';
+          }
+        }
+      }
       await BaristaSoundService.instance.play(
         clockIn ? BaristaSoundEvent.clockIn : BaristaSoundEvent.clockOut,
       );
       if (!mounted) return;
       TopNotice.success(
         context,
-        '${barista.name} clocked ${clockIn ? 'in' : 'out'}.',
+        '${barista.name} clocked ${clockIn ? 'in' : 'out'}.${printMessage ?? ''}',
       );
     }
   }

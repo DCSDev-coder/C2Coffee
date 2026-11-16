@@ -76,17 +76,39 @@ class ApiService {
 
   static Future<ApiRequestResult> confirmManualPayment(
     String orderId,
-    String method,
-  ) async {
+    String method, {
+    double? discountPercent,
+    String? discountRemarks,
+  }) async {
     try {
+      final payload = <String, Object>{'payment_method': method};
+      if (discountPercent != null) {
+        payload['discount_percent'] = discountPercent;
+      }
+      if (discountRemarks != null) {
+        payload['discount_remarks'] = discountRemarks.trim();
+      }
       final response = await _authenticatedRequest(
         (headers) => http.post(
           Uri.parse('$baseUrl/barista/orders/$orderId/payment/confirm'),
           headers: headers,
-          body: json.encode({'payment_method': method}),
+          body: json.encode(payload),
         ),
       );
-      if (response.statusCode == 200) return const ApiRequestResult.success();
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        if (discountPercent != null &&
+            (decoded is! Map<String, dynamic> ||
+                decoded['discount_percent'] == null ||
+                decoded['final_total_rm'] == null)) {
+          return const ApiRequestResult.failure(
+            'The server has not applied this discount. Update the API before using card promotion discounts.',
+          );
+        }
+        return ApiRequestResult.success(
+          decoded is Map<String, dynamic> ? decoded : null,
+        );
+      }
       return ApiRequestResult.failure(_responseMessage(response));
     } catch (_) {
       return const ApiRequestResult.failure(
@@ -623,9 +645,13 @@ class ApiService {
           body: json.encode({'barista_id': baristaId, 'pin': pin}),
         ),
       );
-      return response.statusCode == 200 || response.statusCode == 201
-          ? const ApiRequestResult.success()
-          : ApiRequestResult.failure(_responseMessage(response));
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = json.decode(response.body);
+        return ApiRequestResult.success(
+          decoded is Map<String, dynamic> ? decoded : null,
+        );
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
     } catch (_) {
       return const ApiRequestResult.failure(
         'Unable to update your shift. Check the connection and try again.',

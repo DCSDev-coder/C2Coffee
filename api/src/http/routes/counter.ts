@@ -568,6 +568,8 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       const [jobs] = await connection.execute<RowDataPacket[]>(
         `SELECT j.id, j.job_ref, o.order_ref, o.created_at, o.discount_total_rm,
                 vt.name AS voucher_name, vt.voucher_type, vt.code AS voucher_code,
+                omd.discount_percent AS manual_discount_percent,
+                omd.remarks AS manual_discount_remarks,
                 COALESCE(NULLIF(TRIM(up.display_name), ''), 'Guest') AS customer_name,
                 COALESCE(ctm.is_employee, 0) AS is_employee
          FROM print_jobs j
@@ -578,6 +580,7 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
            ON ctm.user_id = o.user_id AND ctm.tenant_id = s.tenant_id
          LEFT JOIN user_vouchers uv ON uv.id = o.voucher_id
          LEFT JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
+         LEFT JOIN order_manual_discounts omd ON omd.order_id = o.id
          WHERE j.printer_target_id = :printerTargetId AND j.status = 'queued'
          ORDER BY j.created_at ASC LIMIT 1 FOR UPDATE`,
         { printerTargetId: printer.id, storeId: request.counterAuth.storeId }
@@ -652,10 +655,10 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           order_ref: job.order_ref,
           customer_name: job.customer_name,
           is_employee: Number(job.is_employee) === 1,
-          voucher: job.voucher_name ? {
-            name: job.voucher_name,
-            type: job.voucher_type,
-            code: job.voucher_code,
+          voucher: job.voucher_name || job.manual_discount_percent ? {
+            name: job.voucher_name ?? `Manual discount ${Number(job.manual_discount_percent).toFixed(2)}%`,
+            type: job.voucher_type ?? 'Manual Discount',
+            code: job.voucher_code ?? job.manual_discount_remarks,
             discount_rm: Number(job.discount_total_rm || 0)
           } : null,
           created_at: new Date(job.created_at).toISOString(),

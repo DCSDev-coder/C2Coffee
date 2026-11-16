@@ -89,4 +89,29 @@ void main() {
       isNot(contains('Ice Level')),
     );
   });
+
+  test(
+    'does not resurrect legacy sparkling choices when Admin removed the option group',
+    () {
+      final itemWithoutLibrarySparkling = CounterMenuItem(
+        id: item.id,
+        name: item.name,
+        priceRm: item.priceRm,
+        imageUrl: null,
+        isAvailable: true,
+        allowSparklingMixer: true,
+        source: const {},
+      );
+
+      final modifiers = buildCounterCartModifiers(
+        item: itemWithoutLibrarySparkling,
+        customization: {'sparklingMixer': 'Ginger Ade'},
+      );
+
+      expect(
+        modifiers.map((modifier) => modifier['group_name']),
+        isNot(contains('Choice of Sparkling')),
+      );
+    },
+  );
 }

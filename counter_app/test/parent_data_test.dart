@@ -140,6 +140,17 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
     expect(tester.getCenter(find.text('Marketing')).dx, greaterThan(1500));
 
+    // The complete Settings row—not only its icon/text—must be tappable.
+    final settingsTarget = find
+        .ancestor(of: find.text('Settings'), matching: find.byType(InkWell))
+        .first;
+    final settingsRect = tester.getRect(settingsTarget);
+    await tester.tapAt(Offset(settingsRect.right - 4, settingsRect.center.dy));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Take Order'), findsNothing);
+
+    await tester.tap(find.byTooltip('Open more navigation'));
+    await tester.pump();
     await tester.tap(find.text('Take Order'));
     await tester.pumpAndSettle();
     expect(find.text('Barista order entry page'), findsOneWidget);

@@ -21,9 +21,7 @@ List<Map<String, dynamic>> buildCounterCartModifiers({
     }
   }
 
-  final selectedOptionIdSet = selections.values
-      .expand((ids) => ids)
-      .toSet();
+  final selectedOptionIdSet = selections.values.expand((ids) => ids).toSet();
 
   for (final group in item.modifierGroups) {
     if (group.hiddenWhenOptionIds.isNotEmpty) {
@@ -46,22 +44,20 @@ List<Map<String, dynamic>> buildCounterCartModifiers({
     }
     var selectedOptionIds = selections[group.id] ?? const <int>[];
     if (_normalize(group.name) == 'order type' && orderType != null) {
-      final selectedOrderType = group.options.where(
-        (option) {
-          final optNorm = _normalize(option.name);
-          final orderNorm = _normalize(orderType);
-          if (optNorm == orderNorm) return true;
-          final isDineIn =
-              orderNorm == 'dine in' ||
-              orderNorm == 'self-pickup' ||
-              orderNorm == 'self pickup';
-          final isOptDineIn =
-              optNorm == 'dine in' ||
-              optNorm == 'self-pickup' ||
-              optNorm == 'self pickup';
-          return isDineIn && isOptDineIn;
-        },
-      );
+      final selectedOrderType = group.options.where((option) {
+        final optNorm = _normalize(option.name);
+        final orderNorm = _normalize(orderType);
+        if (optNorm == orderNorm) return true;
+        final isDineIn =
+            orderNorm == 'dine in' ||
+            orderNorm == 'self-pickup' ||
+            orderNorm == 'self pickup';
+        final isOptDineIn =
+            optNorm == 'dine in' ||
+            optNorm == 'self-pickup' ||
+            optNorm == 'self pickup';
+        return isDineIn && isOptDineIn;
+      });
       if (selectedOrderType.isNotEmpty) {
         selectedOptionIds = [selectedOrderType.first.id];
       }
@@ -112,12 +108,6 @@ List<Map<String, dynamic>> buildCounterCartModifiers({
     'temperature',
     'Choice of Temperature',
     'temperature',
-  );
-  addFallback(
-    item.allowSparklingMixer,
-    'sparkling',
-    'Choice of Sparkling',
-    'sparklingMixer',
   );
   addFallback(
     item.allowChoiceOfMilk,

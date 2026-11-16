@@ -383,7 +383,10 @@ class _WorkspaceHeader extends StatelessWidget {
     child: Stack(
       clipBehavior: Clip.none,
       children: [
-        SizedBox(height: menuOpen ? 330 : 110),
+        // Keep the painted menu inside the header's hit-test region. Without
+        // this extra height, the lower rows (especially Settings) can be
+        // visible but receive taps from the PageView underneath instead.
+        SizedBox(height: menuOpen ? 460 : 110),
         Container(
           height: 110,
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -624,46 +627,52 @@ class _SecondaryNavigationMenu extends StatelessWidget {
           ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: _items.map((item) {
             final selected = currentIndex == item.$3;
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: InkWell(
-                onTap: () => onSelected(item.$3),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0xFF203E32).withValues(alpha: .1)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(item.$1, color: const Color(0xFF203E32), size: 22),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          item.$2,
-                          style: TextStyle(
-                            color: const Color(0xFF203E32),
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                            fontSize: 16,
+              child: Semantics(
+                button: true,
+                selected: selected,
+                label: item.$2,
+                child: InkWell(
+                  onTap: () => onSelected(item.$3),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 60),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFF203E32).withValues(alpha: .1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(item.$1, color: const Color(0xFF203E32), size: 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            item.$2,
+                            style: TextStyle(
+                              color: const Color(0xFF203E32),
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
-                      ),
-                      if (selected)
-                        const Icon(
-                          Icons.check_rounded,
-                          color: Color(0xFF203E32),
-                          size: 18,
-                        ),
-                    ],
+                        if (selected)
+                          const Icon(
+                            Icons.check_rounded,
+                            color: Color(0xFF203E32),
+                            size: 18,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
