@@ -121,10 +121,11 @@ test('active orders block only the final clocked-in barista', () => {
   assert.equal(shouldBlockBaristaClockOut({ activeAttendanceCount: 1, activeOrderCount: 0 }), false);
 });
 
-test('clock-out active order check matches visible active orders and excludes pending payment', async () => {
+test('clock-out only blocks orders that still need barista work', async () => {
   const baristaStaff = await readFile(new URL('../src/http/routes/barista-staff.ts', import.meta.url), 'utf8');
-  assert.match(baristaStaff, /o\.status IN \('paid', 'accepted', 'preparing', 'ready_for_pickup'\)/);
-  assert.doesNotMatch(baristaStaff, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing'\)/);
+  assert.match(baristaStaff, /o\.status IN \('paid', 'accepted', 'preparing'\)/);
+  assert.doesNotMatch(baristaStaff, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup'\)/);
+  assert.doesNotMatch(baristaStaff, /o\.status IN \('paid', 'accepted', 'preparing', 'ready_for_pickup'\)/);
   assert.match(baristaStaff, /FROM order_cancellation_requests ocr/);
   assert.match(baristaStaff, /Outstanding order/);
 });

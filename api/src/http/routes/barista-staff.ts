@@ -831,7 +831,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         const [activeOrders] = await connection.query<RowDataPacket[]>(
           `SELECT o.order_ref, o.status FROM orders o
            WHERE o.store_id = :storeId
-             AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup')
+             AND o.status IN ('paid', 'accepted', 'preparing')
              AND NOT EXISTS (
                SELECT 1 FROM order_cancellation_requests ocr
                WHERE ocr.order_id = o.id

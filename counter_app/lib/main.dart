@@ -19,6 +19,10 @@ import 'device_printer_worker.dart';
 import 'product_detail_modal.dart';
 import 'app_diagnostics.dart';
 
+// Counter voucher selection is intentionally hidden for now. Voucher claiming
+// and customer-facing redemption remain available through the Mobile App.
+const bool _counterVoucherSelectionEnabled = false;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppDiagnostics.initialize();
@@ -1891,7 +1895,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         icon: Icons.loyalty_outlined,
         eyebrow: 'Checkout · Step 1 of 3',
         title: 'Customer Account',
-        subtitle: 'Enter phone number to earn points and use vouchers.',
+        subtitle: 'Enter a phone number to collect points.',
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -1911,7 +1915,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Points and vouchers apply automatically at checkout.',
+                      'Points apply automatically at checkout.',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 16,
@@ -2530,7 +2534,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       String? voucherAuthorizationToken;
       Map<String, dynamic>? selectedVoucher;
       var amountRm = _getCartTotal().toStringAsFixed(2);
-      if (!session.isGuest) {
+      if (!session.isGuest && _counterVoucherSelectionEnabled) {
         final chosen = await _chooseRealVoucher(session.activeVouchers);
         if (chosen == null) {
           await _sessionManager.endSession(notify: false);

@@ -199,6 +199,7 @@ export async function ensureEmployeeAllowance(
     userId,
     tenantId,
     membershipRows[0].subsidy_role,
+    policy.monthlyAmount,
     createdByAdminId
   );
 
@@ -374,15 +375,20 @@ export async function runEmployeeAllowanceSweep(): Promise<{
   return { eligible: rows.length, processed, failed };
 }
 
-/** Removes only the unused finite allowance when moving to Boss or no subsidy. */
+/** Removes unused allowance when leaving a finite role or moving to no subsidy. */
 export async function revokeCurrentAllowanceForRoleChange(
   connection: PoolConnection,
   userId: number,
   tenantId: number,
   nextRole: SubsidyRole,
+  previousRole?: SubsidyRole,
   createdByAdminId?: number
 ): Promise<number> {
-  if (nextRole !== 'boss' && nextRole !== 'none') return 0;
+  const finiteRoleChange = previousRole != null
+    && previousRole !== nextRole
+    && ['employee', 'intern'].includes(previousRole)
+    && ['employee', 'intern'].includes(nextRole);
+  if (nextRole !== 'boss' && nextRole !== 'none' && !finiteRoleChange) return 0;
   const period = currentEmployeeAllowancePeriod();
   const [allowanceRows] = await connection.query<Array<RowDataPacket & { id: number; remaining_amount: number }>>(
     `SELECT id, remaining_amount
@@ -433,12 +439,13 @@ export async function revokeCurrentAllowanceForRoleChange(
   return revoked;
 }
 
-/** Restores the exact unused amount removed by the latest finite-to-unlimited role change. */
+/** Restores the unused amount removed by the latest role transition, capped to the new finite policy when applicable. */
 export async function restoreCurrentAllowanceForRoleChange(
   connection: PoolConnection,
   userId: number,
   tenantId: number,
   nextRole: SubsidyRole,
+  maxMonthlyAmount?: number,
   createdByAdminId?: number
 ): Promise<number> {
   if (nextRole !== 'employee' && nextRole !== 'intern') return 0;
@@ -473,6 +480,9 @@ export async function restoreCurrentAllowanceForRoleChange(
   );
   if (!revocationRows[0]) return 0;
   const issuedCap = Number(allowance.granted_amount) + Number(allowance.carried_forward_amount ?? 0);
+  const targetCap = maxMonthlyAmount == null
+    ? issuedCap
+    : Math.max(0, Number(maxMonthlyAmount)) + Number(allowance.carried_forward_amount ?? 0);
   const [usageRows] = await connection.query<Array<RowDataPacket & { net_used: number }>>(
     `SELECT COALESCE(SUM(GREATEST(
               o.employee_allowance_tokens_used - o.employee_allowance_tokens_refunded,
@@ -492,7 +502,7 @@ export async function restoreCurrentAllowanceForRoleChange(
       periodEnd: period.end
     }
   );
-  const restored = Math.max(0, issuedCap - Number(usageRows[0]?.net_used ?? 0));
+  const restored = Math.max(0, Math.min(issuedCap, targetCap) - Number(usageRows[0]?.net_used ?? 0));
   const [accountRows] = await connection.query<Array<RowDataPacket & { balance_available: number; balance_cap: number }>>(
     `SELECT balance_available, balance_cap
        FROM token_accounts

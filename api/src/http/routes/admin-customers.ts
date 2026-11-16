@@ -817,6 +817,7 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
           userId,
           request.adminAuth.tenantId,
           subsidyRole,
+          previousRole,
           request.adminAuth.adminUserId
         );
         await connection.execute(

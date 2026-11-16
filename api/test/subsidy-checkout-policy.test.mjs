@@ -90,6 +90,37 @@ test('returning to a finite role restores only the exact amount revoked this mon
   assert.equal(executions[2].params.amount, 195);
 });
 
+test('changing from employee to intern restores only the intern allowance cap', async () => {
+  const queryResults = [
+    [[{ id: 17, granted_amount: 200, carried_forward_amount: 0 }]],
+    [[{ id: 91 }]],
+    [[{ net_used: 5 }]],
+    [[{ balance_available: 5, balance_cap: 500 }]],
+  ];
+  const executions = [];
+  const connection = {
+    async query() {
+      return queryResults.shift();
+    },
+    async execute(sql, params) {
+      executions.push({ sql, params });
+      return [{ affectedRows: 1 }];
+    },
+  };
+
+  const restored = await restoreCurrentAllowanceForRoleChange(
+    connection,
+    9,
+    3,
+    'intern',
+    100,
+  );
+
+  assert.equal(restored, 95);
+  assert.equal(executions[0].params.restored, 95);
+  assert.equal(executions[1].params.balanceAfterRestore, 100);
+});
+
 test('a subsidy refund is recorded while the finite allowance is temporarily revoked', async () => {
   const executions = [];
   const connection = {
