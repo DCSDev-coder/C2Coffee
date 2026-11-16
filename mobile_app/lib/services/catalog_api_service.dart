@@ -150,8 +150,7 @@ class CatalogMenuItem {
   final bool isHandcraftedDrink;
   final bool isQualifyingCup;
   bool get isSoldOut => availabilityStatus == 'sold_out';
-  bool get isVisibleInMenu =>
-      isAvailable && availabilityStatus != 'coming_soon';
+  bool get isVisibleInMenu => availabilityStatus != 'coming_soon';
   bool get isOrderable => isAvailable && availabilityStatus == 'available';
   final bool allowChoiceOfBeans;
   final bool allowEspressoShot;
@@ -673,7 +672,11 @@ class BootstrapSnapshot {
   final int tokenCap;
   final bool hasCompletedTopup;
   final String tier;
-  final int cupsLast180d;
+  final bool tierQualified;
+  final int qualifyingOrdersRolling12m;
+  final int lifetimeQualifyingOrders;
+  final int tierRetentionProgress;
+  final int tierRetentionTarget;
   final DateTime? tierReviewDueAt;
   final List<HomeBanner> homeBanners;
   final List<LoyaltyTier> loyaltyTiers;
@@ -691,7 +694,11 @@ class BootstrapSnapshot {
     required this.tokenCap,
     required this.hasCompletedTopup,
     required this.tier,
-    required this.cupsLast180d,
+    required this.tierQualified,
+    required this.qualifyingOrdersRolling12m,
+    required this.lifetimeQualifyingOrders,
+    required this.tierRetentionProgress,
+    required this.tierRetentionTarget,
     required this.tierReviewDueAt,
     required this.homeBanners,
     required this.loyaltyTiers,
@@ -821,11 +828,20 @@ class CatalogApiService {
       tokenReserved: (token['balance_reserved'] as num?)?.toInt() ?? 0,
       tokenCap: (token['balance_cap'] as num?)?.toInt() ?? 0,
       hasCompletedTopup: token['has_completed_topup'] as bool? ?? false,
-      tier: loyalty['tier'] as String? ?? 'kawan',
-      cupsLast180d:
-          (loyalty['qualifying_orders_last_12_months'] as num?)?.toInt() ??
+      tier: loyalty['tier'] as String? ?? 'unqualified',
+      tierQualified: loyalty['tier_qualified'] as bool? ??
+          ((loyalty['tier'] as String?)?.toLowerCase() != 'unqualified'),
+      qualifyingOrdersRolling12m:
+          (loyalty['qualifying_orders_rolling_12m'] as num?)?.toInt() ??
+              (loyalty['qualifying_orders_last_12_months'] as num?)?.toInt() ??
               (loyalty['cups_last_180d'] as num?)?.toInt() ??
               0,
+      lifetimeQualifyingOrders:
+          (loyalty['lifetime_qualifying_orders'] as num?)?.toInt() ?? 0,
+      tierRetentionProgress:
+          (loyalty['tier_retention_progress'] as num?)?.toInt() ?? 0,
+      tierRetentionTarget:
+          (loyalty['tier_retention_target'] as num?)?.toInt() ?? 0,
       tierReviewDueAt:
           DateTime.tryParse(loyalty['tier_review_due_at'] as String? ?? '')
               ?.toLocal(),

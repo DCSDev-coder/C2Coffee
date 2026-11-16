@@ -86,7 +86,7 @@ class AuthService {
     }
   }
 
-  Future<AdministratorUnlockResult> verifyAdministratorPassword(
+  Future<AdministratorUnlockResult> verifyCounterExitPassword(
     String password,
   ) async {
     final token = await getToken();
@@ -122,8 +122,13 @@ class AuthService {
           'Too many attempts. Please wait 15 minutes before trying again.',
         );
       }
+      if (response.statusCode == 503) {
+        return const AdministratorUnlockResult.failure(
+          'The counter exit password has not been configured. Contact the Super Admin.',
+        );
+      }
       return const AdministratorUnlockResult.failure(
-        'Administrator password is incorrect.',
+        'Counter exit password is incorrect.',
       );
     } on TimeoutException {
       return const AdministratorUnlockResult.failure(
@@ -131,7 +136,7 @@ class AuthService {
       );
     } catch (_) {
       return const AdministratorUnlockResult.failure(
-        'Unable to verify the administrator. Check the internet connection and try again.',
+        'Unable to verify the counter exit password. Check the internet connection and try again.',
       );
     }
   }

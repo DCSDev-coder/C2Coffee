@@ -6,6 +6,7 @@ import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard
 import { requireAdminActionConfirmation } from '../../admin/action-confirmation.js';
 import { mysqlPool } from '../../db/mysql.js';
 import { generateDeviceActivationCode, hashSha256 } from '../../lib/crypto.js';
+import { hashPassword, verifyPassword } from '../../lib/password.js';
 import {
   COUNTER_DEVICE_ONLINE_WINDOW_SECONDS,
   resolveCounterDevicePresence
@@ -26,11 +27,128 @@ const updateDeviceSchema = z.object({
   message: 'Provide a label or status to update.'
 });
 
+const updateCounterExitPasswordSchema = z.object({
+  current_admin_password: z.string().min(8).max(200),
+  new_counter_password: z.string().min(8).max(200),
+  confirm_counter_password: z.string().min(8).max(200)
+});
+
 function activationExpiry(): Date {
   return new Date(Date.now() + 30 * 60 * 1000);
 }
 
 export async function registerAdminCounterDeviceRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/v1/admin/counter-security', { preHandler: authenticateAdminRequest }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin']);
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      requires_rotation: number;
+      rotated_at: Date | null;
+    }>>(
+      `SELECT requires_rotation, rotated_at
+       FROM tenant_counter_security
+       WHERE tenant_id = :tenantId
+       LIMIT 1`,
+      { tenantId: request.adminAuth.tenantId }
+    );
+    const security = rows[0];
+    return {
+      configured: Boolean(security),
+      requires_rotation: security?.requires_rotation === 1,
+      rotated_at: security?.rotated_at?.toISOString() ?? null
+    };
+  });
+
+  app.put('/v1/admin/counter-security', {
+    preHandler: authenticateAdminRequest,
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } }
+  }, async (request) => {
+    requireAnyAdminRole(request, ['super_admin']);
+    const payload = updateCounterExitPasswordSchema.parse(request.body);
+    if (payload.new_counter_password !== payload.confirm_counter_password) {
+      throw new ApiError(400, 'counter_exit_password_mismatch', 'Counter exit password confirmation does not match.');
+    }
+
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await requireAdminActionConfirmation(
+        connection,
+        request.adminAuth.adminUserId,
+        payload.current_admin_password
+      );
+
+      const [privilegedAdmins] = await connection.query<Array<RowDataPacket & {
+        password_hash: string;
+      }>>(
+        `SELECT DISTINCT au.password_hash
+         FROM admin_users au
+         JOIN admin_user_roles aur ON aur.admin_user_id = au.id
+         JOIN admin_roles ar ON ar.id = aur.admin_role_id
+         WHERE au.tenant_id = :tenantId
+           AND au.status = 'active'
+           AND au.password_hash IS NOT NULL
+           AND ar.code IN ('super_admin', 'operations_admin', 'support_admin')
+         FOR UPDATE`,
+        { tenantId: request.adminAuth.tenantId }
+      );
+      for (const admin of privilegedAdmins) {
+        if (await verifyPassword(payload.new_counter_password, admin.password_hash)) {
+          throw new ApiError(
+            400,
+            'counter_exit_password_matches_admin',
+            'Choose a counter exit password that is different from every administrator password.'
+          );
+        }
+      }
+
+      const nextHash = await hashPassword(payload.new_counter_password);
+      await connection.execute(
+        `INSERT INTO tenant_counter_security (
+           tenant_id, password_hash, requires_rotation,
+           rotated_by_admin_user_id, rotated_at, created_at, updated_at
+         ) VALUES (
+           :tenantId, :passwordHash, 0,
+           :adminUserId, UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP()
+         )
+         ON DUPLICATE KEY UPDATE
+           password_hash = VALUES(password_hash),
+           requires_rotation = 0,
+           rotated_by_admin_user_id = VALUES(rotated_by_admin_user_id),
+           rotated_at = VALUES(rotated_at),
+           updated_at = UTC_TIMESTAMP()`,
+        {
+          tenantId: request.adminAuth.tenantId,
+          passwordHash: nextHash,
+          adminUserId: request.adminAuth.adminUserId
+        }
+      );
+      await connection.execute(
+        `INSERT INTO admin_audit_logs (
+           admin_user_id, effective_roles_json, action_code, target_type,
+           target_id, after_json, ip_address, user_agent, created_at
+         ) VALUES (
+           :adminUserId, :roles, 'counter_exit_password_rotated', 'admin_tenant',
+           :tenantId, :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP()
+         )`,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          tenantId: request.adminAuth.tenantId,
+          afterJson: JSON.stringify({ separate_credential: true, requires_rotation: false }),
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null
+        }
+      );
+      await connection.commit();
+      return { updated: true, requires_rotation: false, rotated_at: new Date().toISOString() };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.get('/v1/admin/counter-devices', { preHandler: authenticateAdminRequest }, async (request) => {
     requireAnyAdminRole(request, ['super_admin', 'operations_admin']);
     const [devices] = await mysqlPool.query<RowDataPacket[]>(

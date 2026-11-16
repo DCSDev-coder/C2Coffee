@@ -14,7 +14,7 @@ import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
 import ViewProfile from "./ViewProfile";
 import { adminRequest } from '../lib/adminApi';
-import { createOrderPriceCorrection, loadOrderPriceCorrectionPreview } from '../lib/adminApi';
+import { createAdminRefund, createOrderPriceCorrection, loadOrderPriceCorrectionPreview } from '../lib/adminApi';
 import { formatPaymentLabel } from '../utils/reporting';
 import OutletFilter from './OutletFilter';
 
@@ -291,9 +291,46 @@ const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
 
 // Order Detail Panel with Animated Timeline
 const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isModal = false }) => {
+  const [refundQuantities, setRefundQuantities] = useState({});
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundMessage, setRefundMessage] = useState('');
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [refundReason, setRefundReason] = useState('Item unavailable after order preparation');
+  const [refundPassword, setRefundPassword] = useState('');
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
   const total = Number(order.total ?? (subtotal - Number(order.discount || 0)));
   const tokenTotal = order.tokenAmountCharged ?? total;
+  const isTokenPayment = String(order.paymentMode || '').toLowerCase() === 'token';
+  const isDirectPayment = String(order.paymentMode || '').toLowerCase() === 'direct';
+  const canRequestPartialRefund =
+    (isTokenPayment && Number(order.tokenAmountCharged || 0) > 0) ||
+    (isDirectPayment && ['paid', 'partially_refunded'].includes(String(order.paymentStatus || '').toLowerCase()));
+  const partialRefundItems = order.items
+    .map((item, index) => ({ item, index, quantity: Number(refundQuantities[item.orderItemId] || 0) }))
+    .filter(({ quantity }) => quantity > 0 && Number.isFinite(quantity));
+  const requestPartialRefund = async (event) => {
+    event.preventDefault();
+    if (partialRefundItems.length === 0 || refundBusy) return;
+    if (refundReason.trim().length < 10 || refundPassword.length < 8) return;
+    setRefundBusy(true);
+    setRefundMessage('');
+    try {
+      await createAdminRefund(order.id, refundReason.trim(), refundPassword, partialRefundItems.map(({ item, quantity }) => ({
+        order_item_id: item.orderItemId,
+        quantity,
+      })));
+      setRefundMessage(isDirectPayment
+        ? 'Partial refund requested. A different Super Admin must confirm the payment-provider refund before it is completed.'
+        : 'Partial refund requested. A different Super Admin must approve it before C2 Credit is returned.');
+      setRefundQuantities({});
+      setRefundPassword('');
+      setRefundDialogOpen(false);
+    } catch (error) {
+      setRefundMessage(error?.message || 'Unable to request this partial refund.');
+    } finally {
+      setRefundBusy(false);
+    }
+  };
 
   // Status mapping for the 4-step timeline flow
   const getStepProgress = (status) => {
@@ -379,7 +416,7 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-gray-900 truncate">{order.customer}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getTierColor(order.tier)}`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getTierColor(order.tier, order.tierCode)}`}>
                   {order.tier}
                 </span>
               </div>
@@ -445,6 +482,19 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
                     <p className="text-[10px] text-gray-400 font-medium">Qty: {item.qty}</p>
                   </div>
                 </div>
+                {canRequestPartialRefund && item.orderItemId && (
+                  <label className="mt-2 ml-11 flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                    <span>Refund missing quantity</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={item.qty}
+                      value={refundQuantities[item.orderItemId] || ''}
+                      onChange={(event) => setRefundQuantities((current) => ({ ...current, [item.orderItemId]: Math.min(item.qty, Math.max(0, Number(event.target.value) || 0)) }))}
+                      className="w-16 rounded-md border border-gray-200 px-2 py-1 text-right text-xs"
+                    />
+                  </label>
+                )}
 
                 {/* Customizations */}
                 {customizations.length > 0 && (
@@ -601,6 +651,20 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
         </div>
       </div>
 
+      {canRequestPartialRefund && (
+        <div className="no-print border-t border-gray-50 pt-3">
+          <button
+            type="button"
+            disabled={refundBusy || partialRefundItems.length === 0}
+            onClick={() => setRefundDialogOpen(true)}
+            className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {refundBusy ? 'Requesting partial refund…' : 'Request partial item refund'}
+          </button>
+          {refundMessage && <p className="mt-2 text-[11px] text-gray-500">{refundMessage}</p>}
+        </div>
+      )}
+
       {/* Footer / Print Receipt Button */}
       <div className="no-print pt-2 mt-auto">
         <button
@@ -610,6 +674,34 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
           <Printer size={14} /> Print Receipt
         </button>
       </div>
+      {refundDialogOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <form onSubmit={requestPartialRefund} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Confirm partial item refund</h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  {isDirectPayment
+                    ? 'A different Super Admin must verify the CHIP or payment-provider refund reference before completion.'
+                    : 'A different Super Admin must approve this request before the customer receives C2 Credit.'}
+                </p>
+              </div>
+              <button type="button" onClick={() => setRefundDialogOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+            </div>
+            <div className="mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+              {partialRefundItems.map(({ item, quantity }) => <p key={item.orderItemId}>{quantity}× {item.name}</p>)}
+            </div>
+            <label className="mt-4 block text-xs font-bold text-gray-700">Reason</label>
+            <textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} minLength={10} maxLength={500} required className="mt-1 min-h-20 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+            <label className="mt-3 block text-xs font-bold text-gray-700">Current admin password</label>
+            <input type="password" value={refundPassword} onChange={(event) => setRefundPassword(event.target.value)} minLength={8} required autoComplete="current-password" className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setRefundDialogOpen(false)} className="rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-700">Cancel</button>
+              <button type="submit" disabled={refundBusy} className="rounded-xl bg-[#1E433A] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{refundBusy ? 'Submitting…' : 'Create refund request'}</button>
+            </div>
+          </form>
+        </div>, document.body
+      )}
     </div>
   );
 };

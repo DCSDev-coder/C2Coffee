@@ -139,7 +139,7 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
         context,
         newValue
             ? '${item.name} is now available for ordering.'
-            : '${item.name} marked as sold out.',
+            : '${item.name} marked out of stock. Customers will still see it as unavailable.',
       );
     }
   }
@@ -195,7 +195,7 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                     BaristaPageHeader(
                       title: 'Menu Availability',
                       subtitle:
-                          'Manage drink and customization availability when stock runs low or out.',
+                          'Check this list before each shift. Mark unavailable items out of stock; they stay visible to customers but cannot be ordered.',
                       onRefresh: _load,
                       refreshTooltip: 'Refresh availability',
                       bottom: Align(

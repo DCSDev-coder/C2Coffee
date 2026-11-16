@@ -824,7 +824,7 @@ class _AdministratorWorkspaceExitDialogState
       _submitting = true;
       _errorMessage = null;
     });
-    final result = await widget.authService.verifyAdministratorPassword(
+    final result = await widget.authService.verifyCounterExitPassword(
       _passwordController.text,
     );
     if (!mounted) return;
@@ -855,7 +855,7 @@ class _AdministratorWorkspaceExitDialogState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Returning to workspace selection allows access to another workspace. Please call an administrator to continue.',
+              'Returning to workspace selection allows access to another workspace. Enter the dedicated counter exit password to continue.',
             ),
             const SizedBox(height: 18),
             TextField(
@@ -865,7 +865,7 @@ class _AdministratorWorkspaceExitDialogState
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _confirm(),
               decoration: InputDecoration(
-                labelText: 'Administrator password',
+                labelText: 'Counter exit password',
                 prefixIcon: const Icon(Icons.lock_outline_rounded),
                 suffixIcon: IconButton(
                   onPressed: _submitting

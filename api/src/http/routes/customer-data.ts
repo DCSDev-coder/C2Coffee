@@ -931,10 +931,12 @@ async function syncAutoVisibleVoucherTemplates(
   );
 
   const [tierRows] = await mysqlPool.query<
-    Array<RowDataPacket & { tier_code: string | null; qualifying_cups_last_180d: number }>
+    Array<RowDataPacket & { tier_code: string | null; qualifying_orders_rolling_12m: number }>
   >(
     `
-      SELECT tier_code, qualifying_cups_last_180d
+      SELECT tier_code,
+             COALESCE(qualifying_orders_rolling_12m, qualifying_cups_last_180d)
+               AS qualifying_orders_rolling_12m
       FROM loyalty_tier_snapshots
       WHERE user_id = :userId
       ORDER BY effective_at DESC, id DESC
@@ -945,13 +947,13 @@ async function syncAutoVisibleVoucherTemplates(
 
   const currentBirthdayMonthDay = profileRows[0]?.birthday_month_day ?? null;
   const snapshotTier = normalizeVoucherTierScope(tierRows[0]?.tier_code, activeTiers);
-  const currentTier = snapshotTier ?? activeTiers[0]?.code ?? null;
+  const currentTier = snapshotTier ?? null;
   const currentDateParts = getKualaLumpurDateParts();
 
   await syncCurrentTierAchievementRewards(
     userId,
     currentTier,
-    Number(tierRows[0]?.qualifying_cups_last_180d ?? 0)
+    Number(tierRows[0]?.qualifying_orders_rolling_12m ?? 0)
   );
   await syncTierBirthdayRewards(userId, currentTier, currentBirthdayMonthDay, currentDateParts);
 
@@ -1754,7 +1756,7 @@ export async function registerCustomerDataRoutes(
     const currentTier = normalizeVoucherTierScope(
       currentTierRows[0]?.tier_code,
       activeTiers
-    ) ?? activeTiers[0]?.code ?? null;
+    ) ?? null;
     const lockedTopUpRewards = lockedTopUpRows
       .filter((row) => {
         const scope = parseVoucherScope(row.eligible_scope_json);

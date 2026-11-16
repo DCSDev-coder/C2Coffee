@@ -17,6 +17,8 @@ import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.j
 import { consumeInventoryForOrder, releaseInventoryForOrder, reverseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
+import { allocateIntegerTotal, incrementalQuantityAllocation } from '../../services/partial-refund.js';
+import { formatTierName, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
 
 export function formatDisplayDate(dateObj: Date, timeZone = 'Asia/Kuala_Lumpur'): string {
   if (!dateObj) return '';
@@ -51,9 +53,15 @@ function requireOrderAccess(request: { adminAuth?: { roles?: string[] } }): void
   }
 }
 
-function requireRefundRequestAccess(request: { adminAuth?: { roles?: string[] } }): void {
+function requireRefundRequestAccess(
+  request: { adminAuth?: { roles?: string[] } },
+  isPartialItemRefund = false
+): void {
   const roles = request.adminAuth?.roles ?? [];
-  if (!roles.some((role) => ['super_admin', 'operations_admin', 'support_admin'].includes(role))) {
+  const allowedRoles = isPartialItemRefund
+    ? ['super_admin', 'operations_admin', 'support_admin', 'barista']
+    : ['super_admin', 'operations_admin', 'support_admin'];
+  if (!roles.some((role) => allowedRoles.includes(role))) {
     throw new ApiError(403, 'admin_forbidden', 'You do not have permission to manage refund requests.');
   }
 }
@@ -77,10 +85,121 @@ function requirePriceCorrectionAccess(request: { adminAuth?: { roles?: string[] 
   }
 }
 
+function queueCustomerPush(request: { log: { warn: (payload: unknown, message: string) => void } }, userId: number, title: string, body: string, type: string): void {
+  void deliverPushToUser({ userId, title, body, data: { type } }).catch((error) => {
+    request.log.warn({ err: error, userId, type }, 'Customer notification push delivery failed after transaction commit.');
+  });
+}
+
+async function restorePartialAllowance(
+  connection: import('mysql2/promise').PoolConnection,
+  orderId: number,
+  refundId: number,
+  refundTokenAmount: number,
+  adminUserId: number
+): Promise<{ allowancePortion: number; restored: number }> {
+  const [rows] = await connection.execute<Array<RowDataPacket & {
+    user_id: number; order_ref: string;
+    token_amount_charged: number; allowance_used: number; allowance_refunded: number;
+    allowance_id: number | null; period_end: Date | null; status: string | null;
+  }>>(`
+    SELECT o.user_id, o.order_ref, o.token_amount_charged, o.employee_allowance_tokens_used AS allowance_used,
+           o.employee_allowance_tokens_refunded AS allowance_refunded,
+           eta.id AS allowance_id, eta.period_end, eta.status
+      FROM orders o
+      JOIN stores s ON s.id = o.store_id
+      LEFT JOIN employee_token_allowances eta
+        ON eta.tenant_id = s.tenant_id AND eta.user_id = o.user_id
+       AND DATE(o.created_at) BETWEEN eta.period_start AND eta.period_end
+     WHERE o.id = :orderId LIMIT 1 FOR UPDATE`, { orderId });
+  const row = rows[0];
+  if (!row) return { allowancePortion: 0, restored: 0 };
+  const charged = Number(row.token_amount_charged);
+  const allowanceUsed = Number(row.allowance_used);
+  const already = Number(row.allowance_refunded);
+  const [priorRows] = await connection.execute<Array<RowDataPacket & { refunded_tokens: number }>>(
+    `SELECT COALESCE(SUM(refund_token_amount), 0) AS refunded_tokens
+       FROM refunds
+      WHERE order_id = :orderId AND id <> :refundId AND status IN ('approved', 'completed')`,
+    { orderId, refundId }
+  );
+  const cumulativeRefund = Number(priorRows[0]?.refunded_tokens ?? 0) + refundTokenAmount;
+  const split = splitOrderPriceCorrection({
+    originalTokenAmount: charged,
+    correctedTokenAmount: Math.max(0, charged - cumulativeRefund),
+    originalSubsidyTokenAmount: allowanceUsed
+  });
+  const target = split.subsidyCorrectionTokenAmount;
+  const allowancePortion = Math.max(0, target - already);
+  if (allowancePortion <= 0) return { allowancePortion: 0, restored: 0 };
+  if (!row.allowance_id || !row.period_end || row.status === 'revoked') {
+    return { allowancePortion, restored: 0 };
+  }
+  const periodEnd = new Date(row.period_end);
+  periodEnd.setUTCHours(23, 59, 59, 999);
+  if (periodEnd < new Date()) return { allowancePortion, restored: 0 };
+  const restore = allowancePortion;
+  await connection.execute(`UPDATE employee_token_allowances SET remaining_amount = remaining_amount + :restore, refunded_amount = refunded_amount + :restore, status = 'active', updated_at = UTC_TIMESTAMP() WHERE id = :allowanceId`, { restore, allowanceId: row.allowance_id });
+  await connection.execute(`UPDATE orders SET employee_allowance_tokens_refunded = employee_allowance_tokens_refunded + :restore WHERE id = :orderId`, { restore, orderId });
+  const [accountRows] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
+    `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
+    { userId: row.user_id }
+  );
+  if (accountRows[0]) {
+    const balanceAfter = Number(accountRows[0].balance_available) + restore;
+    await connection.execute(
+      `UPDATE token_accounts SET balance_available = :balanceAfter, balance_cap = GREATEST(balance_cap, :balanceAfter), updated_at = UTC_TIMESTAMP() WHERE user_id = :userId`,
+      { balanceAfter, userId: row.user_id }
+    );
+    await connection.execute(
+      `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_by_admin_id, created_at)
+       VALUES (:userId, NULL, 'credit', 'refund_return', :refundId, :amount, :balanceAfter, :remarks, :adminUserId, UTC_TIMESTAMP())`,
+      { userId: row.user_id, refundId, amount: restore, balanceAfter, remarks: `Company subsidy restored for partial refund on ${row.order_ref}`, adminUserId }
+    );
+  }
+  return { allowancePortion, restored: restore };
+}
+
+async function reverseLoyaltyWhenNoQualifyingItemsRemain(
+  connection: import('mysql2/promise').PoolConnection,
+  orderId: number,
+  refundId: number,
+  userId: number,
+  adminUserId: number
+): Promise<void> {
+  const [rows] = await connection.execute<Array<RowDataPacket & { remaining_quantity: number }>>(
+    `SELECT COALESCE(SUM(GREATEST(oi.quantity - COALESCE(refunded.quantity, 0), 0)), 0) AS remaining_quantity
+       FROM order_items oi
+       LEFT JOIN (
+         SELECT ri.order_item_id, SUM(ri.quantity) AS quantity
+           FROM refund_items ri
+           JOIN refunds r ON r.id = ri.refund_id
+          WHERE r.order_id = :orderId
+            AND (r.status IN ('approved', 'completed') OR r.id = :refundId)
+          GROUP BY ri.order_item_id
+       ) refunded ON refunded.order_item_id = oi.id
+      WHERE oi.order_id = :orderId AND oi.is_qualifying_cup = 1`,
+    { orderId, refundId }
+  );
+  if (Number(rows[0]?.remaining_quantity ?? 0) > 0) return;
+  await reverseOrderLoyalty(orderId, userId, connection, adminUserId);
+  await reverseReferralForRefundedOrder(connection, orderId, adminUserId);
+}
+
 const createRefundSchema = z.object({
   order_id: z.string().trim().min(1).max(80),
   reason: z.string().trim().min(10).max(500),
-  confirmation_password: z.string().trim().min(8).max(200)
+  confirmation_password: z.string().trim().min(8).max(200),
+  items: z.array(z.object({
+    order_item_id: z.coerce.number().int().positive(),
+    quantity: z.coerce.number().int().positive()
+  })).min(1).optional()
+}).superRefine((value, context) => {
+  if (!value.items) return;
+  const ids = value.items.map((item) => item.order_item_id);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: 'custom', path: ['items'], message: 'Each order item may only appear once in a refund request.' });
+  }
 });
 
 const adminListQuerySchema = z.object({
@@ -437,8 +556,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
   });
 
   app.post('/v1/admin/refunds', { preHandler: authenticateAdminRequest }, async (request, reply) => {
-    requireRefundRequestAccess(request);
     const payload = createRefundSchema.parse(request.body);
+    requireRefundRequestAccess(request, Boolean(payload.items));
     const connection = await mysqlPool.getConnection();
     let committed = false;
 
@@ -452,41 +571,110 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         payment_mode: 'token' | 'direct';
         final_total_rm: string;
         token_amount_charged: number;
+        gift_card_token_amount: number;
         status: string;
+        payment_id: number | null;
+        payment_status: string | null;
       }>>(
         `
           SELECT o.id, o.order_ref, o.user_id, o.payment_mode, o.final_total_rm,
-                 o.token_amount_charged, o.status
+                 o.token_amount_charged, o.gift_card_token_amount, o.status,
+                 p.id AS payment_id, p.status AS payment_status
           FROM orders o
           JOIN stores s ON s.id = o.store_id
           JOIN admin_tenants t ON t.id = s.tenant_id
+          LEFT JOIN payments p ON p.id = (
+            SELECT MAX(p2.id) FROM payments p2
+             WHERE p2.order_id = o.id
+               AND p2.status IN ('paid', 'partially_refunded', 'refunded')
+          )
           WHERE o.order_ref = :orderRef AND t.code = :tenantCode
+            AND (:isBaristaOnly = 0 OR EXISTS (
+              SELECT 1 FROM admin_user_store_assignments aus
+               WHERE aus.admin_user_id = :adminUserId AND aus.store_id = o.store_id
+            ))
           LIMIT 1
           FOR UPDATE
         `,
-        { orderRef: payload.order_id, tenantCode: request.adminAuth.tenantCode }
+        {
+          orderRef: payload.order_id,
+          tenantCode: request.adminAuth.tenantCode,
+          isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0,
+          adminUserId: request.adminAuth.adminUserId
+        }
       );
       const order = orders[0];
       if (!order) {
         throw new ApiError(404, 'order_not_found', 'Order not found for this tenant.');
       }
-      if (order.payment_mode !== 'token' || order.token_amount_charged <= 0) {
-        throw new ApiError(409, 'refund_not_supported', 'Only token-paid orders can be refunded in this workflow.');
+      if (order.payment_mode === 'token' && order.token_amount_charged <= 0) {
+        throw new ApiError(409, 'refund_not_supported', 'This order has no refundable C2 Credit charge.');
+      }
+      if (order.payment_mode === 'direct' && !['paid', 'partially_refunded'].includes(order.payment_status ?? '')) {
+        throw new ApiError(409, 'payment_not_refundable', 'The direct payment is not in a refundable state.');
       }
       if (['draft', 'pending_payment', 'payment_failed', 'cancelled', 'refunded'].includes(order.status)) {
         throw new ApiError(409, 'refund_not_eligible', 'This order is not eligible for a refund request.');
       }
-      const [existing] = await connection.execute<Array<RowDataPacket & { id: number }>>(
-        `SELECT id FROM refunds WHERE order_id = :orderId AND status IN ('pending', 'approved', 'completed') LIMIT 1 FOR UPDATE`,
+      const requestedItems = payload.items ?? null;
+      let refundItems: Array<{ orderItemId: number; quantity: number; amountRm: number; tokenAmount: number }> = [];
+      if (requestedItems) {
+        if (Number(order.gift_card_token_amount ?? 0) > 0) {
+          throw new ApiError(409, 'partial_refund_gift_card_not_supported', 'This order used a token gift card. Use the full refund workflow so the gift-card value can be restored safely.');
+        }
+        const [orderItems] = await connection.execute<Array<RowDataPacket & {
+          id: number; quantity: number; line_subtotal_rm: string; line_token_amount: number | null;
+        }>>(`SELECT id, quantity, line_subtotal_rm, line_token_amount FROM order_items WHERE order_id = :orderId FOR UPDATE`, { orderId: order.id });
+        const byId = new Map(orderItems.map((item) => [Number(item.id), item]));
+        const [alreadyRows] = await connection.execute<Array<RowDataPacket & { order_item_id: number; quantity: number }>>(
+          `SELECT ri.order_item_id, SUM(ri.quantity) AS quantity
+             FROM refund_items ri JOIN refunds r ON r.id = ri.refund_id
+            WHERE r.order_id = :orderId AND r.status IN ('pending','approved','completed')
+            GROUP BY ri.order_item_id`, { orderId: order.id });
+        const already = new Map(alreadyRows.map((item) => [Number(item.order_item_id), Number(item.quantity)]));
+        const tokenAllocations = order.payment_mode === 'token'
+          ? allocateIntegerTotal(
+              Number(order.token_amount_charged),
+              orderItems.map((item) => ({ id: Number(item.id), weight: Number(item.line_token_amount ?? 0) }))
+            )
+          : new Map<number, number>();
+        const rmAllocations = allocateIntegerTotal(
+          Math.round(Number(order.final_total_rm) * 100),
+          orderItems.map((item) => ({ id: Number(item.id), weight: Math.round(Number(item.line_subtotal_rm) * 100) }))
+        );
+        for (const item of requestedItems) {
+          const source = byId.get(item.order_item_id);
+          if (!source) throw new ApiError(400, 'refund_item_not_found', 'One of the selected order items was not found.');
+          const alreadyQuantity = already.get(item.order_item_id) ?? 0;
+          const remaining = Number(source.quantity) - alreadyQuantity;
+          if (item.quantity > remaining) throw new ApiError(409, 'refund_quantity_exceeded', 'The requested refund quantity exceeds the remaining quantity for an order item.');
+          const tokenAmount = incrementalQuantityAllocation(tokenAllocations.get(item.order_item_id) ?? 0, Number(source.quantity), alreadyQuantity, item.quantity);
+          const amountRm = incrementalQuantityAllocation(rmAllocations.get(item.order_item_id) ?? 0, Number(source.quantity), alreadyQuantity, item.quantity) / 100;
+          refundItems.push({
+            orderItemId: item.order_item_id,
+            quantity: item.quantity,
+            amountRm,
+            tokenAmount
+          });
+        }
+        const requestedTokenAmount = refundItems.reduce((sum, item) => sum + item.tokenAmount, 0);
+        const requestedAmountRm = refundItems.reduce((sum, item) => sum + item.amountRm, 0);
+        if (order.payment_mode === 'token' && requestedTokenAmount <= 0) {
+          throw new ApiError(400, 'refund_amount_zero', 'The selected items have no refundable token value.');
+        }
+        if (order.payment_mode === 'direct' && requestedAmountRm <= 0) {
+          throw new ApiError(400, 'refund_amount_zero', 'The selected items have no refundable payment value.');
+        }
+      }
+      const [existing] = await connection.execute<Array<RowDataPacket & { id: number; is_partial: number }>>(
+        `SELECT r.id, EXISTS (SELECT 1 FROM refund_items ri WHERE ri.refund_id = r.id) AS is_partial
+           FROM refunds r WHERE r.order_id = :orderId AND r.status IN ('pending', 'approved', 'completed')
+          ORDER BY r.id LIMIT 1 FOR UPDATE`,
         { orderId: order.id }
       );
-      if (existing[0]) {
+      if (existing[0] && (!requestedItems || Number(existing[0].is_partial) === 0)) {
         throw new ApiError(409, 'refund_already_requested', 'A refund request already exists for this order.');
       }
-      const [payments] = await connection.execute<Array<RowDataPacket & { id: number }>>(
-        `SELECT id FROM payments WHERE order_id = :orderId ORDER BY id DESC LIMIT 1`,
-        { orderId: order.id }
-      );
       const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
       const [refundInsert] = await connection.execute<ResultSetHeader>(
         `
@@ -494,40 +682,83 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             order_id, payment_id, payment_mode, refund_ref, refund_amount_rm,
             refund_token_amount, status, reason, created_by_admin_id, created_at
           ) VALUES (
-            :orderId, :paymentId, 'token', :refundRef, :amountRm,
+            :orderId, :paymentId, :paymentMode, :refundRef, :amountRm,
             :tokenAmount, 'pending', :reason, :adminUserId, UTC_TIMESTAMP()
           )
         `,
         {
           orderId: order.id,
-          paymentId: payments[0]?.id ?? null,
+          paymentId: order.payment_id,
+          paymentMode: order.payment_mode,
           refundRef,
-          amountRm: order.final_total_rm,
-          tokenAmount: order.token_amount_charged,
+          amountRm: requestedItems ? refundItems.reduce((sum, item) => sum + item.amountRm, 0).toFixed(2) : order.final_total_rm,
+          tokenAmount: order.payment_mode === 'token'
+            ? (requestedItems ? refundItems.reduce((sum, item) => sum + item.tokenAmount, 0) : order.token_amount_charged)
+            : null,
           reason: payload.reason,
           adminUserId: request.adminAuth.adminUserId
         }
       );
+      if (requestedItems) {
+        for (const item of refundItems) {
+          await connection.execute(
+            `INSERT INTO refund_items (refund_id, order_item_id, quantity, refund_amount_rm, refund_token_amount, created_at)
+             VALUES (:refundId, :orderItemId, :quantity, :amountRm, :tokenAmount, UTC_TIMESTAMP())`,
+            { refundId: refundInsert.insertId, ...item }
+          );
+        }
+      }
       await connection.execute(
         `
           INSERT INTO admin_audit_logs (
             admin_user_id, effective_roles_json, action_code, target_type, target_id,
-            ip_address, user_agent, created_at
+            after_json, ip_address, user_agent, created_at
           ) VALUES (
             :adminUserId, :roles, 'refund_requested_by_admin', 'refund', :refundId,
-            :ipAddress, :userAgent, UTC_TIMESTAMP()
+            :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP()
           )
         `,
         {
           adminUserId: request.adminAuth.adminUserId,
           roles: JSON.stringify(request.adminAuth.roles),
           refundId: refundInsert.insertId,
+          afterJson: JSON.stringify({
+            payment_mode: order.payment_mode,
+            partial_item_refund: Boolean(requestedItems),
+            items: refundItems.map((item) => ({
+              order_item_id: item.orderItemId,
+              quantity: item.quantity,
+              refund_amount_rm: item.amountRm,
+              refund_token_amount: item.tokenAmount
+            }))
+          }),
           ipAddress: request.ip,
           userAgent: request.headers['user-agent'] ?? null
         }
       );
+      if (requestedItems) {
+        await createUserNotification(connection, {
+          userId: order.user_id,
+          type: 'refund_requested',
+          title: 'Partial refund under review',
+          body: order.payment_mode === 'direct'
+            ? `Your RM ${refundItems.reduce((sum, item) => sum + item.amountRm, 0).toFixed(2)} item refund is awaiting payment-provider confirmation.`
+            : `Your ${refundItems.reduce((sum, item) => sum + item.tokenAmount, 0)} token item refund is awaiting approval.`
+        });
+      }
       await connection.commit();
       committed = true;
+      if (requestedItems) {
+        queueCustomerPush(
+          request,
+          order.user_id,
+          'Partial refund under review',
+          order.payment_mode === 'direct'
+            ? 'Your item refund request is awaiting payment-provider confirmation.'
+            : 'Your item refund request is awaiting approval.',
+          'refund_requested'
+        );
+      }
       return reply.code(201).send({ refund_ref: refundRef, status: 'pending' });
     } catch (error) {
       if (!committed) await connection.rollback();
@@ -543,6 +774,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
     const connection = await mysqlPool.getConnection();
     try {
+      const tiers = await loadLoyaltyTiers(connection);
       // 1. Fetch Orders
       const [orderRows] = await connection.query<RowDataPacket[]>(`
         SELECT 
@@ -570,13 +802,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           COALESCE(o.order_channel, 'mobile') as orderChannel,
           COALESCE(o.fulfillment_type, 'pickup') as fulfillmentType,
           o.status as status,
-          COALESCE((
+          (
             SELECT lts.tier_code
             FROM loyalty_tier_snapshots lts
             WHERE lts.user_id = u.id
             ORDER BY lts.effective_at DESC, lts.id DESC
             LIMIT 1
-          ), 'kawan') AS tier_code,
+          ) AS tier_code,
           p.provider as paymentProvider,
           p.payment_method as paymentMethod,
           p.status as paymentStatus,
@@ -705,6 +937,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         }
 
         itemsByOrderId[item.order_id].push({
+          orderItemId: Number(item.order_item_id),
           menuItemId: item.menu_item_id == null ? null : Number(item.menu_item_id),
           name: item.name,
           qty: item.qty,
@@ -730,7 +963,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           customer: o.customer || 'Unknown',
           email: o.email || '',
           phone: o.phone || '',
-          tier: capitalizeWords(String(o.tier_code || 'kawan')),
+          tier: formatTierName(tiers, o.tier_code),
+          tierCode: o.tier_code ? String(o.tier_code).trim().toLowerCase() : null,
           memberId: 'C2-' + String(o.user_id).padStart(3, '0'),
           avatar: o.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
           items: itemsByOrderId[o.internal_id] || [],
@@ -860,6 +1094,49 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          WHERE t.code = :tenantCode
            AND (:storeId IS NULL OR s.id = :storeId)
          GROUP BY month_key`,
+        queryParams
+      );
+      const [dailyOrderRows] = await connection.query<Array<RowDataPacket & {
+        day_key: string;
+        revenue_rm: string | number;
+        direct_revenue_rm: string | number;
+        tokens_charged: string | number;
+        orders: number;
+      }>>(
+        `SELECT
+           DATE_FORMAT(CONVERT_TZ(o.created_at, '+00:00', '+08:00'), '%Y-%m-%d') AS day_key,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.final_total_rm ELSE 0 END), 0) AS revenue_rm,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'direct' THEN o.final_total_rm ELSE 0 END), 0) AS direct_revenue_rm,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.token_amount_charged ELSE 0 END), 0) AS tokens_charged,
+           COALESCE(SUM(${revenueStatusClause}), 0) AS orders
+         FROM orders o
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE t.code = :tenantCode
+           AND (:storeId IS NULL OR s.id = :storeId)
+           AND DATE(CONVERT_TZ(o.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY
+         GROUP BY day_key
+         ORDER BY day_key ASC`,
+        queryParams
+      );
+      const [dailyRefundRows] = await connection.query<Array<RowDataPacket & {
+        day_key: string;
+        refund_rm: string | number;
+        refund_tokens: string | number;
+      }>>(
+        `SELECT
+           DATE_FORMAT(CONVERT_TZ(r.created_at, '+00:00', '+08:00'), '%Y-%m-%d') AS day_key,
+           COALESCE(SUM(CASE WHEN ${completedRefundStatusClause} THEN r.refund_amount_rm ELSE 0 END), 0) AS refund_rm,
+           COALESCE(SUM(CASE WHEN ${completedRefundStatusClause} THEN r.refund_token_amount ELSE 0 END), 0) AS refund_tokens
+         FROM refunds r
+         JOIN orders o ON o.id = r.order_id
+         JOIN stores s ON s.id = o.store_id
+         JOIN admin_tenants t ON t.id = s.tenant_id
+         WHERE t.code = :tenantCode
+           AND (:storeId IS NULL OR s.id = :storeId)
+           AND DATE(CONVERT_TZ(r.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY
+         GROUP BY day_key
+         ORDER BY day_key ASC`,
         queryParams
       );
       const [statusRows] = await connection.query<Array<RowDataPacket & {
@@ -1003,6 +1280,15 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         refundTokens: number;
         orders: number;
       }>();
+      const dayMap = new Map<string, {
+        date: string;
+        revenueRm: number;
+        refundRm: number;
+        directRevenueRm: number;
+        tokensCharged: number;
+        refundTokens: number;
+        orders: number;
+      }>();
       const monthLabel = (monthKey: string) => new Intl.DateTimeFormat('en-US', {
         month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
       }).format(new Date(`${monthKey}-01T00:00:00+08:00`));
@@ -1023,6 +1309,29 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         current.refundRm += Number(row.refund_rm || 0);
         current.refundTokens += Number(row.refund_tokens || 0);
         monthMap.set(row.month_key, current);
+      }
+      const dayLabel = (dayKey: string) => new Intl.DateTimeFormat('en-MY', {
+        day: 'numeric', month: 'short', timeZone: 'Asia/Kuala_Lumpur'
+      }).format(new Date(`${dayKey}T00:00:00+08:00`));
+      for (const row of dailyOrderRows) {
+        dayMap.set(row.day_key, {
+          date: dayLabel(row.day_key),
+          revenueRm: Number(row.revenue_rm || 0),
+          refundRm: 0,
+          directRevenueRm: Number(row.direct_revenue_rm || 0),
+          tokensCharged: Number(row.tokens_charged || 0),
+          refundTokens: 0,
+          orders: Number(row.orders || 0)
+        });
+      }
+      for (const row of dailyRefundRows) {
+        const current = dayMap.get(row.day_key) ?? {
+          date: dayLabel(row.day_key), revenueRm: 0, refundRm: 0, directRevenueRm: 0,
+          tokensCharged: 0, refundTokens: 0, orders: 0
+        };
+        current.refundRm += Number(row.refund_rm || 0);
+        current.refundTokens += Number(row.refund_tokens || 0);
+        dayMap.set(row.day_key, current);
       }
 
       const orders = orderSummaryRows[0] ?? {
@@ -1082,6 +1391,19 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             netTokens: entry.tokensCharged - entry.refundTokens,
             orders: entry.orders
           })),
+        dailySales: Array.from(dayMap.entries()).map(([dayKey, entry]) => ({
+          date: entry.date,
+          dayKey,
+          grossRevenueRm: entry.revenueRm,
+          refundRm: entry.refundRm,
+          netRevenueRm: entry.revenueRm - entry.refundRm,
+          directRevenueRm: entry.directRevenueRm,
+          tokenValueRm: Math.max(0, entry.revenueRm - entry.directRevenueRm),
+          tokensCharged: entry.tokensCharged,
+          refundTokens: entry.refundTokens,
+          netTokens: entry.tokensCharged - entry.refundTokens,
+          orders: entry.orders
+        })),
         statusBreakdown: statusRows.map((row, index) => ({
           name: capitalizeWords(row.status || 'other'),
           value: Number(row.value || 0),
@@ -1218,6 +1540,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     const { limit, store_id: storeId } = adminListQuerySchema.parse(request.query);
     const connection = await mysqlPool.getConnection();
     try {
+      const tiers = await loadLoyaltyTiers(connection);
       const [refundRows] = await connection.query<RowDataPacket[]>(`
         SELECT 
           r.refund_ref as id,
@@ -1235,13 +1558,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           r.created_at as requestedAt,
           r.reviewed_at as reviewedAt,
           o.created_at as orderDate,
-          COALESCE((
+          (
             SELECT lts.tier_code
             FROM loyalty_tier_snapshots lts
             WHERE lts.user_id = u.id
             ORDER BY lts.effective_at DESC, lts.id DESC
             LIMIT 1
-          ), 'kawan') AS tier_code,
+          ) AS tier_code,
           r.reason as customerNotes
           ,s.id as storeId
           ,s.name as storeName
@@ -1261,6 +1584,29 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         return reply.send({ refunds: [] });
       }
 
+      const [refundItemRows] = await connection.query<RowDataPacket[]>(
+        `SELECT r.refund_ref, oi.item_name_snapshot AS name, ri.quantity,
+                ri.refund_amount_rm, ri.refund_token_amount
+           FROM refund_items ri
+           JOIN refunds r ON r.id = ri.refund_id
+           JOIN order_items oi ON oi.id = ri.order_item_id
+          WHERE r.refund_ref IN (?)
+          ORDER BY ri.id`,
+        [refundRows.map((row) => row.id)]
+      );
+      const refundItemsByRef = new Map<string, Array<Record<string, unknown>>>();
+      for (const item of refundItemRows) {
+        const refundRef = String(item.refund_ref);
+        const items = refundItemsByRef.get(refundRef) ?? [];
+        items.push({
+          name: String(item.name),
+          quantity: Number(item.quantity),
+          amountRm: Number(item.refund_amount_rm),
+          tokenAmount: Number(item.refund_token_amount)
+        });
+        refundItemsByRef.set(refundRef, items);
+      }
+
       const formattedRefunds = refundRows.map(r => {
         const reqDate = new Date(r.requestedAt);
         const ordDate = new Date(r.orderDate);
@@ -1271,13 +1617,16 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           customer: r.customer || 'Unknown',
           email: r.email || '',
           phone: r.phone || '',
-          tier: capitalizeWords(String(r.tier_code || 'kawan')),
+          tier: formatTierName(tiers, r.tier_code),
+          tierCode: r.tier_code ? String(r.tier_code).trim().toLowerCase() : null,
           memberId: 'C2-' + String(r.user_id).padStart(3, '0'),
           amountRm: Number(r.amount_rm || 0),
           tokenAmount: Number(r.token_amount || 0),
           reason: r.reason || 'Other',
           paymentMethod: r.paymentMethod || '',
           providerRefundRef: r.providerRefundRef || '',
+          isPartial: refundItemsByRef.has(String(r.id)),
+          items: refundItemsByRef.get(String(r.id)) ?? [],
           status: capitalizeWords(r.status),
           requestedAt: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`,
           orderDate: `${formatDisplayDate(ordDate)} – ${formatDisplayTime(ordDate)}`,
@@ -1287,7 +1636,15 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           timeline: [
             { label: "Refund Requested", date: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`, done: true },
             { label: "Refund Review", date: r.reviewedAt ? `${formatDisplayDate(new Date(r.reviewedAt))} ${formatDisplayTime(new Date(r.reviewedAt))}` : '', done: r.status !== 'pending' },
-            { label: r.status === 'approved' ? "Refund Approved" : "Refund Rejected", date: r.reviewedAt ? `${formatDisplayDate(new Date(r.reviewedAt))} ${formatDisplayTime(new Date(r.reviewedAt))}` : '', done: ['approved', 'rejected'].includes(r.status) }
+            {
+              label: r.status === 'rejected'
+                ? 'Refund Rejected'
+                : r.status === 'completed'
+                  ? 'Refund Completed'
+                  : 'Refund Approved',
+              date: r.reviewedAt ? `${formatDisplayDate(new Date(r.reviewedAt))} ${formatDisplayTime(new Date(r.reviewedAt))}` : '',
+              done: ['approved', 'completed', 'rejected'].includes(r.status)
+            }
           ]
         };
       });
@@ -1320,20 +1677,25 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         payment_mode: 'token' | 'direct';
         payment_id: number | null;
         payment_status: string | null;
+        payment_amount_rm: string | null;
         refund_token_amount: number | null;
+        refund_amount_rm: string;
         provider_refund_ref: string | null;
         user_id: number;
         order_status: string;
         order_ref: string;
         created_by_admin_id: number | null;
+        is_partial: number;
         cancellation_request_id: number | null;
         cancellation_request_status: string | null;
       }>>(
         `
-          SELECT r.id, r.status, r.order_id, r.payment_id, r.payment_mode, r.refund_token_amount,
+          SELECT r.id, r.status, r.order_id, r.payment_id, r.payment_mode,
+                 r.refund_token_amount, r.refund_amount_rm,
+                 EXISTS (SELECT 1 FROM refund_items ri WHERE ri.refund_id = r.id) AS is_partial,
                  r.provider_refund_ref, r.created_by_admin_id,
                  o.user_id, o.status AS order_status, o.order_ref,
-                 p.status AS payment_status,
+                 p.status AS payment_status, p.amount_rm AS payment_amount_rm,
                  ocr.id AS cancellation_request_id, ocr.status AS cancellation_request_status
           FROM refunds r
           JOIN orders o ON o.id = r.order_id
@@ -1370,7 +1732,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         if (decision === 'approved' && !providerRefundRef) {
           throw new ApiError(400, 'provider_refund_reference_required', 'Enter the payment provider refund reference before completing this direct refund.');
         }
-        if (decision === 'rejected') {
+        const isPartialRefund = Number(refund.is_partial) === 1;
+        if (decision === 'rejected' && !isPartialRefund) {
           await connection.execute(
             `UPDATE order_cancellation_requests
              SET status = 'rejected', review_reason = 'The payment-provider refund was not completed.', reviewed_at = UTC_TIMESTAMP(), reviewed_by_admin_user_id = :adminUserId
@@ -1383,7 +1746,38 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             title: 'Cancellation refund not completed',
             body: 'The direct-payment refund could not be completed. Please contact the store if you need help.'
           });
-        } else {
+        } else if (decision === 'approved' && isPartialRefund) {
+          const [completedRows] = await connection.execute<Array<RowDataPacket & { refunded_amount_rm: string }>>(
+            `SELECT COALESCE(SUM(refund_amount_rm), 0) AS refunded_amount_rm
+               FROM refunds
+              WHERE payment_id = :paymentId AND id <> :refundId
+                AND status IN ('approved', 'completed')`,
+            { paymentId: refund.payment_id, refundId: refund.id }
+          );
+          const cumulativeRefund = Number(completedRows[0]?.refunded_amount_rm ?? 0) + Number(refund.refund_amount_rm);
+          const paymentAmount = Number(refund.payment_amount_rm ?? 0);
+          await connection.execute(
+            `UPDATE payments SET status = :paymentStatus
+              WHERE id = :paymentId AND status IN ('paid', 'partially_refunded')`,
+            {
+              paymentId: refund.payment_id,
+              paymentStatus: paymentAmount > 0 && cumulativeRefund >= paymentAmount ? 'refunded' : 'partially_refunded'
+            }
+          );
+          await reverseLoyaltyWhenNoQualifyingItemsRemain(
+            connection,
+            refund.order_id,
+            refund.id,
+            refund.user_id,
+            request.adminAuth.adminUserId
+          );
+          await createUserNotification(connection, {
+            userId: refund.user_id,
+            type: 'refund_completed',
+            title: 'Partial refund completed',
+            body: `RM ${Number(refund.refund_amount_rm).toFixed(2)} for the unavailable item has been refunded through your payment provider.`
+          });
+        } else if (decision === 'approved') {
           await connection.execute(
             `UPDATE payments SET status = 'refunded'
              WHERE id = :paymentId AND status IN ('paid', 'partially_refunded')`,
@@ -1448,8 +1842,26 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
 
       if (decision === 'approved' && refund.payment_mode === 'token') {
-        const allowanceRefund = await restoreEmployeeAllowanceForRefund(connection, Number(refund.order_id));
-        const tokenAmount = calculatePersonalTokenRefund(Number(refund.refund_token_amount ?? 0), allowanceRefund.allowanceUsed);
+        const [partialRows] = await connection.execute<Array<RowDataPacket & { item_count: number }>>(
+          `SELECT COUNT(*) AS item_count FROM refund_items WHERE refund_id = :refundId`,
+          { refundId: refund.id }
+        );
+        const isPartialRefund = Number(partialRows[0]?.item_count ?? 0) > 0;
+        const partialAllowance = isPartialRefund
+          ? await restorePartialAllowance(
+              connection,
+              Number(refund.order_id),
+              Number(refund.id),
+              Number(refund.refund_token_amount ?? 0),
+              request.adminAuth.adminUserId
+            )
+          : { allowancePortion: 0, restored: 0 };
+        const allowanceRefund = isPartialRefund
+          ? { allowanceUsed: partialAllowance.allowancePortion, restored: partialAllowance.restored }
+          : await restoreEmployeeAllowanceForRefund(connection, Number(refund.order_id));
+        const tokenAmount = isPartialRefund
+          ? Math.max(0, Number(refund.refund_token_amount ?? 0) - allowanceRefund.allowanceUsed)
+          : calculatePersonalTokenRefund(Number(refund.refund_token_amount ?? 0), allowanceRefund.allowanceUsed);
         const [accounts] = await connection.execute<Array<RowDataPacket & { balance_available: number }>>(
           `SELECT balance_available FROM token_accounts WHERE user_id = :userId LIMIT 1 FOR UPDATE`,
           { userId: refund.user_id }
@@ -1484,10 +1896,26 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             }
           );
         }
-        await connection.execute(
-          `UPDATE orders SET status = 'refunded', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
-          { orderId: refund.order_id }
-        );
+        if (isPartialRefund) {
+          const refundedTokens = Number(refund.refund_token_amount ?? 0);
+          await createUserNotification(connection, {
+            userId: refund.user_id,
+            type: 'refund_completed',
+            title: 'Partial refund completed',
+            body: `${refundedTokens} token${refundedTokens === 1 ? '' : 's'} for the unavailable item${refundedTokens === 1 ? '' : 's'} have been returned to your C2 Coffee account.`
+          });
+          await reverseLoyaltyWhenNoQualifyingItemsRemain(
+            connection,
+            refund.order_id,
+            refund.id,
+            refund.user_id,
+            request.adminAuth.adminUserId
+          );
+        } else {
+          await connection.execute(
+            `UPDATE orders SET status = 'refunded', updated_at = UTC_TIMESTAMP() WHERE id = :orderId`,
+            { orderId: refund.order_id }
+          );
         await reverseInventoryForOrder(connection, refund.order_id);
         await restoreGiftCardForRefund(
           connection,
@@ -1538,6 +1966,16 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
               ? 'Your tokens were returned and an equivalent voucher was added back to your account.'
               : 'The applicable tokens have been returned to your C2 Coffee account.'
         });
+        }
+      }
+
+      if (decision === 'rejected' && Number(refund.is_partial) === 1) {
+        await createUserNotification(connection, {
+          userId: refund.user_id,
+          type: 'refund_rejected',
+          title: 'Partial refund not approved',
+          body: 'Your partial item refund request was reviewed but could not be approved. Please contact the outlet if you need help.'
+        });
       }
 
       await connection.execute(
@@ -1579,6 +2017,28 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       );
       await connection.commit();
       committed = true;
+
+      if (decision === 'approved' && refund.payment_mode === 'direct') {
+        queueCustomerPush(request, refund.user_id, 'Refund completed', 'Your direct payment refund has been completed.', 'refund_completed');
+      } else if (decision === 'approved' && refund.payment_mode === 'token') {
+        queueCustomerPush(
+          request,
+          refund.user_id,
+          refund.is_partial ? 'Partial refund approved' : 'Refund approved',
+          refund.is_partial
+            ? 'Tokens for the unavailable item have been returned to your C2 Credit account.'
+            : 'Your C2 Credit tokens have been returned to your account.',
+          'refund_completed'
+        );
+      } else if (decision === 'rejected' && Number(refund.is_partial) === 1) {
+        queueCustomerPush(
+          request,
+          refund.user_id,
+          'Partial refund not approved',
+          'Your partial item refund request was not approved. Contact the outlet if you need help.',
+          'refund_rejected'
+        );
+      }
 
       return reply.send({
         refund_ref: refundRef,
@@ -1664,6 +2124,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         );
         await connection.commit();
         committed = true;
+        queueCustomerPush(request, Number(order.user_id), 'Cancellation request declined', 'Preparation has already started, so the order will continue.', 'order_cancellation_rejected');
         throw new ApiError(409, 'cancellation_too_late', 'Preparation has already started, so this request was declined.');
       }
 
@@ -1686,6 +2147,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         });
         await connection.commit();
         committed = true;
+        queueCustomerPush(request, Number(order.user_id), 'Cancellation request declined', payload.review_reason ?? 'Your order will continue as planned because preparation has not been cancelled.', 'order_cancellation_rejected');
         return reply.send({ status: 'rejected' });
       }
 
@@ -1721,6 +2183,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         });
         await connection.commit();
         committed = true;
+        queueCustomerPush(request, Number(order.user_id), 'Cancellation approved; refund pending', 'Your cancellation was approved. Your direct payment refund is being processed.', 'order_cancellation_approved');
         return reply.send({ status: 'refund_pending', payment_refund_required: true });
       }
 
@@ -1815,6 +2278,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       });
       await connection.commit();
       committed = true;
+      queueCustomerPush(request, Number(order.user_id), 'Cancellation approved', `${tokenAmount} C2 Credit token(s) were returned to your account.`, 'order_cancelled');
       return reply.send({ status: 'completed', returned_tokens: tokenAmount, token_balance: balanceAfter, replacement_voucher_issued: replacementVoucherIssued });
     } catch (error) {
       if (!committed) await connection.rollback();

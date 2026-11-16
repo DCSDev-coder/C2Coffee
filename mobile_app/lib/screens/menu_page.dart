@@ -2133,7 +2133,7 @@ class _MenuPageState extends State<MenuPage> {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: const Text(
-                              'Sold out',
+                              'Out of stock',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,

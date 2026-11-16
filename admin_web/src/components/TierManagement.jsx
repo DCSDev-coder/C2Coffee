@@ -88,7 +88,7 @@ function slugify(value) {
 
 function formatCupsLabel(minCups) {
   const cups = parseNumber(minCups);
-  return `${cups.toLocaleString('en-US')} cups+`;
+  return `${cups.toLocaleString('en-US')} qualifying orders+`;
 }
 
 function formatTierStatus(value) {
@@ -133,7 +133,7 @@ function emptyForm() {
     id: null,
     code: '',
     name: '',
-    minCups: 0,
+    minCups: 1,
     imageUrl: null,
     sortOrder: 0,
     isActive: true
@@ -288,10 +288,10 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
               </p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Cups Needed</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Qualifying Orders Needed</label>
               <input
                 type="number"
-                min={0}
+                min={1}
                 value={form.minCups}
                 onChange={(e) => onChange({ minCups: e.target.value })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#1F3A34]"
@@ -305,7 +305,7 @@ const TierModal = ({ open, title, form, onChange, onClose, onSave, saving }) => 
             </div>
             <div className="flex items-end">
               <p className="text-[11px] text-gray-400 leading-snug">
-                Tiers are sorted automatically by cups needed, then saved in the backend for deterministic fallback.
+                Tiers are sorted automatically by qualifying orders needed. Orders using any company subsidy do not count.
               </p>
             </div>
           </div>
@@ -404,7 +404,7 @@ const TierRewardModal = ({ open, form, tiers, menuItems, optionGroups = [], onCh
               className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1F3A34] disabled:cursor-not-allowed disabled:bg-gray-100"
             >
               <option value="">Choose a tier</option>
-              {eligibleTiers.map((tier) => <option key={tier.id} value={tier.id}>{form.rewardTiming === 'birthday_month' ? tier.name : Number(tier.minCups) === 0 ? `${tier.name} (after first completed drink)` : `${tier.name} (${formatCupsLabel(tier.minCups)})`}</option>)}
+              {eligibleTiers.map((tier) => <option key={tier.id} value={tier.id}>{form.rewardTiming === 'birthday_month' ? tier.name : `${tier.name} (${formatCupsLabel(tier.minCups)})`}</option>)}
             </select>
           </section>
 
@@ -1035,7 +1035,7 @@ const TierManagement = () => {
       <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tier Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure loyalty tiers and cup requirements from the live database.</p>
+          <p className="text-sm text-gray-500 mt-1">Configure loyalty tiers and qualifying-order requirements from the live database.</p>
         </div>
         <div className="flex items-center self-start sm:self-auto">
           <button
@@ -1081,7 +1081,7 @@ const TierManagement = () => {
           badge={topTier ? `Starts at ${formatCupsLabel(topTier.minCups)}` : 'No active tiers'}
           icon={Award}
           iconBg="bg-amber-500/15 text-amber-700"
-          info="Highest unlocked VIP tier with peak lifetime cup threshold and top rewards."
+          info="Highest unlocked VIP tier based on rolling 12-month qualifying orders and top rewards."
         />
       </div>
 
@@ -1123,7 +1123,7 @@ const TierManagement = () => {
             <thead className="bg-gray-50/80 backdrop-blur-xs border-b border-gray-200 sticky top-0 z-10">
               <tr>
                 <SortableHeader label="Tier Name" columnKey="name" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Display name and visual badge for this loyalty level." />
-                <SortableHeader label="Cups Needed" columnKey="minCups" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Number of lifetime cups required to reach and unlock this tier." />
+                <SortableHeader label="Orders Needed" columnKey="minCups" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Personally funded qualifying drink orders required within the rolling 12-month period to unlock this tier. Once achieved, the tier is protected for 12 months. Higher tiers retain with half the unlock threshold and can fall by at most one tier per annual review." />
                 <th className="hidden md:table-cell px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider">Tier Rewards</th>
                 <SortableHeader label="Status" columnKey="status" currentKey={tierSortKey} direction={tierSortDirection} onSort={handleTierSort} info="Whether this tier is currently active in customer progression." className="text-center" />
                 <th className="px-6 py-4 font-bold text-[11px] text-gray-500 uppercase tracking-wider text-center">Actions</th>

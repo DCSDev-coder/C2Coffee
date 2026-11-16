@@ -188,7 +188,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
             </button>
             <h1 className="text-2xl font-bold text-gray-900">Refund Reviews</h1>
             <InfoTooltip
-              content="Review, approve, or reject customer refund claims. Approved token refunds are instantly credited back to customer C2 Credit."
+              content="Review, approve, or reject refund requests. Token refunds return C2 Credit; direct-payment refunds require the confirmed CHIP or provider refund reference."
               title="Refund Reviews"
             />
           </div>
@@ -418,7 +418,24 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                 <p className="font-semibold text-gray-900">
                   {selectedRefund.orderId} · {formatAmount(selectedRefund)}
                 </p>
+                {selectedRefund.isPartial && (
+                  <p className="mt-1 text-xs font-bold text-amber-700">Partial item refund</p>
+                )}
               </div>
+              {Array.isArray(selectedRefund.items) && selectedRefund.items.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500">Items being refunded</p>
+                  <div className="mt-1 space-y-1">
+                    {selectedRefund.items.map((item, index) => (
+                      <p key={`${item.name}-${index}`} className="font-semibold text-gray-900">
+                        {item.quantity}× {item.name} · {String(selectedRefund.paymentMethod || '').toLowerCase() === 'token'
+                          ? `${Number(item.tokenAmount || 0)} tokens`
+                          : `RM ${Number(item.amountRm || 0).toFixed(2)}`}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <p className="text-xs text-gray-500">Customer reason</p>
                 <p className="font-semibold text-gray-900">
@@ -608,7 +625,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                     className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none"
                   />
                   <span className="mt-1 block text-xs font-normal text-gray-500">
-                    Enter the reference returned by the payment provider after the refund is confirmed.
+                    First refund exactly {formatAmount(pendingConfirmation.refund)} in CHIP or the recorded provider, then enter the confirmed provider reference. C2 will not mark the refund complete without it.
                   </span>
                 </label>
               )}

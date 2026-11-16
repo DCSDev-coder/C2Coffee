@@ -5,6 +5,8 @@ import {
   ADMIN_COMPLETE_SETUP_PATH,
   ADMIN_LOGIN_PATH,
   ADMIN_LOGOUT_PATH,
+  ADMIN_PASSWORD_RESET_CONFIRM_PATH,
+  ADMIN_PASSWORD_RESET_REQUEST_PATH,
   ADMIN_REFRESH_PATH,
   getSafeAdminLoginErrorMessage,
   shouldAttachStoredAdminAccessToken,
@@ -17,6 +19,8 @@ test("authentication entry requests never consume the normal refresh flow", () =
     ADMIN_REFRESH_PATH,
     ADMIN_COMPLETE_SETUP_PATH,
     ADMIN_LOGOUT_PATH,
+    ADMIN_PASSWORD_RESET_REQUEST_PATH,
+    ADMIN_PASSWORD_RESET_CONFIRM_PATH,
   ]) {
     assert.equal(
       shouldAttemptAdminSessionRefresh({
@@ -59,6 +63,8 @@ test("protected requests retry once after an unauthorized response", () => {
 test("stored access tokens are not attached to login or refresh requests", () => {
   assert.equal(shouldAttachStoredAdminAccessToken(ADMIN_LOGIN_PATH), false);
   assert.equal(shouldAttachStoredAdminAccessToken(ADMIN_REFRESH_PATH), false);
+  assert.equal(shouldAttachStoredAdminAccessToken(ADMIN_PASSWORD_RESET_REQUEST_PATH), false);
+  assert.equal(shouldAttachStoredAdminAccessToken(ADMIN_PASSWORD_RESET_CONFIRM_PATH), false);
   assert.equal(
     shouldAttachStoredAdminAccessToken(ADMIN_COMPLETE_SETUP_PATH),
     true,

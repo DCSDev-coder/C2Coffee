@@ -24,6 +24,59 @@ test('admin login rejects malformed and incorrect credentials identically', asyn
   assert.doesNotMatch(adminAuth, /adminLoginSchema\.parse\(request\.body\)/);
 });
 
+test('admin recovery requires a verified email and preserves existing sessions during enrollment', async () => {
+  const adminAuth = await source('src/http/routes/admin-auth.ts');
+  const guard = await source('src/admin/guard.ts');
+  const migration = await source('src/db/migrations/152_add_verified_admin_recovery.sql');
+  const readiness = await source('src/scripts/production-readiness.ts');
+
+  assert.match(migration, /email_verified_at/);
+  assert.match(migration, /admin_email_verification_otps/);
+  assert.match(migration, /admin_password_reset_otps/);
+  assert.match(adminAuth, /\/v1\/admin\/auth\/email-verification\/request/);
+  assert.match(adminAuth, /verifyPassword\(payload\.current_password/);
+  assert.match(adminAuth, /admin_recovery_email_verified/);
+  assert.match(adminAuth, /\/v1\/admin\/auth\/password-reset\/request/);
+  assert.match(adminAuth, /u\.email_verified_at IS NOT NULL/);
+  assert.match(adminAuth, /revoke_reason = 'password_reset'/);
+  assert.match(adminAuth, /accepted: true/);
+  assert.match(guard, /request\.adminAuth\.mustChangePassword/);
+  assert.doesNotMatch(
+    guard,
+    /request\.adminAuth\.mustChangePassword \|\| request\.adminAuth\.mustSetEmail/,
+  );
+  assert.match(readiness, /152_add_verified_admin_recovery\.sql/);
+});
+
+test('counter workspace exit uses a dedicated credential instead of administrator passwords', async () => {
+  const counter = await source('src/http/routes/counter.ts');
+  const administration = await source('src/http/routes/admin-counter-devices.ts');
+  const migration = await source('src/db/migrations/153_separate_counter_exit_password.sql');
+  const readiness = await source('src/scripts/production-readiness.ts');
+
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS tenant_counter_security/);
+  assert.match(migration, /requires_rotation/);
+  assert.match(counter, /FROM tenant_counter_security/);
+  assert.doesNotMatch(counter, /FROM admin_users/);
+  assert.match(administration, /\/v1\/admin\/counter-security/);
+  assert.match(administration, /counter_exit_password_matches_admin/);
+  assert.match(administration, /counter_exit_password_rotated/);
+  assert.match(readiness, /153_separate_counter_exit_password\.sql/);
+});
+
+test('partial item refunds support token and direct payments without settling the whole order', async () => {
+  const orders = await source('src/http/routes/admin-orders.ts');
+  const migration = await source('src/db/migrations/148_create_refund_items.sql');
+
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS refund_items/);
+  assert.match(orders, /paymentMode: order\.payment_mode/);
+  assert.match(orders, /'partially_refunded'/);
+  assert.match(orders, /reverseLoyaltyWhenNoQualifyingItemsRemain/);
+  assert.match(orders, /admin_user_store_assignments/);
+  assert.match(orders, /refund_self_approval_forbidden/);
+  assert.match(orders, /provider_refund_reference_required/);
+});
+
 test('manual wallet changes require password confirmation and tenant membership', async () => {
   const loyalty = await source('src/http/routes/admin-loyalty.ts');
   assert.match(loyalty, /confirmation_password/);

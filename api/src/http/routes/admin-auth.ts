@@ -26,6 +26,28 @@ const adminSetupSchema = z.object({
   confirm_password: z.string().trim().min(8).max(200)
 });
 
+const adminEmailVerificationRequestSchema = z.object({
+  email: z.string().trim().email().max(255),
+  current_password: z.string().trim().min(8).max(200)
+});
+
+const adminEmailVerificationConfirmSchema = z.object({
+  request_id: z.string().uuid(),
+  otp_code: z.string().regex(/^\d{6}$/)
+});
+
+const adminPasswordResetRequestSchema = z.object({
+  tenant_code: z.string().trim().min(1).max(80),
+  identifier: z.string().trim().min(1).max(255)
+});
+
+const adminPasswordResetConfirmSchema = z.object({
+  request_id: z.string().uuid(),
+  otp_code: z.string().regex(/^\d{6}$/),
+  new_password: z.string().trim().min(8).max(200),
+  confirm_password: z.string().trim().min(8).max(200)
+});
+
 const adminCreateSchema = z.object({
   username: z.string().trim().min(3).max(80),
   password: z.string().trim().min(8).max(200),
@@ -71,6 +93,44 @@ function getAdminLoginRateLimitKey(request: FastifyRequest): string {
   return tenantCode && identifier
     ? `admin-login:${tenantCode}:${identifier}`
     : 'admin-login:invalid-request';
+}
+
+function getAdminPasswordResetRateLimitKey(request: FastifyRequest): string {
+  const body = request.body as {
+    tenant_code?: unknown;
+    identifier?: unknown;
+    request_id?: unknown;
+  } | null;
+  const tenantCode = typeof body?.tenant_code === 'string'
+    ? body.tenant_code.trim().toLowerCase()
+    : '';
+  const identifier = typeof body?.identifier === 'string'
+    ? body.identifier.trim().toLowerCase()
+    : '';
+  const requestId = typeof body?.request_id === 'string'
+    ? body.request_id.trim().toLowerCase()
+    : '';
+
+  if (tenantCode && identifier) return `admin-password-reset:${tenantCode}:${identifier}`;
+  if (requestId) return `admin-password-reset-confirm:${requestId}`;
+  return 'admin-password-reset:invalid-request';
+}
+
+function getAdminEmailVerificationRateLimitKey(request: FastifyRequest): string {
+  const body = request.body as {
+    email?: unknown;
+    request_id?: unknown;
+  } | null;
+  const email = typeof body?.email === 'string'
+    ? body.email.trim().toLowerCase()
+    : '';
+  const requestId = typeof body?.request_id === 'string'
+    ? body.request_id.trim().toLowerCase()
+    : '';
+
+  if (email) return `admin-email-verification:${email}`;
+  if (requestId) return `admin-email-verification-confirm:${requestId}`;
+  return 'admin-email-verification:invalid-request';
 }
 
 function toAdminResponseStatus(status: string): string {
@@ -260,6 +320,199 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
     };
   });
 
+  app.post('/v1/admin/auth/password-reset/request', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '15 minutes',
+        hook: 'preHandler',
+        keyGenerator: getAdminPasswordResetRateLimitKey
+      }
+    }
+  }, async (request) => {
+    const requestId = crypto.randomUUID();
+    const parsed = adminPasswordResetRequestSchema.safeParse(request.body);
+
+    // Always return the same response so callers cannot discover tenant codes,
+    // usernames, account status, or whether a recovery email is configured.
+    if (!parsed.success || parsed.data.tenant_code !== env.DEPLOYMENT_TENANT_CODE) {
+      return { request_id: requestId, expires_in_seconds: 600, accepted: true };
+    }
+
+    const payload = parsed.data;
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      id: number;
+      email: string;
+    }>>(
+      `SELECT u.id, u.email
+       FROM admin_users u
+       JOIN admin_tenants t ON t.id = u.tenant_id
+       WHERE t.code = :tenantCode
+         AND t.status = 'active'
+         AND u.status = 'active'
+         AND u.email IS NOT NULL
+         AND u.email_verified_at IS NOT NULL
+         AND (u.username = :identifier OR u.email = :identifier)
+       LIMIT 1`,
+      { tenantCode: payload.tenant_code, identifier: payload.identifier }
+    );
+    const admin = rows[0];
+    if (!admin) {
+      return { request_id: requestId, expires_in_seconds: 600, accepted: true };
+    }
+
+    const otpCode = generateOtpCode();
+    await mysqlPool.execute(
+      `UPDATE admin_password_reset_otps
+       SET status = 'cancelled'
+       WHERE admin_user_id = :adminUserId AND status = 'pending'`,
+      { adminUserId: admin.id }
+    );
+    await mysqlPool.execute(
+      `INSERT INTO admin_password_reset_otps (
+         request_id, admin_user_id, otp_hash, expires_at, requested_at
+       ) VALUES (
+         :requestId, :adminUserId, :otpHash,
+         DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), UTC_TIMESTAMP()
+       )`,
+      { requestId, adminUserId: admin.id, otpHash: hashSha256(otpCode) }
+    );
+
+    try {
+      await sendOtpEmail({
+        to: admin.email,
+        otpCode,
+        subject: 'Reset your C2 Coffee Admin password',
+        heading: 'Your C2 Coffee Admin password-reset code is:'
+      });
+    } catch {
+      await mysqlPool.execute(
+        `UPDATE admin_password_reset_otps SET status = 'cancelled' WHERE request_id = :requestId`,
+        { requestId }
+      );
+    }
+
+    return { request_id: requestId, expires_in_seconds: 600, accepted: true };
+  });
+
+  app.post('/v1/admin/auth/password-reset/confirm', {
+    config: {
+      rateLimit: {
+        max: 8,
+        timeWindow: '15 minutes',
+        hook: 'preHandler',
+        keyGenerator: getAdminPasswordResetRateLimitKey
+      }
+    }
+  }, async (request) => {
+    const payload = adminPasswordResetConfirmSchema.parse(request.body);
+    if (payload.new_password !== payload.confirm_password) {
+      throw new ApiError(400, 'password_mismatch', 'New password confirmation does not match.');
+    }
+
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<Array<RowDataPacket & {
+        id: number;
+        admin_user_id: number;
+        otp_hash: string;
+        expires_at: Date;
+        attempts_used: number;
+        max_attempts: number;
+        status: string;
+        password_hash: string | null;
+      }>>(
+        `SELECT pro.id, pro.admin_user_id, pro.otp_hash, pro.expires_at,
+                pro.attempts_used, pro.max_attempts, pro.status, u.password_hash
+         FROM admin_password_reset_otps pro
+         JOIN admin_users u ON u.id = pro.admin_user_id AND u.status = 'active'
+         JOIN admin_tenants t ON t.id = u.tenant_id AND t.code = :tenantCode AND t.status = 'active'
+         WHERE pro.request_id = :requestId
+         LIMIT 1 FOR UPDATE`,
+        { requestId: payload.request_id, tenantCode: env.DEPLOYMENT_TENANT_CODE }
+      );
+      const reset = rows[0];
+      if (!reset || reset.status !== 'pending') {
+        throw new ApiError(400, 'password_reset_invalid', 'The password-reset request or verification code is invalid.');
+      }
+      if (new Date(reset.expires_at).getTime() <= Date.now()) {
+        await connection.execute(
+          `UPDATE admin_password_reset_otps SET status = 'expired' WHERE id = :id`,
+          { id: reset.id }
+        );
+        await connection.commit();
+        throw new ApiError(410, 'password_reset_expired', 'This verification code has expired. Request a new code.');
+      }
+      if (reset.attempts_used >= reset.max_attempts) {
+        await connection.execute(
+          `UPDATE admin_password_reset_otps SET status = 'blocked' WHERE id = :id`,
+          { id: reset.id }
+        );
+        await connection.commit();
+        throw new ApiError(429, 'password_reset_blocked', 'Too many incorrect attempts. Request a new code.');
+      }
+      if (!otpMatches(payload.otp_code, reset.otp_hash)) {
+        const attempts = reset.attempts_used + 1;
+        await connection.execute(
+          `UPDATE admin_password_reset_otps
+           SET attempts_used = :attempts,
+               status = CASE WHEN :attempts >= max_attempts THEN 'blocked' ELSE status END
+           WHERE id = :id`,
+          { attempts, id: reset.id }
+        );
+        await connection.commit();
+        throw new ApiError(400, 'password_reset_invalid', 'The password-reset request or verification code is invalid.');
+      }
+      if (reset.password_hash && await verifyPassword(payload.new_password, reset.password_hash)) {
+        throw new ApiError(400, 'password_reused', 'Choose a new password that is different from your current password.');
+      }
+
+      await connection.execute(
+        `UPDATE admin_users
+         SET password_hash = :passwordHash,
+             must_change_password = 0,
+             updated_at = UTC_TIMESTAMP()
+         WHERE id = :adminUserId`,
+        { passwordHash: await hashPassword(payload.new_password), adminUserId: reset.admin_user_id }
+      );
+      await connection.execute(
+        `UPDATE admin_password_reset_otps
+         SET status = 'consumed', consumed_at = UTC_TIMESTAMP()
+         WHERE id = :id`,
+        { id: reset.id }
+      );
+      await connection.execute(
+        `UPDATE admin_sessions
+         SET revoked_at = UTC_TIMESTAMP(), revoke_reason = 'password_reset'
+         WHERE admin_user_id = :adminUserId AND revoked_at IS NULL`,
+        { adminUserId: reset.admin_user_id }
+      );
+      await connection.execute(
+        `INSERT INTO admin_audit_logs (
+           admin_user_id, effective_roles_json, action_code, target_type,
+           target_id, ip_address, user_agent, created_at
+         ) VALUES (
+           :adminUserId, :roles, 'password_reset_completed', 'admin_user',
+           :adminUserId, :ipAddress, :userAgent, UTC_TIMESTAMP()
+         )`,
+        {
+          adminUserId: reset.admin_user_id,
+          roles: JSON.stringify(['password_recovery']),
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null
+        }
+      );
+      await connection.commit();
+      return { password_reset: true, reauthentication_required: true };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
   app.post('/v1/admin/auth/login', {
     config: {
       rateLimit: {
@@ -367,9 +620,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       ...(usesCookieSession ? {} : { refresh_token: session.refreshToken }),
       setup_required:
         !isBaristaAccount &&
-        (admin.must_change_password === 1 ||
-          admin.must_set_email === 1 ||
-          !admin.email),
+        admin.must_change_password === 1,
       tenant: {
         code: admin.tenant_code,
         name: admin.tenant_name,
@@ -490,9 +741,10 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       `
         UPDATE admin_users
         SET email = :email,
+            email_verified_at = NULL,
             password_hash = :passwordHash,
             must_change_password = 0,
-            must_set_email = 0,
+            must_set_email = 1,
             status = 'active',
             activated_at = COALESCE(activated_at, UTC_TIMESTAMP()),
             updated_at = UTC_TIMESTAMP()
@@ -509,6 +761,210 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       user: await getAdminUserResponse(request.adminAuth.adminUserId),
       setup_required: false
     };
+  });
+
+  app.post('/v1/admin/auth/email-verification/request', {
+    preHandler: authenticateAdminRequest,
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '15 minutes',
+        hook: 'preHandler',
+        keyGenerator: getAdminEmailVerificationRateLimitKey
+      }
+    }
+  }, async (request) => {
+    const payload = adminEmailVerificationRequestSchema.parse(request.body);
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      password_hash: string | null;
+      email: string | null;
+      email_verified_at: Date | null;
+    }>>(
+      `SELECT password_hash, email, email_verified_at
+       FROM admin_users
+       WHERE id = :adminUserId AND tenant_id = :tenantId AND status = 'active'
+       LIMIT 1`,
+      { adminUserId: request.adminAuth.adminUserId, tenantId: request.adminAuth.tenantId }
+    );
+    const admin = rows[0];
+    if (!admin?.password_hash || !(await verifyPassword(payload.current_password, admin.password_hash))) {
+      throw new ApiError(400, 'invalid_current_password', 'Current password is incorrect.');
+    }
+    if (admin.email === payload.email && admin.email_verified_at) {
+      throw new ApiError(409, 'admin_email_already_verified', 'This recovery email is already verified.');
+    }
+
+    const [duplicates] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT id FROM admin_users
+       WHERE tenant_id = :tenantId AND email = :email AND id <> :adminUserId
+       LIMIT 1`,
+      {
+        tenantId: request.adminAuth.tenantId,
+        email: payload.email,
+        adminUserId: request.adminAuth.adminUserId
+      }
+    );
+    if (duplicates.length > 0) {
+      throw new ApiError(409, 'admin_email_conflict', 'This email is already used by another administrator.');
+    }
+
+    const requestId = crypto.randomUUID();
+    const otpCode = generateOtpCode();
+    await mysqlPool.execute(
+      `UPDATE admin_email_verification_otps
+       SET status = 'cancelled'
+       WHERE admin_user_id = :adminUserId AND status = 'pending'`,
+      { adminUserId: request.adminAuth.adminUserId }
+    );
+    await mysqlPool.execute(
+      `INSERT INTO admin_email_verification_otps (
+         request_id, admin_user_id, pending_email, otp_hash, expires_at, requested_at
+       ) VALUES (
+         :requestId, :adminUserId, :pendingEmail, :otpHash,
+         DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 MINUTE), UTC_TIMESTAMP()
+       )`,
+      {
+        requestId,
+        adminUserId: request.adminAuth.adminUserId,
+        pendingEmail: payload.email,
+        otpHash: hashSha256(otpCode)
+      }
+    );
+
+    try {
+      await sendOtpEmail({
+        to: payload.email,
+        otpCode,
+        subject: 'Verify your C2 Coffee Admin recovery email',
+        heading: 'Your C2 Coffee Admin email-verification code is:'
+      });
+    } catch {
+      await mysqlPool.execute(
+        `UPDATE admin_email_verification_otps SET status = 'cancelled' WHERE request_id = :requestId`,
+        { requestId }
+      );
+      throw new ApiError(503, 'admin_email_verification_failed', 'We could not send the verification code. Please try again shortly.');
+    }
+
+    return { request_id: requestId, expires_in_seconds: 600 };
+  });
+
+  app.post('/v1/admin/auth/email-verification/confirm', {
+    preHandler: authenticateAdminRequest,
+    config: {
+      rateLimit: {
+        max: 8,
+        timeWindow: '15 minutes',
+        hook: 'preHandler',
+        keyGenerator: getAdminEmailVerificationRateLimitKey
+      }
+    }
+  }, async (request) => {
+    const payload = adminEmailVerificationConfirmSchema.parse(request.body);
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<Array<RowDataPacket & {
+        id: number;
+        pending_email: string;
+        otp_hash: string;
+        expires_at: Date;
+        attempts_used: number;
+        max_attempts: number;
+        status: string;
+      }>>(
+        `SELECT id, pending_email, otp_hash, expires_at, attempts_used, max_attempts, status
+         FROM admin_email_verification_otps
+         WHERE request_id = :requestId AND admin_user_id = :adminUserId
+         LIMIT 1 FOR UPDATE`,
+        { requestId: payload.request_id, adminUserId: request.adminAuth.adminUserId }
+      );
+      const verification = rows[0];
+      if (!verification || verification.status !== 'pending') {
+        throw new ApiError(400, 'admin_email_verification_invalid', 'The email-verification request or code is invalid.');
+      }
+      if (new Date(verification.expires_at).getTime() <= Date.now()) {
+        await connection.execute(
+          `UPDATE admin_email_verification_otps SET status = 'expired' WHERE id = :id`,
+          { id: verification.id }
+        );
+        await connection.commit();
+        throw new ApiError(410, 'admin_email_verification_expired', 'This verification code has expired. Request a new code.');
+      }
+      if (verification.attempts_used >= verification.max_attempts) {
+        await connection.execute(
+          `UPDATE admin_email_verification_otps SET status = 'blocked' WHERE id = :id`,
+          { id: verification.id }
+        );
+        await connection.commit();
+        throw new ApiError(429, 'admin_email_verification_blocked', 'Too many incorrect attempts. Request a new code.');
+      }
+      if (!otpMatches(payload.otp_code, verification.otp_hash)) {
+        const attempts = verification.attempts_used + 1;
+        await connection.execute(
+          `UPDATE admin_email_verification_otps
+           SET attempts_used = :attempts,
+               status = CASE WHEN :attempts >= max_attempts THEN 'blocked' ELSE status END
+           WHERE id = :id`,
+          { attempts, id: verification.id }
+        );
+        await connection.commit();
+        throw new ApiError(400, 'admin_email_verification_invalid', 'The email-verification request or code is invalid.');
+      }
+
+      const [duplicates] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM admin_users
+         WHERE tenant_id = :tenantId AND email = :email AND id <> :adminUserId
+         LIMIT 1 FOR UPDATE`,
+        {
+          tenantId: request.adminAuth.tenantId,
+          email: verification.pending_email,
+          adminUserId: request.adminAuth.adminUserId
+        }
+      );
+      if (duplicates.length > 0) {
+        throw new ApiError(409, 'admin_email_conflict', 'This email is already used by another administrator.');
+      }
+
+      await connection.execute(
+        `UPDATE admin_users
+         SET email = :email,
+             email_verified_at = UTC_TIMESTAMP(),
+             must_set_email = 0,
+             updated_at = UTC_TIMESTAMP()
+         WHERE id = :adminUserId`,
+        { email: verification.pending_email, adminUserId: request.adminAuth.adminUserId }
+      );
+      await connection.execute(
+        `UPDATE admin_email_verification_otps
+         SET status = 'consumed', consumed_at = UTC_TIMESTAMP()
+         WHERE id = :id`,
+        { id: verification.id }
+      );
+      await connection.execute(
+        `INSERT INTO admin_audit_logs (
+           admin_user_id, effective_roles_json, action_code, target_type,
+           target_id, after_json, ip_address, user_agent, created_at
+         ) VALUES (
+           :adminUserId, :roles, 'admin_recovery_email_verified', 'admin_user',
+           :adminUserId, :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP()
+         )`,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          afterJson: JSON.stringify({ email: verification.pending_email, verified: true }),
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null
+        }
+      );
+      await connection.commit();
+      return { user: await getAdminUserResponse(request.adminAuth.adminUserId) };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   });
 
   app.post('/v1/admin/auth/logout', { preHandler: authenticateAdminRequest }, async (request, reply) => {
@@ -536,16 +992,20 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       throw new ApiError(400, 'password_reused', 'Choose a new password that is different from your current password.');
     }
 
-    const [rows] = await mysqlPool.query<Array<RowDataPacket & { email: string | null; password_hash: string | null }>>(
-      `SELECT email, password_hash FROM admin_users WHERE id = :adminUserId LIMIT 1`,
+    const [rows] = await mysqlPool.query<Array<RowDataPacket & {
+      email: string | null;
+      email_verified_at: Date | null;
+      password_hash: string | null;
+    }>>(
+      `SELECT email, email_verified_at, password_hash FROM admin_users WHERE id = :adminUserId LIMIT 1`,
       { adminUserId: request.adminAuth.adminUserId }
     );
     const admin = rows[0];
-    if (!admin?.email) {
-      throw new ApiError(409, 'admin_email_required', 'Add a valid admin email address before changing the password.');
+    if (!admin?.email || !admin.email_verified_at) {
+      throw new ApiError(409, 'admin_verified_email_required', 'Verify your recovery email before changing the password.');
     }
     if (!admin.password_hash || !(await verifyPassword(payload.current_password, admin.password_hash))) {
-      throw new ApiError(401, 'invalid_current_password', 'Current password is incorrect.');
+      throw new ApiError(400, 'invalid_current_password', 'Current password is incorrect.');
     }
 
     const requestId = crypto.randomUUID();
@@ -607,14 +1067,16 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
       );
       const change = rows[0];
       if (!change || change.status !== 'pending') {
-        throw new ApiError(401, 'password_change_request_invalid', 'Password-change request is no longer valid.');
+        throw new ApiError(400, 'password_change_request_invalid', 'Password-change request is no longer valid.');
       }
       if (new Date(change.expires_at).getTime() <= Date.now()) {
         await connection.execute(`UPDATE admin_password_change_otps SET status = 'expired' WHERE id = :id`, { id: change.id });
-        throw new ApiError(401, 'password_change_code_expired', 'This verification code has expired. Request a new code.');
+        await connection.commit();
+        throw new ApiError(410, 'password_change_code_expired', 'This verification code has expired. Request a new code.');
       }
       if (change.attempts_used >= change.max_attempts) {
         await connection.execute(`UPDATE admin_password_change_otps SET status = 'blocked' WHERE id = :id`, { id: change.id });
+        await connection.commit();
         throw new ApiError(429, 'password_change_code_blocked', 'Too many incorrect attempts. Request a new code.');
       }
       if (!otpMatches(payload.otp_code, change.otp_hash)) {
@@ -623,7 +1085,8 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
           `UPDATE admin_password_change_otps SET attempts_used = :attempts, status = CASE WHEN :attempts >= max_attempts THEN 'blocked' ELSE status END WHERE id = :id`,
           { attempts, id: change.id }
         );
-        throw new ApiError(401, 'invalid_password_change_code', 'Verification code is incorrect.');
+        await connection.commit();
+        throw new ApiError(400, 'invalid_password_change_code', 'Verification code is incorrect.');
       }
 
       await connection.execute(
@@ -680,7 +1143,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
     );
     const isBaristaAccount = roleCodes.length === 1 && roleCodes[0] === 'barista';
     assertTenantRoleAssignment(roleCodes);
-    const setupRequired = !isBaristaAccount && !payload.email;
+    const setupRequired = !isBaristaAccount;
 
     const connection = await mysqlPool.getConnection();
     await connection.query("SET time_zone = '+00:00'");
@@ -721,6 +1184,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
             status,
             must_change_password,
             must_set_email,
+            email_verified_at,
             invited_at,
             activated_at,
             created_at,
@@ -735,6 +1199,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
             :status,
             :mustChangePassword,
             :mustSetEmail,
+            NULL,
             UTC_TIMESTAMP(),
             NULL,
             UTC_TIMESTAMP(),
@@ -749,7 +1214,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
           passwordHash,
           status: toStoredAdminStatus(payload.status),
           mustChangePassword: isBaristaAccount ? 0 : 1,
-          mustSetEmail: setupRequired ? 1 : 0
+          mustSetEmail: isBaristaAccount ? 0 : 1
         }
       );
 
@@ -944,8 +1409,13 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
         queryParams.username = payload.username;
       }
       if (payload.email !== undefined) {
+        const nextEmail = nullableString(payload.email);
         updates.push('email = :email');
-        queryParams.email = nullableString(payload.email);
+        queryParams.email = nextEmail;
+        if (nextEmail !== existing.email) {
+          updates.push('email_verified_at = NULL');
+          updates.push('must_set_email = 1');
+        }
       }
       if (payload.full_name !== undefined) {
         updates.push('full_name = :fullName');
@@ -1200,6 +1670,7 @@ async function getAdminUserResponse(adminUserId: number): Promise<{
   tenant_display_name: string;
   username: string;
   email: string | null;
+  email_verified_at: string | null;
   full_name: string;
   status: string;
   last_login_at: string | null;
@@ -1217,6 +1688,7 @@ async function getAdminUserResponse(adminUserId: number): Promise<{
         tenant_display_name: string;
         username: string;
         email: string | null;
+        email_verified_at: Date | null;
         full_name: string;
         status: string;
         last_login_at: Date | null;
@@ -1234,6 +1706,7 @@ async function getAdminUserResponse(adminUserId: number): Promise<{
         t.display_name AS tenant_display_name,
         u.username,
         u.email,
+        u.email_verified_at,
         u.full_name,
         u.status,
         u.last_login_at,
@@ -1271,11 +1744,12 @@ async function getAdminUserResponse(adminUserId: number): Promise<{
     tenant_display_name: admin.tenant_display_name,
     username: admin.username,
     email: admin.email,
+    email_verified_at: admin.email_verified_at ? admin.email_verified_at.toISOString() : null,
     full_name: admin.full_name,
     status: toAdminResponseStatus(admin.status),
     last_login_at: admin.last_login_at ? admin.last_login_at.toISOString() : null,
     must_change_password: admin.must_change_password === 1,
-    must_set_email: admin.must_set_email === 1 || !admin.email,
+    must_set_email: admin.must_set_email === 1 || !admin.email || !admin.email_verified_at,
     roles: roleRows.map((role) => role.code)
   };
 }

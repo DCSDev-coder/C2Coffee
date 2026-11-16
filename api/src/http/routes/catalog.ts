@@ -74,7 +74,9 @@ type MenuRow = RowDataPacket & {
   allow_sparkling_mixer: number;
   allow_order_type: number;
   allow_remarks: number;
-  tier_code: "kawan" | "dilamun" | "ketagih" | "legend" | null;
+  // Tier codes are tenant-configurable. Keep this open-ended so renamed or
+  // newly added tiers are not silently rejected by the catalogue mapper.
+  tier_code: string | null;
   token_price: number | null;
   modifier_group_id: number | null;
   modifier_group_code: string | null;
@@ -603,8 +605,13 @@ export async function registerCatalogRoutes(
         },
         loyalty: {
           tier: summary.tier,
+          tier_qualified: summary.tier_qualified,
           cups_last_180d: summary.cups_last_180d,
-          qualifying_orders_last_12_months: summary.cups_last_180d,
+          qualifying_orders_rolling_12m: summary.qualifying_orders_rolling_12m,
+          qualifying_orders_last_12_months: summary.qualifying_orders_rolling_12m,
+          lifetime_qualifying_orders: summary.lifetime_qualifying_orders,
+          tier_retention_progress: summary.tier_retention_progress,
+          tier_retention_target: summary.tier_retention_target,
           tier_review_due_at: summary.tier_review_due_at,
           next_tier: null,
           tiers: summary.tiers,
@@ -624,8 +631,13 @@ export async function registerCatalogRoutes(
       const summary = await getBootstrapForUser(request.auth.userId);
       return {
         tier: summary.tier,
+        tier_qualified: summary.tier_qualified,
         cups_last_180d: summary.cups_last_180d,
-        qualifying_orders_last_12_months: summary.cups_last_180d,
+        qualifying_orders_rolling_12m: summary.qualifying_orders_rolling_12m,
+        qualifying_orders_last_12_months: summary.qualifying_orders_rolling_12m,
+        lifetime_qualifying_orders: summary.lifetime_qualifying_orders,
+        tier_retention_progress: summary.tier_retention_progress,
+        tier_retention_target: summary.tier_retention_target,
         tier_review_due_at: summary.tier_review_due_at,
         tiers: summary.tiers,
       };

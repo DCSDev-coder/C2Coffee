@@ -243,7 +243,13 @@ async function requireLatestSchema(): Promise<void> {
     '144_backfill_active_customer_token_accounts.sql',
     '145_create_order_price_corrections.sql',
     '146_add_counter_barista_prices.sql',
-    '147_remove_legacy_barista_price.sql'
+    '147_remove_legacy_barista_price.sql',
+    '148_create_refund_items.sql',
+    '149_add_rolling_12m_loyalty_progress.sql',
+    '150_backfill_rolling_12m_loyalty_progress.sql',
+    '151_enforce_first_order_tier_qualification.sql',
+    '152_add_verified_admin_recovery.sql',
+    '153_separate_counter_exit_password.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,
@@ -347,7 +353,7 @@ async function main(): Promise<void> {
   const checks: Check[] = [
     {
       name: 'Latest schema migrations',
-      detail: 'All current release migrations, including gift-card hardening, must be applied.',
+      detail: 'All current release migrations, including refunds, loyalty policy, admin recovery, and counter credential separation, must be applied.',
       run: requireLatestSchema
     },
     {

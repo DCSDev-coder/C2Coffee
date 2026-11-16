@@ -2,16 +2,25 @@ export const ADMIN_LOGIN_PATH = "/v1/admin/auth/login";
 export const ADMIN_REFRESH_PATH = "/v1/admin/auth/refresh";
 export const ADMIN_COMPLETE_SETUP_PATH = "/v1/admin/auth/complete-setup";
 export const ADMIN_LOGOUT_PATH = "/v1/admin/auth/logout";
+export const ADMIN_PASSWORD_RESET_REQUEST_PATH = "/v1/admin/auth/password-reset/request";
+export const ADMIN_PASSWORD_RESET_CONFIRM_PATH = "/v1/admin/auth/password-reset/confirm";
 
 const nonRefreshableAuthPaths = new Set([
   ADMIN_LOGIN_PATH,
   ADMIN_REFRESH_PATH,
   ADMIN_COMPLETE_SETUP_PATH,
   ADMIN_LOGOUT_PATH,
+  ADMIN_PASSWORD_RESET_REQUEST_PATH,
+  ADMIN_PASSWORD_RESET_CONFIRM_PATH,
 ]);
 
 export function shouldAttachStoredAdminAccessToken(path) {
-  return path !== ADMIN_LOGIN_PATH && path !== ADMIN_REFRESH_PATH;
+  return ![
+    ADMIN_LOGIN_PATH,
+    ADMIN_REFRESH_PATH,
+    ADMIN_PASSWORD_RESET_REQUEST_PATH,
+    ADMIN_PASSWORD_RESET_CONFIRM_PATH,
+  ].includes(path);
 }
 
 export function shouldAttemptAdminSessionRefresh({

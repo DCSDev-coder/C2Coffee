@@ -33,10 +33,22 @@ export const calculateTierProgress = (cupsStr, tiers = []) => {
     : [];
 
   if (activeTiers.length === 0) {
-    if (cups < 10) return { tier: 'Sipper', nextTier: 'Brewer', target: 10, current: cups, percentage: (cups / 10) * 100, remaining: 10 - cups, isBaseTier: true };
-    if (cups < 30) return { tier: 'Brewer', nextTier: 'Roaster', target: 30, current: cups, percentage: (cups / 30) * 100, remaining: 30 - cups, isBaseTier: false };
-    if (cups < 50) return { tier: 'Roaster', nextTier: 'Legendary', target: 50, current: cups, percentage: (cups / 50) * 100, remaining: 50 - cups, isBaseTier: false };
-    return { tier: 'Legendary', nextTier: 'Max Tier', target: cups, current: cups, percentage: 100, remaining: 0, isBaseTier: false };
+    return { tier: 'Not yet tiered', nextTier: 'Tier unavailable', target: 0, current: cups, percentage: 0, remaining: 0, isBaseTier: false, isQualified: false };
+  }
+
+  const firstTier = activeTiers[0];
+  if (cups < firstTier.minCups) {
+    const target = Math.max(1, firstTier.minCups);
+    return {
+      tier: 'Not yet tiered',
+      nextTier: firstTier.name,
+      target,
+      current: cups,
+      percentage: Math.min(100, Math.round((cups / target) * 100)),
+      remaining: Math.max(0, firstTier.minCups - cups),
+      isBaseTier: false,
+      isQualified: false
+    };
   }
 
   let currentTier = activeTiers[0];
@@ -63,18 +75,19 @@ export const calculateTierProgress = (cupsStr, tiers = []) => {
     current: cups,
     percentage,
     remaining,
-    isBaseTier: currentIndex === 0
+    isBaseTier: currentIndex === 0,
+    isQualified: true
   };
 };
 
 // oxlint-disable-next-line react/only-export-components
 export const resolveTierProgress = (customer, tiers = []) => {
   const persisted = customer?.tierProgress;
-  if (!persisted) return calculateTierProgress(customer?.cupsLast180d ?? 0, tiers);
+  if (!persisted) return calculateTierProgress(customer?.qualifyingOrdersRolling12m ?? customer?.cupsLast180d ?? 0, tiers);
 
   return {
     ...persisted,
-    tier: persisted.tier ?? persisted.tierName ?? customer?.tier ?? 'Member',
+    tier: persisted.tier ?? persisted.tierName ?? customer?.tier ?? 'Not yet tiered',
     nextTier: persisted.nextTier ?? 'Max Tier'
   };
 };
@@ -277,12 +290,12 @@ const CustomerDetailPanel = ({ customer, tiers, onClose, canManageCustomers, onE
               <Crown size={24} className="text-yellow-400 shrink-0" />
               <div>
                 <p className="font-bold text-sm sm:text-base">{progress.tier}</p>
-                <p className="text-xs text-white/70">{progress.current} qualifying cups in the rolling 180-day window</p>
+                <p className="text-xs text-white/70">{progress.current} qualifying orders in the rolling 12-month period</p>
               </div>
             </div>
             <div className="text-right">
               <p className="text-xs text-white/70 mb-1">Next: {progress.nextTier}</p>
-              <p className="font-bold text-xs sm:text-sm">{progress.nextTier === 'Max Tier' ? 'Max Tier' : `${progress.current}/${progress.target} cups`}</p>
+              <p className="font-bold text-xs sm:text-sm">{progress.nextTier === 'Max Tier' ? 'Max Tier' : `${progress.current}/${progress.target} orders`}</p>
             </div>
           </div>
           <div className="w-full bg-black/30 rounded-full h-2 relative z-10">

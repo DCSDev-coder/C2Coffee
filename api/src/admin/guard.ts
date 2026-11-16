@@ -143,7 +143,10 @@ export async function authenticateAdminRequest(
   enforceBaristaRouteAccess(request);
 
   const path = request.url.split('?')[0];
-  if (!request.adminAuth.isBaristaOnly && (request.adminAuth.mustChangePassword || request.adminAuth.mustSetEmail) && ![
+  // Existing administrators without a verified recovery email remain usable
+  // and receive a non-blocking enrollment prompt in Admin Web. Only a forced
+  // password change blocks access to the rest of the platform.
+  if (!request.adminAuth.isBaristaOnly && request.adminAuth.mustChangePassword && ![
     '/v1/admin/auth/complete-setup', '/v1/admin/auth/me', '/v1/admin/auth/logout',
     '/v1/admin/auth/password-change/request', '/v1/admin/auth/password-change/confirm'
   ].includes(path)) {

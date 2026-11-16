@@ -1079,7 +1079,12 @@ export async function getBootstrapForUser(
   has_completed_topup: boolean;
   tier: string;
   cups_last_180d: number;
-  tier_review_due_at: string;
+  qualifying_orders_rolling_12m: number;
+  lifetime_qualifying_orders: number;
+  tier_qualified: boolean;
+  tier_retention_progress: number;
+  tier_retention_target: number;
+  tier_review_due_at: string | null;
   tiers: BootstrapTierConfig[];
 }> {
   if (connection === mysqlPool) {
@@ -1111,16 +1116,29 @@ export async function getBootstrapForUser(
     Array<
       RowDataPacket & {
         tier_code: string;
-        qualifying_cups_last_180d: number;
+        qualifying_orders_rolling_12m: number;
+        lifetime_qualifying_orders: number;
       }
     >
   >(
     `
-      SELECT tier_code, qualifying_cups_last_180d
-      FROM loyalty_tier_snapshots
-      WHERE user_id = :userId
-      ORDER BY effective_at DESC, id DESC
-      LIMIT 1
+      SELECT
+        latest.tier_code,
+        latest.qualifying_orders_rolling_12m,
+        (
+          SELECT COUNT(DISTINCT lce.order_id)
+          FROM loyalty_cup_events lce
+          WHERE lce.user_id = :userId AND lce.reversed_at IS NULL
+        ) AS lifetime_qualifying_orders
+      FROM (
+        SELECT tier_code,
+               COALESCE(qualifying_orders_rolling_12m, qualifying_cups_last_180d)
+                 AS qualifying_orders_rolling_12m
+        FROM loyalty_tier_snapshots
+        WHERE user_id = :userId
+        ORDER BY effective_at DESC, id DESC
+        LIMIT 1
+      ) latest
     `,
     { userId }
   );
@@ -1213,14 +1231,26 @@ export async function getBootstrapForUser(
     };
   });
 
+  const currentTierCode = tierRows[0]?.tier_code ?? 'unqualified';
+  const currentTier = allTiers.find((tier) => tier.code === currentTierCode) ?? null;
+  const qualifyingOrdersRolling12m = Number(tierRows[0]?.qualifying_orders_rolling_12m ?? 0);
+
   return {
     token_balance: tokenRows[0]?.balance_available ?? 0,
     token_reserved: tokenRows[0]?.balance_reserved ?? 0,
     token_cap: tokenRows[0]?.balance_cap ?? 500,
     has_completed_topup: Number(topupRows[0]?.has_completed_topup ?? 0) === 1,
-    tier: tierRows[0]?.tier_code ?? 'kawan',
-    cups_last_180d: tierRows[0]?.qualifying_cups_last_180d ?? 0,
-    tier_review_due_at: tierRefresh.reviewDueAt.toISOString(),
+    tier: currentTierCode,
+    // Legacy alias retained until all published clients adopt the canonical key.
+    cups_last_180d: qualifyingOrdersRolling12m,
+    qualifying_orders_rolling_12m: qualifyingOrdersRolling12m,
+    lifetime_qualifying_orders: Number(tierRows[0]?.lifetime_qualifying_orders ?? 0),
+    tier_qualified: currentTier !== null,
+    tier_retention_progress: tierRefresh.retentionProgress,
+    tier_retention_target: currentTier
+      ? tierRefresh.retentionTarget
+      : 0,
+    tier_review_due_at: currentTier ? tierRefresh.reviewDueAt.toISOString() : null,
     tiers
   };
 }

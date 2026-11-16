@@ -43,6 +43,7 @@ const EMPTY_OVERVIEW = {
     averageOrderValueRm: 0
   },
   monthlyRevenue: [],
+  dailySales: [],
   statusBreakdown: [],
   topUpMethodBreakdown: [],
   paymentMethodBreakdown: [],
@@ -187,6 +188,7 @@ const Finance = ({ setCurrentPage }) => {
 
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
+  const dailySales = Array.isArray(overview.dailySales) ? overview.dailySales : [];
   const topUpMethodBreakdown = Array.isArray(overview.topUpMethodBreakdown) ? overview.topUpMethodBreakdown : [];
   const paymentMethodBreakdown = Array.isArray(overview.paymentMethodBreakdown) ? overview.paymentMethodBreakdown : [];
   const tokenMovementBreakdown = Array.isArray(overview.tokenMovementBreakdown) ? overview.tokenMovementBreakdown : [];
@@ -195,10 +197,6 @@ const Finance = ({ setCurrentPage }) => {
     () => (Array.isArray(overview.recentTransactions) ? overview.recentTransactions : []),
     [overview.recentTransactions]
   );
-  const peakTokenMonth = monthlyRevenue.reduce((best, entry) => {
-    if (!best) return entry;
-    return Number(entry.tokensCharged || 0) > Number(best.tokensCharged || 0) ? entry : best;
-  }, null);
   const totalPaidTopUps = topUpMethodBreakdown.reduce((total, entry) => total + Number(entry.count || 0), 0);
   const mostUsedTopUpMethod = topUpMethodBreakdown.find((entry) => entry.method !== 'not_recorded') || null;
 
@@ -228,6 +226,12 @@ const Finance = ({ setCurrentPage }) => {
     netTokens: Number(entry.netTokens || 0),
     grossRevenueRm: Number(entry.revenueRm || 0),
     netRevenueRm: Number(entry.netRm || 0)
+  }));
+  const dailySalesChartData = dailySales.map((entry) => ({
+    date: entry.date,
+    grossRevenueRm: Number(entry.grossRevenueRm || 0),
+    netRevenueRm: Number(entry.netRevenueRm || 0),
+    orders: Number(entry.orders || 0)
   }));
   const maxTokenValue = revenueChartData.reduce((max, entry) => Math.max(
     max,
@@ -524,12 +528,48 @@ const Finance = ({ setCurrentPage }) => {
           )}
         </div>
 
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[420px]">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900">Daily Sales</h3>
+                <InfoTooltip content="Gross and net settled order value for the last 14 outlet-local calendar days. Pending and cancelled orders are excluded." title="Daily Sales" />
+              </div>
+              <p className="text-sm text-gray-500">RM order value by day, including C2 Credit equivalents, after completed refunds.</p>
+            </div>
+            <div className="rounded-full bg-[#EEF6F3] px-3 py-1 text-xs font-semibold text-[#1F5A4D]">Last 14 days</div>
+          </div>
+          <div className="overflow-x-auto pb-2">
+            <div className="h-[300px]" style={{ minWidth: `${Math.max(720, dailySalesChartData.length * 72)}px` }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailySalesChartData} margin={{ top: 20, right: 18, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis dataKey="date" axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} dy={10} />
+                  <YAxis axisLine={{ stroke: '#E5E7EB' }} tickLine={false} tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 600 }} tickFormatter={(value) => `RM ${Number(value).toLocaleString('en-MY')}`} width={66} />
+                  <Tooltip
+                    cursor={{ fill: '#F3F4F6' }}
+                    contentStyle={{ backgroundColor: '#1F3A34', borderRadius: '8px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                    formatter={(value, name) => [`RM ${Number(value).toFixed(2)}`, name]}
+                  />
+                  <Bar dataKey="grossRevenueRm" name="Gross sales" fill="#2E5E58" radius={[4, 4, 0, 0]} barSize={18} />
+                  <Bar dataKey="netRevenueRm" name="Net sales" fill="#A8C9C0" radius={[4, 4, 0, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+            <div className="rounded-xl border border-gray-200 px-4 py-3"><p className="text-xs uppercase tracking-[0.14em] text-gray-500">Gross order value</p><p className="mt-1 font-semibold text-gray-900">{formatReportMoney(dailySales.reduce((sum, entry) => sum + Number(entry.grossRevenueRm || 0), 0))}</p></div>
+            <div className="rounded-xl border border-gray-200 px-4 py-3"><p className="text-xs uppercase tracking-[0.14em] text-gray-500">Net order value</p><p className="mt-1 font-semibold text-gray-900">{formatReportMoney(dailySales.reduce((sum, entry) => sum + Number(entry.netRevenueRm || 0), 0))}</p></div>
+            <div className="rounded-xl border border-gray-200 px-4 py-3"><p className="text-xs uppercase tracking-[0.14em] text-gray-500">Orders</p><p className="mt-1 font-semibold text-gray-900">{dailySales.reduce((sum, entry) => sum + Number(entry.orders || 0), 0).toLocaleString('en-MY')}</p></div>
+          </div>
+        </div>
+
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col min-h-[440px]">
           <div className="flex items-start justify-between gap-4 mb-5">
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-bold text-gray-900">Token Flow by Month</h3>
-                <InfoTooltip content="Monthly breakdown comparing tokens charged, refunded, and retained net balance." title="Token Flow" />
+                <InfoTooltip content="Monthly token usage. Refunds are shown separately when present; net tokens are summarized below." title="Token Flow" />
               </div>
               <p className="text-sm text-gray-500">Token volume is shown separately from direct-payment settlement. RM values here are order-value equivalents.</p>
             </div>
@@ -562,8 +602,9 @@ const Finance = ({ setCurrentPage }) => {
                     formatter={(value, name) => [`${Number(value).toLocaleString('en-US')} tokens`, name]}
                   />
                   <Bar dataKey="tokensCharged" name="Tokens charged" fill="#1F3A34" radius={[4, 4, 0, 0]} barSize={22} />
-                  <Bar dataKey="refundTokens" name="Refund tokens" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={22} />
-                  <Bar dataKey="netTokens" name="Net tokens" fill="#6F9F96" radius={[4, 4, 0, 0]} barSize={22} />
+                  {monthlyRevenue.some((entry) => Number(entry.refundTokens || 0) > 0) && (
+                    <Bar dataKey="refundTokens" name="Refund tokens" fill="#E07A5F" radius={[4, 4, 0, 0]} barSize={22} />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -579,9 +620,9 @@ const Finance = ({ setCurrentPage }) => {
               <p className="mt-1 font-semibold text-gray-900">{formatReportMoney(summary.netRevenueRm)}</p>
             </div>
             <div className="rounded-xl border border-gray-200 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Peak month</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Net tokens</p>
               <p className="mt-1 font-semibold text-gray-900">
-                {peakTokenMonth ? `${peakTokenMonth.month} · ${formatReportTokens(peakTokenMonth.tokensCharged)}` : '-'}
+                {formatReportTokens(summary.netTokens)}
               </p>
             </div>
           </div>

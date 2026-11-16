@@ -72,6 +72,8 @@ async function temporaryCounts(connection: PoolConnection, tenantId: number) {
     eligibleAuthOtps,
     eligibleEmailOtps,
     eligibleAdminPasswordOtps,
+    eligibleAdminRecoveryEmailOtps,
+    eligibleAdminPasswordResetOtps,
     eligibleOtpRequestLogs
   ] = await Promise.all([
     count(connection, 'SELECT COUNT(*) AS count FROM sessions WHERE expires_at <= UTC_TIMESTAMP()'),
@@ -88,17 +90,27 @@ async function temporaryCounts(connection: PoolConnection, tenantId: number) {
       JOIN admin_users au ON au.id = apco.admin_user_id
       WHERE au.tenant_id = :tenantId
         AND apco.expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)`, { tenantId }),
+    count(connection, `SELECT COUNT(*) AS count
+      FROM admin_email_verification_otps aevo
+      JOIN admin_users au ON au.id = aevo.admin_user_id
+      WHERE au.tenant_id = :tenantId
+        AND aevo.expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)`, { tenantId }),
+    count(connection, `SELECT COUNT(*) AS count
+      FROM admin_password_reset_otps apro
+      JOIN admin_users au ON au.id = apro.admin_user_id
+      WHERE au.tenant_id = :tenantId
+        AND apro.expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)`, { tenantId }),
     count(connection, 'SELECT COUNT(*) AS count FROM otp_request_logs WHERE created_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)')
   ]);
 
   return {
     expired_now: expiredCustomerSessions + expiredAdminSessions + expiredCounterSessions + expiredAuthOtps,
-    eligible_now: eligibleCustomerSessions + eligibleAdminSessions + eligibleCounterSessions + eligibleAuthOtps + eligibleEmailOtps + eligibleAdminPasswordOtps + eligibleOtpRequestLogs,
+    eligible_now: eligibleCustomerSessions + eligibleAdminSessions + eligibleCounterSessions + eligibleAuthOtps + eligibleEmailOtps + eligibleAdminPasswordOtps + eligibleAdminRecoveryEmailOtps + eligibleAdminPasswordResetOtps + eligibleOtpRequestLogs,
     groups: [
       { key: 'customer_sessions', label: 'Customer sessions', expired_now: expiredCustomerSessions, eligible_now: eligibleCustomerSessions },
       { key: 'admin_sessions', label: 'Admin sessions', expired_now: expiredAdminSessions, eligible_now: eligibleAdminSessions },
       { key: 'counter_sessions', label: 'Counter customer sessions', expired_now: expiredCounterSessions, eligible_now: eligibleCounterSessions },
-      { key: 'authentication_records', label: 'OTP and authentication diagnostics', expired_now: expiredAuthOtps, eligible_now: eligibleAuthOtps + eligibleEmailOtps + eligibleAdminPasswordOtps + eligibleOtpRequestLogs }
+      { key: 'authentication_records', label: 'OTP and authentication diagnostics', expired_now: expiredAuthOtps, eligible_now: eligibleAuthOtps + eligibleEmailOtps + eligibleAdminPasswordOtps + eligibleAdminRecoveryEmailOtps + eligibleAdminPasswordResetOtps + eligibleOtpRequestLogs }
     ]
   };
 }
@@ -121,6 +133,30 @@ async function deleteTemporaryRecords(connection: PoolConnection, tenantId: numb
           ORDER BY apco.id ASC
           LIMIT 500
         ) eligible_admin_password_otps
+      )`, { tenantId }],
+    ['admin_recovery_email_otps', `DELETE FROM admin_email_verification_otps
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT aevo.id
+          FROM admin_email_verification_otps aevo
+          JOIN admin_users au ON au.id = aevo.admin_user_id
+          WHERE au.tenant_id = :tenantId
+            AND aevo.expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)
+          ORDER BY aevo.id ASC
+          LIMIT 500
+        ) eligible_admin_recovery_email_otps
+      )`, { tenantId }],
+    ['admin_password_reset_otps', `DELETE FROM admin_password_reset_otps
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT apro.id
+          FROM admin_password_reset_otps apro
+          JOIN admin_users au ON au.id = apro.admin_user_id
+          WHERE au.tenant_id = :tenantId
+            AND apro.expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)
+          ORDER BY apro.id ASC
+          LIMIT 500
+        ) eligible_admin_password_reset_otps
       )`, { tenantId }],
     ['otp_request_logs', 'DELETE FROM otp_request_logs WHERE created_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY) LIMIT 500', undefined]
   ];

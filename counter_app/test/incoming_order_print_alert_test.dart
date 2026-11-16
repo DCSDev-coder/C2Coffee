@@ -102,9 +102,11 @@ void main() {
   });
 
   test(
-    'administrator unlock clears dead device token and triggers activationRequired when device_token_valid is false',
+    'counter exit unlock clears dead device token and triggers activationRequired when device_token_valid is false',
     () async {
-      FlutterSecureStorage.setMockInitialValues({'device_token': 'stale-token'});
+      FlutterSecureStorage.setMockInitialValues({
+        'device_token': 'stale-token',
+      });
       final service = AuthService(
         apiClient: _FakeApiClient(
           200,
@@ -112,7 +114,7 @@ void main() {
         ),
         storage: const FlutterSecureStorage(),
       );
-      final result = await service.verifyAdministratorPassword('AdminPass123!');
+      final result = await service.verifyCounterExitPassword('CounterPass123!');
       expect(result.success, isTrue);
       expect(result.deviceTokenValid, isFalse);
       expect(await service.getToken(), isNull);
@@ -124,9 +126,11 @@ void main() {
   );
 
   test(
-    'administrator unlock preserves valid device token when device_token_valid is true',
+    'counter exit unlock preserves valid device token when device_token_valid is true',
     () async {
-      FlutterSecureStorage.setMockInitialValues({'device_token': 'valid-token'});
+      FlutterSecureStorage.setMockInitialValues({
+        'device_token': 'valid-token',
+      });
       final service = AuthService(
         apiClient: _FakeApiClient(
           200,
@@ -134,7 +138,7 @@ void main() {
         ),
         storage: const FlutterSecureStorage(),
       );
-      final result = await service.verifyAdministratorPassword('AdminPass123!');
+      final result = await service.verifyCounterExitPassword('CounterPass123!');
       expect(result.success, isTrue);
       expect(result.deviceTokenValid, isTrue);
       expect(await service.getToken(), 'valid-token');

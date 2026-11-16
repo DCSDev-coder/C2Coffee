@@ -12,6 +12,11 @@ import {
 type LoyaltyExecutor = PoolConnection | typeof mysqlPool;
 
 export const LOYALTY_QUALIFICATION_DAYS = 365;
+export const UNQUALIFIED_TIER_CODE = 'unqualified';
+
+export function getAnnualRetentionTarget(minCups: number): number {
+  return Math.max(1, Math.ceil(minCups / 2));
+}
 
 interface RefreshOptions {
   forceDowngrade?: boolean;
@@ -26,6 +31,8 @@ export interface LoyaltyTierRefreshResult {
   tier: string;
   previousQualifyingOrders: number;
   qualifyingOrders: number;
+  retentionProgress: number;
+  retentionTarget: number;
   reviewDueAt: Date;
 }
 
@@ -40,6 +47,22 @@ export async function countQualifyingOrders(
         AND effective_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL ${LOYALTY_QUALIFICATION_DAYS} DAY)
         AND reversed_at IS NULL`,
     { userId }
+  );
+  return Number(rows[0]?.qualifying_orders ?? 0);
+}
+
+export async function countQualifyingOrdersSince(
+  userId: number,
+  since: Date,
+  connection: LoyaltyExecutor = mysqlPool
+): Promise<number> {
+  const [rows] = await connection.query<Array<RowDataPacket & { qualifying_orders: number }>>(
+    `SELECT COUNT(DISTINCT order_id) AS qualifying_orders
+       FROM loyalty_cup_events
+      WHERE user_id = :userId
+        AND effective_at >= :since
+        AND reversed_at IS NULL`,
+    { userId, since }
   );
   return Number(rows[0]?.qualifying_orders ?? 0);
 }
@@ -83,13 +106,14 @@ export async function refreshUserLoyaltyTier(
   const tiers = await loadLoyaltyTiers(connection);
   const activeTiers = getActiveLoyaltyTiers(tiers);
   const qualifyingOrders = await countQualifyingOrders(userId, connection);
-  const candidateTier = getTierProgress(qualifyingOrders, tiers).tierCode;
+  const candidateTier = getTierProgress(qualifyingOrders, tiers).tierCode ?? UNQUALIFIED_TIER_CODE;
 
   const [snapshotRows] = await connection.query<Array<RowDataPacket & {
     tier_code: string;
-    qualifying_cups_last_180d: number;
+    qualifying_orders_rolling_12m: number;
   }>>(
-    `SELECT tier_code, qualifying_cups_last_180d
+    `SELECT tier_code,
+            COALESCE(qualifying_orders_rolling_12m, qualifying_cups_last_180d) AS qualifying_orders_rolling_12m
        FROM loyalty_tier_snapshots
       WHERE user_id = :userId
       ORDER BY effective_at DESC, id DESC
@@ -98,9 +122,8 @@ export async function refreshUserLoyaltyTier(
   );
 
   const snapshot = snapshotRows[0];
-  const baseTier = activeTiers[0]?.code ?? 'kawan';
-  const snapshotTier = snapshot?.tier_code ?? baseTier;
-  const previousQualifyingOrders = Number(snapshot?.qualifying_cups_last_180d ?? 0);
+  const snapshotTier = snapshot?.tier_code ?? UNQUALIFIED_TIER_CODE;
+  const previousQualifyingOrders = Number(snapshot?.qualifying_orders_rolling_12m ?? 0);
 
   await connection.execute(
     `INSERT IGNORE INTO user_loyalty_tier_status (
@@ -113,10 +136,12 @@ export async function refreshUserLoyaltyTier(
 
   const [statusRows] = await connection.query<Array<RowDataPacket & {
     tier_code: string;
+    cycle_started_at: Date;
     review_due_at: Date;
     review_is_due: number;
   }>>(
-    `SELECT tier_code, review_due_at, review_due_at <= UTC_TIMESTAMP() AS review_is_due
+    `SELECT tier_code, cycle_started_at, review_due_at,
+            review_due_at <= UTC_TIMESTAMP() AS review_is_due
        FROM user_loyalty_tier_status
       WHERE user_id = :userId
       LIMIT 1
@@ -128,14 +153,22 @@ export async function refreshUserLoyaltyTier(
   const currentTier = status?.tier_code ?? snapshotTier;
   const currentConfig = activeTiers.find((tier) => tier.code === currentTier);
   const candidateConfig = activeTiers.find((tier) => tier.code === candidateTier);
-  const candidateIsHigher = Boolean(
-    currentConfig && candidateConfig && candidateConfig.minCups > currentConfig.minCups
-  );
-  const candidateIsLower = Boolean(
-    currentConfig && candidateConfig && candidateConfig.minCups < currentConfig.minCups
-  );
+  const currentIndex = currentConfig
+    ? activeTiers.findIndex((tier) => tier.code === currentConfig.code)
+    : -1;
+  const candidateIndex = candidateConfig
+    ? activeTiers.findIndex((tier) => tier.code === candidateConfig.code)
+    : -1;
+  const candidateIsHigher = candidateIndex > currentIndex;
+  const candidateIsLower = candidateIndex < currentIndex;
   const reviewIsDue = Boolean(status?.review_is_due);
-  const annualReview = reviewIsDue || (options.forceDowngrade === true && candidateIsLower);
+  const annualReview = reviewIsDue;
+  const retentionProgress = status?.cycle_started_at
+    ? await countQualifyingOrdersSince(userId, status.cycle_started_at, connection)
+    : 0;
+  const retentionTarget = currentIndex > 0 && currentConfig
+    ? getAnnualRetentionTarget(currentConfig.minCups)
+    : 0;
 
   let nextTier = currentTier;
   let reasonCode = 'annual_tier_progress';
@@ -145,9 +178,21 @@ export async function refreshUserLoyaltyTier(
     nextTier = candidateTier;
     reasonCode = 'tier_upgrade';
     resetAnnualCycle = true;
-  } else if (annualReview) {
+  } else if (options.forceDowngrade === true && candidateIsLower) {
+    // Refunds correct the exact tier immediately because the qualifying order
+    // no longer exists. This is separate from an inactivity review.
     nextTier = candidateTier;
-    reasonCode = candidateIsLower ? 'annual_tier_downgrade' : 'annual_tier_retained';
+    reasonCode = 'refund_tier_correction';
+    resetAnnualCycle = true;
+  } else if (annualReview) {
+    if (currentIndex <= 0 || retentionProgress >= retentionTarget) {
+      nextTier = currentTier;
+      reasonCode = 'annual_tier_retained';
+    } else {
+      // A customer can fall by only one tier at each annual review.
+      nextTier = activeTiers[currentIndex - 1]?.code ?? currentTier;
+      reasonCode = 'annual_tier_downgrade';
+    }
     resetAnnualCycle = true;
   } else if (candidateIsLower) {
     // Inactivity never removes a tier during its protected 12-month period.
@@ -159,9 +204,11 @@ export async function refreshUserLoyaltyTier(
   if (changed) {
     await connection.execute(
       `INSERT INTO loyalty_tier_snapshots (
-         user_id, tier_code, qualifying_cups_last_180d, effective_at, reason_code
+         user_id, tier_code, qualifying_cups_last_180d,
+         qualifying_orders_rolling_12m, effective_at, reason_code
        ) VALUES (
-         :userId, :nextTier, :qualifyingOrders, UTC_TIMESTAMP(), :reasonCode
+         :userId, :nextTier, :qualifyingOrders,
+         :qualifyingOrders, UTC_TIMESTAMP(), :reasonCode
        )`,
       { userId, nextTier, qualifyingOrders, reasonCode }
     );
@@ -183,7 +230,7 @@ export async function refreshUserLoyaltyTier(
     await revokeSupersededTierBenefits(userId, nextTier, connection);
   }
 
-  if (reviewIsDue) {
+  if (reviewIsDue && nextTier !== UNQUALIFIED_TIER_CODE) {
     const tierLabel = formatTierName(tiers, nextTier);
     await createUserNotification(connection, {
       userId,
@@ -195,7 +242,10 @@ export async function refreshUserLoyaltyTier(
       data: {
         previous_tier: currentTier,
         new_tier: nextTier,
-        qualifying_orders_last_12_months: qualifyingOrders
+        qualifying_orders_rolling_12m: qualifyingOrders,
+        qualifying_orders_last_12_months: qualifyingOrders,
+        retention_progress: retentionProgress,
+        retention_target: retentionTarget
       },
       deliveryKey: `annual_tier_review:${userId}:${new Date(status.review_due_at).toISOString()}`
     });
@@ -215,6 +265,12 @@ export async function refreshUserLoyaltyTier(
     tier: nextTier,
     previousQualifyingOrders,
     qualifyingOrders,
+    retentionProgress: resetAnnualCycle ? 0 : retentionProgress,
+    retentionTarget: activeTiers.findIndex((tier) => tier.code === nextTier) > 0
+      ? getAnnualRetentionTarget(
+        activeTiers.find((tier) => tier.code === nextTier)?.minCups ?? 1
+      )
+      : 0,
     reviewDueAt: updatedStatusRows[0]?.review_due_at ?? new Date()
   };
 }

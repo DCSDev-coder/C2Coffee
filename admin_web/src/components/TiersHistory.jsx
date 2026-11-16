@@ -37,14 +37,14 @@ const TiersHistory = ({ customer, progress, onBack }) => {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-extrabold tabular-nums">{progress.current}</p>
-                <p className="text-xs text-white/65">qualifying cups / 180 days</p>
+                <p className="text-xs text-white/65">qualifying orders / rolling 12 months</p>
               </div>
             </div>
             <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-black/30">
               <div className="h-full rounded-full bg-[#E07A5F]" style={{ width: `${progress.percentage}%` }} />
             </div>
             <div className="mt-2 flex items-center justify-between text-xs text-white/75">
-              <span>{isMaxTier ? 'Highest active tier reached' : `${progress.remaining} cups remaining`}</span>
+              <span>{isMaxTier ? 'Highest active tier reached' : `${progress.remaining} qualifying orders remaining`}</span>
               <span>{isMaxTier ? 'Max Tier' : `Next: ${progress.nextTier} at ${progress.target}`}</span>
             </div>
           </div>
@@ -54,7 +54,7 @@ const TiersHistory = ({ customer, progress, onBack }) => {
             <div>
               <p className="text-sm font-bold text-gray-900">How this rank is calculated</p>
               <p className="mt-1 text-sm leading-6 text-gray-600">
-                Tier progress uses the customer&apos;s persisted qualifying-cup total for the rolling 180-day window. It does not use total orders, C2 Credit balance, or fabricated history events.
+                Tier progress uses personally funded qualifying drink orders from the rolling 12-month period. Company-subsidised orders do not count. Achieved tiers are protected for 12 months and higher tiers use a reduced annual retention target.
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Login from './components/Login';
+import AdminRecoveryEmailDialog from './components/AdminRecoveryEmailDialog';
 import {
   clearAdminExplicitLogout,
   clearAdminTokens,
@@ -76,6 +77,7 @@ function AppContent({
   currentTenant,
   currentUser,
   handleUpdateUser,
+  onVerifyRecoveryEmail,
   prevPage,
 }) {
   const { navigateWithPrompt } = useUnsavedChanges();
@@ -101,7 +103,7 @@ function AppContent({
             onBackToOrders={() => navigateWithPrompt('Orders')}
           />
         )}
-        {currentPage === 'Profile' && <Profile onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} />}
+        {currentPage === 'Profile' && <Profile onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} currentUser={currentUser} onUpdateUser={handleUpdateUser} onVerifyRecoveryEmail={onVerifyRecoveryEmail} />}
         {currentPage === 'Voucher' && <Vouchers onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Gift Cards' && <GiftCards currentUser={currentUser} />}
         {currentPage === 'Referral Program' && <ReferralProgram />}
@@ -140,6 +142,13 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(readLastAdminPage);
   const [prevPage, setPrevPage] = useState('Dashboard');
+  const [emailPromptDismissed, setEmailPromptDismissed] = useState(false);
+  const [forceEmailPrompt, setForceEmailPrompt] = useState(false);
+
+  const isBaristaOnly = Array.isArray(currentUser?.roles) &&
+    currentUser.roles.length === 1 && currentUser.roles[0] === 'barista';
+  const needsRecoveryEmail = Boolean(currentUser?.must_set_email) && !isBaristaOnly;
+  const emailPromptOpen = forceEmailPrompt || (needsRecoveryEmail && !emailPromptDismissed);
 
   useEffect(() => {
     const restoreAdminSession = async () => {
@@ -255,6 +264,8 @@ function App() {
     if (user) {
       setCurrentUser(user);
     }
+    setEmailPromptDismissed(false);
+    setForceEmailPrompt(false);
     setIsLoggedIn(true);
     const savedPage = readLastAdminPage();
     setCurrentPage(canAccessAdminPage(user?.roles, savedPage) ? savedPage : firstAccessibleAdminPage(user?.roles));
@@ -295,17 +306,33 @@ function App() {
   }
 
   return (
-    <UnsavedChangesProvider onNavigate={handleNavigate}>
-      <AppContent
-        layoutCurrentPage={layoutCurrentPage}
-        currentPage={currentPage}
-        handleLogout={handleLogout}
-        currentTenant={currentTenant}
+    <>
+      <UnsavedChangesProvider onNavigate={handleNavigate}>
+        <AppContent
+          layoutCurrentPage={layoutCurrentPage}
+          currentPage={currentPage}
+          handleLogout={handleLogout}
+          currentTenant={currentTenant}
+          currentUser={currentUser}
+          handleUpdateUser={handleUpdateUser}
+          onVerifyRecoveryEmail={() => setForceEmailPrompt(true)}
+          prevPage={prevPage}
+        />
+      </UnsavedChangesProvider>
+      <AdminRecoveryEmailDialog
+        open={emailPromptOpen}
         currentUser={currentUser}
-        handleUpdateUser={handleUpdateUser}
-        prevPage={prevPage}
+        onClose={() => {
+          setForceEmailPrompt(false);
+          setEmailPromptDismissed(true);
+        }}
+        onVerified={(user) => {
+          setCurrentUser(user);
+          setForceEmailPrompt(false);
+          setEmailPromptDismissed(false);
+        }}
       />
-    </UnsavedChangesProvider>
+    </>
   );
 }
 

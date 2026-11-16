@@ -38,7 +38,7 @@ const activateDeviceSchema = z.object({
   activation_code: z.string().trim().toUpperCase().min(8).max(64)
 });
 
-const administratorUnlockSchema = z.object({
+const counterExitUnlockSchema = z.object({
   password: z.string().min(8).max(200)
 });
 
@@ -307,14 +307,15 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
   app.post('/v1/counter/administrator-unlock', {
     config: { rateLimit: { max: 5, timeWindow: '15 minutes' } }
   }, async (request) => {
-    const parsed = administratorUnlockSchema.safeParse(request.body);
+    const parsed = counterExitUnlockSchema.safeParse(request.body);
     if (!parsed.success) {
-      throw new ApiError(401, 'administrator_unlock_failed', 'Administrator password is incorrect.');
+      throw new ApiError(401, 'administrator_unlock_failed', 'Counter exit password is incorrect.');
     }
 
     // Attempt to identify the device if a valid device token is provided,
     // but do NOT reject the unlock if the device token is invalid, rotated, or missing.
-    // An administrator entering their password is the ultimate recovery mechanism.
+    // The separate counter exit credential is the recovery mechanism and never
+    // exposes a privileged administrator password to the Counter App.
     let deviceContext: CounterAuthContext | null = null;
     const authorization = request.headers.authorization;
     if (authorization?.startsWith('Bearer ')) {
@@ -353,27 +354,22 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
       throw new ApiError(503, 'deployment_tenant_unavailable', 'Deployment tenant is not configured.');
     }
 
-    const [administrators] = await mysqlPool.query<RowDataPacket[]>(
-      `SELECT DISTINCT u.id, u.password_hash
-       FROM admin_users u
-       JOIN admin_user_roles ur ON ur.admin_user_id = u.id
-       JOIN admin_roles r ON r.id = ur.admin_role_id
-       WHERE u.tenant_id = :tenantId
-         AND u.status = 'active'
-         AND u.password_hash IS NOT NULL
-         AND r.code IN ('super_admin', 'operations_admin', 'support_admin')`,
+    const [credentials] = await mysqlPool.query<Array<RowDataPacket & {
+      password_hash: string;
+      requires_rotation: number;
+    }>>(
+      `SELECT password_hash, requires_rotation
+       FROM tenant_counter_security
+       WHERE tenant_id = :tenantId
+       LIMIT 1`,
       { tenantId }
     );
-
-    let administratorId: number | null = null;
-    for (const administrator of administrators) {
-      if (await verifyPassword(parsed.data.password, administrator.password_hash)) {
-        administratorId = Number(administrator.id);
-        break;
-      }
+    const credential = credentials[0];
+    if (!credential) {
+      throw new ApiError(503, 'counter_exit_password_not_configured', 'Counter exit access has not been configured.');
     }
-    if (administratorId == null) {
-      throw new ApiError(401, 'administrator_unlock_failed', 'Administrator password is incorrect.');
+    if (!(await verifyPassword(parsed.data.password, credential.password_hash))) {
+      throw new ApiError(401, 'administrator_unlock_failed', 'Counter exit password is incorrect.');
     }
 
     try {
@@ -385,12 +381,14 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
            (:adminUserId, :roles, 'counter_workspace_unlocked', 'counter_device', :deviceId,
             :afterJson, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
         {
-          adminUserId: administratorId,
+          adminUserId: null,
           roles: JSON.stringify(['device_unlock']),
-          deviceId: deviceContext ? String(deviceContext.deviceId) : 'unpaired_or_rotated',
+          deviceId: deviceContext?.deviceId ?? null,
           afterJson: JSON.stringify({
             store_id: deviceContext?.storeId ?? null,
-            device_token_valid: deviceContext !== null
+            device_token_valid: deviceContext !== null,
+            separate_counter_credential: true,
+            requires_rotation: credential.requires_rotation === 1
           }),
           ipAddress: request.ip,
           userAgent: request.headers['user-agent'] ?? null
@@ -402,7 +400,8 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
 
     return {
       unlocked: true,
-      device_token_valid: deviceContext !== null
+      device_token_valid: deviceContext !== null,
+      counter_password_rotation_required: credential.requires_rotation === 1
     };
   });
 

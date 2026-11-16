@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { Area, AreaChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { loadAdminDashboard } from '../lib/adminApi';
 import OutletFilter from './OutletFilter';
 import InfoTooltip from './InfoTooltip';
@@ -38,13 +38,16 @@ const toDateKey = (date) => {
 };
 
 const statusTone = (status) => {
-  const value = String(status || '').toLowerCase();
-  if (value === 'collected') return 'bg-emerald-50 text-emerald-700 border border-emerald-200/60';
+  const value = String(status || '').toLowerCase().replace(/\s+/g, '_');
+  if (value === 'collected' || value === 'completed') return 'bg-emerald-50 text-emerald-700 border border-emerald-200/60';
   if (value === 'preparing') return 'bg-amber-50 text-amber-700 border border-amber-200/60';
   if (value === 'ready_for_pickup') return 'bg-sky-50 text-sky-700 border border-sky-200/60';
-  if (value === 'paid' || value === 'accepted') return 'bg-violet-50 text-violet-700 border border-violet-200/60';
+  if (value === 'paid' || value === 'accepted' || value === 'order_received') return 'bg-violet-50 text-violet-700 border border-violet-200/60';
+  if (value === 'cancelled' || value === 'voided') return 'bg-red-50 text-red-700 border border-red-200/60';
   return 'bg-slate-100 text-slate-700 border border-slate-200/60';
 };
+
+const PAYMENT_COLORS = ['#2E5E58', '#D4AF7A'];
 
 const StatCard = ({ title, value, detail, info, icon: Icon, iconBg, badge, highlight = false, onClick }) => (
   <button type="button" onClick={onClick} disabled={!onClick} className={`text-left bg-white p-3.5 sm:p-5 rounded-2xl border ${highlight ? 'border-[#2E5E58]/40 ring-1 ring-[#2E5E58]/15' : 'border-gray-200/80'} shadow-xs flex flex-col justify-between min-w-0 card-reveal hover-lift ${onClick ? 'cursor-pointer hover:border-[#2E5E58]/40' : 'cursor-default'} transition-all`}>
@@ -107,6 +110,84 @@ const CombinedTrendCard = ({ title, value, subtitle, data, info }) => (
           </AreaChart>
         </ResponsiveContainer>
       </div>
+    </div>
+  </div>
+);
+
+const PaymentMixCard = ({ data, total, periodLabel }) => (
+  <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col min-h-80 card-reveal hover-lift">
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Sales by payment</h2>
+        <InfoTooltip content="Sales composition for eligible orders in the selected period. Direct payments are cash/payment settlements; C2 Credit is RM-equivalent order value, not cash revenue." title="Sales by payment" />
+      </div>
+      <span className="text-xs font-medium text-gray-500 shrink-0">{periodLabel}</span>
+    </div>
+    <div className="flex-1 min-h-0 flex items-center gap-3 mt-2">
+      {data.length === 0 ? <EmptyState>No sales for this period yet.</EmptyState> : (
+        <>
+          <div className="w-1/2 min-w-0 h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={data} dataKey="sales" nameKey="label" innerRadius="58%" outerRadius="82%" paddingAngle={3} stroke="none">
+                  {data.map((entry, index) => <Cell key={entry.label} fill={PAYMENT_COLORS[index % PAYMENT_COLORS.length]} />)}
+                </Pie>
+                <Tooltip
+                  formatter={(value, name) => [formatRm(value), name]}
+                  contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="w-1/2 space-y-3 min-w-0">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total sales</p>
+              <p className="mt-1 text-xl font-extrabold text-gray-900 tabular-nums">{formatRm(total)}</p>
+            </div>
+            {data.map((entry, index) => (
+              <div key={entry.label} className="flex items-start gap-2">
+                <span className="mt-1.5 h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: PAYMENT_COLORS[index % PAYMENT_COLORS.length] }} />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-gray-700 truncate">{entry.label}</p>
+                  <p className="text-[11px] text-gray-500 tabular-nums">
+                    {formatRm(entry.sales)}{entry.orders == null ? '' : ` · ${formatNumber(entry.orders)} orders`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  </div>
+);
+
+const OutletSalesCard = ({ data, periodLabel }) => (
+  <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col min-h-80 card-reveal hover-lift">
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Sales by outlet</h2>
+        <InfoTooltip content="RM-equivalent sales by outlet for eligible orders in the selected period. Use this to compare branch contribution." title="Sales by outlet" />
+      </div>
+      <span className="text-xs font-medium text-gray-500 shrink-0">{periodLabel}</span>
+    </div>
+    <div className="flex-1 min-h-0 mt-3">
+      {data.length === 0 ? <EmptyState>No outlet sales for this period yet.</EmptyState> : (
+        <ResponsiveContainer width="100%" height="100%" minHeight={230}>
+          <BarChart data={data.slice(0, 6)} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}>
+            <CartesianGrid horizontal={false} stroke="#F1F5F9" />
+            <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(value) => `RM ${value}`} />
+            <YAxis type="category" dataKey="storeName" width={92} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} />
+            <Tooltip
+              formatter={(value) => [formatRm(value), 'Sales']}
+              contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+              itemStyle={{ color: '#fff' }}
+            />
+            <Bar dataKey="sales" name="Sales" fill="#2E5E58" radius={[0, 5, 5, 0]} barSize={18} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </div>
   </div>
 );
@@ -207,6 +288,10 @@ const DashboardHome = ({ setCurrentPage }) => {
   const recentActivity = dashboard?.recentActivity || [];
   const topItems = dashboard?.topItems || [];
   const outletBreakdown = dashboard?.outletBreakdown || [];
+  const salesByPayment = dashboard?.salesByPayment ?? [
+    { label: 'Direct payments', sales: Number(summary.cashCollectedRm || 0), orders: null },
+    { label: 'C2 Credit', sales: Number(summary.tokenOrderValueRm || 0), orders: null }
+  ].filter((entry) => entry.sales > 0);
 
   const [showAllOutlets, setShowAllOutlets] = useState(false);
   const [showAllOrders, setShowAllOrders] = useState(false);
@@ -364,6 +449,11 @@ const DashboardHome = ({ setCurrentPage }) => {
         />
       </div>
 
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+        <PaymentMixCard data={salesByPayment} total={summary.salesToday} periodLabel={periodLabel} />
+        <OutletSalesCard data={outletBreakdown} periodLabel={periodLabel} />
+      </div>
+
       {/* Outlet Performance */}
       <section className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -442,7 +532,7 @@ const DashboardHome = ({ setCurrentPage }) => {
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Outlet</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Total</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Payment</th>
-                      <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Status</th>
+                      <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 text-center">Status</th>
                       <th className="pb-3 text-[11px] font-bold uppercase tracking-wider text-gray-400">Time</th>
                     </tr>
                   </thead>
@@ -465,7 +555,11 @@ const DashboardHome = ({ setCurrentPage }) => {
                             </div>
                           )}
                         </td>
-                        <td className="py-3"><span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${statusTone(order.status)}`}>{order.status}</span></td>
+                        <td className="py-3 text-center">
+                          <span className={`inline-flex items-center justify-center text-center px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap ${statusTone(order.status)}`}>
+                            {order.status}
+                          </span>
+                        </td>
                         <td className="py-3 font-medium text-gray-400 tabular-nums">{order.time}</td>
                       </tr>
                     ))}

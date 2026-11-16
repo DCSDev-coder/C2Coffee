@@ -233,6 +233,34 @@ export function confirmAdminPasswordChange(payload) {
   });
 }
 
+export function requestAdminRecoveryEmailVerification(payload) {
+  return adminRequest("/v1/admin/auth/email-verification/request", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function confirmAdminRecoveryEmailVerification(payload) {
+  return adminRequest("/v1/admin/auth/email-verification/confirm", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function requestAdminPasswordReset(payload) {
+  return adminRequest("/v1/admin/auth/password-reset/request", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function confirmAdminPasswordReset(payload) {
+  return adminRequest("/v1/admin/auth/password-reset/confirm", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function loadAdminMenu() {
   return adminRequest("/v1/admin/menu");
 }
@@ -440,13 +468,14 @@ export async function loadAdminRefunds(params = {}) {
   return adminRequest(`/v1/admin/refunds${query.size ? `?${query}` : ""}`);
 }
 
-export async function createAdminRefund(orderId, reason, confirmationPassword) {
+export async function createAdminRefund(orderId, reason, confirmationPassword, items = undefined) {
   return adminRequest("/v1/admin/refunds", {
     method: "POST",
     body: JSON.stringify({
       order_id: orderId,
       reason,
       confirmation_password: confirmationPassword,
+      ...(Array.isArray(items) && items.length ? { items } : {}),
     }),
   });
 }
@@ -834,6 +863,17 @@ export async function updateAdminStore(storeId, payload) {
 
 export async function loadAdminCounterDevices() {
   return adminRequest("/v1/admin/counter-devices");
+}
+
+export async function loadAdminCounterSecurity() {
+  return adminRequest("/v1/admin/counter-security");
+}
+
+export async function updateAdminCounterExitPassword(payload) {
+  return adminRequest("/v1/admin/counter-security", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createAdminCounterDevice(payload) {

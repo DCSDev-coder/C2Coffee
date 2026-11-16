@@ -352,11 +352,14 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
     let ordersToday = 0;
     let cashCollectedRm = 0;
     let tokenOrderValueRm = 0;
+    let directOrderCount = 0;
+    let tokenOrderCount = 0;
     let subsidyUsedTokens = 0;
     let personalTokensUsed = 0;
     let pendingPaymentValueRm = 0;
     let awaitingPreparation = 0;
     let preparing = 0;
+    const paymentBreakdown = new Map<string, { label: string; sales: number; orders: number }>();
     const outletBreakdown = new Map<number, {
       storeId: number;
       storeName: string;
@@ -384,8 +387,18 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         ordersToday += 1;
         if (String(order.payment_mode).toLowerCase() === 'direct') {
           cashCollectedRm += Number(order.final_total_rm || 0);
+          directOrderCount += 1;
+          const direct = paymentBreakdown.get('direct') ?? { label: 'Direct payments', sales: 0, orders: 0 };
+          direct.sales += Number(order.final_total_rm || 0);
+          direct.orders += 1;
+          paymentBreakdown.set('direct', direct);
         } else {
           tokenOrderValueRm += Number(order.final_total_rm || 0);
+          tokenOrderCount += 1;
+          const credit = paymentBreakdown.get('credit') ?? { label: 'C2 Credit', sales: 0, orders: 0 };
+          credit.sales += Number(order.final_total_rm || 0);
+          credit.orders += 1;
+          paymentBreakdown.set('credit', credit);
           const subsidyTokens = Math.min(Number(order.token_amount_charged || 0), Number(order.employee_allowance_tokens_used || 0));
           subsidyUsedTokens += subsidyTokens;
           personalTokensUsed += Math.max(0, Number(order.token_amount_charged || 0) - subsidyTokens);
@@ -441,6 +454,8 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
         ordersToday,
         cashCollectedRm,
         tokenOrderValueRm,
+        directOrderCount,
+        tokenOrderCount,
         subsidyUsedTokens,
         personalTokensUsed,
         pendingPaymentValueRm,
@@ -481,6 +496,11 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
           customers: outlet.customers.size,
           averageOrderValue: outlet.orders > 0 ? Number((outlet.sales / outlet.orders).toFixed(2)) : 0
         })),
+      salesByPayment: Array.from(paymentBreakdown.values()).map((entry) => ({
+        label: entry.label,
+        sales: Number(entry.sales.toFixed(2)),
+        orders: entry.orders
+      })),
       recentOrders: rangeOrders.slice(0, 5).map((order) => ({
         id: order.order_ref,
         customer: order.customer_name || 'Customer',

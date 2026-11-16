@@ -80,6 +80,9 @@ export async function processOrderLoyalty(
         data: {
           previous_tier: currentTier,
           new_tier: newTier,
+          qualifying_orders_rolling_12m: cupsLast180d,
+          qualifying_orders_last_12_months: cupsLast180d,
+          // Compatibility key for already-published clients.
           qualifying_cups_last_180d: cupsLast180d
         }
       });

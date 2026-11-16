@@ -273,7 +273,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         connection,
         request.counterAuth.storeId,
         payload.items.map((item) => item.menu_item_id),
-        bootstrap?.tier ?? 'kawan',
+        bootstrap?.tier ?? 'unqualified',
         request.counterOrderContext.priceChannel
       );
       const byId = new Map(menuItems.map((item) => [Number(item.id), item]));

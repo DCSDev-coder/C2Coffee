@@ -4,8 +4,10 @@ import { Check, Copy, KeyRound, MonitorSmartphone, Plus, RefreshCw, ShieldOff, W
 import {
   createAdminCounterDevice,
   loadAdminCounterDevices,
+  loadAdminCounterSecurity,
   loadAdminStores,
   reissueAdminCounterDeviceActivation,
+  updateAdminCounterExitPassword,
   updateAdminCounterDevice,
 } from '../lib/adminApi';
 import InfoTooltip from './InfoTooltip';
@@ -28,10 +30,16 @@ export default function CounterDevices({ currentUser }) {
   const [copied, setCopied] = useState(false);
   const [presenceError, setPresenceError] = useState('');
   const [onlineWindowSeconds, setOnlineWindowSeconds] = useState(30);
+  const [counterSecurity, setCounterSecurity] = useState(null);
+  const [currentAdminPassword, setCurrentAdminPassword] = useState('');
+  const [newCounterPassword, setNewCounterPassword] = useState('');
+  const [confirmCounterPassword, setConfirmCounterPassword] = useState('');
+  const [securityBusy, setSecurityBusy] = useState(false);
   const devicesRequestInFlight = useRef(false);
 
   const canManage = Array.isArray(currentUser?.roles) &&
     currentUser.roles.some((role) => ['super_admin', 'operations_admin'].includes(role));
+  const isSuperAdmin = Array.isArray(currentUser?.roles) && currentUser.roles.includes('super_admin');
 
   const loadDevices = useCallback(async ({ showError = true } = {}) => {
     if (devicesRequestInFlight.current) return;
@@ -51,17 +59,19 @@ export default function CounterDevices({ currentUser }) {
 
   const load = useCallback(async () => {
     try {
-      const [, storeResponse] = await Promise.all([
+      const [, storeResponse, securityResponse] = await Promise.all([
         loadDevices(),
         loadAdminStores(),
+        isSuperAdmin ? loadAdminCounterSecurity() : Promise.resolve(null),
       ]);
       const activeStores = (storeResponse.stores || []).filter((store) => store.status === 'active');
       setStores(activeStores);
       setStoreId((current) => current || String(activeStores[0]?.id || ''));
+      if (securityResponse) setCounterSecurity(securityResponse);
     } catch (error) {
       setMessage(error?.message || 'Counter devices could not be loaded.');
     }
-  }, [loadDevices]);
+  }, [isSuperAdmin, loadDevices]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -159,6 +169,40 @@ export default function CounterDevices({ currentUser }) {
     window.setTimeout(() => setCopied(false), 1800);
   };
 
+  const updateCounterPassword = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    if (newCounterPassword !== confirmCounterPassword) {
+      setMessage('Counter exit password confirmation does not match.');
+      return;
+    }
+    if (newCounterPassword.length < 8 || currentAdminPassword.length < 8) {
+      setMessage('Use at least 8 characters and confirm with your current Admin Web password.');
+      return;
+    }
+    setSecurityBusy(true);
+    try {
+      const response = await updateAdminCounterExitPassword({
+        current_admin_password: currentAdminPassword,
+        new_counter_password: newCounterPassword,
+        confirm_counter_password: confirmCounterPassword,
+      });
+      setCounterSecurity({
+        configured: true,
+        requires_rotation: false,
+        rotated_at: response.rotated_at || new Date().toISOString(),
+      });
+      setCurrentAdminPassword('');
+      setNewCounterPassword('');
+      setConfirmCounterPassword('');
+      setMessage('Counter exit password updated. Admin Web passwords were not changed.');
+    } catch (error) {
+      setMessage(error?.message || 'Counter exit password could not be updated.');
+    } finally {
+      setSecurityBusy(false);
+    }
+  };
+
   if (!canManage) return null;
 
   return (
@@ -200,6 +244,49 @@ export default function CounterDevices({ currentUser }) {
                 {copied ? 'Copied' : 'Copy code'}
               </button>
             </div>
+          </section>
+        )}
+
+        {isSuperAdmin && (
+          <section className={`mt-6 rounded-2xl border p-5 shadow-2xs ${counterSecurity?.requires_rotation ? 'border-amber-300 bg-amber-50/70' : 'border-emerald-200 bg-white'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="rounded-lg bg-[#E8F1EE] p-2 text-[#1F3A34]"><KeyRound size={18} /></div>
+                  <h2 className="text-lg font-bold text-gray-900">Counter exit password</h2>
+                </div>
+                <p className="mt-2 max-w-2xl text-sm text-gray-600">
+                  Dedicated credential for leaving the Counter App workspace. It is separate from every Admin Web account password.
+                </p>
+                {counterSecurity?.requires_rotation && (
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-white px-3.5 py-2 text-sm font-semibold text-amber-800">
+                    The migration preserved the previous password temporarily. Set a different counter exit password now to finish separation.
+                  </p>
+                )}
+                {!counterSecurity?.requires_rotation && counterSecurity?.rotated_at && (
+                  <p className="mt-2 text-xs font-medium text-emerald-700">Last changed: {formatDate(counterSecurity.rotated_at)}</p>
+                )}
+              </div>
+            </div>
+            <form onSubmit={updateCounterPassword} className="mt-5 grid gap-4 border-t border-gray-200/70 pt-5 md:grid-cols-3">
+              <label className="block text-sm font-semibold text-gray-700">
+                Current Admin Web password
+                <input required minLength="8" type="password" autoComplete="current-password" value={currentAdminPassword} onChange={(event) => setCurrentAdminPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2E5E58]" />
+              </label>
+              <label className="block text-sm font-semibold text-gray-700">
+                New counter exit password
+                <input required minLength="8" type="password" autoComplete="new-password" value={newCounterPassword} onChange={(event) => setNewCounterPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2E5E58]" />
+              </label>
+              <label className="block text-sm font-semibold text-gray-700">
+                Confirm counter exit password
+                <input required minLength="8" type="password" autoComplete="new-password" value={confirmCounterPassword} onChange={(event) => setConfirmCounterPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#2E5E58]" />
+              </label>
+              <div className="md:col-span-3">
+                <button disabled={securityBusy} className="inline-flex items-center gap-2 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white shadow-xs transition-colors hover:bg-[#2E5E58] disabled:opacity-50">
+                  <KeyRound size={16} /> {securityBusy ? 'Updating...' : counterSecurity?.requires_rotation ? 'Set separate password' : 'Change counter exit password'}
+                </button>
+              </div>
+            </form>
           </section>
         )}
 

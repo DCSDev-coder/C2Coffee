@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, KeyRound, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, KeyRound, MailCheck, ShieldCheck, X } from 'lucide-react';
 import {
   clearAdminTokens,
   confirmAdminPasswordChange,
   requestAdminPasswordChange
 } from '../lib/adminApi';
 
-const Profile = ({ onBack, currentUser }) => {
+const Profile = ({ onBack, currentUser, onVerifyRecoveryEmail }) => {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState('details');
   const [requestId, setRequestId] = useState('');
@@ -82,6 +82,29 @@ const Profile = ({ onBack, currentUser }) => {
         </section>
 
         <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <MailCheck size={20} className="mt-0.5 shrink-0 text-[#1F3A34]" />
+              <div>
+                <h2 className="text-base font-bold text-gray-900 sm:text-lg">Recovery email</h2>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500 sm:text-sm">
+                  {currentUser?.must_set_email
+                    ? 'Verify your own email so you can recover this account if you forget the password.'
+                    : `Verified recovery address: ${email}`}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onVerifyRecoveryEmail}
+              className="shrink-0 rounded-xl border border-[#1F3A34] px-4 py-2.5 text-sm font-bold text-[#1F3A34] transition-colors hover:bg-emerald-50"
+            >
+              {currentUser?.must_set_email ? 'Verify email' : 'Change email'}
+            </button>
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ShieldCheck size={20} className="text-[#1F3A34] shrink-0" />
@@ -140,10 +163,10 @@ const Profile = ({ onBack, currentUser }) => {
                   Confirm new password
                   <input required minLength="8" type="password" value={form.confirmPassword} onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none" />
                 </label>
-                <button disabled={busy || !email} className="w-full rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50 transition-colors shadow-sm cursor-pointer">
+                <button disabled={busy || !email || currentUser?.must_set_email} className="w-full rounded-lg bg-[#1F3A34] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50 transition-colors shadow-sm cursor-pointer">
                   {busy ? 'Sending code...' : 'Send Verification Code'}
                 </button>
-                {!email && <p className="text-sm text-red-600">An admin email is required before you can change the password.</p>}
+                {(!email || currentUser?.must_set_email) && <p className="text-sm text-red-600">Verify your recovery email before changing the password.</p>}
               </form>
             ) : (
               <form onSubmit={confirmCode} className="space-y-4">

@@ -103,24 +103,28 @@ class _RewardsPageState extends State<RewardsPage> {
   }
 
   int _currentTierIndex() {
+    if (!_session.tierQualified) return -1;
     final tierCode = _session.tier.trim().toLowerCase();
     final index = _availableTiers.indexWhere(
       (tier) => tier.code.trim().toLowerCase() == tierCode,
     );
-    return index >= 0 ? index : 0;
+    return index;
   }
 
   LoyaltyTier? _currentTier() {
     final tiers = _availableTiers;
-    if (tiers.isEmpty) return null;
-    final index = _currentTierIndex().clamp(0, tiers.length - 1);
+    final index = _currentTierIndex();
+    if (tiers.isEmpty || index < 0) return null;
     return tiers[index];
   }
 
   LoyaltyTier? _nextTier() {
     final tiers = _availableTiers;
     final currentIndex = _currentTierIndex();
-    if (currentIndex < 0 || currentIndex + 1 >= tiers.length) {
+    if (currentIndex < 0) {
+      return tiers.isEmpty ? null : tiers.first;
+    }
+    if (currentIndex + 1 >= tiers.length) {
       return null;
     }
     return tiers[currentIndex + 1];
@@ -128,10 +132,10 @@ class _RewardsPageState extends State<RewardsPage> {
 
   int _progressTargetCups() {
     final nextTier = _nextTier();
-    return nextTier?.minCups ?? _session.cupsLast180d;
+    return nextTier?.minCups ?? _session.qualifyingOrdersRolling12m;
   }
 
-  String _currentTierLabel() => _currentTier()?.name ?? 'Member';
+  String _currentTierLabel() => _currentTier()?.name ?? 'Not yet tiered';
 
   void _onBottomNavTapped(int index) {
     if (index == 3) return;
@@ -290,7 +294,7 @@ class _RewardsPageState extends State<RewardsPage> {
             ),
           ),
           const SizedBox(height: 24),
-          // Tokens and Cups
+          // Tokens and qualifying-order activity
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -324,12 +328,12 @@ class _RewardsPageState extends State<RewardsPage> {
                 height: 50,
                 color: AppColors.border,
               ),
-              // Cups
+              // Lifetime loyalty activity
               Expanded(
                 child: Column(
                   children: [
                     Text(
-                      '${_session.cupsLast180d}',
+                      '${_session.lifetimeQualifyingOrders}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
                         fontSize: 26,
@@ -339,7 +343,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       ),
                     ),
                     const Text(
-                      'cups collected',
+                      'lifetime qualifying orders',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 14,
@@ -364,7 +368,7 @@ class _RewardsPageState extends State<RewardsPage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: (_session.cupsLast180d /
+                          value: (_session.qualifyingOrdersRolling12m /
                                   (_progressTargetCups() <= 0
                                       ? 1
                                       : _progressTargetCups()))
@@ -385,7 +389,7 @@ class _RewardsPageState extends State<RewardsPage> {
           const SizedBox(height: 16),
           Text(
             _session.bootstrapError ??
-                "*Promo or free drinks don't earn cups and don't count toward rewards or tier upgrades.",
+                '*Orders using any company subsidy do not count toward tier progress. Pay fully with personal C2 Credit or direct payment for a qualifying drink order to count.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontFamily: 'Afacad',
@@ -447,7 +451,7 @@ class _RewardsPageState extends State<RewardsPage> {
       return 'Max tier reached';
     }
 
-    return '${_session.cupsLast180d} / ${_getMaxCupsForTier()} cups to ${nextTier.name}';
+    return '${_session.qualifyingOrdersRolling12m} / ${_getMaxCupsForTier()} qualifying orders to ${nextTier.name}';
   }
 
   Widget _buildActionCards() {
@@ -866,15 +870,15 @@ class _RewardsPageState extends State<RewardsPage> {
     required int selectedIndex,
     required int currentIndex,
   }) {
-    final cups = _session.cupsLast180d;
+    final orders = _session.qualifyingOrdersRolling12m;
     final isLocked = selectedIndex > currentIndex;
     final targetCups = tier.minCups <= 0 ? 1 : tier.minCups;
     final isPastTier = selectedIndex < currentIndex;
     final progressLabel = isPastTier
         ? 'Achieved'
         : isLocked
-            ? '0 / $targetCups cups collected'
-            : '$cups cups collected';
+            ? '$orders / $targetCups qualifying orders'
+            : '$orders qualifying orders in the last 12 months';
 
     return Container(
       width: double.infinity,
@@ -1112,8 +1116,8 @@ class _RewardsPageState extends State<RewardsPage> {
                 )
               else
                 _buildStateChip(
-                  tier.minCups - _session.cupsLast180d > 0
-                      ? '${tier.minCups - _session.cupsLast180d} CUPS TO UNLOCK'
+                  tier.minCups - _session.qualifyingOrdersRolling12m > 0
+                      ? '${tier.minCups - _session.qualifyingOrdersRolling12m} ORDERS TO UNLOCK'
                       : 'LOCKED',
                   AppColors.supportingText,
                   icon: Icons.lock_outline_rounded,
@@ -1131,7 +1135,9 @@ class _RewardsPageState extends State<RewardsPage> {
             selectedIndex: selectedIndex,
             currentIndex: currentIndex,
           ),
-          if (isCurrent && _session.tierReviewDueAt != null) ...[
+          if (isCurrent &&
+              _session.tierQualified &&
+              _session.tierReviewDueAt != null) ...[
             const SizedBox(height: 12),
             Row(
               children: [
@@ -1143,7 +1149,9 @@ class _RewardsPageState extends State<RewardsPage> {
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
-                    'Your tier is protected until ${DateFormat('d MMMM yyyy').format(_session.tierReviewDueAt!)}.',
+                    _session.tierRetentionTarget > 0
+                        ? 'Your tier is protected until ${DateFormat('d MMMM yyyy').format(_session.tierReviewDueAt!)}. ${_session.tierRetentionProgress} of ${_session.tierRetentionTarget} qualifying orders completed to retain it.'
+                        : 'Your ${tier.name} tier remains unlocked. New qualifying orders continue your progress toward the next tier.',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -1384,8 +1392,8 @@ class _RewardsPageState extends State<RewardsPage> {
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(
-                  'How do I earn reward tokens & cups?',
-                  'You earn no more than 1 cup for a qualifying drink order after collection. An order with multiple drinks still earns 1 cup, and Company Subsidy-funded purchases do not earn cups. Your current tier, annual protection, and rewards follow the rules shown in the App.',
+                  'How do I earn tier progress?',
+                  'You earn one qualifying order after collection when the order contains an eligible drink and is paid fully with personal C2 Credit or direct payment. Multiple drinks in one order still count as one qualifying order. If any company subsidy is used, that order does not count toward tier progress.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(

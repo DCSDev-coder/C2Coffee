@@ -15,6 +15,9 @@ export async function requireAdminActionConfirmation(
   );
   const admin = rows[0];
   if (!admin?.password_hash || !(await verifyPassword(confirmationPassword, admin.password_hash))) {
-    throw new ApiError(401, 'admin_action_confirmation_failed', 'Current password confirmation is incorrect.');
+    // A wrong confirmation password is input validation, not an expired API
+    // session. Returning 400 prevents the browser from needlessly rotating or
+    // clearing an otherwise valid admin session.
+    throw new ApiError(400, 'admin_action_confirmation_failed', 'Current password confirmation is incorrect.');
   }
 }

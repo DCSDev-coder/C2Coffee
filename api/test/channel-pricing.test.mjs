@@ -18,7 +18,7 @@ test('counter and authorized barista order entry use the server-verified price c
   );
   assert.match(
     counterPayments,
-    /loadCheckoutMenuItems\([\s\S]{0,300}bootstrap\?\.tier \?\? 'kawan',[\s\S]{0,80}request\.counterOrderContext\.priceChannel/,
+    /loadCheckoutMenuItems\([\s\S]{0,300}bootstrap\?\.tier \?\? 'unqualified',[\s\S]{0,80}request\.counterOrderContext\.priceChannel/,
   );
   assert.match(guard, /verifyAdminAccessToken/);
   assert.match(guard, /Number\(session\.tenant_id\) !== request\.counterAuth\.tenantId/);

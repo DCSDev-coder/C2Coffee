@@ -24,8 +24,12 @@ class AppSessionService extends ChangeNotifier {
   int _tokenReserved = 0;
   int _tokenCap = 0;
   bool _hasCompletedTopup = false;
-  String _tier = 'kawan';
-  int _cupsLast180d = 0;
+  String _tier = 'unqualified';
+  bool _tierQualified = false;
+  int _qualifyingOrdersRolling12m = 0;
+  int _lifetimeQualifyingOrders = 0;
+  int _tierRetentionProgress = 0;
+  int _tierRetentionTarget = 0;
   DateTime? _tierReviewDueAt;
   bool _isBootstrapLoading = false;
   bool _hasAccountData = false;
@@ -51,7 +55,13 @@ class AppSessionService extends ChangeNotifier {
   int get tokenCap => _tokenCap;
   bool get hasCompletedTopup => _hasCompletedTopup;
   String get tier => _tier;
-  int get cupsLast180d => _cupsLast180d;
+  bool get tierQualified => _tierQualified;
+  int get qualifyingOrdersRolling12m => _qualifyingOrdersRolling12m;
+  int get lifetimeQualifyingOrders => _lifetimeQualifyingOrders;
+  int get tierRetentionProgress => _tierRetentionProgress;
+  int get tierRetentionTarget => _tierRetentionTarget;
+  @Deprecated('Use qualifyingOrdersRolling12m')
+  int get cupsLast180d => _qualifyingOrdersRolling12m;
   DateTime? get tierReviewDueAt => _tierReviewDueAt;
   bool get isBootstrapLoading => _isBootstrapLoading;
 
@@ -231,7 +241,11 @@ class AppSessionService extends ChangeNotifier {
       _tokenCap = bootstrap.tokenCap;
       _hasCompletedTopup = bootstrap.hasCompletedTopup;
       _tier = bootstrap.tier;
-      _cupsLast180d = bootstrap.cupsLast180d;
+      _tierQualified = bootstrap.tierQualified;
+      _qualifyingOrdersRolling12m = bootstrap.qualifyingOrdersRolling12m;
+      _lifetimeQualifyingOrders = bootstrap.lifetimeQualifyingOrders;
+      _tierRetentionProgress = bootstrap.tierRetentionProgress;
+      _tierRetentionTarget = bootstrap.tierRetentionTarget;
       _tierReviewDueAt = bootstrap.tierReviewDueAt;
       _stores = stores;
       _homeBanners = bootstrap.homeBanners;
@@ -324,8 +338,12 @@ class AppSessionService extends ChangeNotifier {
     _tokenReserved = 0;
     _tokenCap = 0;
     _hasCompletedTopup = false;
-    _tier = 'kawan';
-    _cupsLast180d = 0;
+    _tier = 'unqualified';
+    _tierQualified = false;
+    _qualifyingOrdersRolling12m = 0;
+    _lifetimeQualifyingOrders = 0;
+    _tierRetentionProgress = 0;
+    _tierRetentionTarget = 0;
     _tierReviewDueAt = null;
     _isBootstrapLoading = false;
     _isMenuLoading = false;

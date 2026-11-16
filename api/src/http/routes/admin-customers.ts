@@ -96,7 +96,8 @@ const customerListQueryRowSchema = z.object({
   last_order_at: z.union([z.string(), z.date()]).nullable(),
   refund_count: z.number().nullable(),
   tier_code: z.string().nullable(),
-  cups_last_180d: z.number().nullable()
+  cups_last_180d: z.number().nullable(),
+  lifetime_qualifying_orders: z.number().nullable().optional()
   ,deletion_source: z.string().nullable()
   ,deleted_at: z.union([z.string(), z.date()]).nullable()
 });
@@ -130,11 +131,20 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
   const orderCount = Number(row.order_count ?? 0);
   const refundCount = Number(row.refund_count ?? 0);
   const cupsLast180d = Number(row.cups_last_180d ?? 0);
-  const tierProgress = getTierProgress(cupsLast180d, tiers);
+  const calculatedProgress = getTierProgress(cupsLast180d, tiers);
   const rawTierCode = row.tier_code ? String(row.tier_code).trim().toLowerCase() : null;
   const tierConfig = rawTierCode ? getTierByCode(tiers, rawTierCode) : null;
-  const tierCode = tierConfig ? tierConfig.code : tierProgress.tierCode;
-  const tier = tierConfig ? tierConfig.name : tierProgress.tierName;
+  const tierProgress = tierConfig
+    ? {
+        ...getTierProgress(Math.max(cupsLast180d, tierConfig.minCups), tiers),
+        current: cupsLast180d,
+        tierCode: tierConfig.code,
+        tierName: tierConfig.name,
+        isQualified: true
+      }
+    : calculatedProgress;
+  const tierCode = tierConfig?.code ?? tierProgress.tierCode;
+  const tier = tierConfig?.name ?? tierProgress.tierName;
   const joinedAt = row.joined_at instanceof Date ? row.joined_at : new Date(row.joined_at);
   const lastOrderAt = row.last_order_at ? (row.last_order_at instanceof Date ? row.last_order_at : new Date(row.last_order_at)) : null;
   const addressParts = [
@@ -164,6 +174,9 @@ function mapCustomerRow(row: CustomerListRow, tiers: Awaited<ReturnType<typeof l
     totalPersonalTokens,
     favoriteItem: row.favorite_item || null,
     totalSpentRm: totalSpent,
+    qualifyingOrdersRolling12m: cupsLast180d,
+    lifetimeQualifyingOrders: Number(row.lifetime_qualifying_orders ?? 0),
+    // Deprecated compatibility alias for older Admin clients.
     cupsLast180d,
     lastOrder: formatDisplayDate(lastOrderAt),
     lastOrderAt: lastOrderAt ? lastOrderAt.toISOString() : null,
@@ -287,12 +300,17 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               LIMIT 1
             ) AS tier_code,
             (
-              SELECT lts.qualifying_cups_last_180d
+              SELECT COALESCE(lts.qualifying_orders_rolling_12m, lts.qualifying_cups_last_180d)
               FROM loyalty_tier_snapshots lts
               WHERE lts.user_id = u.id
               ORDER BY lts.effective_at DESC, lts.id DESC
               LIMIT 1
-            ) AS cups_last_180d
+            ) AS cups_last_180d,
+            (
+              SELECT COUNT(DISTINCT lce.order_id)
+              FROM loyalty_cup_events lce
+              WHERE lce.user_id = u.id AND lce.reversed_at IS NULL
+            ) AS lifetime_qualifying_orders
           FROM users u
           JOIN customer_tenant_memberships ctm
             ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
@@ -534,12 +552,14 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             user_id,
             tier_code,
             qualifying_cups_last_180d,
+            qualifying_orders_rolling_12m,
             effective_at,
             reason_code
           )
           VALUES (
             :userId,
-            'kawan',
+            'unqualified',
+            0,
             0,
             UTC_TIMESTAMP(),
             'admin_customer_create'
@@ -579,8 +599,9 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
             NULL AS favorite_item,
             NULL AS last_order_at,
             0 AS refund_count,
-            'kawan' AS tier_code,
-            0 AS cups_last_180d
+            'unqualified' AS tier_code,
+            0 AS cups_last_180d,
+            0 AS lifetime_qualifying_orders
           FROM users u
           JOIN customer_tenant_memberships ctm
             ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId
@@ -714,10 +735,11 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               user_id,
               tier_code,
               qualifying_cups_last_180d,
+              qualifying_orders_rolling_12m,
               effective_at,
               reason_code
             )
-            VALUES (:userId, 'kawan', 0, UTC_TIMESTAMP(), 'admin_customer_import')
+            VALUES (:userId, 'unqualified', 0, 0, UTC_TIMESTAMP(), 'admin_customer_import')
           `,
           { userId }
         );
@@ -942,12 +964,17 @@ export async function registerAdminCustomersRoutes(app: FastifyInstance): Promis
               LIMIT 1
             ) AS tier_code,
             (
-              SELECT lts.qualifying_cups_last_180d
+              SELECT COALESCE(lts.qualifying_orders_rolling_12m, lts.qualifying_cups_last_180d)
               FROM loyalty_tier_snapshots lts
               WHERE lts.user_id = u.id
               ORDER BY lts.effective_at DESC, lts.id DESC
               LIMIT 1
-            ) AS cups_last_180d
+            ) AS cups_last_180d,
+            (
+              SELECT COUNT(DISTINCT lce.order_id)
+              FROM loyalty_cup_events lce
+              WHERE lce.user_id = u.id AND lce.reversed_at IS NULL
+            ) AS lifetime_qualifying_orders
           FROM users u
           JOIN customer_tenant_memberships ctm
             ON ctm.user_id = u.id AND ctm.tenant_id = :tenantId

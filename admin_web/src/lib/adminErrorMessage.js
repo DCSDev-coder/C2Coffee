@@ -34,6 +34,62 @@ export function formatAdminErrorMessage(body, response) {
       return "The admin username or password is incorrect.";
     case "admin_not_active":
       return "This admin account is not active.";
+    case "invalid_current_password":
+      return "Current password is incorrect.";
+    case "admin_action_confirmation_failed":
+      return "Current Admin Web password is incorrect.";
+    case "counter_exit_password_mismatch":
+      return "Counter exit password confirmation does not match.";
+    case "counter_exit_password_matches_admin":
+      return "Choose a counter exit password that is different from every administrator password.";
+    case "refund_self_approval_forbidden":
+      return "A different Super Admin must review this refund request.";
+    case "provider_refund_reference_required":
+      return "Complete the CHIP or payment-provider refund first, then enter its confirmed reference.";
+    case "refund_quantity_exceeded":
+      return "The selected quantity has already been refunded or exceeds the remaining refundable quantity.";
+    case "refund_item_not_found":
+      return "One of the selected order items is no longer available for refund.";
+    case "refund_amount_zero":
+      return "The selected items do not have a refundable payment value.";
+    case "partial_refund_gift_card_not_supported":
+      return "This order used a gift card. Use the full refund workflow so its value can be restored safely.";
+    case "payment_not_refundable":
+      return "The payment is not currently in a refundable state. Check its provider status first.";
+    case "refund_already_requested":
+      return "A refund request already exists for this order.";
+    case "refund_already_reviewed":
+      return "This refund request has already been reviewed.";
+    case "admin_email_conflict":
+      return "This email is already used by another administrator.";
+    case "admin_email_already_verified":
+      return "This recovery email is already verified.";
+    case "admin_email_verification_invalid":
+      return "The email-verification request or code is invalid.";
+    case "admin_email_verification_expired":
+      return "This verification code has expired. Request a new code.";
+    case "admin_email_verification_blocked":
+      return "Too many incorrect codes. Request a new code.";
+    case "admin_email_verification_failed":
+      return "We could not send the verification code. Please try again shortly.";
+    case "password_reset_invalid":
+      return "The password-reset request or code is invalid.";
+    case "password_reset_expired":
+      return "This verification code has expired. Request a new code.";
+    case "password_reset_blocked":
+      return "Too many incorrect codes. Request a new recovery code.";
+    case "password_mismatch":
+      return "New password confirmation does not match.";
+    case "password_reused":
+      return "Choose a new password that is different from your current password.";
+    case "password_change_request_invalid":
+      return "This password-change request is no longer valid.";
+    case "password_change_code_expired":
+      return "This verification code has expired. Request a new code.";
+    case "password_change_code_blocked":
+      return "Too many incorrect codes. Request a new code.";
+    case "invalid_password_change_code":
+      return "Verification code is incorrect.";
     case "rate_limit_exceeded": {
       const retryAfterSeconds = getRetryAfterSeconds(body, response);
       return retryAfterSeconds > 0

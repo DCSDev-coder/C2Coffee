@@ -81,8 +81,9 @@ function parseRewardConfig(value: unknown): LoyaltyTierRewardConfig | null {
 }
 
 export type TierProgress = {
-  tierCode: string;
+  tierCode: string | null;
   tierName: string;
+  isQualified: boolean;
   current: number;
   target: number;
   remaining: number;
@@ -157,14 +158,18 @@ export function formatTierName(tiers: LoyaltyTierConfig[], tierCode: string | nu
   const activeTiers = getActiveLoyaltyTiers(tiers);
   const normalized = String(tierCode ?? '').trim().toLowerCase();
 
-  // If no tier specified or legacy default 'kawan' that is no longer in active tiers, return active base tier
-  if ((!normalized || normalized === 'kawan') && activeTiers.length > 0) {
+  if (!normalized || normalized === 'unqualified') {
+    return 'Not yet tiered';
+  }
+
+  // Keep the pre-configurable legacy base code readable for older records.
+  if (normalized === 'kawan' && activeTiers.length > 0) {
     return activeTiers[0].name;
   }
 
   const fallback = String(tierCode ?? '').trim();
   if (!fallback) {
-    return activeTiers[0]?.name ?? 'Member';
+    return 'Not yet tiered';
   }
 
   return fallback
@@ -182,15 +187,33 @@ export function getTierProgress(
 
   if (activeTiers.length === 0) {
     return {
-      tierCode: 'sipper',
-      tierName: 'Sipper',
+      tierCode: null,
+      tierName: 'Not yet tiered',
+      isQualified: false,
       current: cups,
-      target: cups,
+      target: 0,
       remaining: 0,
-      percentage: 100,
-      nextTier: 'Max Tier',
+      percentage: 0,
+      nextTier: 'Tier unavailable',
       nextTierCode: null,
-      isBaseTier: true
+      isBaseTier: false
+    };
+  }
+
+  const firstTier = activeTiers[0];
+  if (cups < firstTier.minCups) {
+    const target = Math.max(1, firstTier.minCups);
+    return {
+      tierCode: null,
+      tierName: 'Not yet tiered',
+      isQualified: false,
+      current: cups,
+      target,
+      remaining: Math.max(0, firstTier.minCups - cups),
+      percentage: Math.min(100, Math.round((cups / target) * 100)),
+      nextTier: firstTier.name,
+      nextTierCode: firstTier.code,
+      isBaseTier: false
     };
   }
 
@@ -214,6 +237,7 @@ export function getTierProgress(
   return {
     tierCode: currentTier.code,
     tierName: currentTier.name,
+    isQualified: true,
     current: cups,
     target,
     remaining,

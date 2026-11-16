@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { adminRequest, formatRetryCountdown, loadAdminTenants } from '../lib/adminApi';
+import {
+  adminRequest,
+  confirmAdminPasswordReset,
+  formatRetryCountdown,
+  loadAdminTenants,
+  requestAdminPasswordReset
+} from '../lib/adminApi';
 import { getSafeAdminLoginErrorMessage } from '../lib/adminAuthRequestPolicy';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -19,6 +25,9 @@ const Login = ({ onLoginSuccess }) => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
+  const [resetRequestId, setResetRequestId] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (retryAfterSeconds <= 0) return undefined;
@@ -46,6 +55,7 @@ const Login = ({ onLoginSuccess }) => {
   const handleLogin = async (event) => {
     event.preventDefault();
     setErrorMessage('');
+    setSuccessMessage('');
     setRetryAfterSeconds(0);
     setIsSubmitting(true);
 
@@ -89,6 +99,75 @@ const Login = ({ onLoginSuccess }) => {
     }
   };
 
+  const handlePasswordResetRequest = async (event) => {
+    event.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    setRetryAfterSeconds(0);
+    setIsSubmitting(true);
+    try {
+      const response = await requestAdminPasswordReset({
+        tenant_code: tenantCode,
+        identifier
+      });
+      setResetRequestId(response.request_id);
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setMode('reset-verify');
+      setSuccessMessage('If this account has a verified recovery email, a six-digit code has been sent.');
+    } catch (error) {
+      setRetryAfterSeconds(Math.ceil(Number(error?.retryAfterSeconds) || 0));
+      setErrorMessage(error.message || 'We could not start password recovery. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordResetConfirm = async (event) => {
+    event.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+    if (newPassword !== confirmPassword) {
+      setErrorMessage('New password confirmation does not match.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await confirmAdminPasswordReset({
+        request_id: resetRequestId,
+        otp_code: resetCode,
+        new_password: newPassword,
+        confirm_password: confirmPassword
+      });
+      setMode('login');
+      setIdentifier('');
+      setResetRequestId('');
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setSuccessMessage('Password reset complete. Sign in with your new password.');
+    } catch (error) {
+      setErrorMessage(error.message || 'We could not reset the password.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const heading = mode === 'login'
+    ? 'Welcome Back'
+    : mode === 'setup'
+      ? 'Complete Setup'
+      : 'Recover Account';
+
+  const description = mode === 'login'
+    ? 'Sign in with your tenant code, admin username, and password.'
+    : mode === 'setup'
+      ? 'Add your email and change your password before continuing.'
+      : mode === 'reset-request'
+        ? 'Enter your admin username or verified email to receive a recovery code.'
+        : 'Enter the code from your email and choose a new password.';
+
   const handleSetupComplete = async (event) => {
     event.preventDefault();
     setErrorMessage('');
@@ -131,6 +210,14 @@ const Login = ({ onLoginSuccess }) => {
     }
   };
 
+  const submitHandler = mode === 'login'
+    ? handleLogin
+    : mode === 'setup'
+      ? handleSetupComplete
+      : mode === 'reset-request'
+        ? handlePasswordResetRequest
+        : handlePasswordResetConfirm;
+
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black font-sans">
@@ -145,7 +232,7 @@ const Login = ({ onLoginSuccess }) => {
 
       {/* Glassmorphic Login Box */}
       <form
-        onSubmit={mode === 'login' ? handleLogin : handleSetupComplete}
+        onSubmit={submitHandler}
         className="relative z-10 bg-white/10 backdrop-blur-2xl border border-white/20 p-10 rounded-[2.5rem] shadow-2xl flex flex-col items-center max-w-sm w-full mx-4 animate-in fade-in zoom-in-95 duration-500"
       >
         
@@ -153,13 +240,11 @@ const Login = ({ onLoginSuccess }) => {
         <img src="/c2_logo.png" alt="C2 Logo" className="w-28 h-28 object-contain drop-shadow-2xl mb-6" />
         
         <h2 className="text-4xl font-medium text-white mb-2 drop-shadow-sm text-center" style={{ fontFamily: 'Recoleta, serif' }}>
-          {mode === 'login' ? 'Welcome Back' : 'Complete Setup'}
+          {heading}
         </h2>
 
         <p className="text-white/70 text-sm mb-10 text-center font-medium">
-          {mode === 'login'
-            ? 'Sign in with your tenant code, admin username, and password.'
-            : 'Add your email and change your password before continuing.'}
+          {description}
         </p>
 
         {errorMessage && (
@@ -168,8 +253,14 @@ const Login = ({ onLoginSuccess }) => {
           </div>
         )}
 
+        {successMessage && (
+          <div className="w-full mb-4 rounded-2xl bg-emerald-500/15 border border-emerald-200/30 px-4 py-3 text-emerald-50 text-sm">
+            {successMessage}
+          </div>
+        )}
+
         <div className="w-full space-y-4">
-          {mode === 'login' ? (
+          {(mode === 'login' || mode === 'reset-request') && (
             <>
               <label className="block">
                 <span className="block text-white/80 text-sm font-medium mb-2">Tenant</span>
@@ -188,37 +279,56 @@ const Login = ({ onLoginSuccess }) => {
                 </select>
               </label>
               <label className="block">
-                <span className="block text-white/80 text-sm font-medium mb-2">Username</span>
+                <span className="block text-white/80 text-sm font-medium mb-2">Username or email</span>
                 <input
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-white/50"
-                  placeholder="Admin username"
+                  placeholder="Admin username or email"
                   autoComplete="username"
                 />
               </label>
-              <label className="block">
-                <span className="block text-white/80 text-sm font-medium mb-2">Password</span>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 pr-12 text-white placeholder-white/40 outline-none focus:border-white/50"
-                    placeholder="Enter password"
-                    autoComplete="current-password"
-                  />
+              {mode === 'login' && (
+                <>
+                  <label className="block">
+                    <span className="block text-white/80 text-sm font-medium mb-2">Password</span>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 pr-12 text-white placeholder-white/40 outline-none focus:border-white/50"
+                        placeholder="Enter password"
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        className="absolute right-4 top-1/2 z-10 -translate-y-1/2 p-2 text-white transition-colors hover:text-gray-200"
+                      >
+                        {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                      </button>
+                    </div>
+                  </label>
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-200 transition-colors cursor-pointer z-10 p-2"
+                    onClick={() => {
+                      setMode('reset-request');
+                      setPassword('');
+                      setErrorMessage('');
+                      setSuccessMessage('');
+                    }}
+                    className="text-sm font-semibold text-white/85 underline-offset-4 hover:text-white hover:underline"
                   >
-                    {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                    Forgot password?
                   </button>
-                </div>
-              </label>
+                </>
+              )}
             </>
-          ) : (
+          )}
+
+          {mode === 'setup' && (
             <>
               <label className="block">
                 <span className="block text-white/80 text-sm font-medium mb-2">Email</span>
@@ -273,18 +383,100 @@ const Login = ({ onLoginSuccess }) => {
               </label>
             </>
           )}
+
+          {mode === 'reset-verify' && (
+            <>
+              <label className="block">
+                <span className="block text-white/80 text-sm font-medium mb-2">Verification code</span>
+                <input
+                  required
+                  autoFocus
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={resetCode}
+                  onChange={(event) => setResetCode(event.target.value.replace(/\D/g, ''))}
+                  className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-center text-xl tracking-[0.35em] text-white outline-none focus:border-white/50"
+                  placeholder="000000"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-white/80 text-sm font-medium mb-2">New Password</span>
+                <div className="relative">
+                  <input
+                    required
+                    minLength={8}
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 pr-12 text-white placeholder-white/40 outline-none focus:border-white/50"
+                    placeholder="Create password"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'} className="absolute right-4 top-1/2 z-10 -translate-y-1/2 p-2 text-white hover:text-gray-200">
+                    {showNewPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                  </button>
+                </div>
+              </label>
+              <label className="block">
+                <span className="block text-white/80 text-sm font-medium mb-2">Confirm Password</span>
+                <div className="relative">
+                  <input
+                    required
+                    minLength={8}
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 pr-12 text-white placeholder-white/40 outline-none focus:border-white/50"
+                    placeholder="Confirm password"
+                    autoComplete="new-password"
+                  />
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'} className="absolute right-4 top-1/2 z-10 -translate-y-1/2 p-2 text-white hover:text-gray-200">
+                    {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+                  </button>
+                </div>
+              </label>
+            </>
+          )}
         </div>
 
         <button
           type="submit"
-          disabled={isSubmitting || retryAfterSeconds > 0 || (mode === 'login' && !tenantCode)}
+          disabled={isSubmitting || retryAfterSeconds > 0 || ((mode === 'login' || mode === 'reset-request') && (!tenantCode || !identifier)) || (mode === 'reset-verify' && (resetCode.length !== 6 || newPassword.length < 8 || confirmPassword.length < 8))}
           className="w-full mt-6 bg-white text-[#0f211d] font-semibold text-lg py-3.5 px-4 rounded-2xl transition-all shadow-lg hover:shadow-2xl hover:-translate-y-1 hover:bg-gray-50 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:translate-y-0"
         >
-          <span>{isSubmitting ? 'Please wait...' : retryAfterSeconds > 0 ? `Try again in ${formatRetryCountdown(retryAfterSeconds)}` : mode === 'login' ? 'Sign In' : 'Finish Setup'}</span>
+          <span>{isSubmitting
+            ? 'Please wait...'
+            : retryAfterSeconds > 0
+              ? `Try again in ${formatRetryCountdown(retryAfterSeconds)}`
+              : mode === 'login'
+                ? 'Sign In'
+                : mode === 'setup'
+                  ? 'Finish Setup'
+                  : mode === 'reset-request'
+                    ? 'Send Recovery Code'
+                    : 'Reset Password'}</span>
           <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
         </button>
+        {(mode === 'reset-request' || mode === 'reset-verify') && (
+          <button
+            type="button"
+            onClick={() => {
+              setMode('login');
+              setResetRequestId('');
+              setResetCode('');
+              setNewPassword('');
+              setConfirmPassword('');
+              setErrorMessage('');
+              setSuccessMessage('');
+            }}
+            className="mt-4 text-sm font-semibold text-white/80 hover:text-white"
+          >
+            Back to sign in
+          </button>
+        )}
       </form>
 
     </div>

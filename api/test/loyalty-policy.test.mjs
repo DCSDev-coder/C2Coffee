@@ -29,9 +29,32 @@ test('tiers upgrade immediately but inactivity downgrades only at annual review'
   assert.match(maintenance, /review_due_at <= UTC_TIMESTAMP\(\)/);
   assert.match(maintenance, /annual_tier_protected/);
   assert.match(maintenance, /annual_tier_downgrade/);
+  assert.match(maintenance, /countQualifyingOrdersSince/);
+  assert.match(maintenance, /Math\.max\(1, Math\.ceil\(minCups \/ 2\)\)/);
+  assert.match(maintenance, /retentionProgress >= retentionTarget/);
+  assert.match(maintenance, /activeTiers\[currentIndex - 1\]/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS user_loyalty_tier_status/);
   assert.match(schema, /review_due_at DATETIME NOT NULL/);
   assert.match(backfill, /DATE_ADD\(UTC_TIMESTAMP\(\), INTERVAL 1 YEAR\)/);
+});
+
+test('tier progress uses rolling 12-month naming while preserving published-client aliases', async () => {
+  const schema = await source('src/db/migrations/149_add_rolling_12m_loyalty_progress.sql');
+  const backfill = await source('src/db/migrations/150_backfill_rolling_12m_loyalty_progress.sql');
+  const qualification = await source('src/db/migrations/151_enforce_first_order_tier_qualification.sql');
+  const auth = await source('src/http/routes/auth.ts');
+  const catalog = await source('src/http/routes/catalog.ts');
+
+  assert.match(schema, /ADD COLUMN qualifying_orders_rolling_12m/);
+  assert.match(backfill, /qualifying_orders_rolling_12m = qualifying_cups_last_180d/);
+  assert.match(qualification, /SET min_cups = 1/);
+  assert.match(qualification, /qualification_policy_correction/);
+  assert.match(qualification, /NOT EXISTS[\s\S]*loyalty_cup_events/);
+  assert.match(auth, /cups_last_180d: qualifyingOrdersRolling12m/);
+  assert.match(auth, /tier_qualified: currentTier !== null/);
+  assert.match(catalog, /qualifying_orders_rolling_12m/);
+  assert.match(catalog, /qualifying_orders_last_12_months/);
+  assert.match(catalog, /tier_retention_progress/);
 });
 
 test('annual loyalty review runs on bootstrap and in a daily server sweep', async () => {
@@ -40,7 +63,7 @@ test('annual loyalty review runs on bootstrap and in a daily server sweep', asyn
   const server = await source('src/server.ts');
 
   assert.match(auth, /const tierRefresh = await refreshUserLoyaltyTier\(userId, connection\)/);
-  assert.match(auth, /tier_review_due_at: tierRefresh\.reviewDueAt\.toISOString\(\)/);
+  assert.match(auth, /tier_review_due_at: currentTier \? tierRefresh\.reviewDueAt\.toISOString\(\) : null/);
   assert.match(catalog, /qualifying_orders_last_12_months/);
   assert.match(catalog, /tier_review_due_at/);
   assert.match(server, /runScheduledLoyaltyTierMaintenance/);
