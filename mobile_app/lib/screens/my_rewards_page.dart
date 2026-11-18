@@ -712,7 +712,51 @@ class _MyRewardsPageState extends State<MyRewardsPage>
     );
   }
 
+  String _templateGroupKey(RewardVoucherTemplate template) {
+    final code = template.code.trim().toLowerCase();
+    if (code.isNotEmpty) return code;
+    return template.displayLabel.trim().toLowerCase();
+  }
+
+  List<_GroupedTierReward> _groupTierRewards(
+    List<TierRewardEntitlement> rewards,
+  ) {
+    final grouped = <String, List<TierRewardEntitlement>>{};
+    for (final reward in rewards) {
+      final key = _templateGroupKey(reward.template);
+      grouped.putIfAbsent(key, () => []).add(reward);
+    }
+    return grouped.values
+        .map(
+          (items) => _GroupedTierReward(
+            reward: items.first,
+            count: items.length,
+          ),
+        )
+        .toList();
+  }
+
+  List<_GroupedRewardVoucher> _groupVouchers(List<RewardVoucher> vouchers) {
+    final grouped = <String, List<RewardVoucher>>{};
+    for (final voucher in vouchers) {
+      final key = _templateGroupKey(voucher.template);
+      grouped.putIfAbsent(key, () => []).add(voucher);
+    }
+    return grouped.values.map((items) {
+      final representative = items.firstWhere(
+        (v) => _isFocusedVoucher(v) || _expandedVoucherIds.contains(v.id),
+        orElse: () => items.first,
+      );
+      return _GroupedRewardVoucher(
+        voucher: representative,
+        count: items.length,
+      );
+    }).toList();
+  }
+
   Widget _buildClaimableTierRewardsSection() {
+    final groupedRewards = _groupTierRewards(_claimableTierRewards);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -757,15 +801,16 @@ class _MyRewardsPageState extends State<MyRewardsPage>
           ),
         ),
         const SizedBox(height: 12),
-        for (var i = 0; i < _claimableTierRewards.length; i++) ...[
-          _buildClaimableTierRewardCard(_claimableTierRewards[i]),
-          if (i < _claimableTierRewards.length - 1) const SizedBox(height: 12),
+        for (var i = 0; i < groupedRewards.length; i++) ...[
+          _buildClaimableTierRewardCard(groupedRewards[i]),
+          if (i < groupedRewards.length - 1) const SizedBox(height: 12),
         ],
       ],
     );
   }
 
-  Widget _buildClaimableTierRewardCard(TierRewardEntitlement reward) {
+  Widget _buildClaimableTierRewardCard(_GroupedTierReward group) {
+    final reward = group.reward;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -841,6 +886,24 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${group.count} left',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -883,15 +946,16 @@ class _MyRewardsPageState extends State<MyRewardsPage>
     required Color accentColor,
     required bool paginated,
   }) {
+    final groupedVouchers = _groupVouchers(vouchers);
     final visibleCount = !paginated
-        ? vouchers.length
-        : (vouchers.length < _voucherDisplayLimit
-            ? vouchers.length
+        ? groupedVouchers.length
+        : (groupedVouchers.length < _voucherDisplayLimit
+            ? groupedVouchers.length
             : _voucherDisplayLimit);
-    final visibleVouchers = vouchers.sublist(0, visibleCount);
-    final remainingCount = vouchers.length - visibleCount;
+    final visibleVouchers = groupedVouchers.sublist(0, visibleCount);
+    final remainingCount = groupedVouchers.length - visibleCount;
     final canCollapse = paginated &&
-        vouchers.length > _initialVoucherLimit &&
+        groupedVouchers.length > _initialVoucherLimit &&
         visibleCount > _initialVoucherLimit;
 
     return Column(
@@ -1043,9 +1107,10 @@ class _MyRewardsPageState extends State<MyRewardsPage>
   }
 
   Widget _buildVoucherCard(
-    RewardVoucher voucher, {
+    _GroupedRewardVoucher group, {
     required Color accentColor,
   }) {
+    final voucher = group.voucher;
     final expiryLabel = voucher.validityLabel.trim().isNotEmpty
         ? voucher.validityLabel
         : voucher.hasFixedExpiry
@@ -1159,39 +1224,69 @@ class _MyRewardsPageState extends State<MyRewardsPage>
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.local_offer_outlined,
-                            size: 14,
-                            color: cardAccentColor,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
-                              voucher.template.benefitSummary,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.deepTeal,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceLight,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.local_offer_outlined,
+                                size: 14,
+                                color: cardAccentColor,
                               ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  voucher.template.benefitSummary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.deepTeal,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? AppColors.gold.withValues(alpha: 0.2)
+                                : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${group.count} left',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isActive
+                                  ? AppColors.deepTeal
+                                  : Colors.grey.shade700,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -1563,4 +1658,24 @@ class _MyRewardsPageState extends State<MyRewardsPage>
       ),
     );
   }
+}
+
+class _GroupedTierReward {
+  final TierRewardEntitlement reward;
+  final int count;
+
+  const _GroupedTierReward({
+    required this.reward,
+    required this.count,
+  });
+}
+
+class _GroupedRewardVoucher {
+  final RewardVoucher voucher;
+  final int count;
+
+  const _GroupedRewardVoucher({
+    required this.voucher,
+    required this.count,
+  });
 }

@@ -13,6 +13,7 @@ import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../utils/global_state.dart';
 import '../widgets/custom_bottom_nav.dart';
+import '../widgets/floating_checkout_bar.dart';
 import '../widgets/order_status_banner.dart';
 import 'home_page.dart';
 import 'menu_page.dart';
@@ -301,38 +302,64 @@ class _OrdersPageState extends State<OrdersPage>
           onItemTapped: _onBottomNavTapped,
         ),
         overlay: Stack(
+          fit: StackFit.expand,
           children: [
-            OrderStatusBanner(
-              bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
-            ),
-            if (_showScrollToTop)
-              Positioned(
-                right: 18,
-                bottom: 94 + MediaQuery.paddingOf(context).bottom,
-                child: Semantics(
-                  button: true,
-                  label: 'Back to top',
-                  child: Material(
-                    color: AppColors.deepTeal,
-                    elevation: 5,
-                    shadowColor: Colors.black26,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: _scrollToTop,
-                      child: const SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Icon(
-                          Icons.keyboard_arrow_up_rounded,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                      ),
+            AnimatedBuilder(
+              animation: Listenable.merge([
+                globalOrderStatusVisible,
+                globalActiveOrders,
+                globalOrderStatusRawStatus,
+              ]),
+              builder: (context, _) {
+                final hasOrderBanner = OrderStatusBanner.isShowing;
+                final padBottom = FloatingCheckoutBar.safeBottomInset(context);
+                final scrollToTopBottom =
+                    (hasOrderBanner ? 184.0 : 90.0) + 3.0 + padBottom;
+                return AnimatedPositioned(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  right: 24,
+                  bottom: scrollToTopBottom,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: animation, child: child),
                     ),
+                    child: _showScrollToTop
+                        ? Semantics(
+                            key: const ValueKey('orders_scroll_to_top'),
+                            button: true,
+                            label: 'Back to top',
+                            child: Material(
+                              color: AppColors.deepTeal,
+                              elevation: 5,
+                              shadowColor: Colors.black26,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _scrollToTop,
+                                child: const SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: Icon(
+                                    Icons.keyboard_arrow_up_rounded,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
                   ),
-                ),
-              ),
+                );
+              },
+            ),
+            FloatingCheckoutBar(hasSideButton: _showScrollToTop),
+            OrderStatusBanner(
+              bottomOffset: 90 + FloatingCheckoutBar.safeBottomInset(context),
+            ),
           ],
         ),
         child: Column(

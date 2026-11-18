@@ -402,9 +402,54 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
     );
   }
 
+  String _templateGroupKey(RewardVoucherTemplate template) {
+    final code = template.code.trim().toLowerCase();
+    if (code.isNotEmpty) return code;
+    return template.displayLabel.trim().toLowerCase();
+  }
+
+  List<_GroupedModalTierReward> _groupTierRewards(
+    List<TierRewardEntitlement> rewards,
+  ) {
+    final grouped = <String, List<TierRewardEntitlement>>{};
+    for (final reward in rewards) {
+      final key = _templateGroupKey(reward.template);
+      grouped.putIfAbsent(key, () => []).add(reward);
+    }
+    return grouped.values
+        .map(
+          (items) => _GroupedModalTierReward(
+            reward: items.first,
+            count: items.length,
+          ),
+        )
+        .toList();
+  }
+
+  List<_GroupedModalVoucher> _groupVouchers(List<RewardVoucher> vouchers) {
+    final grouped = <String, List<RewardVoucher>>{};
+    for (final voucher in vouchers) {
+      final key = _templateGroupKey(voucher.template);
+      grouped.putIfAbsent(key, () => []).add(voucher);
+    }
+    return grouped.values.map((items) {
+      final representative = items.firstWhere(
+        (v) =>
+            v.id == widget.selectedVoucherId ||
+            _expandedVoucherIds.contains(v.id),
+        orElse: () => items.first,
+      );
+      return _GroupedModalVoucher(
+        voucher: representative,
+        count: items.length,
+      );
+    }).toList();
+  }
+
   Widget _buildClaimableTierRewardSection(
     List<TierRewardEntitlement> rewards,
   ) {
+    final groupedRewards = _groupTierRewards(rewards);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -427,12 +472,16 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
           ),
         ),
         const SizedBox(height: 10),
-        for (final reward in rewards) _buildClaimableTierRewardTile(reward),
+        for (var i = 0; i < groupedRewards.length; i++) ...[
+          _buildClaimableTierRewardTile(groupedRewards[i]),
+          if (i < groupedRewards.length - 1) const SizedBox(height: 10),
+        ],
       ],
     );
   }
 
-  Widget _buildClaimableTierRewardTile(TierRewardEntitlement reward) {
+  Widget _buildClaimableTierRewardTile(_GroupedModalTierReward group) {
+    final reward = group.reward;
     final isClaiming = _claimingTierRewardIds.contains(reward.id);
     return Container(
       padding: const EdgeInsets.all(14),
@@ -457,6 +506,26 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: AppColors.deepTeal,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${group.count} left',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.deepTeal,
+                    ),
                   ),
                 ),
               ],
@@ -499,6 +568,7 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
     required List<RewardVoucher> vouchers,
     required bool enabled,
   }) {
+    final groupedVouchers = _groupVouchers(vouchers);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -522,18 +592,19 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
           ),
         ),
         const SizedBox(height: 10),
-        for (var i = 0; i < vouchers.length; i++) ...[
-          _buildVoucherTile(vouchers[i], enabled: enabled),
-          if (i < vouchers.length - 1) const SizedBox(height: 10),
+        for (var i = 0; i < groupedVouchers.length; i++) ...[
+          _buildVoucherTile(groupedVouchers[i], enabled: enabled),
+          if (i < groupedVouchers.length - 1) const SizedBox(height: 10),
         ],
       ],
     );
   }
 
   Widget _buildVoucherTile(
-    RewardVoucher voucher, {
+    _GroupedModalVoucher group, {
     required bool enabled,
   }) {
+    final voucher = group.voucher;
     final isSelected = widget.selectedVoucherId == voucher.id;
     final isExpanded = _expandedVoucherIds.contains(voucher.id);
     final canApply = enabled &&
@@ -584,14 +655,45 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  voucher.template.displayLabel,
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: titleColor,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        voucher.template.displayLabel,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: titleColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isApplied
+                            ? Colors.grey.shade200
+                            : AppColors.gold.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${group.count} left',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isApplied
+                              ? Colors.grey.shade700
+                              : AppColors.deepTeal,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -800,4 +902,24 @@ class _VoucherModalContentState extends State<_VoucherModalContent> {
       ),
     );
   }
+}
+
+class _GroupedModalTierReward {
+  final TierRewardEntitlement reward;
+  final int count;
+
+  const _GroupedModalTierReward({
+    required this.reward,
+    required this.count,
+  });
+}
+
+class _GroupedModalVoucher {
+  final RewardVoucher voucher;
+  final int count;
+
+  const _GroupedModalVoucher({
+    required this.voucher,
+    required this.count,
+  });
 }

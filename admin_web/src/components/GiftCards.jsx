@@ -210,6 +210,7 @@ export default function GiftCards({ currentUser }) {
       'Status',
       'Recipient Phone',
       'Recipient Name',
+      'Recipient Message',
       'Purchase Reference',
       'Created At'
     ];
@@ -223,6 +224,7 @@ export default function GiftCards({ currentUser }) {
         `"${c.status || ''}"`,
         `"${c.recipient_phone || ''}"`,
         `"${(c.recipient_name || '').replace(/"/g, '""')}"`,
+        `"${(c.recipient_message || '').replace(/"/g, '""')}"`,
         `"${c.purchase_ref || ''}"`,
         `"${c.created_at || ''}"`
       ])

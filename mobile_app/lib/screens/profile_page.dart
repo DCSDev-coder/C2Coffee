@@ -20,7 +20,9 @@ import 'contact_support_page.dart';
 import 'notification_page.dart';
 import 'settings_page.dart';
 import 'rewards_page.dart';
+import 'referral_page.dart';
 import 'news_page.dart';
+import '../widgets/floating_checkout_bar.dart';
 import '../widgets/order_status_banner.dart';
 import '../widgets/catalog_product_image.dart';
 import '../utils/app_colors.dart';
@@ -404,7 +406,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
       overlay: OrderStatusBanner(
-        bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+        bottomOffset: 90 + FloatingCheckoutBar.safeBottomInset(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -588,6 +590,9 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 24),
 
+          _buildReferralEntryCard(),
+          const SizedBox(height: 24),
+
           _buildRecentActivitySection(),
           const SizedBox(height: 24),
 
@@ -641,6 +646,77 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  Widget _buildReferralEntryCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => InteractiveFillingLoader.show(
+            context,
+            targetPage: const ReferralPage(),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.deepTeal.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    Icons.card_giftcard_outlined,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Refer & Earn',
+                        style: TextStyle(
+                          fontFamily: 'Recoleta',
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.deepTeal,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Share your code or enter a friend\'s code before your first order.',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 15,
+                  color: AppColors.deepTeal,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

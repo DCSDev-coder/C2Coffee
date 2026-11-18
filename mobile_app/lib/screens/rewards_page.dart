@@ -10,6 +10,7 @@ import 'profile_page.dart';
 import 'loading_order_page.dart';
 import 'referral_page.dart';
 import 'dart:io';
+import '../widgets/floating_checkout_bar.dart';
 import '../widgets/order_status_banner.dart';
 import 'my_rewards_page.dart';
 import 'gift_cards_page.dart';
@@ -226,7 +227,7 @@ class _RewardsPageState extends State<RewardsPage> {
       ),
       extendBody: true,
       overlay: OrderStatusBanner(
-        bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+        bottomOffset: 90 + FloatingCheckoutBar.safeBottomInset(context),
       ),
       child: Column(
         children: [
@@ -250,6 +251,12 @@ class _RewardsPageState extends State<RewardsPage> {
     final tierArtworkUrl = _currentTier()?.imageUrl;
     final secureTierArtworkUrl =
         isSecureRemoteImageSource(tierArtworkUrl) ? tierArtworkUrl : null;
+    final nextTier = _nextTier();
+    final targetCups = _getMaxCupsForTier();
+    final progress = (_session.qualifyingOrdersRolling12m /
+            (targetCups <= 0 ? 1 : targetCups))
+        .clamp(0.0, 1.0)
+        .toDouble();
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
@@ -296,7 +303,7 @@ class _RewardsPageState extends State<RewardsPage> {
           const SizedBox(height: 24),
           // Tokens and qualifying-order activity
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Tokens
               Expanded(
@@ -306,17 +313,19 @@ class _RewardsPageState extends State<RewardsPage> {
                       '${_session.tokenBalance}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 26,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: AppColors.softGold,
                         height: 1.1,
                       ),
                     ),
+                    const SizedBox(height: 4),
                     const Text(
-                      'tokens',
+                      'Tokens',
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 14,
+                        fontWeight: FontWeight.w500,
                         color: Colors.black54,
                       ),
                     ),
@@ -325,10 +334,11 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
               Container(
                 width: 1,
-                height: 50,
+                height: 42,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
                 color: AppColors.border,
               ),
-              // Lifetime loyalty activity
+              // Lifetime qualifying orders
               Expanded(
                 child: Column(
                   children: [
@@ -336,49 +346,21 @@ class _RewardsPageState extends State<RewardsPage> {
                       '${_session.lifetimeQualifyingOrders}',
                       style: TextStyle(
                         fontFamily: 'Recoleta',
-                        fontSize: 26,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brandText,
                         height: 1.1,
                       ),
                     ),
+                    const SizedBox(height: 4),
                     const Text(
-                      'lifetime qualifying orders',
+                      'Qualifying Orders',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'Afacad',
                         fontSize: 14,
+                        fontWeight: FontWeight.w500,
                         color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _getTierProgressLabel(),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 13,
-                        color: Colors.black45,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Progress bar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: (_session.qualifyingOrdersRolling12m /
-                                  (_progressTargetCups() <= 0
-                                      ? 1
-                                      : _progressTargetCups()))
-                              .clamp(0.0, 1.0)
-                              .toDouble(),
-                          backgroundColor: Colors.grey[200],
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(AppColors.deepTeal),
-                          minHeight: 8,
-                        ),
                       ),
                     ),
                   ],
@@ -386,17 +368,79 @@ class _RewardsPageState extends State<RewardsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            _session.bootstrapError ??
-                '*Orders using any company subsidy do not count toward tier progress. Pay fully with personal C2 Credit or direct payment for a qualifying drink order to count.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'Afacad',
-              fontSize: 12,
-              color: Colors.black54,
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.7),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        nextTier == null
+                            ? 'Tier Progress'
+                            : 'Next Tier: ${nextTier.name}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.brandText,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      nextTier == null
+                          ? 'Max tier reached'
+                          : '${_session.qualifyingOrdersRolling12m} / $targetCups orders',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor:
+                        AppColors.deepTeal.withValues(alpha: 0.12),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.deepTeal),
+                    minHeight: 8,
+                  ),
+                ),
+              ],
             ),
           ),
+          if (_session.bootstrapError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _session.bootstrapError!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 12,
+                color: Colors.black54,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -443,15 +487,6 @@ class _RewardsPageState extends State<RewardsPage> {
 
   int _getMaxCupsForTier() {
     return _progressTargetCups();
-  }
-
-  String _getTierProgressLabel() {
-    final nextTier = _nextTier();
-    if (nextTier == null) {
-      return 'Max tier reached';
-    }
-
-    return '${_session.qualifyingOrdersRolling12m} / ${_getMaxCupsForTier()} qualifying orders to ${nextTier.name}';
   }
 
   Widget _buildActionCards() {
@@ -1393,7 +1428,7 @@ class _RewardsPageState extends State<RewardsPage> {
                 const Divider(height: 1),
                 _buildExpansionTile(
                   'How do I earn tier progress?',
-                  'You earn one qualifying order after collection when the order contains an eligible drink and is paid fully with personal C2 Credit or direct payment. Multiple drinks in one order still count as one qualifying order. If any company subsidy is used, that order does not count toward tier progress.',
+                  'You earn one qualifying order after collection when the order contains an eligible drink and is paid with C2 Credit or direct payment. Multiple drinks in one order still count as one qualifying order.',
                 ),
                 const Divider(height: 1),
                 _buildExpansionTile(

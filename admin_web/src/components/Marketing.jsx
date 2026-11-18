@@ -31,6 +31,9 @@ import {
   loadAdminVouchers,
   notifyAdminMarketingBanner,
   sendAdminCustomerMessage,
+  loadAdminCustomerMessageSchedules,
+  createAdminCustomerMessageSchedule,
+  cancelAdminCustomerMessageSchedule,
   updateAdminMarketingBanner,
   reorderAdminMarketingBannerSurface,
   reverseAdminMarketingDrinkUsage,
@@ -79,6 +82,27 @@ const bannerTypeOptions = [
   { value: "partner", label: "Partnership" },
   { value: "social", label: "Social / entertainment poster" },
 ];
+
+const customerMessageScheduleDays = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 7, label: "Sun" },
+];
+
+function customerMessageScheduleLabel(schedule) {
+  if (!schedule) return "";
+  if (schedule.mode === "once") return "One time";
+  if (schedule.mode === "daily") return `Every day at ${schedule.time}`;
+  if (schedule.mode === "weekly") {
+    const days = customerMessageScheduleDays.filter((day) => (schedule.activeDays || []).includes(day.value)).map((day) => day.label).join(", ");
+    return `Every ${days || "week"} at ${schedule.time}`;
+  }
+  return `Every month on day ${schedule.monthlyDay} at ${schedule.time}`;
+}
 
 const MARKETING_EMOJI_GROUPS = [
   { label: "Food & drinks", emojis: [
@@ -369,6 +393,15 @@ const Marketing = () => {
   const [sendingCustomerMessage, setSendingCustomerMessage] = useState(false);
   const [customerMessage, setCustomerMessage] = useState({ title: "", body: "" });
   const [customerMessageRetrySeconds, setCustomerMessageRetrySeconds] = useState(0);
+  const [customerMessageSchedules, setCustomerMessageSchedules] = useState([]);
+  const [savingCustomerMessageSchedule, setSavingCustomerMessageSchedule] = useState(false);
+  const [customerMessageScheduleForm, setCustomerMessageScheduleForm] = useState({
+    mode: "once",
+    startsAt: "",
+    endsAt: "",
+    activeDays: [1],
+    monthlyDay: "",
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
@@ -397,8 +430,8 @@ const Marketing = () => {
     try {
       setError("");
       setLoading(true);
-      const [bannerResponse, menuResponse, voucherResponse] = await Promise.all(
-        [loadAdminMarketingBanners(), loadAdminMenu(), loadAdminVouchers()],
+      const [bannerResponse, menuResponse, voucherResponse, scheduleResponse] = await Promise.all(
+        [loadAdminMarketingBanners(), loadAdminMenu(), loadAdminVouchers(), loadAdminCustomerMessageSchedules()],
       );
 
       setBanners(
@@ -410,6 +443,9 @@ const Marketing = () => {
         Array.isArray(voucherResponse?.vouchers)
           ? voucherResponse.vouchers
           : [],
+      );
+      setCustomerMessageSchedules(
+        Array.isArray(scheduleResponse?.schedules) ? scheduleResponse.schedules : [],
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load posters.");
@@ -988,6 +1024,56 @@ const Marketing = () => {
     }
   };
 
+  const scheduleCustomerMessage = async (event) => {
+    event.preventDefault();
+    const title = customerMessage.title.trim();
+    const body = customerMessage.body.trim();
+    const { mode, startsAt, endsAt, activeDays, monthlyDay } = customerMessageScheduleForm;
+    if (!title || !body || !startsAt) return;
+    if (mode === "weekly" && activeDays.length === 0) {
+      showAdminError("Choose at least one weekday for a weekly broadcast.");
+      return;
+    }
+    if (mode === "monthly" && !monthlyDay) {
+      showAdminError("Choose the day of the month for a monthly broadcast.");
+      return;
+    }
+
+    try {
+      setSavingCustomerMessageSchedule(true);
+      await createAdminCustomerMessageSchedule({
+        title,
+        body,
+        mode,
+        starts_at: new Date(startsAt).toISOString(),
+        ends_at: mode === "once" || !endsAt ? null : new Date(endsAt).toISOString(),
+        active_days: mode === "weekly" ? activeDays : [],
+        monthly_day: mode === "monthly" ? Number(monthlyDay) : null,
+      });
+      showAdminSuccess(`Broadcast scheduled: ${customerMessageScheduleLabel({ mode, time: startsAt.slice(11, 16), activeDays, monthlyDay })}.`);
+      setCustomerMessage({ title: "", body: "" });
+      setCustomerMessageScheduleForm({ mode: "once", startsAt: "", endsAt: "", activeDays: [1], monthlyDay: "" });
+      await loadPageData();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unable to schedule the customer broadcast.";
+      setError(msg);
+      showAdminError(msg);
+    } finally {
+      setSavingCustomerMessageSchedule(false);
+    }
+  };
+
+  const cancelCustomerMessageSchedule = async (schedule) => {
+    if (!await requestAdminConfirm({ title: "Cancel scheduled broadcast?", message: `Cancel “${schedule.title}”? It will not send again.`, confirmLabel: "Cancel schedule", tone: "danger" })) return;
+    try {
+      await cancelAdminCustomerMessageSchedule(schedule.id);
+      showAdminSuccess("Scheduled broadcast cancelled.");
+      await loadPageData();
+    } catch (err) {
+      showAdminError(err instanceof Error ? err.message : "Unable to cancel the scheduled broadcast.");
+    }
+  };
+
   const previewIsGif =
     selectedImageFile?.type === "image/gif" || formData.mediaType === "gif";
 
@@ -1129,12 +1215,77 @@ const Marketing = () => {
                 )}
                 {marketingPanel === "payment" && <PaymentServiceNotices />}
                 {marketingPanel === "broadcast" && (
-                  <form onSubmit={sendCustomerMessage}>
+                  <div>
+                    <form onSubmit={sendCustomerMessage}>
                     <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2.5"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2E5E58]/10 text-[#2E5E58]"><MessageSquare size={16} /></div><div className="flex items-center gap-1.5"><h3 className="text-sm font-bold text-gray-900">Customer Broadcast</h3><InfoTooltip title="Broadcast Scope" content="Sends a push notification to active customers who enabled notifications, and records an announcement into their in-app Notifications tab." /></div></div><span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-bold text-gray-600">In-app + Push notification</span></div>
                     <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]"><label className="text-xs font-semibold text-gray-700">Title<div className="mt-1 flex items-center gap-2"><input ref={customerMessageTitleRef} required maxLength={120} value={customerMessage.title} onChange={(event) => setCustomerMessage((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. A little reminder from C2 Coffee" className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" /><EmojiPicker inputRef={customerMessageTitleRef} value={customerMessage.title} onChange={(title) => setCustomerMessage((current) => ({ ...current, title }))} label="Add emoji to broadcast title" /></div></label><label className="text-xs font-semibold text-gray-700">Message<div className="mt-1 flex items-start gap-2"><textarea ref={customerMessageBodyRef} required maxLength={420} rows={2} value={customerMessage.body} onChange={(event) => setCustomerMessage((current) => ({ ...current, body: event.target.value }))} placeholder="e.g. Don't forget to come by and enjoy your favourite drink today." className="w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58] focus:ring-1 focus:ring-[#2E5E58]" /><EmojiPicker inputRef={customerMessageBodyRef} value={customerMessage.body} onChange={(body) => setCustomerMessage((current) => ({ ...current, body }))} label="Add emoji to broadcast message" /></div></label></div>
                     {customerMessageRetrySeconds > 0 && <p className="mt-2 text-right text-xs font-semibold text-amber-700">Messages are temporarily rate-limited. Try again in <span className="font-mono tabular-nums">{formatRetryCountdown(customerMessageRetrySeconds)}</span>.</p>}
                     <div className="mt-3 flex justify-end"><button type="submit" disabled={sendingCustomerMessage || customerMessageRetrySeconds > 0 || !customerMessage.title.trim() || !customerMessage.body.trim()} className="inline-flex items-center gap-1.5 rounded-xl bg-[#2E5E58] px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-[#1F4B43] disabled:cursor-not-allowed disabled:opacity-50"><Bell size={14} />{sendingCustomerMessage ? "Sending..." : customerMessageRetrySeconds > 0 ? `Try again in ${formatRetryCountdown(customerMessageRetrySeconds)}` : "Send broadcast"}</button></div>
                   </form>
+                    <form onSubmit={scheduleCustomerMessage} className="mt-6 border-t border-gray-100 pt-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-gray-900">Schedule this broadcast</h3>
+                          <p className="mt-0.5 text-xs text-gray-500">The API will send it automatically in Asia/Kuala_Lumpur time, even when Admin Web is closed.</p>
+                        </div>
+                        <span className="rounded-full bg-[#EEF6F3] px-2.5 py-0.5 text-[10px] font-bold text-[#1F5A4D]">One-time or recurring</span>
+                      </div>
+                      <div className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <label className="text-xs font-semibold text-gray-700">Repeat
+                          <select value={customerMessageScheduleForm.mode} onChange={(event) => setCustomerMessageScheduleForm((current) => ({ ...current, mode: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58]">
+                            <option value="once">One time only</option>
+                            <option value="daily">Every day</option>
+                            <option value="weekly">Every week</option>
+                            <option value="monthly">Every month</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-semibold text-gray-700">First send time
+                          <input required type="datetime-local" value={customerMessageScheduleForm.startsAt} onChange={(event) => setCustomerMessageScheduleForm((current) => ({ ...current, startsAt: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58]" />
+                        </label>
+                        {customerMessageScheduleForm.mode !== "once" && (
+                          <label className="text-xs font-semibold text-gray-700">Stop repeating (optional)
+                            <input type="datetime-local" min={customerMessageScheduleForm.startsAt || undefined} value={customerMessageScheduleForm.endsAt} onChange={(event) => setCustomerMessageScheduleForm((current) => ({ ...current, endsAt: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58]" />
+                          </label>
+                        )}
+                        {customerMessageScheduleForm.mode === "monthly" && (
+                          <label className="text-xs font-semibold text-gray-700">Day of month
+                            <input required type="number" min="1" max="31" value={customerMessageScheduleForm.monthlyDay} onChange={(event) => setCustomerMessageScheduleForm((current) => ({ ...current, monthlyDay: event.target.value }))} placeholder="e.g. 15" className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-[#2E5E58]" />
+                          </label>
+                        )}
+                      </div>
+                      {customerMessageScheduleForm.mode === "weekly" && (
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold text-gray-700">Days of week</p>
+                          <div className="mt-1.5 flex flex-wrap gap-2">
+                            {customerMessageScheduleDays.map((day) => (
+                              <label key={day.value} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700">
+                                <input type="checkbox" checked={customerMessageScheduleForm.activeDays.includes(day.value)} onChange={() => setCustomerMessageScheduleForm((current) => ({ ...current, activeDays: current.activeDays.includes(day.value) ? current.activeDays.filter((value) => value !== day.value) : [...current.activeDays, day.value].sort((a, b) => a - b) }))} className="rounded text-[#2E5E58] focus:ring-[#2E5E58]" />
+                                {day.label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="mt-3 flex justify-end">
+                        <button type="submit" disabled={savingCustomerMessageSchedule || !customerMessage.title.trim() || !customerMessage.body.trim() || !customerMessageScheduleForm.startsAt} className="inline-flex items-center gap-1.5 rounded-xl border border-[#2E5E58] bg-white px-3.5 py-2 text-xs font-bold text-[#2E5E58] hover:bg-[#F5FBF9] disabled:cursor-not-allowed disabled:opacity-50">
+                          <Bell size={14} />{savingCustomerMessageSchedule ? "Scheduling..." : "Schedule broadcast"}
+                        </button>
+                      </div>
+                    </form>
+                    {customerMessageSchedules.length > 0 && (
+                      <div className="mt-6 border-t border-gray-100 pt-5">
+                        <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-bold text-gray-900">Scheduled broadcasts</h3><button type="button" onClick={() => void loadPageData()} className="text-xs font-bold text-[#2E5E58] hover:underline">Refresh</button></div>
+                        <div className="mt-3 space-y-2">
+                          {customerMessageSchedules.map((schedule) => (
+                            <div key={schedule.id} className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0"><p className="truncate text-xs font-bold text-gray-900">{schedule.title}</p><p className="mt-0.5 text-[11px] text-gray-500">{customerMessageScheduleLabel(schedule.schedule)} · Next: {schedule.status === "active" ? new Date(schedule.next_run_at).toLocaleString("en-MY") : schedule.status}</p></div>
+                              <div className="flex items-center gap-2 shrink-0"><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${schedule.status === "active" ? "bg-emerald-50 text-emerald-700" : schedule.status === "completed" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"}`}>{schedule.status}</span>{schedule.status === "active" && <button type="button" onClick={() => void cancelCustomerMessageSchedule(schedule)} className="rounded-lg border border-red-200 px-2.5 py-1.5 text-[11px] font-bold text-red-700 hover:bg-red-50">Cancel</button>}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

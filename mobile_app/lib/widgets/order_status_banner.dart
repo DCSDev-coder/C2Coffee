@@ -5,11 +5,17 @@ import '../utils/app_colors.dart';
 import '../utils/global_state.dart';
 import '../services/customer_data_service.dart';
 import 'custom_bottom_nav.dart';
+import 'floating_checkout_bar.dart';
 
 class OrderStatusBanner extends StatefulWidget {
   final double? bottomOffset;
   final double? leftOffset;
   final double? rightOffset;
+
+  static bool get isShowing =>
+      globalOrderStatusVisible.value &&
+      (globalActiveOrders.value.isNotEmpty ||
+          globalOrderStatusRawStatus.value != null);
 
   const OrderStatusBanner({
     super.key,
@@ -172,18 +178,11 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
 
   Widget _buildFallbackBanner({
     required String? rawStatus,
-    required double effectiveBottomOffset,
-    required double effectiveLeftOffset,
-    required double effectiveRightOffset,
   }) {
     final progress = _progressForStatus(rawStatus);
     final progressColor = _progressColor(rawStatus);
 
-    return Positioned(
-      left: effectiveLeftOffset,
-      right: effectiveRightOffset,
-      bottom: effectiveBottomOffset,
-      child: IgnorePointer(
+    return IgnorePointer(
         ignoring: !globalOrderStatusVisible.value ||
             _controller.status == AnimationStatus.dismissed ||
             _controller.status == AnimationStatus.reverse,
@@ -283,7 +282,6 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
             ),
           ),
         ),
-      ),
     );
   }
 
@@ -473,55 +471,62 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
 
   @override
   Widget build(BuildContext context) {
-    final effectiveBottomOffset =
-        widget.bottomOffset ?? (88 + MediaQuery.paddingOf(context).bottom);
+    final effectiveBottomOffset = widget.bottomOffset ??
+        (90 + FloatingCheckoutBar.safeBottomInset(context));
     final effectiveLeftOffset = widget.leftOffset ?? 16.0;
     final effectiveRightOffset = widget.rightOffset ?? 16.0;
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: globalOrderStatusVisible,
-      builder: (context, isVisible, child) {
-        return ValueListenableBuilder<List<CustomerOrder>>(
-          valueListenable: globalActiveOrders,
-          builder: (context, activeOrders, child) {
-            if (!isVisible && _controller.isDismissed) {
-              return const SizedBox.shrink();
-            }
+    return _buildBannerContent(
+      effectiveBottomOffset: effectiveBottomOffset,
+      effectiveLeftOffset: effectiveLeftOffset,
+      effectiveRightOffset: effectiveRightOffset,
+    );
+  }
 
-            if (activeOrders.isEmpty) {
-              return ValueListenableBuilder<String?>(
-                valueListenable: globalOrderStatusRawStatus,
-                builder: (context, rawStatus, child) {
-                  if (!isVisible && _controller.isDismissed) {
-                    return const SizedBox.shrink();
-                  }
-                  if (rawStatus == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return _buildFallbackBanner(
-                    rawStatus: rawStatus,
-                    effectiveBottomOffset: effectiveBottomOffset,
-                    effectiveLeftOffset: effectiveLeftOffset,
-                    effectiveRightOffset: effectiveRightOffset,
-                  );
-                },
-              );
-            }
+  Widget _buildBannerContent({
+    required double effectiveBottomOffset,
+    required double effectiveLeftOffset,
+    required double effectiveRightOffset,
+  }) {
+    return Positioned(
+      left: effectiveLeftOffset,
+      right: effectiveRightOffset,
+      bottom: effectiveBottomOffset,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: globalOrderStatusVisible,
+        builder: (context, isVisible, child) {
+          return ValueListenableBuilder<List<CustomerOrder>>(
+            valueListenable: globalActiveOrders,
+            builder: (context, activeOrders, child) {
+              if (!isVisible && _controller.isDismissed) {
+                return const SizedBox.shrink();
+              }
 
-            final readyCount = activeOrders
-                .where((order) => order.status == 'ready_for_pickup')
-                .length;
-            final progress = _summaryProgress(activeOrders);
-            final progressColor = readyCount >= activeOrders.length
-                ? AppColors.gold
-                : AppColors.deepTeal;
-            final summaryLabel = _summaryLabel(activeOrders);
+              if (activeOrders.isEmpty) {
+                return ValueListenableBuilder<String?>(
+                  valueListenable: globalOrderStatusRawStatus,
+                  builder: (context, rawStatus, child) {
+                    if (!isVisible && _controller.isDismissed) {
+                      return const SizedBox.shrink();
+                    }
+                    if (rawStatus == null) {
+                      return const SizedBox.shrink();
+                    }
+                    return _buildFallbackBanner(rawStatus: rawStatus);
+                  },
+                );
+              }
 
-            return Positioned(
-              left: effectiveLeftOffset,
-              right: effectiveRightOffset,
-              bottom: effectiveBottomOffset,
-              child: IgnorePointer(
+              final readyCount = activeOrders
+                  .where((order) => order.status == 'ready_for_pickup')
+                  .length;
+              final progress = _summaryProgress(activeOrders);
+              final progressColor = readyCount >= activeOrders.length
+                  ? AppColors.gold
+                  : AppColors.deepTeal;
+              final summaryLabel = _summaryLabel(activeOrders);
+
+              return IgnorePointer(
                 ignoring: !isVisible ||
                     _controller.status == AnimationStatus.dismissed ||
                     _controller.status == AnimationStatus.reverse,
@@ -605,11 +610,11 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

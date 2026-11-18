@@ -1556,6 +1556,83 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Future<void> _showHiddenAccountClosureSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Account Status',
+                style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.brandText,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Closing your account is permanent and signs you out on all devices.',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 14,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 18),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  _showAccountClosureDialog();
+                },
+                icon: const Icon(Icons.person_off_outlined, size: 18),
+                label: const Text(
+                  'Close Account',
+                  style: TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _destructiveActionColor,
+                  side: BorderSide(
+                    color: _destructiveActionColor.withValues(alpha: 0.45),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showAccountClosureDialog() async {
     final reasonController = TextEditingController();
     String? inlineError;
@@ -2114,91 +2191,31 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
 
-                // Close Account Card (separate from Settings & Log Out)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Material(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: _showAccountClosureDialog,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color:
-                                _destructiveActionColor.withValues(alpha: 0.35),
-                            width: 1.1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: _destructiveActionColor.withValues(
-                                    alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.person_off_outlined,
-                                size: 22,
-                                color: _destructiveActionColor,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Close Account',
-                                    style: TextStyle(
-                                      fontFamily: 'Recoleta',
-                                      fontSize: 19,
-                                      fontWeight: FontWeight.w700,
-                                      color: _destructiveActionColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  const Text(
-                                    'Request closure and sign out from all devices',
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 15,
-                              color: _destructiveActionColor,
-                            ),
-                          ],
-                        ),
+                // Subtle Account Status link (tucks Close Account away from Log Out)
+                Center(
+                  child: TextButton(
+                    onPressed: _showHiddenAccountClosureSheet,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.black38,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: const Text(
+                      'Manage account status',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black38,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
               ],
             ),
             // Overlapping Avatar (now scrolls with content)

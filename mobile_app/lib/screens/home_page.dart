@@ -13,8 +13,10 @@ import '../services/user_service.dart';
 import '../services/secure_session_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/global_state.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
+import '../widgets/floating_checkout_bar.dart';
 import '../widgets/order_status_banner.dart';
 import '../widgets/poster_popup.dart';
 import '../widgets/app_tutorial.dart';
@@ -413,6 +415,7 @@ class _HomePageState extends State<HomePage> {
             tutorialTargetKeys: _tutorialTargets.bottomNavKeys,
           ),
           body: Stack(
+            fit: StackFit.expand,
             children: [
               SafeArea(
                 bottom: false,
@@ -476,39 +479,65 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+              AnimatedBuilder(
+                animation: Listenable.merge([
+                  globalOrderStatusVisible,
+                  globalActiveOrders,
+                  globalOrderStatusRawStatus,
+                ]),
+                builder: (context, _) {
+                  final hasOrderBanner = OrderStatusBanner.isShowing;
+                  final padBottom =
+                      FloatingCheckoutBar.safeBottomInset(context);
+                  final scrollToTopBottom =
+                      (hasOrderBanner ? 184.0 : 90.0) + 3.0 + padBottom;
+                  return AnimatedPositioned(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    right: 24,
+                    bottom: scrollToTopBottom,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(scale: animation, child: child),
+                      ),
+                      child: _showScrollToTop
+                          ? Semantics(
+                              key: const ValueKey('home_scroll_to_top'),
+                              button: true,
+                              label: 'Back to top',
+                              child: Material(
+                                color: AppColors.deepTeal,
+                                elevation: 5,
+                                shadowColor: Colors.black26,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: _scrollToTop,
+                                  child: const SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: Icon(
+                                      Icons.keyboard_arrow_up_rounded,
+                                      color: Colors.white,
+                                      size: 30,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  );
+                },
+              ),
+              FloatingCheckoutBar(hasSideButton: _showScrollToTop),
               OrderStatusBanner(
                 leftOffset: 16,
                 rightOffset: 16,
-                bottomOffset: 90 + MediaQuery.paddingOf(context).bottom,
+                bottomOffset: 90 + FloatingCheckoutBar.safeBottomInset(context),
               ),
-              if (_showScrollToTop)
-                Positioned(
-                  right: 18,
-                  bottom: 94 + MediaQuery.paddingOf(context).bottom,
-                  child: Semantics(
-                    button: true,
-                    label: 'Back to top',
-                    child: Material(
-                      color: AppColors.deepTeal,
-                      elevation: 5,
-                      shadowColor: Colors.black26,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: _scrollToTop,
-                        child: const SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: Icon(
-                            Icons.keyboard_arrow_up_rounded,
-                            color: Colors.white,
-                            size: 30,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
         );

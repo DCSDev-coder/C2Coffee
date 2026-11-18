@@ -165,6 +165,7 @@ class AppPageShell extends StatelessWidget {
         onEndDrawerChanged: onEndDrawerChanged,
         body: overlay != null
             ? Stack(
+                fit: StackFit.expand,
                 children: [bodyColumn, overlay!],
               )
             : bodyColumn,

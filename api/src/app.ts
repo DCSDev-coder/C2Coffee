@@ -23,6 +23,7 @@ import { registerAdminCustomersRoutes } from './http/routes/admin-customers.js';
 import { registerAdminLoyaltyRoutes } from './http/routes/admin-loyalty.js';
 import { registerAdminAuditRoutes } from './http/routes/admin-audit.js';
 import { registerAdminMarketingRoutes } from './http/routes/admin-marketing.js';
+import { registerAdminCustomerMessageScheduleRoutes } from './http/routes/admin-customer-message-schedules.js';
 import { registerAdminBaristasRoutes } from './http/routes/admin-baristas.js';
 import { registerAdminDashboardRoutes } from './http/routes/admin-dashboard.js';
 import { registerHomeFeaturedRoutes } from './http/routes/home-featured.js';
@@ -159,6 +160,7 @@ export async function buildApp() {
   await registerAdminOptionLibraryRoutes(app);
   await registerAdminAuditRoutes(app);
   await registerAdminMarketingRoutes(app);
+  await registerAdminCustomerMessageScheduleRoutes(app);
   await registerAdminBaristasRoutes(app);
   await registerAdminStoreRoutes(app);
   await registerAdminTenantStoreRoutes(app);

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Download, Layers3, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
-import { exportToCSV } from '../utils/exportToCSV';
+import { exportReportSections } from '../utils/exportToCSV';
 import { loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatReportMoney } from '../utils/reporting';
 
@@ -172,7 +172,21 @@ const ExpenseBreakdownFull = ({ onBack }) => {
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => exportToCSV(exportRows, 'transaction_breakdown.csv')}
+          onClick={() => exportReportSections([{
+            title: 'Transaction breakdown summary',
+            headers: ['Metric', 'Value'],
+            rows: [
+              ['Transactions', totalStatuses],
+              ['Gross revenue (RM)', summary.totalRevenueRm || 0],
+              ['Total orders', summary.totalOrders || 0],
+              ['Refunded orders', summary.refundedOrders || 0],
+              ['Refund amount (RM)', summary.totalRefundAmountRm || 0]
+            ]
+          }, {
+            title: 'Status details',
+            headers: exportRows[0],
+            rows: exportRows.slice(1)
+          }], 'transaction_breakdown.csv')}
           className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
         >
           <Download size={16} /> Export Data

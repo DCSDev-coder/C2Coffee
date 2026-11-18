@@ -13,7 +13,7 @@ import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
-import { exportToCSV } from '../utils/exportToCSV';
+import { exportReportSections, exportToCSV } from '../utils/exportToCSV';
 import { adjustAdminCustomerTokens, loadAdminLoyaltyOverview, loadEmployeeAllowanceReport, loadSubsidyPolicies, saveSubsidyPolicies } from '../lib/adminApi';
 
 const CustomDateInput = forwardRef(({ value, onClick, onClear }, ref) => (
@@ -513,9 +513,56 @@ const LoyaltyTokens = () => {
     const allowances = Array.isArray(employeeReport?.allowances) ? employeeReport.allowances : [];
     const purchases = Array.isArray(employeeReport?.purchases) ? employeeReport.purchases : [];
     const summary = employeeReport?.summary || {};
-    const exportEmployeeReport = () => exportToCSV([
-      ['Month','Order','Employee','Outlet','Items','Company used','Company refunded','Personal used','Status'],
-      ...purchases.map((row) => [employeeReportMonth, row.orderRef, `"${row.employee}"`, `"${row.outlet}"`, `"${String(row.items).replaceAll('"','""')}"`, row.allowanceTokens, row.refundedAllowanceTokens, row.personalTokens, row.status])
+    const exportEmployeeReport = () => exportReportSections([
+      {
+        title: `Employee allowance summary — ${employeeReportMonth}`,
+        headers: ['Metric', 'Value'],
+        rows: [
+          ['Employees eligible', summary.employeesEligible || 0],
+          ['Employees issued', summary.employeesIssued || 0],
+          ['Carried forward', summary.carriedForward || 0],
+          ['Company top-up', summary.companyTopUp || 0],
+          ['Used', summary.grossUsed || 0],
+          ['Refunded', summary.refunded || 0],
+          ['Ending balance', summary.endingBalance || 0],
+          ['Employee orders', summary.employeeOrders || 0]
+        ]
+      },
+      {
+        title: 'Monthly allowance records',
+        headers: ['Employee', 'Email', 'Phone', 'Role', 'Period', 'Carried', 'Top-up', 'Refunded', 'Remaining', 'Status'],
+        rows: allowances.map((row) => [
+          row.employee,
+          row.email,
+          row.phone,
+          row.role,
+          row.role === 'boss' ? 'Unlimited' : row.issued ? `${String(row.periodStart).slice(0, 10)} – ${String(row.periodEnd || '').slice(0, 10)}` : 'Not issued this month',
+          row.carriedForward,
+          row.granted ?? '∞',
+          row.refunded,
+          row.remaining ?? '∞',
+          row.status
+        ])
+      },
+      {
+        title: 'Employee purchase history',
+        headers: ['Month', 'Order', 'Employee', 'Email', 'Outlet', 'Items', 'Total tokens', 'Company used', 'Company refunded', 'Personal used', 'Status', 'Contains drink', 'Tier cup'],
+        rows: purchases.map((row) => [
+          employeeReportMonth,
+          row.orderRef,
+          row.employee,
+          row.email,
+          row.outlet,
+          row.items,
+          row.totalTokens,
+          row.allowanceTokens,
+          row.refundedAllowanceTokens,
+          row.personalTokens,
+          row.status,
+          row.containsDrink ? 'Yes' : 'No',
+          row.tierCupEarned ? 'Yes' : 'No'
+        ])
+      }
     ], `employee-token-audit-${employeeReportMonth}.csv`);
     return (
       <div className="h-full overflow-y-auto px-4 sm:px-6 md:px-8 pb-8 pt-2 space-y-6">
@@ -526,7 +573,7 @@ const LoyaltyTokens = () => {
           </div>
           <div className="flex items-center gap-2">
             <input type="month" value={employeeReportMonth} onChange={(event) => setEmployeeReportMonth(event.target.value)} className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold" />
-            <button onClick={exportEmployeeReport} disabled={!purchases.length} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"><Download size={15} className="inline mr-1" />Export</button>
+            <button onClick={exportEmployeeReport} disabled={!allowances.length && !purchases.length} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"><Download size={15} className="inline mr-1" />Export</button>
             <button onClick={() => setActiveView('list')} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold hover:bg-gray-50">Back to C2 Credit Ledger</button>
           </div>
         </div>

@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { exportToCSV } from '../utils/exportToCSV';
+import { exportReportSections } from '../utils/exportToCSV';
 import { loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatReportMoney, formatReportTokens } from '../utils/reporting';
 import InfoTooltip from './InfoTooltip';
@@ -152,18 +152,6 @@ const RevenueReport = ({ onBack }) => {
       setError(err instanceof Error ? err.message : 'Unable to load revenue data.');
     }
   };
-
-  const exportRows = useMemo(() => [
-    ['Month', 'Gross Revenue (RM)', 'Refunds (RM)', 'Net Revenue (RM)', 'Orders', 'Tokens Charged'],
-    ...monthlyRevenue.map((entry) => [
-      `"${entry.month}"`,
-      Number(entry.revenueRm || 0).toFixed(2),
-      Number(entry.refundRm || 0).toFixed(2),
-      Number(entry.netRm || 0).toFixed(2),
-      Number(entry.orders || 0).toFixed(0),
-      Number(entry.tokensCharged || 0).toFixed(0)
-    ])
-  ], [monthlyRevenue]);
 
   const [showAllRevenue, setShowAllRevenue] = useState(false);
   const visibleMonthlyRevenue = showAllRevenue ? sortedMonthlyRevenue : sortedMonthlyRevenue.slice(0, 5);
@@ -346,7 +334,21 @@ const RevenueReport = ({ onBack }) => {
           ) : <div />}
           <button
             type="button"
-            onClick={() => exportToCSV(exportRows, 'revenue_report.csv')}
+            onClick={() => exportReportSections([{
+              title: 'Revenue summary',
+              headers: ['Metric', 'Value'],
+              rows: [
+                ['Gross revenue (RM)', summary.totalRevenueRm],
+                ['Net revenue (RM)', summary.netRevenueRm],
+                ['Refunds (RM)', summary.totalRefundAmountRm],
+                ['Tokens charged', summary.totalTokensCharged],
+                ['Orders', summary.totalOrders]
+              ]
+            }, {
+              title: 'Monthly revenue',
+              headers: ['Month', 'Gross Revenue (RM)', 'Refunds (RM)', 'Net Revenue (RM)', 'Orders', 'Tokens Charged'],
+              rows: monthlyRevenue.map((entry) => [entry.month, Number(entry.revenueRm || 0).toFixed(2), Number(entry.refundRm || 0).toFixed(2), Number(entry.netRm || 0).toFixed(2), Number(entry.orders || 0), Number(entry.tokensCharged || 0)])
+            }], 'revenue_report.csv')}
             className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
           >
             <Download size={16} /> Export

@@ -9,7 +9,7 @@ import {
 import { adminRequest } from '../lib/adminApi';
 import { requestAdminConfirm } from '../lib/adminDialog';
 import { showAdminError, showAdminSuccess } from '../lib/adminToast';
-import { exportToCSV } from '../utils/exportToCSV';
+import { exportReportSections } from '../utils/exportToCSV';
 import InfoTooltip from './InfoTooltip';
 import InventoryOperations from './InventoryOperations';
 import StockAvailabilityAlert from './StockAvailabilityAlert';
@@ -429,9 +429,11 @@ export default function Inventory() {
   };
 
   const exportReport = () => {
-    exportToCSV([
-      ['Item', 'Category', 'Unit', 'Opening', 'Purchased', 'Consumed', 'Waste', 'Adjustments', 'Refund reversals', 'Closing stock', 'Purchase cost (RM)'],
-      ...sortedReport.map((row) => [
+    exportReportSections([
+      {
+        title: `Inventory report — ${month}`,
+        headers: ['Item', 'Category', 'Unit', 'Opening', 'Purchased', 'Consumed', 'Waste', 'Adjustments', 'Refund reversals', 'Closing stock', 'Purchase cost (RM)'],
+        rows: sortedReport.map((row) => [
         row.name,
         row.category,
         unitLabels[row.unit_code] || row.unit_code,
@@ -443,7 +445,13 @@ export default function Inventory() {
         row.refund_reversed,
         row.closing_stock,
         row.purchase_cost_rm
-      ])
+        ])
+      },
+      {
+        title: 'Order-linked product usage',
+        headers: ['Order', 'Order status', 'Sold product', 'Usage source', 'Inventory item', 'Required', 'Unit', 'Recipe revision'],
+        rows: orderUsage.map((row) => [row.order_ref, row.order_status, row.product_name, row.source_label, row.inventory_item_name, row.total_quantity, unitLabels[row.unit_code] || row.unit_code, row.recipe_revision ? `v${row.recipe_revision}` : 'Legacy'])
+      }
     ], `inventory-${selectedStore?.code || 'outlet'}-${month}.csv`);
   };
 

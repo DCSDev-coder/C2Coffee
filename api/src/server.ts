@@ -10,6 +10,7 @@ import { runAutoCollectSweep } from './services/auto-collect-orders.js';
 import { runEmployeeAllowanceSweep } from './services/employee-token-allowance.js';
 import { expireStaleCounterPendingOrders } from './services/counter-pending-order-maintenance.js';
 import { runChipTopUpReconciliationSweep } from './services/chip-topup-reconciliation.js';
+import { runCustomerMessageScheduleSweep } from './services/customer-message-schedules.js';
 
 const app = await buildApp();
 let chipTopUpReconciliationRunning = false;
@@ -146,6 +147,21 @@ const voucherScheduleReminderTimer = setInterval(() => {
   void runScheduledVoucherScheduleReminders();
 }, 60_000);
 voucherScheduleReminderTimer.unref();
+
+async function runScheduledCustomerMessageSchedules(): Promise<void> {
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runCustomerMessageScheduleSweep();
+    if (result.processed > 0) app.log.info(result, 'completed scheduled customer message sweep');
+  } catch (error) {
+    app.log.error(error, 'scheduled customer message sweep failed');
+  }
+}
+void runScheduledCustomerMessageSchedules();
+const customerMessageScheduleTimer = setInterval(() => {
+  void runScheduledCustomerMessageSchedules();
+}, 60_000);
+customerMessageScheduleTimer.unref();
 
 async function runScheduledReferralRewardRetries(): Promise<void> {
   try {

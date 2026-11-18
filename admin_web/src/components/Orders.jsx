@@ -1378,13 +1378,14 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                 <button
                   onClick={() => {
                     const rows = [
-                      ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Type", "Date", "Time", "Total (Tokens)", "Total (RM)"],
+                      ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Type", "Order Channel", "Fulfillment", "Employee", "Voucher", "Discount (RM)", "Date", "Time", "Total (Tokens)", "Total (RM)", "Company Allowance Tokens", "Personal Tokens"],
                       ...sortedOrders.map(o => {
                         const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
                         const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
                         const tokenTotal = o.tokenAmountCharged ?? rmTotal;
                         const paymentLabel = (o.paymentMode || '').toLowerCase() === 'token' ? 'Tokens' : 'Direct (RM)';
-                        return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${normalizeOrderStatus(o.status)}"`, `"${paymentLabel}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`];
+                        const subsidyTokens = Math.min(tokenTotal, Number(o.subsidyTokenAmount || 0));
+                        return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${normalizeOrderStatus(o.status)}"`, `"${paymentLabel}"`, `"${formatOrderChannel(o.orderChannel)}"`, `"${formatFulfillmentType(o.fulfillmentType)}"`, o.isEmployee ? 'Yes' : 'No', `"${o.voucherCode || o.voucherName || ''}"`, `"${formatRm(o.discount || 0)}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`, `"${formatTokens(subsidyTokens)}"`, `"${formatTokens(Math.max(0, tokenTotal - subsidyTokens))}"`];
                       })
                     ];
                     exportToCSV(rows, "orders.csv");

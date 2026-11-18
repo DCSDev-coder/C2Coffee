@@ -665,14 +665,19 @@ const Customers = ({ currentUser }) => {
 
   const handleExport = () => {
     const rows = [
-      ["Name", "Tier", "Total Spent (Tokens)", "Total Spent (RM)", "Token Balance", "Status"],
+      ["Name", "Phone", "Email", "Tier", "Total Spent (Tokens)", "Total Spent (RM)", "Token Balance", "Status", "Orders", "Last Order", "Employee"],
       ...filteredData.map(c => [
         `"${c.username}"`,
+        `"${c.phone || ''}"`,
+        `"${c.email || ''}"`,
         `"${c.tier}"`,
         `"${formatTokens(c.totalSpentTokens)}"`,
         `"${formatRm(c.totalSpentRm)}"`,
         `"${c.tokenBalance.toLocaleString('en-US')}"`,
-        `"${c.status}"`
+        `"${c.status}"`,
+        `"${c.orders || 0}"`,
+        `"${c.lastOrderAt || ''}"`,
+        c.isEmployee ? 'Yes' : 'No'
       ])
     ];
     exportToCSV(rows, "customers.csv");

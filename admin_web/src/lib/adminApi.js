@@ -633,6 +633,23 @@ export async function sendAdminCustomerMessage(payload) {
   });
 }
 
+export async function loadAdminCustomerMessageSchedules() {
+  return adminRequest("/v1/admin/marketing/customer-message-schedules");
+}
+
+export async function createAdminCustomerMessageSchedule(payload) {
+  return adminRequest("/v1/admin/marketing/customer-message-schedules", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelAdminCustomerMessageSchedule(scheduleId) {
+  return adminRequest(`/v1/admin/marketing/customer-message-schedules/${encodeURIComponent(scheduleId)}/cancel`, {
+    method: "POST",
+  });
+}
+
 export async function loadAdminPaymentServiceNotices() {
   return adminRequest("/v1/admin/marketing/payment-service-notices");
 }

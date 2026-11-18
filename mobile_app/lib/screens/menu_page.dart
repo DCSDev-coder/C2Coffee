@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -11,16 +10,17 @@ import '../services/cart_service.dart';
 import '../services/catalog_api_service.dart';
 import '../services/partner_campaign_launcher.dart';
 import '../utils/app_colors.dart';
-import '../utils/app_notification.dart';
+import '../utils/global_state.dart';
 import '../services/customer_data_service.dart';
 import '../services/secure_session_service.dart';
 import '../widgets/catalog_product_image.dart';
 import '../widgets/custom_bottom_nav.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/floating_checkout_bar.dart';
+import '../widgets/order_status_banner.dart';
 import '../widgets/token_price_pair.dart';
 import 'home_page.dart';
 import 'loading_order_page.dart';
-import 'order_confirmation_page.dart';
 import 'orders_page.dart';
 import 'profile_page.dart';
 import 'rewards_page.dart';
@@ -57,7 +57,6 @@ class _MenuPageState extends State<MenuPage> {
   bool _showScrollToTop = false;
   bool _isAutoScrolling = false;
   String? _pendingInitialCategoryCode;
-  _MenuSortOrder _sortOrder = _MenuSortOrder.menuOrder;
   int _selectedCategoryIndex = 0;
   int _voucherBannerIndex = 0;
   Timer? _voucherBannerTimer;
@@ -85,8 +84,6 @@ class _MenuPageState extends State<MenuPage> {
       await _loadStoreDistances();
       if (!mounted) return;
       await _autoSelectNearestStoreIfNeeded();
-      if (!mounted) return;
-      await _loadMenuPreferences();
       if (!mounted) return;
       await _loadVoucherBanners();
       if (!mounted) return;
@@ -228,72 +225,13 @@ class _MenuPageState extends State<MenuPage> {
             title: section.title,
             sidebarLabel: section.sidebarLabel,
             sortOrder: section.sortOrder,
-            items: List.unmodifiable(_sortSectionItems(section.items)),
+            items: List.unmodifiable(section.items),
           ),
         )
         .toList()
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder) != 0
           ? a.sortOrder.compareTo(b.sortOrder)
           : a.title.compareTo(b.title));
-  }
-
-  String get _menuPreferencesKey {
-    final userId = _session.user?.id;
-    return 'menu_preferences_${userId ?? 'guest'}';
-  }
-
-  Future<void> _loadMenuPreferences() async {
-    final preferences = await SharedPreferences.getInstance();
-    final savedSort = preferences.getString('${_menuPreferencesKey}_sort');
-
-    if (!mounted) return;
-    setState(() {
-      _sortOrder = _MenuSortOrder.values.firstWhere(
-        (value) => value.name == savedSort,
-        orElse: () => _MenuSortOrder.menuOrder,
-      );
-    });
-  }
-
-  Future<void> _saveMenuPreferences() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(
-      '${_menuPreferencesKey}_sort',
-      _sortOrder.name,
-    );
-  }
-
-  List<Map<String, dynamic>> _sortSectionItems(
-    List<Map<String, dynamic>> items,
-  ) {
-    final sortedItems = List<Map<String, dynamic>>.from(items);
-    if (_sortOrder == _MenuSortOrder.menuOrder) {
-      return sortedItems;
-    }
-
-    sortedItems.sort((first, second) {
-      final firstAmount = _rmAmountForItem(first) ?? double.infinity;
-      final secondAmount = _rmAmountForItem(second) ?? double.infinity;
-      final firstName = first['name']?.toString() ?? '';
-      final secondName = second['name']?.toString() ?? '';
-      final nameComparison =
-          firstName.toLowerCase().compareTo(secondName.toLowerCase());
-      final priceComparison = firstAmount.compareTo(secondAmount);
-
-      switch (_sortOrder) {
-        case _MenuSortOrder.menuOrder:
-          return 0;
-        case _MenuSortOrder.nameAToZ:
-          return nameComparison;
-        case _MenuSortOrder.nameZToA:
-          return -nameComparison;
-        case _MenuSortOrder.priceLowToHigh:
-          return priceComparison != 0 ? priceComparison : nameComparison;
-        case _MenuSortOrder.priceHighToLow:
-          return priceComparison != 0 ? -priceComparison : nameComparison;
-      }
-    });
-    return sortedItems;
   }
 
   void _ensureSectionKeys(int length) {
@@ -409,205 +347,6 @@ class _MenuPageState extends State<MenuPage> {
     return AppColors.formatRmPrice(rawPrice);
   }
 
-  double? _rmAmountForItem(Map<String, dynamic> item) {
-    final rawPrice = item['displayPriceRm']?.toString() ??
-        item['basePriceRm']?.toString() ??
-        item['price']?.toString();
-    if (rawPrice == null || rawPrice.trim().isEmpty) return null;
-    return double.tryParse(
-      rawPrice.replaceAll(RegExp(r'[^0-9.]'), ''),
-    );
-  }
-
-  Future<void> _showMenuFilters() async {
-    final selection = await showModalBottomSheet<_MenuFilterSelection>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) {
-        var selectedSortOrder = _sortOrder;
-
-        return StatefulBuilder(
-          builder: (context, setSheetState) => SafeArea(
-            top: false,
-            child: SizedBox(
-              width: double.infinity,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppColors.border,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceLight,
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Icon(Icons.tune_rounded,
-                              color: AppColors.deepTeal),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Arrange your menu',
-                                style: TextStyle(
-                                  fontFamily: 'Recoleta',
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.brandText,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Choose how items appear in every category.',
-                                style: TextStyle(
-                                  fontFamily: 'Afacad',
-                                  fontSize: 13.5,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFAFAF8),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: RadioGroup<_MenuSortOrder>(
-                        groupValue: selectedSortOrder,
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setSheetState(() => selectedSortOrder = value);
-                        },
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final sort in _MenuSortOrder.values)
-                              Material(
-                                color: Colors.transparent,
-                                child: RadioListTile<_MenuSortOrder>(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
-                                  value: sort,
-                                  title: Text(
-                                    sort.label,
-                                    style: TextStyle(
-                                      fontFamily: 'Afacad',
-                                      fontSize: 14.5,
-                                      fontWeight: selectedSortOrder == sort
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      color: AppColors.brandText,
-                                    ),
-                                  ),
-                                  activeColor: AppColors.deepTeal,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(
-                              context,
-                              const _MenuFilterSelection(
-                                sortOrder: _MenuSortOrder.menuOrder,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.deepTeal,
-                              side: BorderSide(color: AppColors.deepTeal),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text(
-                              'Reset',
-                              style: TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => Navigator.pop(
-                              context,
-                              _MenuFilterSelection(
-                                sortOrder: selectedSortOrder,
-                              ),
-                            ),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.deepTeal,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text(
-                              'Apply',
-                              style: TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    if (selection == null || !mounted) return;
-    setState(() {
-      _sortOrder = selection.sortOrder;
-      _selectedCategoryIndex = 0;
-    });
-    await _saveMenuPreferences();
-  }
-
   int _displayTokenValueForItem(Map<String, dynamic> item) {
     final tokenPrice = _tokenPriceForItem(item);
     if (tokenPrice != null) return tokenPrice;
@@ -636,27 +375,6 @@ class _MenuPageState extends State<MenuPage> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Left-aligned Filter Button
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GestureDetector(
-                    onTap: _showMenuFilters,
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.tune,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-
                 // Center Title "MENU" that fades out & scales as search expands
                 AnimatedOpacity(
                   opacity: _isSearching ? 0.0 : 1.0,
@@ -686,7 +404,7 @@ class _MenuPageState extends State<MenuPage> {
                     duration: const Duration(milliseconds: 280),
                     curve: Curves.easeOutCubic,
                     width: _isSearching
-                        ? MediaQuery.sizeOf(context).width - 80
+                        ? MediaQuery.sizeOf(context).width - 40
                         : 36,
                     height: 38,
                     decoration: BoxDecoration(
@@ -710,7 +428,7 @@ class _MenuPageState extends State<MenuPage> {
                             scrollDirection: Axis.horizontal,
                             physics: const NeverScrollableScrollPhysics(),
                             child: SizedBox(
-                              width: MediaQuery.sizeOf(context).width - 80,
+                              width: MediaQuery.sizeOf(context).width - 40,
                               height: 38,
                               child: Row(
                                 children: [
@@ -813,94 +531,122 @@ class _MenuPageState extends State<MenuPage> {
               }
             },
           ),
-          overlay: Stack(
-            children: [
-              if (_showScrollToTop)
-                Positioned(
-                  right: 18,
-                  bottom: (_cart.items.isNotEmpty ? 158 : 94) +
-                      MediaQuery.paddingOf(context).bottom,
-                  child: Semantics(
-                    button: true,
-                    label: 'Back to top',
-                    child: Material(
-                      color: AppColors.deepTeal,
-                      elevation: 5,
-                      shadowColor: Colors.black26,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: _scrollToTop,
-                        child: const SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: Icon(
-                            Icons.keyboard_arrow_up_rounded,
-                            color: Colors.white,
-                            size: 30,
+          overlay: AnimatedBuilder(
+            animation: Listenable.merge([
+              globalOrderStatusVisible,
+              globalActiveOrders,
+              globalOrderStatusRawStatus,
+            ]),
+            builder: (context, _) {
+              final hasOrderBanner = OrderStatusBanner.isShowing;
+              final padBottom = FloatingCheckoutBar.safeBottomInset(context);
+              final activeRowBottom =
+                  (hasOrderBanner ? 184.0 : 90.0) + padBottom;
+              final scrollToTopBottom = activeRowBottom + 3.0;
+              final pressMeBottom =
+                  scrollToTopBottom + (_showScrollToTop ? 60.0 : 0.0);
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    right: 24,
+                    bottom: scrollToTopBottom,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(scale: animation, child: child),
+                      ),
+                      child: _showScrollToTop
+                          ? Semantics(
+                              key: const ValueKey('menu_scroll_to_top'),
+                              button: true,
+                              label: 'Back to top',
+                              child: Material(
+                                color: AppColors.deepTeal,
+                                elevation: 5,
+                                shadowColor: Colors.black26,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: _scrollToTop,
+                                  child: const SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: Icon(
+                                      Icons.keyboard_arrow_up_rounded,
+                                      color: Colors.white,
+                                      size: 30,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    right: 24,
+                    bottom: pressMeBottom,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        setState(() => _showTokenPrice = !_showTokenPrice);
+                      },
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: _showTokenPrice
+                              ? const Color(0xFFE5A93C)
+                              : const Color(0xFFFAF7F2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: _showTokenPrice
+                                  ? const Color(0xFFE5A93C)
+                                  : AppColors.border,
+                              width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.16),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Press\nMe',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.2,
+                              color: _showTokenPrice
+                                  ? Colors.white
+                                  : AppColors.deepTeal,
+                              height: 1.05,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              Positioned(
-                right: 18,
-                bottom: (_cart.items.isNotEmpty ? 218 : 154) +
-                    MediaQuery.paddingOf(context).bottom,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    setState(() => _showTokenPrice = !_showTokenPrice);
-                  },
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: _showTokenPrice
-                          ? const Color(0xFFE5A93C)
-                          : const Color(0xFFFAF7F2),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: _showTokenPrice
-                              ? const Color(0xFFE5A93C)
-                              : AppColors.border,
-                          width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.16),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Press\nMe',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                          color: _showTokenPrice
-                              ? Colors.white
-                              : AppColors.deepTeal,
-                          height: 1.05,
-                        ),
-                      ),
-                    ),
+                  const FloatingCheckoutBar(hasSideButton: true),
+                  OrderStatusBanner(
+                    leftOffset: 16,
+                    rightOffset: 16,
+                    bottomOffset: 90 + padBottom,
                   ),
-                ),
-              ),
-              if (_cart.items.isNotEmpty)
-                Positioned(
-                  left: 54,
-                  right: 54,
-                  bottom: 80 + MediaQuery.paddingOf(context).bottom,
-                  child: _buildCheckoutBar(),
-                ),
-            ],
+                ],
+              );
+            },
           ),
           child: Column(
             children: [
@@ -1666,139 +1412,6 @@ class _MenuPageState extends State<MenuPage> {
     );
   }
 
-  Widget _buildCheckoutBar() {
-    final isOpen = _acceptsMobileOrders(_session.selectedStore);
-    final itemCount = _cart.items.length;
-    return Material(
-      color: isOpen ? AppColors.deepTeal : Colors.grey.shade600,
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.24),
-      borderRadius: BorderRadius.circular(30),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(30),
-        onTap: isOpen
-            ? () {
-                InteractiveFillingLoader.show(
-                  context,
-                  targetPage: const OrderConfirmationPage(),
-                );
-              }
-            : () => AppNotification.showWarning(
-                  context,
-                  _session.selectedStore?.isOpenNow == true
-                      ? 'Mobile ordering closes 10 minutes before the outlet closes. Please order earlier or visit the counter.'
-                      : 'This outlet is currently closed. Choose an open outlet to order.',
-                ),
-        child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.18),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Center(
-                      child: Icon(
-                        Icons.shopping_bag_outlined,
-                        color: Colors.white,
-                        size: 21,
-                      ),
-                    ),
-                    Positioned(
-                      top: -4,
-                      right: -4,
-                      child: Container(
-                        constraints: const BoxConstraints(
-                          minWidth: 20,
-                          minHeight: 20,
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE5A93C),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '$itemCount',
-                          style: const TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Checkout',
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$itemCount ${itemCount == 1 ? 'item' : 'items'} in your bag',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white.withValues(alpha: 0.72),
-                        height: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildBody(List<_MenuSection> sections) {
     if (_session.isBootstrapLoading && _session.user == null) {
       return _buildMenuLoadingState();
@@ -2109,14 +1722,19 @@ class _MenuPageState extends State<MenuPage> {
                   ? Stack(
                       children: [
                         Positioned.fill(
-                          child: Opacity(
-                            opacity: 0.45,
-                            child: ColorFiltered(
-                              colorFilter: const ColorFilter.mode(
-                                Colors.grey,
-                                BlendMode.saturation,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Opacity(
+                              opacity: 0.45,
+                              child: ColorFiltered(
+                                colorFilter: const ColorFilter.matrix(<double>[
+                                  0.2126, 0.7152, 0.0722, 0, 0,
+                                  0.2126, 0.7152, 0.0722, 0, 0,
+                                  0.2126, 0.7152, 0.0722, 0, 0,
+                                  0,      0,      0,      1, 0,
+                                ]),
+                                child: _buildMenuItemCard(item),
                               ),
-                              child: _buildMenuItemCard(item),
                             ),
                           ),
                         ),
@@ -2414,15 +2032,34 @@ class _StorePickerOption extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 12.5,
-                          color: Colors.black54,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: isAvailable
+                                  ? const Color(0xFF10B981)
+                                  : Colors.grey,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              softWrap: false,
+                              style: const TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -2572,26 +2209,6 @@ class _MenuVoucherBanner {
       voucher: voucher,
     );
   }
-}
-
-enum _MenuSortOrder {
-  menuOrder('Menu order'),
-  nameAToZ('Name: A to Z'),
-  nameZToA('Name: Z to A'),
-  priceLowToHigh('Price: low to high'),
-  priceHighToLow('Price: high to low');
-
-  final String label;
-
-  const _MenuSortOrder(this.label);
-}
-
-class _MenuFilterSelection {
-  final _MenuSortOrder sortOrder;
-
-  const _MenuFilterSelection({
-    required this.sortOrder,
-  });
 }
 
 class _MenuSectionBuilder {

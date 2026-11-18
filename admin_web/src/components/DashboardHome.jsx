@@ -192,8 +192,8 @@ const PaymentMixCard = ({ data, total, periodLabel }) => (
   <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col min-h-80 card-reveal hover-lift">
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-1.5 min-w-0">
-        <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Sales by payment</h2>
-        <InfoTooltip content="Sales composition for eligible orders in the selected period. Direct payments are cash/payment settlements; C2 Credit is RM-equivalent order value, not cash revenue." title="Sales by payment" />
+        <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Order Value by Payment Type</h2>
+        <InfoTooltip content="Order value split for eligible orders in the selected period. Direct RM payments are cash/payment settlements; C2 Credit is RM-equivalent order value, not cash revenue." title="Order Value by Payment Type" />
       </div>
       <span className="text-xs font-medium text-gray-500 shrink-0">{periodLabel}</span>
     </div>
@@ -216,7 +216,7 @@ const PaymentMixCard = ({ data, total, periodLabel }) => (
           </div>
           <div className="w-1/2 space-y-3 min-w-0">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total sales</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total order value</p>
               <p className="mt-1 text-xl font-extrabold text-gray-900 tabular-nums">{formatRm(total)}</p>
             </div>
             {data.map((entry, index) => (
@@ -241,8 +241,8 @@ const OutletSalesCard = ({ data, periodLabel }) => (
   <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col min-h-80 card-reveal hover-lift">
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-1.5 min-w-0">
-        <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Sales by outlet</h2>
-        <InfoTooltip content="RM-equivalent sales by outlet for eligible orders in the selected period. Use this to compare branch contribution." title="Sales by outlet" />
+        <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Order Value by Outlet</h2>
+        <InfoTooltip content="RM-equivalent order value by outlet for eligible orders in the selected period. Use this to compare branch contribution." title="Order Value by Outlet" />
       </div>
       <span className="text-xs font-medium text-gray-500 shrink-0">{periodLabel}</span>
     </div>
@@ -254,11 +254,11 @@ const OutletSalesCard = ({ data, periodLabel }) => (
             <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(value) => `RM ${value}`} />
             <YAxis type="category" dataKey="storeName" width={92} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6B7280' }} />
             <Tooltip
-              formatter={(value) => [formatRm(value), 'Sales']}
+              formatter={(value) => [formatRm(value), 'Order value']}
               contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
               itemStyle={{ color: '#fff' }}
             />
-            <Bar dataKey="sales" name="Sales" fill="#2E5E58" radius={[0, 5, 5, 0]} barSize={18} />
+            <Bar dataKey="sales" name="Order value" fill="#2E5E58" radius={[0, 5, 5, 0]} barSize={18} />
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -397,6 +397,18 @@ const DashboardHome = ({ setCurrentPage }) => {
     return items;
   }, [topItems, selectedTopCategory, topItemsMetric]);
 
+  const categoryTopItems = useMemo(() => availableCategories.map((category) => {
+    const items = topItems
+      .filter((item) => (item.category || 'Uncategorized') === category)
+      .sort((a, b) => {
+        if (topItemsMetric === 'revenue') {
+          return (b.revenue || 0) - (a.revenue || 0) || (b.unitsSold || 0) - (a.unitsSold || 0);
+        }
+        return (b.unitsSold || 0) - (a.unitsSold || 0) || (b.revenue || 0) - (a.revenue || 0);
+      });
+    return { category, items: items.slice(0, 5) };
+  }), [availableCategories, topItems, topItemsMetric]);
+
   const animCash = useAnimatedNumber(summary.cashCollectedRm);
   const animTokenValue = useAnimatedNumber(summary.tokenOrderValueRm);
   const animOrders = useAnimatedNumber(summary.ordersToday);
@@ -465,20 +477,20 @@ const DashboardHome = ({ setCurrentPage }) => {
       {/* Modern, high-density KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3 sm:gap-4 mb-6">
         <StatCard
-          title="Direct Payments"
+          title="Direct RM Payments"
           value={formatRm(animCash)}
-          detail={`${formatNumber(summary.directOrderCount)} direct orders`}
-          info="Direct RM payments collected during the selected timeframe."
+          detail={`${formatNumber(summary.directOrderCount)} orders paid directly with RM`}
+          info="Money collected directly from customers through RM payment methods during the selected timeframe."
           icon={Wallet}
           iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
           badge={periodLabel}
           onClick={() => setCurrentPage?.('Finance')}
         />
         <StatCard
-          title="Token Order Value"
+          title="C2 Credit Order Value"
           value={formatRm(animTokenValue)}
-          detail={<div className="grid grid-cols-2 gap-x-2 gap-y-0.5"><span>Personal: <strong className="text-gray-700">{formatNumber(summary.personalTokensUsed)}</strong></span><span>Subsidy: <strong className="text-gray-700">{formatNumber(summary.subsidyUsedTokens)}</strong></span></div>}
-          info="RM-equivalent menu value of C2 Credit-funded orders. The detail below shows how much came from personal C2 Credit and how much came from company allowance. This is not cash revenue."
+          detail={<div className="grid grid-cols-2 gap-x-2 gap-y-0.5"><span>Personal C2 Credit: <strong className="text-gray-700">{formatNumber(summary.personalTokensUsed)} tokens</strong></span><span>Company allowance: <strong className="text-gray-700">{formatNumber(summary.subsidyUsedTokens)} tokens</strong></span></div>}
+          info="RM-equivalent menu value of orders paid with C2 Credit. Personal C2 Credit is the customer’s own balance; company allowance is employer-funded C2 Credit. This is order value, not cash revenue."
           icon={CircleDollarSign}
           iconBg="bg-sky-50 text-sky-700"
           badge={`${formatNumber(summary.tokenOrderCount)} credit orders`}
@@ -487,26 +499,26 @@ const DashboardHome = ({ setCurrentPage }) => {
         <StatCard
           title="Orders"
           value={formatNumber(Math.round(animOrders))}
-          detail={<span>Avg <strong className="text-gray-700">{formatRm(averageOrderValueRm)}</strong> / order</span>}
-          info="Total number of valid customer orders completed or active during this period, with Average Order Value (AOV)."
+          detail={<span>Average order value: <strong className="text-gray-700">{formatRm(averageOrderValueRm)}</strong></span>}
+          info="Total number of valid customer orders completed or active during this period, with the average value per order."
           icon={ShoppingBag}
           iconBg="bg-[#2E5E58]/10 text-[#2E5E58]"
           badge={periodLabel}
           onClick={() => setCurrentPage?.('Orders')}
         />
         <StatCard
-          title="Pending Payments"
+          title="Pending Payment Value"
           value={formatRm(animPending)}
-          info="RM value of orders waiting for payment confirmation."
+          info="Total RM order value currently waiting for payment confirmation. These orders are not counted as completed sales."
           icon={Clock3}
           iconBg="bg-amber-50 text-amber-700"
           badge={periodLabel}
           onClick={() => setCurrentPage?.('Orders')}
         />
         <StatCard
-          title="Refund Reviews"
+          title="Refunds Awaiting Review"
           value={formatNumber(Math.round(animRefunds))}
-          info="Pending refund requests awaiting customer service decision or approval."
+          info="Number of refund requests waiting for a customer service decision or approval."
           icon={CircleDollarSign}
           iconBg={summary.pendingRefunds > 0 ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500"}
           badge={summary.pendingRefunds > 0 ? "Pending action" : "Zero pending"}
@@ -514,7 +526,7 @@ const DashboardHome = ({ setCurrentPage }) => {
           onClick={() => setCurrentPage?.('Refunds')}
         />
         <StatCard
-          title="Customers"
+          title="Customers Served"
           value={formatNumber(Math.round(animCustomers))}
           detail={
             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
@@ -522,7 +534,7 @@ const DashboardHome = ({ setCurrentPage }) => {
               <span>Non-employees: <strong className="text-gray-700">{formatNumber(summary.nonEmployeeCustomersServed)}</strong></span>
             </div>
           }
-          info="Distinct customers who placed eligible orders during this period, split between employee/intern accounts and non-employee customers."
+          info="Distinct customers who placed eligible orders during this period. Employees/interns and other customers are shown separately."
           icon={Users}
           iconBg="bg-[#6F9F96]/15 text-[#2E5E58]"
           badge={periodLabel}
@@ -536,19 +548,20 @@ const DashboardHome = ({ setCurrentPage }) => {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-bold text-gray-900">Combined Sales & Payment Split</h2>
-                <InfoTooltip content="Total RM-equivalent sales combining direct RM payments and C2 Credit order value for the selected period." title="Combined Sales" />
+                <h2 className="text-sm font-bold text-gray-900">Total Order Value</h2>
+                <InfoTooltip content="Total value of eligible orders for the selected period: direct RM payments plus the RM-equivalent value of C2 Credit orders. It is not the same as cash collected." title="Total Order Value" />
               </div>
               <p className="mt-1.5 text-2xl font-extrabold text-gray-900 tabular-nums">{formatRm(animTotalSales)}</p>
+              <p className="mt-1 text-xs text-gray-500">Direct RM paid + C2 Credit order value</p>
             </div>
             <span className="rounded-lg bg-[#2E5E58]/10 px-2.5 py-1 text-xs font-bold text-[#2E5E58] tabular-nums">
-              AOV {formatRm(averageOrderValueRm)}
+              Avg/order {formatRm(averageOrderValueRm)}
             </span>
           </div>
           <div className="mt-4">
             <div className="flex justify-between text-[11px] font-bold text-gray-600 mb-1.5">
-              <span>Direct: {directSharePct}% ({formatRm(summary.cashCollectedRm)})</span>
-              <span>C2 Credit: {creditSharePct}% ({formatRm(summary.tokenOrderValueRm)})</span>
+              <span>Direct RM paid: {directSharePct}% ({formatRm(summary.cashCollectedRm)})</span>
+              <span>C2 Credit value: {creditSharePct}% ({formatRm(summary.tokenOrderValueRm)})</span>
             </div>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100 flex">
               <div className="h-full bg-[#2E5E58] transition-all duration-500" style={{ width: `${directSharePct}%` }} />
@@ -573,8 +586,8 @@ const DashboardHome = ({ setCurrentPage }) => {
               ['Preparing', formatNumber(summary.preparing), 'In kitchen', 'bg-amber-50 text-amber-700 border-amber-200/60'],
               ['Ready', formatNumber(summary.readyForPickup), 'For pickup', 'bg-sky-50 text-sky-700 border-sky-200/60'],
               ['Completed', formatNumber(summary.collectedCount), 'Collected', 'bg-emerald-50 text-emerald-700 border-emerald-200/60'],
-              ['Discounts', formatRm(summary.totalDiscountRm), `${formatNumber(summary.discountedOrderCount)} orders`, 'bg-slate-50 text-slate-800 border-slate-200'],
-              ['Cancelled', formatNumber(summary.cancelledCount), formatRm(summary.cancelledValueRm), Number(summary.cancelledCount || 0) > 0 ? 'bg-red-50 text-red-700 border-red-200/80' : 'bg-slate-50 text-slate-600 border-slate-200']
+              ['Discounts given', formatRm(summary.totalDiscountRm), `${formatNumber(summary.discountedOrderCount)} order${Number(summary.discountedOrderCount || 0) === 1 ? '' : 's'}`, 'bg-slate-50 text-slate-800 border-slate-200'],
+              ['Cancelled orders', formatNumber(summary.cancelledCount), `${formatRm(summary.cancelledValueRm)} order value`, Number(summary.cancelledCount || 0) > 0 ? 'bg-red-50 text-red-700 border-red-200/80' : 'bg-slate-50 text-slate-600 border-slate-200']
             ].map(([label, val, sub, tone]) => (
               <button
                 key={label}
@@ -605,7 +618,7 @@ const DashboardHome = ({ setCurrentPage }) => {
             ['Gift cards', formatNumber(coverage.activeGiftCards), `${formatRm(coverage.giftCardValueRm)} value`, Wallet, 'bg-amber-50 text-amber-700', 'Gift Cards'],
             ['Active menu', formatNumber(coverage.activeMenuItems), 'published items', Coffee, 'bg-emerald-50 text-emerald-700', 'Menu'],
             ['Low stock', formatNumber(coverage.lowStockItems), 'needs review', ShoppingBag, coverage.lowStockItems > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500', 'Inventory'],
-            ['Allowance issued', formatNumber(coverage.subsidyIssuedTokens), `${formatNumber(coverage.subsidyConsumedTokens)} consumed`, CircleDollarSign, 'bg-sky-50 text-sky-700', 'C2 Credit Ledger']
+            ['Company allowance tokens', formatNumber(coverage.subsidyIssuedTokens), `${formatNumber(coverage.subsidyConsumedTokens)} consumed`, CircleDollarSign, 'bg-sky-50 text-sky-700', 'C2 Credit Ledger']
           ].map(([title, value, subtitle, Icon, iconBg, targetPage]) => (
             <button
               key={title}
@@ -731,9 +744,9 @@ const DashboardHome = ({ setCurrentPage }) => {
                             <span className="font-semibold">Direct (RM)</span>
                           ) : (
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-semibold">{order.subsidyTokenAmount > 0 ? 'Company allowance + personal C2 Credit' : 'Personal C2 Credit'}</span>
+                              <span className="font-semibold">{order.subsidyTokenAmount > 0 ? 'Company allowance + personal C2 Credit' : 'Personal C2 Credit only'}</span>
                               <span className="text-[11px] text-gray-500 tabular-nums">
-                                {order.subsidyTokenAmount > 0 ? `${formatNumber(order.subsidyTokenAmount)} subsidy · ${formatNumber(order.personalTokenAmount)} personal` : `${formatNumber(order.tokenAmount)} tokens`}
+                                {order.subsidyTokenAmount > 0 ? `Company allowance: ${formatNumber(order.subsidyTokenAmount)} tokens · Personal: ${formatNumber(order.personalTokenAmount)} tokens` : `Personal balance: ${formatNumber(order.tokenAmount)} tokens`}
                               </span>
                             </div>
                           )}
@@ -950,6 +963,48 @@ const DashboardHome = ({ setCurrentPage }) => {
           </div>
         )}
       </section>
+
+      {/* Best-Selling Items by Category */}
+      {categoryTopItems.length > 0 && (
+        <section className="mt-5 bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/80 shadow-xs">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Best-Selling by Category</h2>
+              <InfoTooltip content="Top five catalog items within each category for the selected period. Categories without sales are not shown." title="Best-Selling by Category" />
+            </div>
+            <span className="text-xs font-semibold text-gray-500">Top 5 per category</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {categoryTopItems.map(({ category, items }) => (
+              <div key={category} className="rounded-xl border border-gray-100 bg-gray-50/50 overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-100 bg-white">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 truncate" title={category}>{category}</h3>
+                  <span className="text-[10px] font-semibold text-gray-400 shrink-0">{items.length} item{items.length === 1 ? '' : 's'}</span>
+                </div>
+                <div className="p-3 space-y-2">
+                  {items.map((item, index) => (
+                    <div key={`${category}-${item.name}`} className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-white transition-colors">
+                      <span className="w-6 h-6 rounded-md bg-[#2E5E58]/10 text-[#2E5E58] text-[11px] font-bold inline-flex items-center justify-center shrink-0">#{index + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-gray-900 truncate" title={item.name}>{item.name}</p>
+                        <p className="text-[10px] text-gray-500 truncate">{item.subcategory || 'General'}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-bold text-[#2E5E58] tabular-nums">
+                          {topItemsMetric === 'revenue' ? formatRm(item.revenue) : `${formatNumber(item.unitsSold)} sold`}
+                        </p>
+                        <p className="text-[10px] text-gray-400 tabular-nums">
+                          {topItemsMetric === 'revenue' ? `${formatNumber(item.unitsSold)} sold` : formatRm(item.revenue)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

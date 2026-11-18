@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { adminRequest } from "../lib/adminApi";
 import { ArrowLeft, Download, Percent, Gift } from "lucide-react";
-import { exportToCSV } from "../utils/exportToCSV";
+import { exportReportSections } from "../utils/exportToCSV";
 import InfoTooltip from "./InfoTooltip";
 
 const StatCard = ({ title, value, change, badge, icon: Icon, iconBg, info }) => {
@@ -223,12 +223,22 @@ const VouchersAnalytics = ({ onBack, vouchers }) => {
         <div className="flex justify-end border-t border-gray-100 pt-4">
           <button
             onClick={() => {
-              const rows = [["Voucher Code", "Name", "Type", "Status", "Issued", "Redeemed", "Redemption Rate"], ...topVouchers.map((voucher) => {
-                const issued = Number(voucher.issued || 0);
-                const redeemed = Number(voucher.redeemed || 0);
-                return [`"${voucher.id}"`, `"${voucher.name}"`, `"${voucher.type || ""}"`, `"${voucher.status || ""}"`, issued, redeemed, `"${issued > 0 ? `${((redeemed / issued) * 100).toFixed(1)}%` : "0.0%"}"`];
-              })];
-              exportToCSV(rows, "vouchers_analytics.csv");
+              exportReportSections([
+                {
+                  title: 'Voucher performance',
+                  headers: ["Voucher Code", "Name", "Type", "Status", "Issued", "Redeemed", "Redemption Rate"],
+                  rows: topVouchers.map((voucher) => {
+                    const issued = Number(voucher.issued || 0);
+                    const redeemed = Number(voucher.redeemed || 0);
+                    return [voucher.id, voucher.name, voucher.type, voucher.status, issued, redeemed, issued > 0 ? `${((redeemed / issued) * 100).toFixed(1)}%` : '0.0%'];
+                  })
+                },
+                {
+                  title: 'Recent activity',
+                  headers: ['Time', 'Voucher', 'Code', 'Action', 'Customer', 'Customer contact', 'Reason'],
+                  rows: recentActivity.map((row) => [row.eventAt, row.voucherName, row.voucherCode, row.action, row.customer?.displayName, row.customer?.email || row.customer?.phone, row.issuedReason])
+                }
+              ], "vouchers_analytics.csv");
             }}
             className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 transition-colors cursor-pointer shadow-xs"
           >

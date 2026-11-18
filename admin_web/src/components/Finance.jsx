@@ -21,7 +21,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { exportToCSV } from '../utils/exportToCSV';
+import { exportReportSections } from '../utils/exportToCSV';
 import { loadAdminFinanceAuditLedger, loadAdminFinanceOverview } from '../lib/adminApi';
 import { formatPaymentLabel, formatReportMoney, formatReportTokens } from '../utils/reporting';
 import OutletFilter from './OutletFilter';
@@ -201,8 +201,8 @@ const Finance = ({ setCurrentPage }) => {
   const mostUsedTopUpMethod = topUpMethodBreakdown.find((entry) => entry.method !== 'not_recorded') || null;
 
   const exportRows = [
-      ['Date', 'Time', 'Type', 'Description', 'Outlet', 'RM Amount', 'Token Amount', 'Status', 'Payment'],
-      ...recentTransactions.map((transaction) => [
+    ['Date', 'Time', 'Type', 'Description', 'Outlet', 'RM Amount', 'Token Amount', 'Status', 'Payment'],
+    ...recentTransactions.map((transaction) => [
         `"${transaction.date}"`,
         `"${transaction.time}"`,
         `"${transaction.type}"`,
@@ -212,11 +212,53 @@ const Finance = ({ setCurrentPage }) => {
         Number(transaction.amountTokens || 0).toFixed(0),
         `"${transaction.status}"`,
         `"${transaction.paymentMode || ''}"`
-      ])
-    ];
+    ])
+  ];
 
   const handleExport = () => {
-    exportToCSV(exportRows, 'finance_overview.csv');
+    exportReportSections([
+      {
+        title: 'Finance summary',
+        headers: ['Metric', 'Value'],
+        rows: [
+          ['Gross revenue (RM)', summary.totalRevenueRm || 0],
+          ['Net revenue (RM)', summary.netRevenueRm || 0],
+          ['Refunds (RM)', summary.totalRefundAmountRm || 0],
+          ['Tokens charged', summary.totalTokensCharged || 0],
+          ['Refund tokens', summary.totalRefundTokens || 0],
+          ['Orders', summary.totalOrders || 0],
+          ['Company allowance issued', subsidySummary.issuedTokens || 0],
+          ['Company allowance consumed', subsidySummary.consumedTokens || 0],
+          ['Company allowance remaining', subsidySummary.remainingIssuedTokens || 0]
+        ]
+      },
+      { title: 'Recent transactions', headers: exportRows[0], rows: exportRows.slice(1) },
+      {
+        title: 'Monthly revenue',
+        headers: ['Month', 'Gross RM', 'Refunds RM', 'Net RM', 'Orders', 'Tokens charged'],
+        rows: monthlyRevenue.map((entry) => [entry.month, entry.revenueRm, entry.refundRm, entry.netRm, entry.orders, entry.tokensCharged])
+      },
+      {
+        title: 'Daily sales',
+        headers: ['Date', 'Gross RM', 'Refunds RM', 'Net RM', 'Direct RM', 'Token value RM', 'Tokens charged', 'Refund tokens', 'Orders'],
+        rows: dailySales.map((entry) => [entry.date, entry.grossRevenueRm, entry.refundRm, entry.netRevenueRm, entry.directRevenueRm, entry.tokenValueRm, entry.tokensCharged, entry.refundTokens, entry.orders])
+      },
+      {
+        title: 'Top-up methods',
+        headers: ['Method', 'Count', 'Amount RM', 'Token amount'],
+        rows: topUpMethodBreakdown.map((entry) => [entry.method, entry.count, entry.amountRm, entry.tokenAmount])
+      },
+      {
+        title: 'Payment methods',
+        headers: ['Method', 'Payment mode', 'Count', 'Amount RM'],
+        rows: paymentMethodBreakdown.map((entry) => [entry.method, entry.paymentMode, entry.count, entry.amountRm])
+      },
+      {
+        title: 'Token movement breakdown',
+        headers: ['Source', 'Direction', 'Count', 'Token amount'],
+        rows: tokenMovementBreakdown.map((entry) => [entry.sourceType, entry.direction, entry.count, entry.tokenAmount])
+      }
+    ], 'finance_overview.csv');
   };
 
   const revenueChartData = monthlyRevenue.map((entry) => ({
@@ -423,20 +465,11 @@ const Finance = ({ setCurrentPage }) => {
               </div>
               <p className="mt-1 text-sm text-gray-500">Latest movements with customer, source, reference, outlet, payment channel, and status.</p>
             </div>
-            <button type="button" onClick={() => exportToCSV(auditEntries.map((entry) => ({
-              dateTime: entry.createdAt,
-              type: entry.type,
-              source: entry.source,
-              description: entry.description,
-              customer: entry.customer,
-              reference: entry.reference,
-              outlet: entry.storeName,
-              paymentMethod: entry.paymentMethod,
-              paymentMode: entry.paymentMode,
-              amountRm: entry.amountRm,
-              amountTokens: entry.amountTokens,
-              status: entry.status
-            })), 'finance_audit_ledger.csv')} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            <button type="button" onClick={() => exportReportSections([{
+              title: 'Finance audit ledger',
+              headers: ['Date & time', 'Type', 'Source', 'Description', 'Customer', 'Reference', 'Outlet', 'Payment method', 'Payment mode', 'RM', 'Tokens', 'Status'],
+              rows: auditEntries.map((entry) => [entry.createdAt, entry.type, entry.source, entry.description, entry.customer, entry.reference, entry.storeName, entry.paymentMethod, entry.paymentMode, entry.amountRm, entry.amountTokens, entry.status])
+            }], 'finance_audit_ledger.csv')} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
               <Download size={14} /> Export
             </button>
           </div>
