@@ -343,13 +343,13 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.query<RowDataPacket[]>(
-        `SELECT o.id, o.store_id, o.status, o.user_id, o.final_total_rm,
+        `SELECT o.id, o.store_id, o.status, o.order_channel, o.user_id, o.final_total_rm,
                 p.id AS payment_id, p.status AS payment_status, p.payment_method
            FROM orders o
            JOIN payments p ON p.order_id = o.id
            JOIN stores s ON s.id = o.store_id
            JOIN admin_tenants t ON t.id = s.tenant_id
-          WHERE o.order_ref = :orderRef AND o.order_channel = 'counter' AND t.code = :tenantCode
+          WHERE o.order_ref = :orderRef AND t.code = :tenantCode
           LIMIT 1 FOR UPDATE`,
         { orderRef, tenantCode: request.adminAuth.tenantCode }
       );
@@ -367,6 +367,12 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'pending_payment'`, { orderId: order.id });
         await releaseInventoryForOrder(connection, Number(order.id));
       } else {
+        // A mobile/direct order must go through the customer cancellation
+        // request flow so the provider refund is reviewed explicitly. Only
+        // unpaid orders can be cancelled directly from the barista queue.
+        if (String(order.order_channel) !== 'counter') {
+          throw new ApiError(409, 'cancellation_request_required', 'Paid mobile orders require a reviewed cancellation request.');
+        }
         const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
         await connection.execute(
           `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_at)

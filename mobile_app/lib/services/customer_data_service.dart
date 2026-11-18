@@ -1621,6 +1621,17 @@ class CustomerDataService {
     return OnlineTopUpSession.fromApi(response);
   }
 
+  Future<Map<String, dynamic>> prepareNewTopUp({
+    required String accessToken,
+    required String topupRef,
+  }) {
+    return _post(
+      '/topups/${Uri.encodeComponent(topupRef)}/prepare-new-payment',
+      accessToken: accessToken,
+      body: const {},
+    );
+  }
+
   Future<List<RewardVoucher>> getRewardVouchers({
     required String accessToken,
     int limit = 50,

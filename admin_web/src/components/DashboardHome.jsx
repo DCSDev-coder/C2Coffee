@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
@@ -7,6 +7,7 @@ import {
   Clock3,
   Coffee,
   CircleDollarSign,
+  Layers,
   PackageCheck,
   RefreshCw,
   ShoppingBag,
@@ -360,7 +361,7 @@ const DashboardHome = ({ setCurrentPage }) => {
   const trends = dashboard?.trends || [];
   const recentOrders = dashboard?.recentOrders || [];
   const recentActivity = dashboard?.recentActivity || [];
-  const topItems = dashboard?.topItems || [];
+  const topItems = useMemo(() => dashboard?.topItems || [], [dashboard?.topItems]);
   const outletBreakdown = dashboard?.outletBreakdown || [];
   const salesByPayment = dashboard?.salesByPayment ?? [
     { label: 'Direct payments', sales: Number(summary.cashCollectedRm || 0), orders: null },
@@ -372,6 +373,29 @@ const DashboardHome = ({ setCurrentPage }) => {
   const [showAllActivity, setShowAllActivity] = useState(false);
   const [showAllTopItems, setShowAllTopItems] = useState(false);
   const [topItemsMetric, setTopItemsMetric] = useState('unitsSold');
+  const [selectedTopCategory, setSelectedTopCategory] = useState('ALL');
+
+  const availableCategories = useMemo(() => {
+    const set = new Set();
+    topItems.forEach((item) => {
+      if (item.category) set.add(item.category);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [topItems]);
+
+  const filteredTopItems = useMemo(() => {
+    let items = selectedTopCategory === 'ALL'
+      ? [...topItems]
+      : topItems.filter((item) => (item.category || 'Uncategorized') === selectedTopCategory);
+
+    items.sort((a, b) => {
+      if (topItemsMetric === 'revenue') {
+        return (b.revenue || 0) - (a.revenue || 0) || (b.unitsSold || 0) - (a.unitsSold || 0);
+      }
+      return (b.unitsSold || 0) - (a.unitsSold || 0) || (b.revenue || 0) - (a.revenue || 0);
+    });
+    return items;
+  }, [topItems, selectedTopCategory, topItemsMetric]);
 
   const animCash = useAnimatedNumber(summary.cashCollectedRm);
   const animTokenValue = useAnimatedNumber(summary.tokenOrderValueRm);
@@ -387,7 +411,7 @@ const DashboardHome = ({ setCurrentPage }) => {
   const visibleOutlets = showAllOutlets ? outletBreakdown : outletBreakdown.slice(0, 5);
   const visibleOrders = showAllOrders ? recentOrders : recentOrders.slice(0, 5);
   const visibleActivity = showAllActivity ? recentActivity : recentActivity.slice(0, 5);
-  const visibleTopItems = showAllTopItems ? topItems : topItems.slice(0, 5);
+  const visibleTopItems = showAllTopItems ? filteredTopItems : filteredTopItems.slice(0, 6);
 
   return (
     <div className="px-4 sm:px-6 md:px-8 pb-8 mt-0">
@@ -796,9 +820,9 @@ const DashboardHome = ({ setCurrentPage }) => {
         <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
           <div className="flex items-center gap-1.5 min-w-0">
             <h2 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Best-Selling Items</h2>
-            <InfoTooltip content="Top ranking catalog items ordered across all branches for the selected period." title="Best-Selling Items" />
+            <InfoTooltip content="Top ranking catalog items ordered across all branches for the selected period, filterable by product category." title="Best-Selling Items" />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-[11px] font-bold">
               <button
                 type="button"
@@ -820,38 +844,109 @@ const DashboardHome = ({ setCurrentPage }) => {
             </button>
           </div>
         </div>
-        {loading && !dashboard ? <EmptyState>Loading sales data...</EmptyState> : topItems.length === 0 ? <EmptyState>No item sales for this period yet.</EmptyState> : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-            <div className="lg:col-span-5 h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={visibleTopItems} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
-                  <CartesianGrid horizontal={false} stroke="#F1F5F9" />
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => topItemsMetric === 'revenue' ? `RM ${v}` : v} />
-                  <YAxis type="category" dataKey="name" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#374151', fontWeight: 600 }} />
-                  <Tooltip
-                    formatter={(val) => [topItemsMetric === 'revenue' ? formatRm(val) : `${formatNumber(val)} sold`, topItemsMetric === 'revenue' ? 'Revenue' : 'Units']}
-                    contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
-                    itemStyle={{ color: '#fff' }}
-                  />
-                  <Bar dataKey={topItemsMetric} fill={topItemsMetric === 'revenue' ? '#2E5E58' : '#D4AF7A'} radius={[0, 6, 6, 0]} barSize={18} isAnimationActive animationDuration={500} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {visibleTopItems.map((item, index) => (
-                <div key={item.name} className="border border-gray-100 rounded-xl p-3.5 bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <span className="w-6 h-6 rounded-md bg-[#2E5E58]/10 text-[#2E5E58] text-xs font-bold inline-flex items-center justify-center">#{index + 1}</span>
-                    <Coffee size={16} className="text-gray-400" />
+
+        {/* Category Filter Pills */}
+        {availableCategories.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-3.5 scrollbar-thin">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mr-1 shrink-0 inline-flex items-center gap-1">
+              <Layers size={13} /> Category:
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTopCategory('ALL');
+                setShowAllTopItems(false);
+              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                selectedTopCategory === 'ALL'
+                  ? 'bg-[#1F3A34] text-white shadow-2xs'
+                  : 'bg-gray-100/80 text-gray-600 hover:bg-gray-200/70 hover:text-gray-900'
+              }`}
+            >
+              All Categories ({topItems.length})
+            </button>
+            {availableCategories.map((cat) => {
+              const count = topItems.filter((item) => (item.category || 'Uncategorized') === cat).length;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTopCategory(cat);
+                    setShowAllTopItems(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    selectedTopCategory === cat
+                      ? 'bg-[#1F3A34] text-white shadow-2xs'
+                      : 'bg-gray-100/80 text-gray-600 hover:bg-gray-200/70 hover:text-gray-900'
+                  }`}
+                >
+                  {cat} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {loading && !dashboard ? <EmptyState>Loading sales data...</EmptyState> : filteredTopItems.length === 0 ? (
+          <EmptyState>No item sales for {selectedTopCategory === 'ALL' ? 'this period' : `category "${selectedTopCategory}"`} yet.</EmptyState>
+        ) : (
+          <div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+              <div className="lg:col-span-5 h-60">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={visibleTopItems} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+                    <CartesianGrid horizontal={false} stroke="#F1F5F9" />
+                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => topItemsMetric === 'revenue' ? `RM ${v}` : v} />
+                    <YAxis type="category" dataKey="name" width={115} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#374151', fontWeight: 600 }} />
+                    <Tooltip
+                      formatter={(val) => [topItemsMetric === 'revenue' ? formatRm(val) : `${formatNumber(val)} sold`, topItemsMetric === 'revenue' ? 'Revenue' : 'Units']}
+                      contentStyle={{ backgroundColor: '#172D28', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                    <Bar dataKey={topItemsMetric} fill={topItemsMetric === 'revenue' ? '#2E5E58' : '#D4AF7A'} radius={[0, 6, 6, 0]} barSize={18} isAnimationActive animationDuration={500} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {visibleTopItems.map((item, index) => (
+                  <div key={item.name} className="border border-gray-100 rounded-xl p-3.5 bg-gray-50/50 hover:bg-gray-50 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="w-6 h-6 rounded-md bg-[#2E5E58]/10 text-[#2E5E58] text-xs font-bold inline-flex items-center justify-center shrink-0">#{index + 1}</span>
+                        <span className="text-[10px] font-semibold text-gray-500 bg-white px-2 py-0.5 rounded border border-gray-200/80 truncate max-w-[140px]" title={item.category || 'General'}>
+                          {item.category || 'General'}
+                        </span>
+                      </div>
+                      <p className="mt-2.5 text-xs font-bold text-gray-900 truncate" title={item.name}>{item.name}</p>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
+                      <span className="text-gray-500 text-[11px]">{formatNumber(item.unitsSold)} sold</span>
+                      <span className="font-bold text-[#2E5E58] tabular-nums">{formatRm(item.revenue)}</span>
+                    </div>
                   </div>
-                  <p className="mt-2.5 text-xs font-bold text-gray-900 truncate" title={item.name}>{item.name}</p>
-                  <div className="mt-1 flex items-center justify-between text-xs">
-                    <span className="text-gray-500 text-[11px]">{formatNumber(item.unitsSold)} sold</span>
-                    <span className="font-bold text-[#2E5E58] tabular-nums">{formatRm(item.revenue)}</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+
+            {filteredTopItems.length > 6 && (
+              <div className="mt-3.5 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-gray-500 font-medium">
+                  Showing {visibleTopItems.length} of {filteredTopItems.length} items in {selectedTopCategory === 'ALL' ? 'all categories' : selectedTopCategory}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAllTopItems(!showAllTopItems)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2E5E58] hover:text-[#1F3A34] px-3 py-1.5 rounded-lg hover:bg-[#2E5E58]/10 transition-colors cursor-pointer border border-[#2E5E58]/20"
+                >
+                  {showAllTopItems ? (
+                    <>Show top 6 only <ChevronUp size={14} /></>
+                  ) : (
+                    <>Click for more ({filteredTopItems.length - 6} remaining) <ChevronDown size={14} /></>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>

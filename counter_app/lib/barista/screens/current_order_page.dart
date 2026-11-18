@@ -205,8 +205,10 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
       isPrintLoading: _printingOrderIds.contains(order.orderId),
       onPrintPressed: () => _printReceipt(order),
       onCancelPressed:
-          order.status == OrderStatus.newOrder ||
-              order.paymentStatus == 'pending'
+          order.paymentStatus == 'pending' ||
+              (order.status == OrderStatus.newOrder &&
+                  order.orderChannel == 'counter' &&
+                  order.paymentStatus == 'paid')
           ? () => _cancelOrder(order)
           : null,
       onActionPressed: () {
@@ -216,7 +218,8 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                 order.paymentMethod == 'manual_cash')) {
           _confirmPayment(order);
         } else if (order.status == OrderStatus.newOrder &&
-            order.cancellationRequestStatus == null) {
+            order.cancellationRequestStatus == null &&
+            order.paymentStatus != 'pending') {
           _startPreparing(order);
         } else {
           _openOrderDetails(order);

@@ -356,6 +356,7 @@ class ApiService {
                 discount: (json['discount'] as num?)?.toDouble() ?? 0,
                 paymentMethod: json['paymentMethod']?.toString(),
                 paymentStatus: normalizeApiStatus(json['paymentStatus']),
+                orderChannel: json['orderChannel']?.toString(),
                 total: (json['total'] as num?)?.toDouble() ?? 0,
                 cancellationRequestStatus: json['cancellationRequestStatus']
                     ?.toString(),
@@ -1444,9 +1445,7 @@ class BaristaSoundSettings {
     final allowed = allowNewOrder
         ? const {'short', 'long', 'two_tone', 'new_order'}
         : const {'short', 'long', 'two_tone'};
-    return allowed.contains(style)
-        ? style!
-        : fallback;
+    return allowed.contains(style) ? style! : fallback;
   }
 
   static bool _soundEnabled(Object? value) {

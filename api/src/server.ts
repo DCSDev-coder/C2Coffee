@@ -9,8 +9,10 @@ import { runLoyaltyTierMaintenanceSweep } from './services/loyalty-tier-maintena
 import { runAutoCollectSweep } from './services/auto-collect-orders.js';
 import { runEmployeeAllowanceSweep } from './services/employee-token-allowance.js';
 import { expireStaleCounterPendingOrders } from './services/counter-pending-order-maintenance.js';
+import { runChipTopUpReconciliationSweep } from './services/chip-topup-reconciliation.js';
 
 const app = await buildApp();
+let chipTopUpReconciliationRunning = false;
 
 async function runScheduledPickupReminders(): Promise<void> {
   try {
@@ -50,6 +52,24 @@ async function runScheduledCounterPendingMaintenance(): Promise<void> {
   }
 }
 void runScheduledCounterPendingMaintenance();
+async function runScheduledChipTopUpReconciliation(): Promise<void> {
+  if (chipTopUpReconciliationRunning) return;
+  chipTopUpReconciliationRunning = true;
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runChipTopUpReconciliationSweep();
+    if (result.settled > 0 || result.released > 0 || result.failed > 0) {
+      app.log.info(result, 'completed CHIP top-up reconciliation sweep');
+    }
+  } catch (error) {
+    app.log.error(error, 'CHIP top-up reconciliation sweep failed');
+  } finally {
+    chipTopUpReconciliationRunning = false;
+  }
+}
+// Run immediately after startup so a CHIP callback that arrived during a
+// deployment is recovered without waiting for the original checkout expiry.
+void runScheduledChipTopUpReconciliation();
 async function runScheduledVoucherMaintenance(): Promise<void> {
   try {
     await assertSingleCafeDeployment();
@@ -98,6 +118,10 @@ const counterPendingMaintenanceTimer = setInterval(() => {
   void runScheduledCounterPendingMaintenance();
 }, 60_000);
 counterPendingMaintenanceTimer.unref();
+const chipTopUpReconciliationTimer = setInterval(() => {
+  void runScheduledChipTopUpReconciliation();
+}, 60_000);
+chipTopUpReconciliationTimer.unref();
 const voucherExpiryReminderTimer = setInterval(() => {
   void runScheduledVoucherMaintenance();
 }, 24 * 60 * 60 * 1000);

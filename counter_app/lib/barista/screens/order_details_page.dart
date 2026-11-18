@@ -500,9 +500,30 @@ class _PreparationWorkspaceState extends State<_PreparationWorkspace> {
   @override
   Widget build(BuildContext context) {
     final preparing = widget.order.status == OrderStatus.preparing;
+    final manualPaymentPending =
+        widget.order.paymentStatus == 'pending' &&
+        (widget.order.paymentMethod == 'manual_counter' ||
+            widget.order.paymentMethod == 'manual_terminal' ||
+            widget.order.paymentMethod == 'manual_cash');
+    final directPaymentPending =
+        widget.order.paymentStatus == 'pending' && !manualPaymentPending;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (directPaymentPending)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF4D6),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5B94D)),
+            ),
+            child: const Text(
+              'Awaiting FPX payment. Do not start preparing until payment is confirmed.',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+        if (directPaymentPending) const SizedBox(height: 16),
         if (preparing)
           _GuidePanel(
             items: widget.items,
@@ -560,45 +581,51 @@ class _PreparationWorkspaceState extends State<_PreparationWorkspace> {
             const SizedBox(height: 16),
           ],
         ],
-        SizedBox(
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed:
-                _submitting ||
-                    widget.order.cancellationRequestStatus == 'refund_pending'
-                ? null
-                : () => _changeStatus(
-                    preparing ? 'ready_for_pickup' : 'preparing',
-                  ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: preparing ? widget.beigeColor : widget.darkGreen,
-              foregroundColor: preparing ? Colors.black : Colors.white,
-              disabledBackgroundColor: Colors.grey.shade300,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+        if (!directPaymentPending)
+          SizedBox(
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed:
+                  _submitting ||
+                      widget.order.cancellationRequestStatus == 'refund_pending'
+                  ? null
+                  : () => _changeStatus(
+                      preparing ? 'ready_for_pickup' : 'preparing',
+                    ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: preparing
+                    ? widget.beigeColor
+                    : widget.darkGreen,
+                foregroundColor: preparing ? Colors.black : Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: _submitting
+                  ? const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      preparing
+                          ? Icons.check_circle_rounded
+                          : Icons.play_circle_fill,
+                      size: 28,
+                    ),
+              label: Text(
+                _submitting
+                    ? 'Updating...'
+                    : preparing
+                    ? 'Mark as Ready'
+                    : 'Start Preparing',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            icon: _submitting
-                ? const SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    preparing
-                        ? Icons.check_circle_rounded
-                        : Icons.play_circle_fill,
-                    size: 28,
-                  ),
-            label: Text(
-              _submitting
-                  ? 'Updating...'
-                  : preparing
-                  ? 'Mark as Ready'
-                  : 'Start Preparing',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
           ),
-        ),
       ],
     );
   }

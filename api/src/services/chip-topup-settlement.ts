@@ -517,6 +517,12 @@ export async function settleChipTopUpPurchase(
         }
       );
       if (terminalFailure) {
+        const isRecoveryClose = terminalFailure === 'cancelled' && [
+          'customer_new_payment',
+          'customer_new_topup',
+          'customer_expired_payment',
+          'scheduled_reconcile'
+        ].includes(eventSource);
         await connection.execute(
           `UPDATE payments
            SET status = :paymentStatus, failed_at = IF(:paymentStatus = 'failed', UTC_TIMESTAMP(), failed_at)
@@ -534,8 +540,12 @@ export async function settleChipTopUpPurchase(
            WHERE topup_id = :topupId AND status IN ('active', 'needs_review')`,
           { topupId: payment.topup_id, releaseReason: `chip_${terminalFailure}` }
         );
-        const title = terminalFailure === 'cancelled' ? 'Top-up cancelled' : 'Top-up unsuccessful';
-        const body = terminalFailure === 'cancelled'
+        const title = isRecoveryClose
+          ? 'Previous payment closed'
+          : terminalFailure === 'cancelled' ? 'Top-up cancelled' : 'Top-up unsuccessful';
+        const body = isRecoveryClose
+          ? 'No payment was taken. You can safely continue.'
+          : terminalFailure === 'cancelled'
           ? 'Your top-up was cancelled. No C2 Tokens were added.'
           : 'Your top-up was unsuccessful. No C2 Tokens were added.';
         await createUserNotification(connection, {
@@ -565,10 +575,20 @@ export async function settleChipTopUpPurchase(
       await connection.commit();
       committed = true;
       if (terminalFailure) {
+        const isRecoveryClose = terminalFailure === 'cancelled' && [
+          'customer_new_payment',
+          'customer_new_topup',
+          'customer_expired_payment',
+          'scheduled_reconcile'
+        ].includes(eventSource);
         deliverTopUpStatusPush(logger, {
           userId: payment.user_id,
-          title: terminalFailure === 'cancelled' ? 'Top-up cancelled' : 'Top-up unsuccessful',
-          body: terminalFailure === 'cancelled'
+          title: isRecoveryClose
+            ? 'Previous payment closed'
+            : terminalFailure === 'cancelled' ? 'Top-up cancelled' : 'Top-up unsuccessful',
+          body: isRecoveryClose
+            ? 'No payment was taken. You can safely continue.'
+            : terminalFailure === 'cancelled'
             ? 'Your top-up was cancelled. No C2 Tokens were added.'
             : 'Your top-up was unsuccessful. No C2 Tokens were added.',
           type: `token_topup_${terminalFailure}`,

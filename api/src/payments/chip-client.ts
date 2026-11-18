@@ -15,6 +15,7 @@ let cachedCallbackPublicKey: { value: string; expiresAt: number } | null = null;
 export type ChipPurchase = {
   id?: unknown;
   brand_id?: unknown;
+  reference?: unknown;
   checkout_url?: unknown;
   status?: unknown;
   updated_on?: unknown;
@@ -112,8 +113,10 @@ export async function createChipPurchase(input: {
       },
       purchase: {
         currency: 'MYR',
-        products: [{ name: input.description, price: input.amountCents, quantity: 1 }]
+        products: [{ name: input.description, price: input.amountCents, quantity: 1 }],
+        due_strict: true
       },
+      due: Math.floor(Date.now() / 1000) + 15 * 60,
       payment_method_whitelist: whitelist,
       success_callback: input.callbackUrl,
       send_receipt: false

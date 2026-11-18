@@ -24,6 +24,7 @@ class CurrentOrder {
   final double discount;
   final String? paymentMethod;
   final String? paymentStatus;
+  final String? orderChannel;
   final double total;
 
   CurrentOrder({
@@ -40,6 +41,7 @@ class CurrentOrder {
     this.discount = 0,
     this.paymentMethod,
     this.paymentStatus,
+    this.orderChannel,
     this.total = 0,
   });
 }
@@ -98,6 +100,8 @@ class OrderCard extends StatelessWidget {
         (paymentMethod == 'manual_counter' ||
             paymentMethod == 'manual_terminal' ||
             paymentMethod == 'manual_cash');
+    final bool isDirectPaymentPending =
+        paymentStatus == 'pending' && !isManualPaymentPending;
 
     final Color statusBg;
     final Color statusFg;
@@ -170,6 +174,8 @@ class OrderCard extends StatelessWidget {
                                 ? 'Ready for pickup'
                                 : isPreparing
                                 ? 'Preparing'
+                                : isDirectPaymentPending
+                                ? 'Awaiting payment'
                                 : isManualPaymentPending
                                 ? 'Pay at counter'
                                 : 'New',
@@ -329,7 +335,9 @@ class OrderCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!isHistory && !isReadyForPickup && onCancelPressed != null) ...[
+                  if (!isHistory &&
+                      !isReadyForPickup &&
+                      onCancelPressed != null) ...[
                     const SizedBox(width: 8),
                     IconButton(
                       tooltip: 'Cancel order',

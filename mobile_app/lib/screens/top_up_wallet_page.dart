@@ -53,6 +53,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
   bool _isPaymentMethodsLoading = true;
   String? _paymentMethodsError;
   bool _isStartingTopUp = false;
+  bool _isPreparingNewPayment = false;
   String? _pendingTopUpRef;
   DateTime? _pendingTopUpExpiresAt;
   Timer? _pendingTopUpTimer;
@@ -341,6 +342,99 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     }
   }
 
+  Future<void> _startNewPayment() async {
+    final topupRef = _pendingTopUpRef;
+    if (topupRef == null || _isPreparingNewPayment) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Start a new payment?'),
+        content: const Text(
+          'We will check your previous payment first. If it was successful, your tokens will be added. If not, we will close that payment safely before you continue.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('GO BACK'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('START NEW PAYMENT'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isPreparingNewPayment = true);
+    try {
+      final token = await SecureSessionService.instance.getValidAccessToken();
+      if (token == null || token.isEmpty) {
+        throw ApiException('Missing access token.',
+            code: 'missing_access_token');
+      }
+      final result = await CustomerDataService.instance.prepareNewTopUp(
+        accessToken: token,
+        topupRef: topupRef,
+      );
+      final status = result['status'] as String? ?? 'pending_payment';
+      final canStart = result['can_start_new_topup'] == true;
+
+      if (status == 'paid') {
+        await PendingTopUpService.instance.clear();
+        if (!mounted) return;
+        _pendingTopUpTimer?.cancel();
+        _pendingTopUpTimer = null;
+        setState(() {
+          _pendingTopUpRef = null;
+          _pendingTopUpExpiresAt = null;
+        });
+        await _loadWalletData(forceSessionReload: true);
+        if (mounted) {
+          AppNotification.showSuccess(
+            context,
+            'Payment confirmed. Your C2 Tokens are ready.',
+          );
+        }
+        return;
+      }
+
+      if (!canStart) {
+        throw ApiException(
+          'We are still checking your previous payment. Please try again shortly.',
+          code: 'topup_payment_still_pending',
+        );
+      }
+
+      await PendingTopUpService.instance.clear();
+      if (!mounted) return;
+      _pendingTopUpTimer?.cancel();
+      _pendingTopUpTimer = null;
+      setState(() {
+        _pendingTopUpRef = null;
+        _pendingTopUpExpiresAt = null;
+      });
+      await _loadWalletData(forceSessionReload: true);
+      if (!mounted) return;
+      AppNotification.showInfo(
+        context,
+        'Your previous payment is closed. Choose a payment method to continue.',
+      );
+    } on ApiException catch (error) {
+      if (mounted) AppNotification.showError(context, _friendlyMessage(error));
+    } catch (_) {
+      if (mounted) {
+        AppNotification.showError(
+          context,
+          'We could not check your previous payment. Please try again shortly.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPreparingNewPayment = false);
+    }
+  }
+
   void _handleSessionChanged() {
     if (mounted) {
       setState(() {});
@@ -479,6 +573,14 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       case 'topup_method_unavailable':
       case 'topup_bank_unavailable':
         return 'That payment option is unavailable. Please choose another one.';
+      case 'topup_payment_still_pending':
+      case 'topup_payment_unavailable':
+      case 'topup_payment_in_progress':
+        return 'We are still checking your previous payment. Please try again shortly.';
+      case 'topup_payment_setup_interrupted':
+        return 'We could not finish opening the payment page. Please try again.';
+      case 'topup_already_paid':
+        return 'Your previous payment was successful. Your C2 Tokens are being updated.';
       default:
         return friendlyCustomerErrorMessage(
           error,
@@ -1475,7 +1577,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     : _paymentMethodsError != null
                         ? _paymentMethodsError!
                         : _pendingTopUpRef != null
-                            ? 'Your previous payment is still being confirmed. Return here after completing payment in the browser. ${_pendingTopUpCountdownLabel()}'
+                            ? 'Your previous payment is still being checked. You can continue it or start a new payment safely. ${_pendingTopUpCountdownLabel()}'
                             : tokenAmount == null
                                 ? 'Enter how many tokens you want to add, then select how you want to pay.'
                                 : !amountIsValid
@@ -1518,11 +1620,13 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _pendingTopUpRef != null
-                  ? _continuePendingTopUp
-                  : canContinue
-                      ? _startTopUp
-                      : null,
+              onPressed: _isPreparingNewPayment
+                  ? null
+                  : _pendingTopUpRef != null
+                      ? _continuePendingTopUp
+                      : canContinue
+                          ? _startTopUp
+                          : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepTeal,
                 disabledBackgroundColor: AppColors.border,
@@ -1540,7 +1644,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                         : _isPaymentMethodsLoading
                             ? 'CHECKING PAYMENT METHODS...'
                             : _pendingTopUpRef != null
-                                ? 'RETRY PAYMENT'
+                                ? 'CONTINUE PAYMENT'
                                 : 'CONTINUE TO PAYMENT',
                 style: const TextStyle(
                   fontFamily: 'Recoleta',
@@ -1551,6 +1655,33 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
               ),
             ),
           ),
+          if (_pendingTopUpRef != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _isPreparingNewPayment ? null : _startNewPayment,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.deepTeal,
+                  side: BorderSide(color: AppColors.deepTeal),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: Text(
+                  _isPreparingNewPayment
+                      ? 'CHECKING PREVIOUS PAYMENT...'
+                      : 'START A NEW PAYMENT',
+                  style: const TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

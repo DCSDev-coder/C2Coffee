@@ -321,26 +321,33 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
 
     const [topItemRows] = await mysqlPool.query<Array<RowDataPacket & {
       name: string;
+      category_name: string;
+      subcategory_name: string | null;
       units_sold: number;
       revenue_rm: string | number;
     }>>(
       `
         SELECT
           oi.item_name_snapshot AS name,
+          COALESCE(NULLIF(TRIM(c.name), ''), 'Uncategorized') AS category_name,
+          NULLIF(TRIM(sc.name), '') AS subcategory_name,
           SUM(oi.quantity) AS units_sold,
           COALESCE(SUM(oi.line_subtotal_rm), 0) AS revenue_rm
         FROM order_items oi
         JOIN orders o ON o.id = oi.order_id
         JOIN stores s ON s.id = o.store_id
         JOIN admin_tenants t ON t.id = s.tenant_id
+        LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+        LEFT JOIN menu_categories c ON c.id = mi.category_id
+        LEFT JOIN menu_subcategories sc ON sc.id = mi.subcategory_id
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
           AND o.created_at >= :start
           AND o.created_at < :end
           AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
-        GROUP BY oi.item_name_snapshot
+        GROUP BY oi.item_name_snapshot, category_name, subcategory_name
         ORDER BY units_sold DESC, revenue_rm DESC, name ASC
-        LIMIT 5
+        LIMIT 100
       `,
       queryParams
     );
@@ -569,6 +576,8 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
       })),
       topItems: topItemRows.map((item) => ({
         name: item.name,
+        category: item.category_name,
+        subcategory: item.subcategory_name || null,
         unitsSold: Number(item.units_sold || 0),
         revenue: Number(item.revenue_rm || 0)
       }))
