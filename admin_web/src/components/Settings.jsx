@@ -169,6 +169,12 @@ const Settings = ({ setCurrentPage, currentUser }) => {
     }
   };
 
+  const updatePaymentMethodDescription = (code, description) => {
+    setPaymentMethods((current) =>
+      current.map((method) => (method.code === code ? { ...method, description } : method))
+    );
+  };
+
   const savePaymentMethods = async () => {
     if (!isPaymentMethodsLoaded) {
       setPaymentMethodsMessage("Payment availability has not loaded. Refresh this page before saving.");
@@ -181,10 +187,15 @@ const Settings = ({ setCurrentPage, currentUser }) => {
       setPaymentMethodsMessage("Select at least one payment method before saving.");
       return;
     }
+    const descriptions = Object.fromEntries(
+      paymentMethods
+        .map((method) => [method.code, String(method.description ?? "").trim()])
+        .filter(([, text]) => text.length > 0)
+    );
     setIsSavingPaymentMethods(true);
     setPaymentMethodsMessage("");
     try {
-      const saved = await updateAdminPaymentMethods(enabledMethods);
+      const saved = await updateAdminPaymentMethods(enabledMethods, descriptions);
       setPaymentMethods(Array.isArray(saved?.methods) ? saved.methods : paymentMethods);
       setPaymentMethodsMessage("Customer payment availability saved.");
     } catch {
@@ -321,15 +332,31 @@ const Settings = ({ setCurrentPage, currentUser }) => {
                 <p className="mt-2 text-sm text-gray-600">Tick the methods C2 Coffee accepts. Customers see only methods that are ticked and currently active with CHIP.</p>
                 <div className="mt-4 space-y-3">
                   {paymentMethods.map((method) => (
-                    <label key={method.code} className={`flex items-start gap-3 rounded-xl border border-gray-200 px-4 py-3 ${method.available || method.enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
-                      <input type="checkbox" checked={Boolean(method.enabled)} disabled={!method.available && !method.enabled} onChange={() => togglePaymentMethod(method.code)} className="mt-1 h-4 w-4 rounded-sm border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-bold text-gray-800">{method.label}</span>
-                        {!method.deployment_enabled && <span className="mt-1 block text-xs text-gray-600">Not enabled on this server.</span>}
-                        {method.deployment_enabled && !method.provider_active && <span className="mt-1 block text-xs text-amber-700">Waiting for CHIP activation.</span>}
-                        {method.provider_review_note && <span className="mt-1 block text-xs text-amber-700">{method.provider_review_note}</span>}
-                      </span>
-                    </label>
+                    <div key={method.code} className={`rounded-xl border border-gray-200 px-4 py-3 ${method.available || method.enabled ? "" : "opacity-60"}`}>
+                      <label className={`flex items-start gap-3 ${method.available || method.enabled ? "cursor-pointer" : "cursor-not-allowed"}`}>
+                        <input type="checkbox" checked={Boolean(method.enabled)} disabled={!method.available && !method.enabled} onChange={() => togglePaymentMethod(method.code)} className="mt-1 h-4 w-4 rounded-sm border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-bold text-gray-800">{method.label}</span>
+                          {!method.deployment_enabled && <span className="mt-1 block text-xs text-gray-600">Not enabled on this server.</span>}
+                          {method.deployment_enabled && !method.provider_active && <span className="mt-1 block text-xs text-amber-700">Waiting for CHIP activation.</span>}
+                          {method.provider_review_note && <span className="mt-1 block text-xs text-amber-700">{method.provider_review_note}</span>}
+                        </span>
+                      </label>
+                      <div className="mt-2.5 pl-7">
+                        <label htmlFor={`payment-method-desc-${method.code}`} className="block text-xs font-medium text-gray-500">
+                          Customer description
+                        </label>
+                        <input
+                          id={`payment-method-desc-${method.code}`}
+                          type="text"
+                          value={method.description ?? ""}
+                          maxLength={160}
+                          onChange={(event) => updatePaymentMethodDescription(method.code, event.target.value)}
+                          placeholder="Enter payment method description shown to customers"
+                          className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 outline-hidden focus:border-[#1F3A34] focus:ring-2 focus:ring-[#1F3A34]/15"
+                        />
+                      </div>
+                    </div>
                   ))}
                 </div>
                 <p className="mt-3 text-xs text-gray-500">International cards are not supported yet. CHIP must approve a method before customers can use it.</p>

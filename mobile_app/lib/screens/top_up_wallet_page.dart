@@ -50,6 +50,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
   List<TokenTopUpPackage> _packages = const [];
   TopUpPaymentMethod? _paymentMethod;
   Set<TopUpPaymentMethod> _availablePaymentMethods = const {};
+  Map<String, String> _paymentMethodDescriptions = const {};
   bool _isPaymentMethodsLoading = true;
   String? _paymentMethodsError;
   bool _isStartingTopUp = false;
@@ -508,6 +509,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       if (!mounted) return;
       setState(() {
         _availablePaymentMethods = methods;
+        _paymentMethodDescriptions = result.descriptions;
         _paymentMethod = methods.contains(_paymentMethod)
             ? _paymentMethod
             : _preferredPaymentMethod(methods);
@@ -1667,15 +1669,16 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 ),
               ),
             ],
-            if (_availablePaymentMethods.contains(TopUpPaymentMethod.card)) ...[
+            if (_paymentMethod != null &&
+                _availablePaymentMethods.contains(_paymentMethod)) ...[
               const SizedBox(height: 10),
-              const Text(
-                'Card payments currently accept Malaysian-issued cards only. International cards are not supported yet.',
-                style: TextStyle(
+              Text(
+                _paymentMethodDescription(_paymentMethod!),
+                style: const TextStyle(
                   fontFamily: 'Afacad',
-                  fontSize: 13,
+                  fontSize: 13.5,
                   color: Colors.black54,
-                  height: 1.3,
+                  height: 1.35,
                 ),
               ),
             ],
@@ -1771,28 +1774,38 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     );
   }
 
+  String _paymentMethodDescription(TopUpPaymentMethod method) {
+    return switch (method) {
+      TopUpPaymentMethod.fpx => _paymentMethodDescriptions['fpx'] ??
+          'Pay from a Malaysian bank account',
+      TopUpPaymentMethod.duitNowQr =>
+        _paymentMethodDescriptions['duitnow_qr'] ??
+            'Scan with a banking or wallet app',
+      TopUpPaymentMethod.card => _paymentMethodDescriptions['card'] ??
+          'Malaysia-issued debit or credit card',
+      TopUpPaymentMethod.ewallet => _paymentMethodDescriptions['ewallet'] ??
+          'ShopeePay and other supported wallets',
+    };
+  }
+
   Widget _buildPaymentMethodCard(TopUpPaymentMethod method) {
     final selected = _paymentMethod == method;
     final available = _availablePaymentMethods.contains(method);
     final presentation = switch (method) {
       TopUpPaymentMethod.fpx => (
           label: 'FPX Banking',
-          helper: 'Pay from a Malaysian bank account',
           icon: Icons.account_balance_outlined,
         ),
       TopUpPaymentMethod.duitNowQr => (
           label: 'DuitNow QR',
-          helper: 'Scan with a banking or wallet app',
           icon: Icons.qr_code_rounded,
         ),
       TopUpPaymentMethod.card => (
           label: 'Debit / Credit',
-          helper: 'Malaysia-issued debit or credit card',
           icon: Icons.credit_card_outlined,
         ),
       TopUpPaymentMethod.ewallet => (
           label: 'Online Payment',
-          helper: 'ShopeePay and other supported wallets',
           icon: Icons.account_balance_wallet_outlined,
         ),
     };
@@ -1804,7 +1817,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        height: 126,
+        height: 104,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: selected
@@ -1872,22 +1885,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                               : Colors.grey.shade500,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    presentation.helper,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontSize: 11,
-                      height: 1.15,
-                      color: selected
-                          ? Colors.white.withValues(alpha: 0.78)
-                          : Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     available
                         ? (selected ? 'Selected' : 'Tap to select')

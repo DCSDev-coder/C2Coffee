@@ -8,15 +8,17 @@ test('only cafe super admins see deployment information', () => {
   assert.equal(canAccessAdminPage(['platform_admin'], 'Deployment'), false);
 });
 
-test('outlet management is restricted to operations and super admins', () => {
+test('outlet management is restricted to admins and super admins', () => {
   assert.equal(canAccessAdminPage(['super_admin'], 'Outlets'), true);
-  assert.equal(canAccessAdminPage(['operations_admin'], 'Outlets'), true);
+  assert.equal(canAccessAdminPage(['admin'], 'Outlets'), true);
+  assert.equal(canAccessAdminPage(['support_admin'], 'Outlets'), false);
   assert.equal(canAccessAdminPage(['marketing_admin'], 'Outlets'), false);
 });
 
-test('counter device management is restricted to operations and super admins', () => {
+test('counter device management is restricted to admins and super admins', () => {
   assert.equal(canAccessAdminPage(['super_admin'], 'Counter Devices'), true);
-  assert.equal(canAccessAdminPage(['operations_admin'], 'Counter Devices'), true);
+  assert.equal(canAccessAdminPage(['admin'], 'Counter Devices'), true);
+  assert.equal(canAccessAdminPage(['support_admin'], 'Counter Devices'), false);
   assert.equal(canAccessAdminPage(['marketing_admin'], 'Counter Devices'), false);
   assert.equal(canAccessAdminPage(['barista'], 'Counter Devices'), false);
 });

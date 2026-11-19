@@ -900,10 +900,10 @@ export async function loadAdminPaymentMethods() {
   return adminRequest("/v1/admin/payment-methods");
 }
 
-export async function updateAdminPaymentMethods(methods) {
+export async function updateAdminPaymentMethods(methods, descriptions) {
   return adminRequest("/v1/admin/payment-methods", {
     method: "PUT",
-    body: JSON.stringify({ methods }),
+    body: JSON.stringify({ methods, descriptions }),
   });
 }
 

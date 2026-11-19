@@ -121,16 +121,32 @@ class TokenTopUpPackage {
 
 class OnlineTopUpPaymentMethods {
   final Set<String> methods;
+  final Map<String, String> descriptions;
 
-  const OnlineTopUpPaymentMethods({required this.methods});
+  const OnlineTopUpPaymentMethods({
+    required this.methods,
+    this.descriptions = const {},
+  });
 
   factory OnlineTopUpPaymentMethods.fromApi(Map<String, dynamic> json) {
+    final rawDescriptions = json['method_descriptions'];
+    final descriptions = <String, String>{};
+    if (rawDescriptions is Map) {
+      for (final entry in rawDescriptions.entries) {
+        final key = entry.key.toString().trim();
+        final value = entry.value?.toString().trim() ?? '';
+        if (key.isNotEmpty && value.isNotEmpty) {
+          descriptions[key] = value;
+        }
+      }
+    }
     return OnlineTopUpPaymentMethods(
       methods: (json['methods'] as List? ?? const [])
           .whereType<String>()
           .map((method) => method.trim())
           .where((method) => method.isNotEmpty)
           .toSet(),
+      descriptions: descriptions,
     );
   }
 }

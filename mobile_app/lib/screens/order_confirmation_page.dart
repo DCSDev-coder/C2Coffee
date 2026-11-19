@@ -54,6 +54,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   String _paymentMode = 'token';
   String _directPaymentMethod = 'fpx';
   Set<String> _directPaymentMethods = <String>{};
+  Map<String, String> _directPaymentDescriptions = const {};
   EmployeeSubsidy? _subsidy;
   bool _isSubsidyLoading = true;
   String? _subsidyError;
@@ -374,6 +375,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       if (!mounted) return;
       setState(() {
         _directPaymentMethods = methods.methods;
+        _directPaymentDescriptions = methods.descriptions;
       });
     } catch (_) {
       // Direct payment remains unavailable when the provider method list
@@ -1227,6 +1229,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   _promotionalAddonTokenCharge),
           tokenBalance: breakdown.availableForOrder,
           directPaymentMethods: _directPaymentMethods,
+          directPaymentDescriptions: _directPaymentDescriptions,
           initialMode: _paymentMode,
           initialMethod: _directPaymentMethod,
           onTopUp: () {
@@ -2351,6 +2354,7 @@ class _PaymentMethodPickerPage extends StatefulWidget {
     required this.tokenCharge,
     required this.tokenBalance,
     required this.directPaymentMethods,
+    this.directPaymentDescriptions = const {},
     required this.initialMode,
     required this.initialMethod,
     required this.onTopUp,
@@ -2359,6 +2363,7 @@ class _PaymentMethodPickerPage extends StatefulWidget {
   final int tokenCharge;
   final int tokenBalance;
   final Set<String> directPaymentMethods;
+  final Map<String, String> directPaymentDescriptions;
   final String initialMode;
   final String initialMethod;
   final VoidCallback onTopUp;
@@ -2394,28 +2399,32 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
       (
         key: 'fpx',
         label: 'FPX Online Banking',
-        description: 'Pay from a participating Malaysian bank.',
+        description: widget.directPaymentDescriptions['fpx'] ??
+            'Pay from a participating Malaysian bank.',
         icon: Icons.account_balance_outlined,
         enabled: widget.directPaymentMethods.contains('fpx'),
       ),
       (
         key: 'duitnow_qr',
         label: 'DuitNow QR',
-        description: 'Scan with a supported banking or wallet app.',
+        description: widget.directPaymentDescriptions['duitnow_qr'] ??
+            'Scan with a supported banking or wallet app.',
         icon: Icons.qr_code_2_rounded,
         enabled: widget.directPaymentMethods.contains('duitnow_qr'),
       ),
       (
         key: 'ewallet',
         label: 'E-wallets',
-        description: 'Use ShopeePay or another supported wallet.',
+        description: widget.directPaymentDescriptions['ewallet'] ??
+            'Use ShopeePay or another supported wallet.',
         icon: Icons.account_balance_wallet_outlined,
         enabled: widget.directPaymentMethods.contains('ewallet'),
       ),
       (
         key: 'card',
         label: 'Malaysian card',
-        description: 'Debit or credit card issued in Malaysia.',
+        description: widget.directPaymentDescriptions['card'] ??
+            'Debit or credit card issued in Malaysia.',
         icon: Icons.credit_card_outlined,
         enabled: widget.directPaymentMethods.contains('card'),
       ),
