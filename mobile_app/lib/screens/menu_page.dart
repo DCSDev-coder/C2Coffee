@@ -1802,9 +1802,12 @@ class _MenuPageState extends State<MenuPage> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
               child: Center(
-                child: CatalogProductImage(
-                  assetPath: item['image'] as String?,
-                  imageUrl: item['image_url'] as String?,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CatalogProductImage(
+                    assetPath: item['image'] as String?,
+                    imageUrl: item['image_url'] as String?,
+                  ),
                 ),
               ),
             ),

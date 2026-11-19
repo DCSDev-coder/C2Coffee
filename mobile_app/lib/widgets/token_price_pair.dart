@@ -30,27 +30,31 @@ class TokenPricePair extends StatelessWidget {
             width: 1,
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.stars_rounded,
-              size: 13,
-              color: Color(0xFFD97706),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '$tokenValue tokens',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: tokenFontSize > 0 ? tokenFontSize : 12.5,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF9A3412),
-                height: 1.1,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.stars_rounded,
+                size: 13,
+                color: Color(0xFFD97706),
               ),
-            ),
-          ],
+              const SizedBox(width: 4),
+              Text(
+                '$tokenValue tokens',
+                maxLines: 1,
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: tokenFontSize > 0 ? tokenFontSize : 12.5,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF9A3412),
+                  height: 1.1,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }

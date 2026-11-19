@@ -37,7 +37,6 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
   }
 
   String get _itemName => widget.item['name']?.toString() ?? 'Item';
-  bool get _isFood => widget.item['isFood'] == true;
   bool get _isMerchandise => widget.item['isMerchandise'] == true;
   bool get _isCandle => widget.item['isCandle'] == true;
   int get _baseCalories =>
@@ -49,17 +48,6 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
       widget.item['basePriceRm']?.toString() ??
       widget.item['price']?.toString() ??
       '0.00';
-
-  bool get _isPastry {
-    return _isFood;
-  }
-
-  double get _imageScale {
-    if (_isPastry) return 1.35;
-    if (_isCandle) return 1.15;
-    if (_isMerchandise) return 1.15;
-    return 1.1;
-  }
 
   double get _itemBasePrice {
     final raw = _rawBasePriceText;
@@ -176,14 +164,17 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Transform.scale(
-                      scale: _imageScale,
-                      child: CatalogProductImage(
-                        assetPath: null,
-                        imageUrl: widget.item['image_url']?.toString(),
-                        height: 200,
-                        fit: BoxFit.contain,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                    child: Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: CatalogProductImage(
+                          assetPath: null,
+                          imageUrl: widget.item['image_url']?.toString(),
+                          height: 240,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                   ),
