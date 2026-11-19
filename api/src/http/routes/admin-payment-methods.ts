@@ -75,7 +75,9 @@ export async function registerAdminPaymentMethodRoutes(app: FastifyInstance): Pr
       const descriptions = await loadTenantPaymentMethodDescriptions(connection, request.adminAuth.tenantId);
       const activeMethods = await getActiveChipMethods(
         100,
-        asChipPaymentMethods(normalizeCustomerPaymentMethods(env.TOPUP_GATEWAY_ALLOWED_METHODS))
+        asChipPaymentMethods(
+          customerPaymentMethods.filter((method) => env.TOPUP_GATEWAY_ALLOWED_METHODS.includes(method))
+        )
       );
       return response(methods, activeMethods, descriptions);
     } finally {

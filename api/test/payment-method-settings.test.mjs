@@ -27,6 +27,7 @@ test('customer payment methods are filtered by tenant settings and provider avai
   const giftCards = await source('src/http/routes/gift-cards.ts');
   assert.match(settings, /customer_payment_methods_json/);
   assert.match(settings, /DEPLOYMENT_TENANT_CODE/);
+  assert.match(settings, /registration_status = 'registered'/);
   assert.doesNotMatch(settings, /SELECT id FROM admin_tenants WHERE status = 'active'/);
   assert.match(chip, /approvedMethods/);
   assert.match(topups, /loadUserPaymentMethodSettings/);

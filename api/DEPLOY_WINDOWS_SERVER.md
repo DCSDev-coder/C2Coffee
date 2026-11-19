@@ -76,8 +76,10 @@ The API now refuses to start with this configuration when `NODE_ENV=production`.
 
 Before running any migration, take a full MySQL backup and verify that the
 backup can be restored to a separate database. Do not treat a successful
-Docker build as a backup or rollback point. Migration 159 changes the tenant
-schema and migration 160 changes administrator role assignments.
+Docker build as a backup or rollback point. Migrations 159 and 162 change the
+tenant schema, migration 160 changes administrator role assignments, and
+migration 161 repairs an empty payment-method configuration without deleting
+history.
 
 From:
 

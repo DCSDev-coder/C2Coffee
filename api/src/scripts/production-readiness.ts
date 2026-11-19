@@ -256,7 +256,9 @@ async function requireLatestSchema(): Promise<void> {
     '157_create_promotional_addons.sql',
     '158_snapshot_order_voucher_application.sql',
     '159_add_customer_payment_method_settings.sql',
-    '160_simplify_admin_roles.sql'
+    '160_simplify_admin_roles.sql',
+    '161_recover_empty_customer_payment_methods.sql',
+    '162_add_customer_payment_method_descriptions.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,
