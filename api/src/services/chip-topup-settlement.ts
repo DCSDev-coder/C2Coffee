@@ -59,8 +59,8 @@ function normalizedStatus(purchase: ChipPurchase): string {
 
 export function chipTerminalFailure(status: unknown): 'failed' | 'cancelled' | null {
   const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
-  if (normalized === 'cancelled' || normalized === 'expired') return 'cancelled';
-  if (['error', 'failed', 'payment_failure'].includes(normalized)) return 'failed';
+  if (normalized === 'cancelled' || normalized === 'expired' || normalized === 'overdue') return 'cancelled';
+  if (['error', 'failed', 'payment_failure', 'blocked'].includes(normalized)) return 'failed';
   return null;
 }
 

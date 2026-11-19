@@ -26,8 +26,8 @@ function normalizedStatus(purchase: ChipPurchase): string {
 }
 
 function terminalFailure(status: string): 'failed' | 'cancelled' | null {
-  if (status === 'cancelled' || status === 'expired') return 'cancelled';
-  if (['error', 'failed', 'payment_failure'].includes(status)) return 'failed';
+  if (status === 'cancelled' || status === 'expired' || status === 'overdue') return 'cancelled';
+  if (['error', 'failed', 'payment_failure', 'blocked'].includes(status)) return 'failed';
   return null;
 }
 

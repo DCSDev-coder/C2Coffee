@@ -10,7 +10,9 @@ import {
   asChipPaymentMethods,
   customerPaymentMethodLabels,
   customerPaymentMethods,
+  loadTenantPaymentMethodDescriptions,
   loadTenantPaymentMethodSettings,
+  normalizeCustomerPaymentMethodDescriptions,
   normalizeCustomerPaymentMethods,
   type CustomerPaymentMethod
 } from '../../services/payment-method-settings.js';
@@ -18,7 +20,8 @@ import {
 const settingsSchema = z.object({
   methods: z.array(z.enum(customerPaymentMethods))
     .min(1, 'Select at least one payment method.')
-    .max(customerPaymentMethods.length)
+    .max(customerPaymentMethods.length),
+  descriptions: z.record(z.enum(customerPaymentMethods), z.string().trim().max(160)).optional()
 });
 
 async function audit(connection: PoolConnection, request: FastifyRequest, methods: string[]): Promise<void> {
@@ -45,12 +48,14 @@ function requirePaymentSettingsAdmin(request: FastifyRequest): void {
 
 function response(
   methods: CustomerPaymentMethod[],
-  activeMethods: ReadonlyMap<CustomerPaymentMethod, string[]>
+  activeMethods: ReadonlyMap<CustomerPaymentMethod, string[]>,
+  descriptions: Record<CustomerPaymentMethod, string>
 ) {
   return {
     methods: customerPaymentMethods.map((method) => ({
       code: method,
       label: customerPaymentMethodLabels[method],
+      description: descriptions[method],
       enabled: methods.includes(method),
       deployment_enabled: env.TOPUP_GATEWAY_ALLOWED_METHODS.includes(method),
       provider_active: activeMethods.has(method),
@@ -67,11 +72,12 @@ export async function registerAdminPaymentMethodRoutes(app: FastifyInstance): Pr
     const connection = await getUtcConnection();
     try {
       const methods = await loadTenantPaymentMethodSettings(connection, request.adminAuth.tenantId);
+      const descriptions = await loadTenantPaymentMethodDescriptions(connection, request.adminAuth.tenantId);
       const activeMethods = await getActiveChipMethods(
         100,
         asChipPaymentMethods(normalizeCustomerPaymentMethods(env.TOPUP_GATEWAY_ALLOWED_METHODS))
       );
-      return response(methods, activeMethods);
+      return response(methods, activeMethods, descriptions);
     } finally {
       connection.release();
     }
@@ -98,14 +104,24 @@ export async function registerAdminPaymentMethodRoutes(app: FastifyInstance): Pr
     const connection = await getUtcConnection();
     try {
       await connection.beginTransaction();
+      const existingDescriptions = await loadTenantPaymentMethodDescriptions(connection, request.adminAuth.tenantId);
+      const descriptions = payload.descriptions
+        ? normalizeCustomerPaymentMethodDescriptions({ ...existingDescriptions, ...payload.descriptions })
+        : existingDescriptions;
       await connection.execute(
-        `UPDATE admin_tenants SET customer_payment_methods_json = :methods
-         WHERE id = :tenantId`,
-        { methods: JSON.stringify(asChipPaymentMethods(methods)), tenantId: request.adminAuth.tenantId }
+        `UPDATE admin_tenants
+            SET customer_payment_methods_json = :methods,
+                customer_payment_method_descriptions_json = :descriptions
+          WHERE id = :tenantId`,
+        {
+          methods: JSON.stringify(asChipPaymentMethods(methods)),
+          descriptions: JSON.stringify(descriptions),
+          tenantId: request.adminAuth.tenantId
+        }
       );
       await audit(connection, request, methods);
       await connection.commit();
-      return response(methods, activeMethods);
+      return response(methods, activeMethods, descriptions);
     } catch (error) {
       await connection.rollback();
       throw error;

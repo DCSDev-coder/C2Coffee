@@ -152,6 +152,11 @@ export async function cancelChipPurchase(id: string): Promise<ChipPurchase> {
   });
   const body = await response.json().catch(() => null) as ChipPurchase | null;
   if (!response.ok || !body || body.id !== id) {
+    console.warn('CHIP cancel purchase failed', {
+      purchaseId: id,
+      httpStatus: response.status,
+      chipStatus: body?.status ?? null
+    });
     throw new ApiError(502, 'topup_gateway_error', 'Unable to close the previous CHIP payment safely.');
   }
   return body;

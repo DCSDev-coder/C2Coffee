@@ -21,7 +21,11 @@ import { chipTerminalFailure, settleChipTopUpPurchase } from '../../services/chi
 import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
 import { settleChipGiftCardPurchase } from '../../services/chip-gift-card-settlement.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
-import { asChipPaymentMethods, loadUserPaymentMethodSettings } from '../../services/payment-method-settings.js';
+import {
+  asChipPaymentMethods,
+  loadUserPaymentMethodDescriptions,
+  loadUserPaymentMethodSettings
+} from '../../services/payment-method-settings.js';
 
 type CustomerTopUpRow = RowDataPacket & {
   id: number;
@@ -195,7 +199,11 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
     try {
       const configured = asChipPaymentMethods(await loadUserPaymentMethodSettings(connection, request.auth.userId));
       const activeMethods = await getActiveChipMethods(100, configured);
-      return { methods: [...activeMethods.keys()] };
+      const descriptions = await loadUserPaymentMethodDescriptions(connection, request.auth.userId);
+      return {
+        methods: [...activeMethods.keys()],
+        method_descriptions: descriptions
+      };
     } finally {
       connection.release();
     }
@@ -506,11 +514,12 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
       try {
         purchase = await cancelChipPurchase(topup.provider_bill_id);
       } catch (error) {
-        request.log.warn({ topupRef: params.topupRef, err: error }, 'CHIP cancel failed; re-checking purchase status');
+        request.log.warn({ topupRef: params.topupRef, chipStatus: purchase.status ?? null, err: error }, 'CHIP cancel failed; re-checking purchase status');
         purchase = await getChipPurchase(topup.provider_bill_id);
       }
     }
     if (!shouldSettlePurchaseStatus(purchase.status)) {
+      request.log.warn({ topupRef: params.topupRef, chipStatus: purchase.status ?? null }, 'CHIP purchase remains non-terminal after cancel attempt');
       throw new ApiError(409, 'topup_payment_still_pending', 'We are still checking your previous payment. Please try again shortly.');
     }
 

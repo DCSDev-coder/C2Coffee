@@ -2694,7 +2694,7 @@ export async function registerCustomerDataRoutes(
       ? purchase.checkout_url
       : null;
     const providerStatus = typeof purchase.status === 'string' ? purchase.status.toLowerCase() : 'unknown';
-    const providerTerminal = ['paid', 'failed', 'cancelled', 'expired', 'error', 'payment_failure'].includes(providerStatus);
+    const providerTerminal = ['paid', 'failed', 'cancelled', 'expired', 'overdue', 'blocked', 'error', 'payment_failure'].includes(providerStatus);
     if (providerTerminal) {
       await settleChipMobilePurchase(row.provider_bill_id, purchase, 'customer_status_check');
     }
@@ -2757,14 +2757,14 @@ export async function registerCustomerDataRoutes(
         throw new ApiError(409, 'order_payment_not_retryable', 'This payment has already been completed.');
       }
 
-      const terminalFailureStatuses = ['failed', 'cancelled', 'expired', 'error', 'payment_failure'];
+      const terminalFailureStatuses = ['failed', 'cancelled', 'expired', 'overdue', 'blocked', 'error', 'payment_failure'];
       if (!terminalFailureStatuses.includes(providerStatus)) {
         // Cancel the open provider purchase first so there can never be two
         // payable CHIP gates for one order, allowing immediate method switch.
         try {
           purchase = await cancelChipPurchase(current.provider_bill_id);
         } catch (error) {
-          request.log.warn({ orderId: params.orderId, err: error }, 'CHIP cancel failed; re-checking purchase status');
+          request.log.warn({ orderId: params.orderId, providerStatus, err: error }, 'CHIP cancel failed; re-checking purchase status');
           purchase = await getChipPurchase(current.provider_bill_id);
         }
         providerStatus = typeof purchase.status === 'string'
@@ -2775,12 +2775,13 @@ export async function registerCustomerDataRoutes(
           throw new ApiError(409, 'order_payment_not_retryable', 'This payment was completed while its status was being checked.');
         }
         if (!terminalFailureStatuses.includes(providerStatus)) {
+          request.log.warn({ orderId: params.orderId, providerStatus }, 'CHIP purchase remains non-terminal after cancel attempt');
           throw new ApiError(409, 'payment_still_pending', 'The previous payment could not be closed safely yet. Please check its status again.');
         }
       }
 
       await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_reconcile');
-      retryableStatus = providerStatus === 'cancelled' || providerStatus === 'expired' ? 'cancelled' : 'failed';
+      retryableStatus = ['cancelled', 'expired', 'overdue'].includes(providerStatus) ? 'cancelled' : 'failed';
     } else if (['pending', 'authorized'].includes(retryableStatus)) {
       const paymentExpired = current.payment_expires_at != null &&
         current.payment_expires_at.getTime() <= Date.now();
