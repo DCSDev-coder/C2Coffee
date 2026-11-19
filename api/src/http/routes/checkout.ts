@@ -31,12 +31,21 @@ import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { autoReopenEmergencyClosures } from '../../services/outlet-emergency.js';
 import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
+import { asChipPaymentMethods, loadTenantPaymentMethodSettings } from '../../services/payment-method-settings.js';
 import { consumeEmployeeAllowance, currentEmployeeAllowancePeriod } from '../../services/employee-token-allowance.js';
 import { allocateSubsidyEligibleDrinkTokens } from '../../services/subsidy-checkout-policy.js';
+import {
+  cancelPromotionalAddonForOrder,
+  fulfilPromotionalAddonForOrder,
+  insertPromotionalAddonOrderLine,
+  resolvePromotionalAddonForCheckout,
+} from '../../services/promotional-addons.js';
 import {
   normalizeCustomizationValue,
   resolveCustomizationTypeForGroup
 } from './barista-menu-availability.js';
+
+const PROMOTION_ADDON_CLIENT_CAPABILITY = 'promotion_addons_v1';
 
 const createOrderSchema = z.object({
   store_id: z.coerce.number().int().positive(),
@@ -44,6 +53,9 @@ const createOrderSchema = z.object({
   payment_method: z.enum(['fpx', 'duitnow_qr', 'card', 'ewallet']).nullish(),
   applied_voucher_id: z.coerce.number().int().positive().nullish(),
   gift_card_code: z.string().trim().min(8).max(40).nullish(),
+  client_capabilities: z.array(z.string().trim().max(80)).max(20).default([]).describe(PROMOTION_ADDON_CLIENT_CAPABILITY),
+  selected_promotional_reward_menu_item_id: z.coerce.number().int().positive().nullish(),
+  promotional_reward_declined: z.boolean().default(false),
   items: z
     .array(
       z.object({
@@ -126,6 +138,7 @@ type LegacyCustomizationRow = RowDataPacket & {
 
 export type MenuItemRow = RowDataPacket & {
   id: number;
+  category_id: number;
   code: string;
   name: string;
   base_price_rm: string;
@@ -164,6 +177,15 @@ type IdempotentOrderResponseRow = OrderResponseRow & {
   payment_status: string | null;
   payment_method: string | null;
   provider_bill_id: string | null;
+  promotion_campaign_id: number | null;
+  promotion_campaign_code: string | null;
+  promotion_campaign_name: string | null;
+  promotion_assignment_mode: 'customer_choice' | 'server_random' | null;
+  promotion_reward_menu_item_id: number | null;
+  promotion_reward_name: string | null;
+  promotion_reward_image_url: string | null;
+  promotion_price_rm: string | null;
+  promotion_token_amount: number | null;
 };
 
 type OrderCollectRow = RowDataPacket & {
@@ -545,7 +567,12 @@ export function collectMatchedOptionUnits(
   const optionIds = new Set((scope.option_ids || []).map((id) => Number(id)));
   if (!optionGroupId) return [];
 
-  const units: Array<{ priceRm: number; priceTokens: number }> = [];
+  const units: Array<{
+    priceRm: number;
+    priceTokens: number;
+    itemName: string;
+    optionName: string;
+  }> = [];
   for (const item of normalizedItems) {
     if (!_scopeMatchesMenuItem(scope, item.menuItem)) continue;
     for (const modifier of item.payload.modifiers || []) {
@@ -555,7 +582,9 @@ export function collectMatchedOptionUnits(
       // The checkout canonicalisation has already verified these values.
       units.push({
         priceRm: Math.max(0, normalizeMoney(modifier.price_delta_rm)),
-        priceTokens: Math.max(0, Number(modifier.token_price_delta) || 0)
+        priceTokens: Math.max(0, Number(modifier.token_price_delta) || 0),
+        itemName: item.menuItem.name,
+        optionName: modifier.option_name,
       });
     }
   }
@@ -697,6 +726,7 @@ export async function registerCheckoutRoutes(
       let appliedVoucher: AppliedVoucherRow | null = null;
       let discountRm = 0;
       let discountTokens = 0;
+      let voucherRewardSummary: string | null = null;
       const totalBeforeDiscountRm = subtotalRm + modifierTotalRm;
 
       if (payload.applied_voucher_id) {
@@ -929,6 +959,16 @@ export async function registerCheckoutRoutes(
           const tokenDiscountVal = appliedVoucher.token_value ?? Math.round(Number(appliedVoucher.discount_value));
           discountTokens = Math.min(tokenAmountCharged, tokenDiscountVal);
         } else if (appliedVoucher.discount_mode === 'free_drink') {
+          const rewardCounts = new Map<string, number>();
+          for (const unit of rewardableUnits) {
+            rewardCounts.set(
+              unit.menuItem.name,
+              (rewardCounts.get(unit.menuItem.name) ?? 0) + 1
+            );
+          }
+          voucherRewardSummary = Array.from(rewardCounts.entries())
+            .map(([name, quantity]) => `${quantity}x ${name}`)
+            .join(', ');
           if (isTokenCheckout) {
             discountTokens = rewardableUnits.reduce(
               (sum, unit) => sum + Math.max(0, unit.tokenPrice + unit.modifierTokens),
@@ -945,6 +985,9 @@ export async function registerCheckoutRoutes(
             .slice()
             .sort((a, b) => b.priceRm - a.priceRm || b.priceTokens - a.priceTokens)
             .slice(0, promotionRule.reward_quantity);
+          voucherRewardSummary = rewardableOptions
+            .map((option) => `${option.optionName} on ${option.itemName}`)
+            .join(', ');
           if (isTokenCheckout) {
             discountTokens = rewardableOptions.reduce((sum, option) => sum + option.priceTokens, 0);
           } else {
@@ -964,10 +1007,31 @@ export async function registerCheckoutRoutes(
             });
       }
 
+      const promotion = await resolvePromotionalAddonForCheckout(connection, {
+        tenantId: store.tenant_id,
+        storeId: payload.store_id,
+        paymentMode: payload.payment_mode,
+        channel: 'mobile',
+        clientCapabilities: payload.client_capabilities,
+        selectedRewardMenuItemId: payload.selected_promotional_reward_menu_item_id ?? null,
+        declined: payload.promotional_reward_declined,
+        items: normalizedItems.map((item) => ({
+          menu_item_id: item.menuItem.id,
+          category_id: item.menuItem.category_id,
+          product_kind_code: item.menuItem.category_product_kind_code,
+          quantity: item.payload.quantity,
+          line_type: 'sale',
+        })),
+      });
+      if (promotion) {
+        subtotalRm = normalizeMoney(subtotalRm + promotion.priceRm);
+        if (isTokenCheckout) tokenAmountCharged += promotion.tokenAmount;
+      }
+
       discountRm = normalizeMoney(discountRm);
       let finalTotalRm = Math.max(
         0,
-        normalizeMoney(totalBeforeDiscountRm - discountRm)
+        normalizeMoney(totalBeforeDiscountRm - discountRm + (promotion?.priceRm ?? 0))
       );
       let appliedGiftCard: { id: number; currency: 'rm' | 'token'; remainingAmount: number; code: string } | null = null;
       let giftCardAmountRm = 0;
@@ -1024,6 +1088,12 @@ export async function registerCheckoutRoutes(
             subtotal_rm,
             modifier_total_rm,
             discount_total_rm,
+            voucher_discount_tokens,
+            voucher_reward_summary,
+            voucher_name_snapshot,
+            voucher_code_snapshot,
+            voucher_type_snapshot,
+            voucher_discount_mode_snapshot,
             final_total_rm,
             token_amount_charged,
             employee_allowance_tokens_used,
@@ -1046,6 +1116,12 @@ export async function registerCheckoutRoutes(
             :subtotalRm,
             :modifierTotalRm,
             :discountTotalRm,
+            :voucherDiscountTokens,
+            :voucherRewardSummary,
+            :voucherNameSnapshot,
+            :voucherCodeSnapshot,
+            :voucherTypeSnapshot,
+            :voucherDiscountModeSnapshot,
             :finalTotalRm,
             :tokenAmountCharged,
             0,
@@ -1067,6 +1143,12 @@ export async function registerCheckoutRoutes(
           subtotalRm: subtotalRm.toFixed(2),
           modifierTotalRm: modifierTotalRm.toFixed(2),
           discountTotalRm: discountRm.toFixed(2),
+          voucherDiscountTokens: discountTokens,
+          voucherRewardSummary,
+          voucherNameSnapshot: appliedVoucher?.template_name ?? null,
+          voucherCodeSnapshot: appliedVoucher?.template_code ?? null,
+          voucherTypeSnapshot: appliedVoucher?.voucher_type ?? null,
+          voucherDiscountModeSnapshot: appliedVoucher?.discount_mode ?? null,
           finalTotalRm: finalTotalRm.toFixed(2),
           tokenAmountCharged,
           voucherId: appliedVoucher ? appliedVoucher.id : null,
@@ -1216,6 +1298,10 @@ export async function registerCheckoutRoutes(
             }
           );
         }
+      }
+
+      if (promotion) {
+        await insertPromotionalAddonOrderLine(connection, orderId, payload.store_id, promotion);
       }
 
       // Hold recipe stock before payment leaves the checkout flow. The hold is
@@ -1530,6 +1616,7 @@ export async function registerCheckoutRoutes(
             amountCents: Math.round(finalTotalRm * 100),
             description: `C2 Coffee order ${orderRef}`,
             method: payload.payment_method as ChipPaymentMethod,
+            approvedMethods: asChipPaymentMethods(await loadTenantPaymentMethodSettings(mysqlPool, store.tenant_id)),
             callbackUrl: customerPaymentCallbackUrl()
           });
           const [attachResult] = await mysqlPool.execute<ResultSetHeader>(
@@ -1569,6 +1656,7 @@ export async function registerCheckoutRoutes(
           try {
             await inventoryConnection.beginTransaction();
             await releaseInventoryForOrder(inventoryConnection, orderId);
+            await cancelPromotionalAddonForOrder(inventoryConnection, orderId);
             await restoreGiftCardForRefund(
               inventoryConnection,
               orderId,
@@ -1637,6 +1725,17 @@ export async function registerCheckoutRoutes(
         receipt_email: orderPaid ? 'pending_until_ready' : 'unavailable',
         payment: directPaymentResponse
       };
+      response.promotional_addon = promotion ? {
+        campaign_id: promotion.campaignId,
+        campaign_code: promotion.campaignCode,
+        campaign_name: promotion.campaignName,
+        assignment_mode: promotion.assignmentMode,
+        reward_menu_item_id: promotion.rewardMenuItemId,
+        reward_name: promotion.rewardName,
+        reward_image_url: promotion.rewardImageUrl,
+        price_rm: promotion.priceRm.toFixed(2),
+        token_amount: promotion.tokenAmount,
+      } : null;
 
       return response;
     } catch (error) {
@@ -1781,6 +1880,7 @@ export async function registerCheckoutRoutes(
 
       // A pickup is only eligible for loyalty and referral rewards once collected.
       await consumeInventoryForOrder(connection, order.id);
+      await fulfilPromotionalAddonForOrder(connection, order.id);
       await processOrderLoyalty(order.id, request.auth.userId, connection);
       await awardReferralForCollectedOrder(connection, request.auth.userId, order.id);
 
@@ -1841,9 +1941,19 @@ async function _findIdempotentCheckoutResponse(
         p.provider_bill_id,
         ta.balance_available,
         ta.balance_reserved,
-        ta.balance_cap
+        ta.balance_cap,
+        promotion.campaign_id AS promotion_campaign_id,
+        promotion.campaign_code_snapshot AS promotion_campaign_code,
+        promotion.campaign_name_snapshot AS promotion_campaign_name,
+        promotion.assignment_mode_snapshot AS promotion_assignment_mode,
+        promotion.reward_menu_item_id AS promotion_reward_menu_item_id,
+        promotion.reward_name_snapshot AS promotion_reward_name,
+        promotion.reward_image_url_snapshot AS promotion_reward_image_url,
+        CAST(promotion.promotional_price_rm_snapshot AS CHAR) AS promotion_price_rm,
+        promotion.promotional_token_amount_snapshot AS promotion_token_amount
       FROM orders o
       LEFT JOIN payments p ON p.order_id = o.id
+      LEFT JOIN order_promotional_addons promotion ON promotion.order_id = o.id
       JOIN token_accounts ta ON ta.user_id = o.user_id
       WHERE o.user_id = :userId
         AND o.checkout_idempotency_key = :idempotencyKey
@@ -1888,7 +1998,18 @@ async function _findIdempotentCheckoutResponse(
     token_balance: order.balance_available,
     token_reserved: order.balance_reserved,
     token_cap: order.balance_cap,
-    payment
+    payment,
+    promotional_addon: order.promotion_campaign_id ? {
+      campaign_id: order.promotion_campaign_id,
+      campaign_code: order.promotion_campaign_code,
+      campaign_name: order.promotion_campaign_name,
+      assignment_mode: order.promotion_assignment_mode,
+      reward_menu_item_id: order.promotion_reward_menu_item_id,
+      reward_name: order.promotion_reward_name,
+      reward_image_url: order.promotion_reward_image_url,
+      price_rm: order.promotion_price_rm,
+      token_amount: order.promotion_token_amount,
+    } : null,
   };
 }
 
@@ -1936,6 +2057,7 @@ export async function loadCheckoutMenuItems(
     `
       SELECT
         i.id,
+        i.category_id,
         i.code,
         i.name,
         CAST(${priceColumn} AS CHAR) AS base_price_rm,
@@ -1972,6 +2094,7 @@ export async function loadCheckoutMenuItems(
        AND a.menu_item_id = i.id
       WHERE i.id IN (:menuItemIds)
         AND i.is_active = 1
+        AND i.sale_visibility = 'normal'
     `,
     {
       storeId,

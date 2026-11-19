@@ -13,6 +13,7 @@ import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import { exportToCSV } from '../utils/exportToCSV';
 import RefundDetails from "./RefundDetails";
 import ViewProfile from "./ViewProfile";
+import UserAvatar from "./UserAvatar";
 import { adminRequest } from '../lib/adminApi';
 import { createAdminRefund, createOrderPriceCorrection, loadOrderPriceCorrectionPreview } from '../lib/adminApi';
 import { formatPaymentLabel } from '../utils/reporting';
@@ -416,21 +417,21 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
         <span className="text-xs font-bold text-gray-900 uppercase tracking-wider block mb-2.5">Customer</span>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-[#2E5E58] flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-xs">
-              {order.customer ? order.customer.charAt(0).toUpperCase() : 'C'}
-            </div>
+            <UserAvatar user={order} size="panel" shape="rounded" />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-gray-900 truncate">{order.customer}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getTierColor(order.tier, order.tierCode)}`}>
-                  {order.tier}
-                </span>
+                {!order.isGuest && (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getTierColor(order.tier, order.tierCode)}`}>
+                    {order.tier}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 truncate">{order.email}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Member ID: {order.memberId}</p>
+              {!order.isGuest && <p className="text-[11px] text-gray-400 mt-0.5">Member ID: {order.memberId}</p>}
             </div>
           </div>
-          <button
+          {!order.isGuest && <button
             onClick={() => {
               onClose?.();
               const cups = order.tier === 'Legend' ? '35' : order.tier === 'Ketagih' ? '25' : order.tier === 'Dilamun' ? '15' : '5';
@@ -438,13 +439,17 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
                 username: order.customer,
                 email: order.email,
                 phone: order.phone,
+                tier: order.tier,
+                memberId: order.memberId,
                 orders: cups,
+                avatar: order.avatar,
+                avatarType: order.avatarType,
               });
             }}
             className="px-3 py-1.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 shadow-2xs transition-all whitespace-nowrap cursor-pointer"
           >
             View Profile
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -585,7 +590,19 @@ const OrderDetailPanel = ({ order, onClose, onViewProfile, onCorrectPrice, isMod
         )}
         {(order.voucherName || Number(order.discount || 0) > 0) && (
           <div className="mt-2 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] text-emerald-800">
-            <span className="font-semibold">Promotion:</span> {order.voucherName || 'Discount'}{order.voucherCode ? ` (${order.voucherCode})` : ''} · {formatRm(order.discount)} off
+            <span className="font-semibold">Voucher:</span> {order.voucherName || 'Discount'}{order.voucherCode ? ` (${order.voucherCode})` : ''}
+            {order.voucherRewardSummary && (
+              <span className="block mt-0.5">
+                <strong>Applied to:</strong> {order.voucherRewardSummary}
+                {order.voucherRewardSummaryInferred ? ' (inferred for historical order)' : ''}
+              </span>
+            )}
+            <span className="block mt-0.5">
+              <strong>Discount:</strong>{' '}
+              {Number(order.voucherDiscountTokens || 0) > 0
+                ? `${formatTokens(order.voucherDiscountTokens)} C2 Credit`
+                : `${formatRm(order.discount)} off`}
+            </span>
           </div>
         )}
         {order.paymentExpiresAt && normalizeOrderStatus(order.status) === 'Pending Payment' && (
@@ -1310,9 +1327,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="h-8 w-8 rounded-full bg-[#2E5E58] flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-2xs">
-                              {order.customer ? order.customer.charAt(0).toUpperCase() : 'C'}
-                            </div>
+                            <UserAvatar user={order} size="sm" />
                             <div className="ml-3">
                               <div className="text-xs font-bold text-gray-900">{order.customer}</div>
                               <div className="text-[10px] text-gray-400">{order.email}</div>
@@ -1324,8 +1339,13 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                           <div>{order.storeName || '-'}</div>
                           <div className="text-[10px] text-gray-400 mt-0.5">{formatOrderChannel(order.orderChannel)} · {formatFulfillmentType(order.fulfillmentType)}</div>
                         </td>
-                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-800 font-medium max-w-[220px] truncate" title={itemsLabel}>
-                          {itemsLabel}
+                        <td className="px-6 py-3.5 text-xs text-gray-800 font-medium max-w-[220px]" title={itemsLabel}>
+                          <div className="truncate">{itemsLabel}</div>
+                          {order.voucherRewardSummary && (
+                            <div className="mt-1 truncate text-[10px] font-bold text-emerald-700" title={`Voucher applied to ${order.voucherRewardSummary}`}>
+                              Voucher → {order.voucherRewardSummary}{order.voucherRewardSummaryInferred ? ' (historical inference)' : ''}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap text-xs font-bold text-gray-900">
                           <OrderValueStack tokenValue={rowTokenTotal} rmValue={rowTotal} />
@@ -1378,14 +1398,14 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                 <button
                   onClick={() => {
                     const rows = [
-                      ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Type", "Order Channel", "Fulfillment", "Employee", "Voucher", "Discount (RM)", "Date", "Time", "Total (Tokens)", "Total (RM)", "Company Allowance Tokens", "Personal Tokens"],
+                      ["Order ID", "Username", "Email", "Outlet", "Status", "Payment Type", "Order Channel", "Fulfillment", "Employee", "Voucher", "Voucher Applied Item", "Discount (RM)", "Discount (C2 Credit Tokens)", "Date", "Time", "Total (Tokens)", "Total (RM)", "Company Allowance Tokens", "Personal Tokens"],
                       ...sortedOrders.map(o => {
                         const subtotal = o.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
                         const rmTotal = Number(o.total ?? (subtotal - Number(o.discount || 0)));
                         const tokenTotal = o.tokenAmountCharged ?? rmTotal;
                         const paymentLabel = (o.paymentMode || '').toLowerCase() === 'token' ? 'Tokens' : 'Direct (RM)';
                         const subsidyTokens = Math.min(tokenTotal, Number(o.subsidyTokenAmount || 0));
-                        return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${normalizeOrderStatus(o.status)}"`, `"${paymentLabel}"`, `"${formatOrderChannel(o.orderChannel)}"`, `"${formatFulfillmentType(o.fulfillmentType)}"`, o.isEmployee ? 'Yes' : 'No', `"${o.voucherCode || o.voucherName || ''}"`, `"${formatRm(o.discount || 0)}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`, `"${formatTokens(subsidyTokens)}"`, `"${formatTokens(Math.max(0, tokenTotal - subsidyTokens))}"`];
+                        return [`"${o.id}"`, `"${o.customer}"`, `"${o.email}"`, `"${o.storeName || ''}"`, `"${normalizeOrderStatus(o.status)}"`, `"${paymentLabel}"`, `"${formatOrderChannel(o.orderChannel)}"`, `"${formatFulfillmentType(o.fulfillmentType)}"`, o.isEmployee ? 'Yes' : 'No', `"${o.voucherCode || o.voucherName || ''}"`, `"${o.voucherRewardSummary || ''}"`, `"${formatRm(o.discount || 0)}"`, `"${formatTokens(o.voucherDiscountTokens || 0)}"`, `"${o.date}"`, `"${o.time}"`, `"${formatTokens(tokenTotal)}"`, `"${formatRm(rmTotal)}"`, `"${formatTokens(subsidyTokens)}"`, `"${formatTokens(Math.max(0, tokenTotal - subsidyTokens))}"`];
                       })
                     ];
                     exportToCSV(rows, "orders.csv");

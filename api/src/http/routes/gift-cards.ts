@@ -15,6 +15,7 @@ import { settleChipGiftCardPurchase } from '../../services/chip-gift-card-settle
 import { currentEmployeeAllowancePeriod, ensureEmployeeAllowance } from '../../services/employee-token-allowance.js';
 import { creditGiftCardToWallet } from '../../services/gift-cards.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
+import { asChipPaymentMethods, loadTenantPaymentMethodSettings } from '../../services/payment-method-settings.js';
 
 const money = z.coerce.number().int().min(5).max(5000);
 const tokenAmount = z.coerce.number().int().min(5).max(5000);
@@ -130,10 +131,16 @@ async function purchaseResponse(purchase: ExistingPurchase): Promise<Record<stri
 }
 
 export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/v1/gift-cards/payment-methods', { preHandler: authenticateRequest }, async () => {
+  app.get('/v1/gift-cards/payment-methods', { preHandler: authenticateRequest }, async (request) => {
     if (!env.TOPUP_GATEWAY_ENABLED || env.TOPUP_GATEWAY_PROVIDER !== 'chip') return { methods: [] };
-    const methods = await getActiveChipMethods();
-    return { methods: [...methods.keys()] };
+    const connection = await getUtcConnection();
+    try {
+      const configured = asChipPaymentMethods(await loadTenantPaymentMethodSettings(connection, await tenantForUser(connection, request.auth.userId)));
+      const methods = await getActiveChipMethods(100, configured);
+      return { methods: [...methods.keys()] };
+    } finally {
+      connection.release();
+    }
   });
 
   app.post('/v1/gift-cards', { preHandler: authenticateRequest, config: { rateLimit: { max: 8, timeWindow: '15 minutes' } } }, async (request, reply) => {
@@ -151,11 +158,12 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
     let purchaseRef = '';
     let purchaserName = 'C2 Coffee customer';
     let purchaserEmail = '';
+    let tenantId = 0;
     let deliveredRecipientUserId: number | null = null;
 
     try {
       await connection.beginTransaction();
-      const tenantId = await tenantForUser(connection, request.auth.userId);
+      tenantId = await tenantForUser(connection, request.auth.userId);
       code = buildCode();
       purchaseRef = buildPurchaseRef();
       const isToken = payload.currency === 'token';
@@ -265,7 +273,7 @@ export async function registerGiftCardRoutes(app: FastifyInstance): Promise<void
     let providerPurchaseId = '';
     let providerAttached = false;
     try {
-      const purchase = await createChipPurchase({ reference: purchaseRef, customerName: purchaserName, customerEmail: purchaserEmail, amountCents: Math.round(amount * 100), description: `C2 Coffee RM gift card ${code}`, method: payload.payment_method as ChipPaymentMethod, callbackUrl: callbackUrl() });
+      const purchase = await createChipPurchase({ reference: purchaseRef, customerName: purchaserName, customerEmail: purchaserEmail, amountCents: Math.round(amount * 100), description: `C2 Coffee RM gift card ${code}`, method: payload.payment_method as ChipPaymentMethod, approvedMethods: asChipPaymentMethods(await loadTenantPaymentMethodSettings(mysqlPool, tenantId)), callbackUrl: callbackUrl() });
       providerPurchaseId = purchase.id;
       const [attachResult] = await mysqlPool.execute<ResultSetHeader>(
         `UPDATE payments SET provider_bill_id = :purchaseId WHERE gift_card_id = :cardId AND status = 'pending' AND provider_bill_id IS NULL`,

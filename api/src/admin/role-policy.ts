@@ -1,6 +1,8 @@
 import { ApiError } from '../http/errors.js';
 
-const tenantRoles = new Set(['super_admin', 'operations_admin', 'marketing_admin', 'support_admin', 'barista']);
+// Keep legacy codes accepted during the migration window; migration 160
+// converts their assignments to the consolidated `admin` role.
+const tenantRoles = new Set(['super_admin', 'admin', 'operations_admin', 'marketing_admin', 'support_admin', 'barista']);
 
 export function assertTenantRoleAssignment(roles: string[]): void {
   if (roles.some((role) => !tenantRoles.has(role))) {

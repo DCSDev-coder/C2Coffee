@@ -271,6 +271,7 @@ const buildEmptyForm = (categoryCode) => ({
   base_price_token: '',
   image_url: '',
   is_active: true,
+  sale_visibility: 'normal',
   is_handcrafted_drink: false,
   is_qualifying_cup: false,
   allow_remarks: false,
@@ -302,6 +303,7 @@ const buildFormFromItem = (item, optionGroups = []) => {
       : '',
     image_url: item.image_url || '',
     is_active: item.is_active,
+    sale_visibility: item.sale_visibility || 'normal',
     is_handcrafted_drink: item.is_handcrafted_drink,
     is_qualifying_cup: item.is_qualifying_cup,
     allow_remarks: Boolean(item.allow_remarks),
@@ -575,7 +577,7 @@ const Menu = () => {
 
   const totalPages = Math.max(1, Math.ceil(sortedMenuItems.length / itemsPerPage));
   const paginatedItems = showAllMenu ? sortedMenuItems : sortedMenuItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const selectedItem = allMenuItems.find((item) => item.id === selectedItemId) || null;
+  const selectedItem = filteredMenuItems.find((item) => item.id === selectedItemId) || null;
   const selectedItemIsDrink = selectedItem && String(
     selectedItem.product_kind_code || menuCategories.find((category) => category.code === selectedItem.category_code)?.product_kind_code || ''
   ).toLowerCase() === 'drink';
@@ -621,7 +623,25 @@ const Menu = () => {
     setSopFile(null);
   }, [selectedItemId]);
 
+  useEffect(() => {
+    if (loading || !selectedItemId) {
+      return;
+    }
+
+    if (filteredMenuItems.some((item) => item.id === selectedItemId)) {
+      return;
+    }
+
+    if (filteredMenuItems.length > 0) {
+      setSelectedItemId(filteredMenuItems[0].id);
+    }
+  }, [loading, filteredMenuItems, selectedItemId]);
+
   const refreshAndSelect = async (itemId = null) => {
+    if (itemId !== null && typeof window !== 'undefined') {
+      window.localStorage.setItem(LAST_SELECTED_ITEM_KEY, String(itemId));
+      window.localStorage.setItem(MENU_PANEL_DISMISSED_KEY, '0');
+    }
     await loadMenu();
     if (itemId !== null) {
       setSelectedItemId(itemId);
@@ -795,6 +815,7 @@ const Menu = () => {
       base_price_token: parseIntegerInput(editFormData.base_price_token, 0),
       image_url: imageUrl,
       is_active: Boolean(editFormData.is_active),
+      sale_visibility: editFormData.sale_visibility || 'normal',
       is_handcrafted_drink: Boolean(editFormData.is_handcrafted_drink),
       is_qualifying_cup: Boolean(editFormData.is_qualifying_cup),
       allow_remarks: Boolean(editFormData.allow_remarks)
@@ -2093,11 +2114,37 @@ const Menu = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-700">Counter RM Price</label>
-                  <input type="number" step="0.01" min="0.01" value={editFormData.counter_price_rm}
-                    onChange={(event) => setEditFormData({ ...editFormData, counter_price_rm: event.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs" placeholder="0.00" required />
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">Customer RM Price (MYR)</label>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editFormData.base_price_rm}
+                    onChange={(event) => setEditFormData({ ...editFormData, base_price_rm: event.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
+                    placeholder="0.00"
+                    required
+                  />
                 </div>
+
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <label className="text-xs font-bold text-gray-700">Counter RM Price (MYR)</label>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editFormData.counter_price_rm}
+                    onChange={(event) => setEditFormData({ ...editFormData, counter_price_rm: event.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
                     <label className="text-xs font-bold text-gray-700">Status</label>
@@ -2118,18 +2165,21 @@ const Menu = () => {
 
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <label className="text-xs font-bold text-gray-700">RM Price (MYR)</label>
+                    <label className="text-xs font-bold text-gray-700">Sales visibility</label>
+                    <InfoTooltip
+                      content="Normal items appear in the menu. Promotion-only items can be assigned only by a Promotional Add-on campaign. Hidden items are unavailable everywhere."
+                      title="Sales visibility"
+                    />
                   </div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={editFormData.base_price_rm}
-                    onChange={(event) => setEditFormData({ ...editFormData, base_price_rm: event.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
-                    placeholder="0.00"
-                    required
-                  />
+                  <select
+                    value={editFormData.sale_visibility || 'normal'}
+                    onChange={(event) => setEditFormData({ ...editFormData, sale_visibility: event.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#2E5E58] bg-white shadow-2xs"
+                  >
+                    <option value="normal">Normal menu item</option>
+                    <option value="promotion_only">Promotion-only reward</option>
+                    <option value="hidden">Hidden everywhere</option>
+                  </select>
                 </div>
 
                 <div>

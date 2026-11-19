@@ -103,7 +103,7 @@ function requireAccess(request: FastifyRequest): void {
 }
 
 function canViewCosts(request: FastifyRequest): boolean {
-  return request.adminAuth.roles.includes('super_admin');
+  return request.adminAuth.roles.some((role) => ['super_admin', 'admin'].includes(role));
 }
 
 function code(value: string): string {

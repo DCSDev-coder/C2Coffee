@@ -26,7 +26,7 @@ const listSchema = z.object({ q: z.string().trim().max(100).optional().default('
 
 function code(): string { return `C2G-${crypto.randomBytes(6).toString('hex').toUpperCase()}`; }
 function requireGiftCardAccess(request: { adminAuth: { roles: string[] } }): void {
-  if (!request.adminAuth.roles.some((role) => ['super_admin', 'marketing_admin', 'support_admin'].includes(role))) throw new ApiError(403, 'admin_forbidden', 'You do not have permission to manage gift cards.');
+  if (!request.adminAuth.roles.some((role) => ['super_admin', 'admin', 'support_admin'].includes(role))) throw new ApiError(403, 'admin_forbidden', 'You do not have permission to manage gift cards.');
 }
 function requireGiftCardControl(request: { adminAuth: { roles: string[] } }): void {
   if (!request.adminAuth.roles.includes('super_admin')) throw new ApiError(403, 'admin_forbidden', 'Only a Super Admin can issue or change gift-card balances.');

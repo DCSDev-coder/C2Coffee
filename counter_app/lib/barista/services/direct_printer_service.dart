@@ -47,32 +47,64 @@ class DirectPrinterConfig {
 class DirectPrintJob {
   const DirectPrintJob({
     required this.jobRef,
+    this.requestType = 'original',
     required this.config,
     required this.orderRef,
     required this.customerName,
     required this.customerIsEmployee,
+    this.isGuest = false,
+    this.fulfillmentType = 'pickup',
     required this.createdAt,
     required this.items,
+    this.subsidyRole = 'none',
+    this.paymentMode,
+    this.paymentMethod,
+    this.paymentReference,
+    this.subtotal = 0,
+    this.finalTotal = 0,
+    this.tokenAmountCharged = 0,
+    this.subsidyTokenAmount = 0,
+    this.giftCardTokenAmount = 0,
+    this.priceCorrectionTokenAmount = 0,
     this.voucherName,
     this.voucherType,
     this.voucherCode,
     this.discount = 0,
+    this.voucherDiscountTokens = 0,
+    this.voucherRewardSummary,
   });
 
   final String jobRef;
+  final String requestType;
   final DirectPrinterConfig config;
   final String orderRef;
   final String customerName;
   final bool customerIsEmployee;
+  final bool isGuest;
+  final String fulfillmentType;
+  final String subsidyRole;
+  final String? paymentMode;
+  final String? paymentMethod;
+  final String? paymentReference;
+  final double subtotal;
+  final double finalTotal;
+  final int tokenAmountCharged;
+  final int subsidyTokenAmount;
+  final int giftCardTokenAmount;
+  final int priceCorrectionTokenAmount;
   final DateTime createdAt;
   final List<DirectPrintItem> items;
   final String? voucherName;
   final String? voucherType;
   final String? voucherCode;
   final double discount;
+  final int voucherDiscountTokens;
+  final String? voucherRewardSummary;
 
   String get printedCustomerName =>
       customerIsEmployee ? '$customerName (Employee)' : customerName;
+
+  bool get isItemisedReceipt => requestType == 'reprint';
 }
 
 class DirectPrintItem {
@@ -80,10 +112,66 @@ class DirectPrintItem {
     required this.name,
     required this.quantity,
     this.details = const [],
+    this.unitPriceRm = 0,
+    this.lineTotalRm = 0,
+    this.unitTokenValue = 0,
+    this.lineTokenValue = 0,
+    this.lineType = 'sale',
+    this.campaignName,
+    this.assignmentMode,
   });
   final String name;
   final int quantity;
   final List<String> details;
+  final double unitPriceRm;
+  final double lineTotalRm;
+  final int unitTokenValue;
+  final int lineTokenValue;
+  final String lineType;
+  final String? campaignName;
+  final String? assignmentMode;
+  bool get isPromotionalAddon => lineType == 'promotional_addon';
+}
+
+DirectPrintItem parseDirectPrintItem(Map<String, dynamic> value) {
+  final promotion = value['promotional_addon'] is Map
+      ? Map<String, dynamic>.from(value['promotional_addon'] as Map)
+      : const <String, dynamic>{};
+  String? read(String key) {
+    final text = (value[key] ?? promotion[key])?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  return DirectPrintItem(
+    name: value['name']?.toString() ?? 'Item',
+    quantity: int.tryParse((value['quantity'] ?? 1).toString()) ?? 1,
+    details: (value['details'] as List? ?? const [])
+        .map((detail) => detail.toString())
+        .toList(),
+    unitPriceRm: double.tryParse(value['unit_price_rm']?.toString() ?? '') ?? 0,
+    lineTotalRm: double.tryParse(value['line_total_rm']?.toString() ?? '') ?? 0,
+    unitTokenValue:
+        int.tryParse(value['unit_token_value']?.toString() ?? '') ?? 0,
+    lineTokenValue:
+        int.tryParse(value['line_token_value']?.toString() ?? '') ?? 0,
+    lineType: read('line_type') ?? 'sale',
+    campaignName: read('campaign_name'),
+    assignmentMode: read('assignment_mode'),
+  );
+}
+
+List<String> receiptLinesForItem(DirectPrintItem item) {
+  if (!item.isPromotionalAddon) {
+    return ['${item.quantity}x ${item.name}', ...item.details];
+  }
+  return [
+    'PROMOTIONAL GIFT — INCLUDE IN BAG',
+    '${item.quantity}x ${item.name}',
+    if (item.campaignName?.isNotEmpty == true) 'Campaign: ${item.campaignName}',
+    item.assignmentMode == 'server_random'
+        ? 'Randomly assigned'
+        : 'Customer selected',
+  ];
 }
 
 class MarketingDrinkPrintSlip {
@@ -110,14 +198,22 @@ class MarketingDrinkPrintSlip {
 class ShiftReportPrintSlip {
   const ShiftReportPrintSlip({
     required this.config,
+    this.reportType = 'shift_session',
     required this.attendanceId,
     required this.baristaName,
     required this.clockedInAt,
     required this.clockedOutAt,
     required this.orderCount,
+    this.totalItems = 0,
     required this.grossSales,
+    this.discountTotal = 0,
     required this.refunded,
     required this.netSales,
+    this.counterSales = 0,
+    this.onlineSales = 0,
+    this.creditSales = 0,
+    this.totalTokensCharged = 0,
+    this.hasPaymentBreakdown = false,
     required this.orders,
     required this.items,
   });
@@ -128,54 +224,109 @@ class ShiftReportPrintSlip {
   ) {
     double money(Object? value) =>
         double.tryParse(value?.toString() ?? '') ?? 0;
+    final parsedOrders = (json['orders'] as List? ?? const [])
+        .whereType<Map>()
+        .map(
+          (order) => ShiftReportOrder(
+            orderRef: order['order_ref']?.toString() ?? '',
+            dailyOrderNumber:
+                int.tryParse(order['daily_order_number']?.toString() ?? '') ??
+                0,
+            status: order['status']?.toString() ?? '',
+            paymentMode: order['payment_mode']?.toString(),
+            paymentMethod: order['payment_method']?.toString(),
+            finalTotal: money(order['final_total_rm']),
+            discount: money(order['discount_total_rm']),
+            refunded: money(order['refunded_rm']),
+            tokenAmountCharged:
+                int.tryParse(order['token_amount_charged']?.toString() ?? '') ??
+                0,
+            createdAt: DateTime.parse(order['created_at'].toString()),
+          ),
+        )
+        .toList();
+    final parsedItems = (json['items'] as List? ?? const [])
+        .whereType<Map>()
+        .map(
+          (item) => DirectPrintItem(
+            name: item['name']?.toString() ?? 'Item',
+            quantity: int.tryParse(item['quantity']?.toString() ?? '') ?? 0,
+          ),
+        )
+        .toList();
+    final totalItems =
+        int.tryParse(json['total_items']?.toString() ?? '') ??
+        parsedItems.fold<int>(0, (sum, item) => sum + item.quantity);
+    final discountTotal = json.containsKey('discount_total_rm')
+        ? money(json['discount_total_rm'])
+        : parsedOrders.fold<double>(0, (sum, order) => sum + order.discount);
+    final counterSales = json.containsKey('counter_sales_rm')
+        ? money(json['counter_sales_rm'])
+        : parsedOrders
+              .where((order) => order.formattedPaymentLabel == 'Counter')
+              .fold<double>(0, (sum, order) => sum + order.finalTotal);
+    final onlineSales = json.containsKey('online_sales_rm')
+        ? money(json['online_sales_rm'])
+        : parsedOrders
+              .where((order) => order.formattedPaymentLabel == 'Online')
+              .fold<double>(0, (sum, order) => sum + order.finalTotal);
+    final creditSales = json.containsKey('credit_sales_rm')
+        ? money(json['credit_sales_rm'])
+        : parsedOrders
+              .where((order) => order.formattedPaymentLabel == 'Credit')
+              .fold<double>(0, (sum, order) => sum + order.finalTotal);
+    final totalTokensCharged =
+        int.tryParse(json['total_tokens_charged']?.toString() ?? '') ??
+        parsedOrders.fold<int>(
+          0,
+          (sum, order) => sum + order.tokenAmountCharged,
+        );
+    final hasPaymentBreakdown =
+        json.containsKey('counter_sales_rm') ||
+        json.containsKey('online_sales_rm') ||
+        json.containsKey('credit_sales_rm') ||
+        parsedOrders.isNotEmpty;
+
     return ShiftReportPrintSlip(
       config: config,
+      reportType: json['report_type']?.toString() ?? 'shift_session',
       attendanceId: int.tryParse(json['attendance_id']?.toString() ?? '') ?? 0,
       baristaName: json['barista_name']?.toString() ?? 'Barista',
       clockedInAt: DateTime.parse(json['clocked_in_at'].toString()),
       clockedOutAt: DateTime.parse(json['clocked_out_at'].toString()),
       orderCount: int.tryParse(json['order_count']?.toString() ?? '') ?? 0,
+      totalItems: totalItems,
       grossSales: money(json['gross_sales_rm']),
+      discountTotal: discountTotal,
       refunded: money(json['refunded_rm']),
       netSales: money(json['net_sales_rm']),
-      orders: (json['orders'] as List? ?? const [])
-          .whereType<Map>()
-          .map(
-            (order) => ShiftReportOrder(
-              orderRef: order['order_ref']?.toString() ?? '',
-              dailyOrderNumber:
-                  int.tryParse(order['daily_order_number']?.toString() ?? '') ??
-                  0,
-              status: order['status']?.toString() ?? '',
-              paymentMethod: order['payment_method']?.toString(),
-              finalTotal: money(order['final_total_rm']),
-              discount: money(order['discount_total_rm']),
-              refunded: money(order['refunded_rm']),
-              createdAt: DateTime.parse(order['created_at'].toString()),
-            ),
-          )
-          .toList(),
-      items: (json['items'] as List? ?? const [])
-          .whereType<Map>()
-          .map(
-            (item) => DirectPrintItem(
-              name: item['name']?.toString() ?? 'Item',
-              quantity: int.tryParse(item['quantity']?.toString() ?? '') ?? 0,
-            ),
-          )
-          .toList(),
+      counterSales: counterSales,
+      onlineSales: onlineSales,
+      creditSales: creditSales,
+      totalTokensCharged: totalTokensCharged,
+      hasPaymentBreakdown: hasPaymentBreakdown,
+      orders: parsedOrders,
+      items: parsedItems,
     );
   }
 
   final DirectPrinterConfig config;
+  final String reportType;
   final int attendanceId;
   final String baristaName;
   final DateTime clockedInAt;
   final DateTime clockedOutAt;
   final int orderCount;
+  final int totalItems;
   final double grossSales;
+  final double discountTotal;
   final double refunded;
   final double netSales;
+  final double counterSales;
+  final double onlineSales;
+  final double creditSales;
+  final int totalTokensCharged;
+  final bool hasPaymentBreakdown;
   final List<ShiftReportOrder> orders;
   final List<DirectPrintItem> items;
 }
@@ -185,21 +336,69 @@ class ShiftReportOrder {
     required this.orderRef,
     required this.dailyOrderNumber,
     required this.status,
+    this.paymentMode,
     required this.paymentMethod,
     required this.finalTotal,
     required this.discount,
     required this.refunded,
+    this.tokenAmountCharged = 0,
     required this.createdAt,
   });
 
   final String orderRef;
   final int dailyOrderNumber;
   final String status;
+  final String? paymentMode;
   final String? paymentMethod;
   final double finalTotal;
   final double discount;
   final double refunded;
+  final int tokenAmountCharged;
   final DateTime createdAt;
+
+  String get formattedPaymentLabel {
+    final normalizedMode = paymentMode?.trim().toLowerCase() ?? '';
+    final normalizedMethod = paymentMethod?.trim().toLowerCase() ?? '';
+    if (normalizedMode == 'token' || normalizedMethod == 'c2_credit') {
+      return 'Credit';
+    }
+    if (normalizedMethod == 'manual_counter') {
+      return 'Counter';
+    }
+    if (normalizedMethod.isNotEmpty) {
+      return 'Online';
+    }
+    return 'Counter';
+  }
+
+  String get formattedStatusLabel {
+    switch (status.trim().toLowerCase()) {
+      case 'collected':
+        return 'Collected';
+      case 'ready_for_pickup':
+        return 'Ready';
+      case 'preparing':
+        return 'Preparing';
+      case 'accepted':
+      case 'paid':
+        return 'Paid';
+      case 'cancelled':
+        return 'Refunded';
+      default:
+        return status.trim().isEmpty ? 'Paid' : status.replaceAll('_', ' ');
+    }
+  }
+
+  String get shortOrderRef {
+    final match = RegExp(
+      r'^C2-\d{6}-([A-Z0-9]+)$',
+      caseSensitive: false,
+    ).firstMatch(orderRef.trim());
+    if (match != null) {
+      return 'C2-${match.group(1)!.toUpperCase()}';
+    }
+    return orderRef;
+  }
 }
 
 /// Stores this tablet's printer and sends kitchen dockets over the outlet Wi-Fi.
@@ -342,7 +541,12 @@ class DirectPrinterService {
         'Direct receipt printing is available on an Android tablet.',
       );
     }
-    await _send(job.config, await _kitchenDocket(job));
+    await _send(job.config, await buildOrderDocket(job));
+  }
+
+  @visibleForTesting
+  Future<List<int>> buildOrderDocket(DirectPrintJob job) {
+    return job.isItemisedReceipt ? _itemisedReceipt(job) : _kitchenDocket(job);
   }
 
   Future<void> printMarketingDrink(MarketingDrinkPrintSlip slip) async {
@@ -360,7 +564,17 @@ class DirectPrinterService {
         'Direct receipt printing is available on an Android tablet.',
       );
     }
-    await _send(slip.config, await _shiftReportDocket(slip));
+    await _send(slip.config, await buildShiftReportDocket(slip));
+  }
+
+  Future<void> printShiftSummaryReport(Map<String, dynamic> reportJson) async {
+    final config = await loadConfig();
+    if (config == null) {
+      throw StateError(
+        'Printer not configured. Set up a printer in Workstation settings first.',
+      );
+    }
+    await printShiftReport(ShiftReportPrintSlip.fromJson(config, reportJson));
   }
 
   Future<void> printTestReceipt(DirectPrinterConfig config) async {
@@ -430,6 +644,28 @@ class DirectPrinterService {
     write('${order.orderRef}\n${_formatPrintedTime(order.createdAt)}\n');
     buffer.add(const [0x1B, 0x61, 0x00]); // Left.
     _writeWrapped(buffer, 'Customer: ${order.printedCustomerName}');
+    final roleLabel = order.subsidyRole == 'boss'
+        ? 'Boss'
+        : order.subsidyRole == 'intern'
+        ? 'Intern'
+        : order.customerIsEmployee
+        ? 'Employee'
+        : 'Customer';
+    _writeWrapped(buffer, 'Customer role: $roleLabel');
+    if (order.paymentMode == 'token') {
+      final personalTokens = max(
+        0,
+        order.tokenAmountCharged - order.subsidyTokenAmount,
+      );
+      _writeWrapped(
+        buffer,
+        order.subsidyTokenAmount > 0
+            ? 'Payment: ${order.subsidyTokenAmount} company allowance + $personalTokens personal C2 Credit tokens'
+            : 'Payment: ${order.tokenAmountCharged} personal C2 Credit tokens',
+      );
+    } else {
+      _writeWrapped(buffer, 'Payment: Direct RM');
+    }
     if (order.voucherName != null && order.voucherName!.trim().isNotEmpty) {
       _writeWrapped(buffer, 'Voucher: ${order.voucherName}');
       if (order.voucherType == 'Manual Discount' &&
@@ -442,15 +678,35 @@ class DirectPrinterService {
           'Discount: RM ${order.discount.toStringAsFixed(2)}',
         );
       }
+      if (order.voucherDiscountTokens > 0) {
+        _writeWrapped(
+          buffer,
+          'Discount: ${order.voucherDiscountTokens} C2 Credit tokens',
+        );
+      }
+      if (order.voucherRewardSummary?.trim().isNotEmpty == true) {
+        _writeWrapped(
+          buffer,
+          'Voucher applied to: ${order.voucherRewardSummary!.trim()}',
+        );
+      }
     }
     write('--------------------------------\n');
     for (final item in order.items) {
-      final parsed = _printedItem(item);
-      buffer.add(const [0x1B, 0x45, 0x01]);
-      write('${parsed.quantity}x ${parsed.name}\n');
-      buffer.add(const [0x1B, 0x45, 0x00]);
-      for (final detail in item.details) {
-        _writeWrapped(buffer, detail, indent: '   ');
+      if (item.isPromotionalAddon) {
+        buffer.add(const [0x1B, 0x45, 0x01]);
+        for (final line in receiptLinesForItem(item)) {
+          _writeWrapped(buffer, line);
+        }
+        buffer.add(const [0x1B, 0x45, 0x00]);
+      } else {
+        final parsed = _printedItem(item);
+        buffer.add(const [0x1B, 0x45, 0x01]);
+        write('${parsed.quantity}x ${parsed.name}\n');
+        buffer.add(const [0x1B, 0x45, 0x00]);
+        for (final detail in item.details) {
+          _writeWrapped(buffer, detail, indent: '   ');
+        }
       }
       write('\n');
     }
@@ -459,6 +715,165 @@ class DirectPrinterService {
     write('Prepare with care\n\n\n');
     buffer.add(const [0x1D, 0x56, 0x00]); // Full cut.
     return buffer.toBytes();
+  }
+
+  Future<List<int>> _itemisedReceipt(DirectPrintJob order) async {
+    final buffer = BytesBuilder();
+    void write(String text) => buffer.add(latin1.encode(text));
+
+    buffer.add(const [0x1B, 0x40]);
+    buffer.add(const [0x1B, 0x61, 0x01]);
+    buffer.add(await _logoRaster());
+    write('\n\n');
+    buffer.add(const [0x1B, 0x45, 0x01]);
+    write('C2 COFFEE\nITEMISED RECEIPT\n');
+    buffer.add(const [0x1B, 0x45, 0x00]);
+    write('${order.orderRef}\n${_formatPrintedTime(order.createdAt)}\n');
+    buffer.add(const [0x1B, 0x61, 0x00]);
+    write('================================\n');
+    _writeWrapped(buffer, 'Customer: ${order.printedCustomerName}');
+    _writeWrapped(
+      buffer,
+      'Customer type: ${order.isGuest ? 'Walk-in' : 'Member'}',
+    );
+    _writeWrapped(
+      buffer,
+      'Fulfillment: ${_fulfillmentLabel(order.fulfillmentType)}',
+    );
+    write('--------------------------------\n');
+
+    for (final item in order.items) {
+      if (item.isPromotionalAddon) {
+        buffer.add(const [0x1B, 0x45, 0x01]);
+        for (final line in receiptLinesForItem(item)) {
+          _writeWrapped(buffer, line);
+        }
+        buffer.add(const [0x1B, 0x45, 0x00]);
+        write('\n');
+        continue;
+      }
+
+      final parsed = _printedItem(item);
+      buffer.add(const [0x1B, 0x45, 0x01]);
+      _writeRow(
+        buffer,
+        '${parsed.quantity}x ${parsed.name}',
+        order.paymentMode == 'token'
+            ? '${item.lineTokenValue} tok'
+            : 'RM ${item.lineTotalRm.toStringAsFixed(2)}',
+      );
+      buffer.add(const [0x1B, 0x45, 0x00]);
+      if (parsed.quantity > 1) {
+        _writeWrapped(
+          buffer,
+          order.paymentMode == 'token'
+              ? '@ ${item.unitTokenValue} tok each'
+              : '@ RM ${item.unitPriceRm.toStringAsFixed(2)} each',
+          indent: '   ',
+        );
+      }
+      for (final detail in item.details) {
+        _writeWrapped(buffer, detail, indent: '   ');
+      }
+      write('\n');
+    }
+
+    write('--------------------------------\n');
+    if (order.paymentMode == 'token') {
+      final itemTokenTotal = order.items.fold<int>(
+        0,
+        (sum, item) => sum + item.lineTokenValue,
+      );
+      _writeWrapped(buffer, 'Subtotal: $itemTokenTotal C2 Credit tokens');
+      if (order.voucherDiscountTokens > 0) {
+        _writeWrapped(
+          buffer,
+          'Voucher discount: -${order.voucherDiscountTokens} tokens',
+        );
+      }
+      if (order.giftCardTokenAmount > 0) {
+        _writeWrapped(
+          buffer,
+          'Gift card: -${order.giftCardTokenAmount} tokens',
+        );
+      }
+      if (order.priceCorrectionTokenAmount > 0) {
+        _writeWrapped(
+          buffer,
+          'Price correction: -${order.priceCorrectionTokenAmount} tokens',
+        );
+      }
+      buffer.add(const [0x1B, 0x45, 0x01]);
+      _writeWrapped(
+        buffer,
+        'Final total: ${order.tokenAmountCharged} C2 Credit tokens',
+      );
+      buffer.add(const [0x1B, 0x45, 0x00]);
+    } else {
+      _writeWrapped(
+        buffer,
+        'Subtotal: RM ${order.subtotal.toStringAsFixed(2)}',
+      );
+      if (order.discount > 0) {
+        _writeWrapped(
+          buffer,
+          'Discount: RM ${order.discount.toStringAsFixed(2)}',
+        );
+      }
+      buffer.add(const [0x1B, 0x45, 0x01]);
+      _writeWrapped(
+        buffer,
+        'Final total: RM ${order.finalTotal.toStringAsFixed(2)}',
+      );
+      buffer.add(const [0x1B, 0x45, 0x00]);
+    }
+    write('--------------------------------\n');
+    _writeWrapped(buffer, 'Payment method: ${_paymentMethodLabel(order)}');
+    if (order.paymentReference?.trim().isNotEmpty == true) {
+      _writeWrapped(
+        buffer,
+        'Payment reference: ${order.paymentReference!.trim()}',
+      );
+    }
+    write('================================\n');
+    buffer.add(const [0x1B, 0x61, 0x01]);
+    write('Thank you\n\n\n');
+    buffer.add(const [0x1D, 0x56, 0x00]);
+    return buffer.toBytes();
+  }
+
+  String _fulfillmentLabel(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'dine_in':
+        return 'Dine In';
+      case 'take_away':
+        return 'Take Away';
+      case 'pickup':
+        return 'Pickup';
+      default:
+        return value.replaceAll('_', ' ');
+    }
+  }
+
+  String _paymentMethodLabel(DirectPrintJob order) {
+    if (order.paymentMode == 'token') return 'C2 Credit';
+    switch (order.paymentMethod?.trim().toLowerCase()) {
+      case 'manual_counter':
+        return 'Counter';
+      case 'manual_cash':
+        return 'Cash';
+      case 'manual_terminal':
+        return 'Card Terminal';
+      case 'duitnow_qr':
+        return 'DuitNow QR';
+      case 'ewallet':
+        return 'E-wallet';
+      case null:
+      case '':
+        return order.finalTotal == 0 ? 'Complimentary' : 'Direct RM';
+      default:
+        return order.paymentMethod!.replaceAll('_', ' ');
+    }
   }
 
   Future<List<int>> _marketingDocket(MarketingDrinkPrintSlip slip) async {
@@ -492,74 +907,220 @@ class DirectPrinterService {
     return buffer.toBytes();
   }
 
-  Future<List<int>> _shiftReportDocket(ShiftReportPrintSlip slip) async {
+  @visibleForTesting
+  Future<List<int>> buildShiftReportDocket(ShiftReportPrintSlip slip) async {
     final buffer = BytesBuilder();
     void write(String text) => buffer.add(latin1.encode(text));
-    buffer.add(const [0x1B, 0x40]);
-    buffer.add(const [0x1B, 0x61, 0x01]);
+
+    buffer.add(const [0x1B, 0x40]); // ESC @ - initialize printer.
+    buffer.add(const [0x1B, 0x61, 0x01]); // Center.
     buffer.add(await _logoRaster());
     write('\n\n');
-    buffer.add(const [0x1B, 0x45, 0x01]);
-    write('END OF SHIFT\n');
-    buffer.add(const [0x1B, 0x45, 0x00]);
-    write('Report #${slip.attendanceId}\n');
-    buffer.add(const [0x1B, 0x61, 0x00]);
-    _writeWrapped(buffer, 'Barista: ${slip.baristaName}');
-    _writeWrapped(buffer, 'Start: ${_formatPrintedTime(slip.clockedInAt)}');
-    _writeWrapped(buffer, 'End: ${_formatPrintedTime(slip.clockedOutAt)}');
-    write('--------------------------------\n');
-    _writeWrapped(buffer, 'Orders: ${slip.orderCount}');
-    _writeWrapped(
-      buffer,
-      'Sales after discounts: RM ${slip.grossSales.toStringAsFixed(2)}',
+    buffer.add(const [0x1D, 0x21, 0x01]); // Tall font (2x height).
+    buffer.add(const [0x1B, 0x45, 0x01]); // Bold on.
+    write(
+      slip.reportType == 'daily_summary'
+          ? 'DAILY SHIFT SUMMARY\n'
+          : 'SHIFT REPORT\n',
     );
-    _writeWrapped(buffer, 'Refunds: RM ${slip.refunded.toStringAsFixed(2)}');
+    buffer.add(const [0x1D, 0x21, 0x00]); // Normal font size.
+    buffer.add(const [0x1B, 0x45, 0x00]); // Bold off.
+    write(
+      slip.attendanceId > 0
+          ? 'Report #${slip.attendanceId}\n'
+          : 'All Shifts Today\n',
+    );
+
+    buffer.add(const [0x1B, 0x61, 0x00]); // Left.
+    write('================================\n');
+    _writeRow(buffer, 'Date', _formatPrintedDate(slip.clockedOutAt));
+    if (slip.baristaName.length <= 22) {
+      _writeRow(buffer, 'Barista', slip.baristaName);
+    } else {
+      _writeWrapped(buffer, 'Barista: ${slip.baristaName}');
+    }
+    _writeRow(
+      buffer,
+      'Shift',
+      '${_formatPrintedClock(slip.clockedInAt)} - ${_formatPrintedClock(slip.clockedOutAt)}',
+    );
+    write('================================\n');
+
     buffer.add(const [0x1B, 0x45, 0x01]);
-    _writeWrapped(buffer, 'Net sales: RM ${slip.netSales.toStringAsFixed(2)}');
+    write('SUMMARY\n');
     buffer.add(const [0x1B, 0x45, 0x00]);
+    write('--------------------------------\n');
+    _writeRow(buffer, 'Completed Orders', '${slip.orderCount}');
+    _writeRow(buffer, 'Total Items', '${slip.totalItems}');
+    if (slip.hasPaymentBreakdown) {
+      write('--------------------------------\n');
+      _writeRow(
+        buffer,
+        'Counter / RM',
+        'RM ${slip.counterSales.toStringAsFixed(2)}',
+      );
+      _writeRow(
+        buffer,
+        'Online / RM',
+        'RM ${slip.onlineSales.toStringAsFixed(2)}',
+      );
+      _writeRow(
+        buffer,
+        'C2 Credit (Tokens)',
+        'RM ${slip.creditSales.toStringAsFixed(2)}',
+      );
+      if (slip.totalTokensCharged > 0) {
+        _writeRow(buffer, '  Tokens Charged', '${slip.totalTokensCharged} tok');
+      }
+    }
+    write('--------------------------------\n');
+    _writeRow(
+      buffer,
+      'Sales After Disc.',
+      'RM ${slip.grossSales.toStringAsFixed(2)}',
+    );
+    _writeRow(
+      buffer,
+      'Total Discounts',
+      '-RM ${slip.discountTotal.toStringAsFixed(2)}',
+    );
+    _writeRow(buffer, 'Refunds', '-RM ${slip.refunded.toStringAsFixed(2)}');
+    write('================================\n');
+    buffer.add(const [0x1D, 0x21, 0x01]); // Tall bold NET SALES.
+    buffer.add(const [0x1B, 0x45, 0x01]);
+    _writeRow(buffer, 'NET SALES', 'RM ${slip.netSales.toStringAsFixed(2)}');
+    buffer.add(const [0x1D, 0x21, 0x00]);
+    buffer.add(const [0x1B, 0x45, 0x00]);
+    write('================================\n');
+
     if (slip.orders.isNotEmpty) {
-      write('--------------------------------\nORDERS\n');
+      write('\n');
+      buffer.add(const [0x1B, 0x45, 0x01]);
+      write('ORDERS (${slip.orders.length})\n');
+      buffer.add(const [0x1B, 0x45, 0x00]);
+      write('--------------------------------\n');
       for (final order in slip.orders) {
         final number = order.dailyOrderNumber > 0
-            ? '#${order.dailyOrderNumber}'
-            : order.orderRef;
-        _writeWrapped(
+            ? '#${order.dailyOrderNumber.toString().padLeft(2, '0')}'
+            : order.shortOrderRef;
+        final time = _formatPrintedClock(order.createdAt);
+        buffer.add(const [0x1B, 0x45, 0x01]);
+        _writeRow(
           buffer,
-          '$number ${_formatPrintedTime(order.createdAt).substring(11)} '
+          '$number  $time',
           'RM ${order.finalTotal.toStringAsFixed(2)}',
         );
+        buffer.add(const [0x1B, 0x45, 0x00]);
         _writeWrapped(
           buffer,
-          '${order.status} - ${order.paymentMethod ?? 'unpaid'}',
+          '${order.shortOrderRef} - ${order.formattedStatusLabel} - ${order.formattedPaymentLabel}',
           indent: '  ',
         );
         if (order.discount > 0) {
-          _writeWrapped(
+          _writeRow(
             buffer,
-            'Discount RM ${order.discount.toStringAsFixed(2)}',
-            indent: '  ',
+            '  Discount',
+            '-RM ${order.discount.toStringAsFixed(2)}',
           );
         }
         if (order.refunded > 0) {
-          _writeWrapped(
+          _writeRow(
             buffer,
-            'Refunded RM ${order.refunded.toStringAsFixed(2)}',
-            indent: '  ',
+            '  Refunded',
+            '-RM ${order.refunded.toStringAsFixed(2)}',
           );
         }
+        write('\n');
       }
     }
+
     if (slip.items.isNotEmpty) {
-      write('--------------------------------\nITEM SUMMARY\n');
+      write('================================\n');
+      buffer.add(const [0x1B, 0x45, 0x01]);
+      write('ITEM SUMMARY\n');
+      buffer.add(const [0x1B, 0x45, 0x00]);
+      write('--------------------------------\n');
       for (final item in slip.items) {
-        _writeWrapped(buffer, '${item.quantity}x ${item.name}');
+        _writeRow(buffer, item.name, '${item.quantity}x');
       }
+      write('--------------------------------\n');
+      buffer.add(const [0x1B, 0x45, 0x01]);
+      _writeRow(buffer, 'TOTAL ITEMS', '${slip.totalItems}x');
+      buffer.add(const [0x1B, 0x45, 0x00]);
     }
-    write('--------------------------------\n');
+    write('================================\n');
     buffer.add(const [0x1B, 0x61, 0x01]);
-    write('Shift closed\n\n\n');
+    write(
+      slip.reportType == 'daily_summary'
+          ? 'End of summary\n\n\n'
+          : 'Shift closed\n\n\n',
+    );
     buffer.add(const [0x1D, 0x56, 0x00]);
     return buffer.toBytes();
+  }
+
+  void _writeRow(
+    BytesBuilder buffer,
+    String left,
+    String right, {
+    int width = 32,
+  }) {
+    final cleanRight = right.trim();
+    if (left.length + 1 + cleanRight.length <= width) {
+      final spaces = width - left.length - cleanRight.length;
+      buffer.add(latin1.encode('$left${' ' * spaces}$cleanRight\n'));
+      return;
+    }
+
+    final leading = RegExp(r'^\s*').firstMatch(left)?.group(0) ?? '';
+    final words = left.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    var line = leading;
+    final lines = <String>[];
+    for (final word in words) {
+      final separator = line.trim().isEmpty ? '' : ' ';
+      if (line.length + separator.length + word.length > width &&
+          line.trim().isNotEmpty) {
+        lines.add(line);
+        line = '$leading$word';
+      } else {
+        line = '$line$separator$word';
+      }
+    }
+    if (line.trim().isNotEmpty || lines.isEmpty) {
+      lines.add(line);
+    }
+    for (var i = 0; i < lines.length - 1; i++) {
+      buffer.add(latin1.encode('${lines[i]}\n'));
+    }
+
+    var lastLeft = lines.last;
+    final maxLastLeft = width - cleanRight.length - 1;
+    if (lastLeft.length > maxLastLeft) {
+      if (maxLastLeft >= 3) {
+        lastLeft = '${lastLeft.substring(0, maxLastLeft - 2)}..';
+      } else if (maxLastLeft > 0) {
+        lastLeft = lastLeft.substring(0, maxLastLeft);
+      } else {
+        lastLeft = '';
+      }
+    }
+    final spaces = (width - lastLeft.length - cleanRight.length).clamp(
+      1,
+      width,
+    );
+    buffer.add(latin1.encode('$lastLeft${' ' * spaces}$cleanRight\n'));
+  }
+
+  String _formatPrintedDate(DateTime time) {
+    final local = time.toLocal();
+    String pad(int value) => value.toString().padLeft(2, '0');
+    return '${local.year}-${pad(local.month)}-${pad(local.day)}';
+  }
+
+  String _formatPrintedClock(DateTime time) {
+    final local = time.toLocal();
+    String pad(int value) => value.toString().padLeft(2, '0');
+    return '${pad(local.hour)}:${pad(local.minute)}';
   }
 
   ({int quantity, String name}) _printedItem(DirectPrintItem item) {

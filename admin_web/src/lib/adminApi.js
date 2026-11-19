@@ -485,6 +485,7 @@ export async function reviewAdminRefund(
   decision,
   confirmationPassword,
   providerRefundRef = "",
+  promotionalGiftDisposition = "",
 ) {
   return adminRequest(
     `/v1/admin/refunds/${encodeURIComponent(refundRef)}/review`,
@@ -494,6 +495,9 @@ export async function reviewAdminRefund(
         decision,
         confirmation_password: confirmationPassword,
         ...(providerRefundRef ? { provider_refund_ref: providerRefundRef } : {}),
+        ...(promotionalGiftDisposition
+          ? { promotional_gift_disposition: promotionalGiftDisposition }
+          : {}),
       }),
     },
   );
@@ -503,6 +507,38 @@ export async function loadAdminVouchers({ includeTierRewards = false } = {}) {
   return adminRequest(
     `/v1/admin/vouchers${includeTierRewards ? "?include_tier_rewards=true" : ""}`,
   );
+}
+
+export async function loadAdminPromotionalAddons() {
+  return adminRequest('/v1/admin/promotional-addons');
+}
+
+export async function loadAdminPromotionalAddonCatalogue() {
+  return adminRequest('/v1/admin/promotional-addons/options');
+}
+
+export async function loadAdminPromotionalAddonReadiness() {
+  return adminRequest('/v1/admin/promotional-addons/readiness');
+}
+
+export async function createAdminPromotionalAddon(payload) {
+  return adminRequest('/v1/admin/promotional-addons', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminPromotionalAddon(campaignId, payload) {
+  return adminRequest(`/v1/admin/promotional-addons/${encodeURIComponent(campaignId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminPromotionalAddon(campaignId) {
+  return adminRequest(`/v1/admin/promotional-addons/${encodeURIComponent(campaignId)}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function loadAdminGiftCards({ search = '', limit = 100 } = {}) {
@@ -857,6 +893,17 @@ export async function updateAdminMaintenance(payload) {
   return adminRequest('/v1/admin/maintenance', {
     method: 'PUT',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function loadAdminPaymentMethods() {
+  return adminRequest("/v1/admin/payment-methods");
+}
+
+export async function updateAdminPaymentMethods(methods) {
+  return adminRequest("/v1/admin/payment-methods", {
+    method: "PUT",
+    body: JSON.stringify({ methods }),
   });
 }
 

@@ -65,7 +65,7 @@ async function loadLegacySectionItemIds(storeId: number, section: LegacyHomeSect
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { menu_item_id: number }>>(
     `SELECT h.menu_item_id
      FROM home_featured_items h
-     JOIN menu_items i ON i.id = h.menu_item_id AND i.is_active = 1
+     JOIN menu_items i ON i.id = h.menu_item_id AND i.is_active = 1 AND i.sale_visibility = 'normal'
      JOIN menu_categories c ON c.id = i.category_id AND c.is_active = 1
      LEFT JOIN menu_item_store_availability a ON a.store_id = :storeId AND a.menu_item_id = i.id
      WHERE h.section_code = :section
@@ -97,12 +97,12 @@ async function loadCategoryItemIds(storeId: number, categoryId: number): Promise
     `SELECT i.id
      FROM menu_items i
      LEFT JOIN menu_item_store_availability a ON a.store_id = :storeId AND a.menu_item_id = i.id
-     LEFT JOIN order_items oi ON oi.menu_item_id = i.id
+     LEFT JOIN order_items oi ON oi.menu_item_id = i.id AND oi.line_type = 'sale'
      LEFT JOIN orders o ON o.id = oi.order_id
        AND o.store_id = :storeId
        AND o.status = 'collected'
        AND o.collected_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)
-     WHERE i.is_active = 1
+     WHERE i.is_active = 1 AND i.sale_visibility = 'normal'
        AND i.category_id = :categoryId
        AND COALESCE(a.is_available, 1) = 1
      GROUP BY i.id, i.sort_order
@@ -127,7 +127,7 @@ async function loadGroupItemIds(storeId: number, group: RowDataPacket): Promise<
       `SELECT i.id FROM menu_items i
        JOIN menu_categories c ON c.id = i.category_id AND c.is_active = 1
        LEFT JOIN menu_item_store_availability a ON a.store_id = ? AND a.menu_item_id = i.id
-       WHERE i.id IN (?) AND i.is_active = 1 AND COALESCE(a.is_available, 1) = 1`,
+       WHERE i.id IN (?) AND i.is_active = 1 AND i.sale_visibility = 'normal' AND COALESCE(a.is_available, 1) = 1`,
       [storeId, pinnedIds]
     );
     const eligibleIds = new Set(eligiblePinned.map((row) => Number(row.id)));
@@ -138,10 +138,10 @@ async function loadGroupItemIds(storeId: number, group: RowDataPacket): Promise<
     `SELECT i.id FROM menu_items i
      JOIN menu_categories c ON c.id = i.category_id AND c.is_active = 1
      LEFT JOIN menu_item_store_availability a ON a.store_id = ? AND a.menu_item_id = i.id
-     LEFT JOIN order_items oi ON oi.menu_item_id = i.id
+     LEFT JOIN order_items oi ON oi.menu_item_id = i.id AND oi.line_type = 'sale'
      LEFT JOIN orders o ON o.id = oi.order_id AND o.store_id = ? AND o.status = 'collected'
        AND o.collected_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)
-     WHERE i.is_active = 1 AND i.category_id IN (?) AND COALESCE(a.is_available, 1) = 1
+     WHERE i.is_active = 1 AND i.sale_visibility = 'normal' AND i.category_id IN (?) AND COALESCE(a.is_available, 1) = 1
      GROUP BY i.id, i.sort_order
      ORDER BY COALESCE(SUM(CASE WHEN o.id IS NULL THEN 0 ELSE oi.quantity END), 0) DESC, i.sort_order, i.id
      LIMIT ?`, [storeId, storeId, categoryIds, limit * 2]

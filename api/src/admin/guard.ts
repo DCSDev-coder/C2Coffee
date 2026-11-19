@@ -185,7 +185,7 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canReadWeeklySchedule =
     request.method === 'GET' && path === '/v1/barista/weekly-schedule';
   const canUseStaffAttendance =
-    /^\/v1\/barista\/attendance\/(status|history|current|clock-in|clock-out)$/.test(path);
+    /^\/v1\/barista\/attendance\/(status|history|current|clock-in|clock-out|shift-summary)$/.test(path);
   const canUseOutletEmergencyClosure =
     request.method === 'POST' &&
     (path === '/v1/barista/outlet/emergency-close' ||
@@ -258,13 +258,21 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
 }
 
 export function requireAdminRole(request: FastifyRequest, roleCode: string): void {
-  if (!request.adminAuth?.roles.includes(roleCode)) {
+  const roles = request.adminAuth?.roles ?? [];
+  const isBroadAdmin = roles.some((role) => ['admin', 'operations_admin', 'marketing_admin'].includes(role));
+  const isAdminRead = isBroadAdmin && ['GET', 'HEAD'].includes(request.method);
+  const isAdminNormalAction = isBroadAdmin && roleCode !== 'super_admin';
+  if (!roles.includes(roleCode) && !isAdminRead && !isAdminNormalAction) {
     throw new ApiError(403, 'admin_forbidden', 'You do not have permission to perform this action.');
   }
 }
 
 export function requireAnyAdminRole(request: FastifyRequest, roleCodes: string[]): void {
-  if (!request.adminAuth?.roles.some((role) => roleCodes.includes(role))) {
+  const roles = request.adminAuth?.roles ?? [];
+  const isBroadAdmin = roles.some((role) => ['admin', 'operations_admin', 'marketing_admin'].includes(role));
+  const isAdminRead = isBroadAdmin && ['GET', 'HEAD'].includes(request.method);
+  const isAdminNormalAction = isBroadAdmin && roleCodes.some((role) => role !== 'super_admin');
+  if (!roles.some((role) => roleCodes.includes(role)) && !isAdminRead && !isAdminNormalAction) {
     throw new ApiError(403, 'admin_forbidden', 'You do not have permission to perform this action.');
   }
 }

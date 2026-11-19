@@ -11,6 +11,7 @@ import {
 } from "../lib/adminApi";
 import ViewProfile from "./ViewProfile";
 import OutletFilter from './OutletFilter';
+import UserAvatar from "./UserAvatar";
 
 const STATUSES = ["All Status", "Pending", "Approved", "Completed", "Rejected"];
 
@@ -57,6 +58,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
   const [pendingConfirmation, setPendingConfirmation] = useState(null);
   const [confirmationPassword, setConfirmationPassword] = useState("");
   const [providerRefundRef, setProviderRefundRef] = useState("");
+  const [promotionalGiftDisposition, setPromotionalGiftDisposition] = useState("");
   const canReviewRefunds =
     Array.isArray(currentUser?.roles) &&
     currentUser.roles.includes("super_admin");
@@ -78,12 +80,12 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
     void loadRefunds();
   }, [loadRefunds]);
 
-  const reviewRefund = async (refund, decision, password, providerRef = "") => {
+  const reviewRefund = async (refund, decision, password, providerRef = "", giftDisposition = "") => {
     if (refund.status !== "Pending") return;
     setActionId(refund.id);
     setError("");
     try {
-      await reviewAdminRefund(refund.id, decision, password, providerRef);
+      await reviewAdminRefund(refund.id, decision, password, providerRef, giftDisposition);
       await loadRefunds();
       setSelectedRefund(null);
     } catch (requestError) {
@@ -129,10 +131,12 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
           action.decision,
           confirmationPassword,
           providerRefundRef,
+          promotionalGiftDisposition,
         );
       }
       setConfirmationPassword("");
       setProviderRefundRef("");
+      setPromotionalGiftDisposition("");
       setPendingConfirmation(null);
     } catch {
       // The request error is displayed in the existing page alert.
@@ -344,7 +348,10 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                         {refund.orderId}
                       </td>
                       <td className="px-5 py-3 text-sm font-medium text-gray-900">
-                        {refund.customer}
+                        <div className="flex items-center gap-2.5">
+                          <UserAvatar user={refund} size="sm" />
+                          <span>{refund.customer}</span>
+                        </div>
                       </td>
                       <td className="px-5 py-3 text-sm text-gray-700">{refund.storeName || '-'}</td>
                       <td className="px-5 py-3 text-sm font-semibold text-gray-900">
@@ -407,11 +414,16 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
             </div>
             <div className="mt-5 space-y-4 border-y border-gray-100 py-4 text-sm">
               <div>
-                <p className="text-xs text-gray-500">Customer</p>
-                <p className="font-bold text-gray-900">
-                  {selectedRefund.customer}
-                </p>
-                <p className="text-gray-600">{selectedRefund.email}</p>
+                <p className="text-xs text-gray-500 mb-2">Customer</p>
+                <div className="flex items-center gap-3 min-w-0">
+                  <UserAvatar user={selectedRefund} size="panel" shape="rounded" />
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 truncate">
+                      {selectedRefund.customer}
+                    </p>
+                    <p className="text-gray-600 truncate">{selectedRefund.email}</p>
+                  </div>
+                </div>
               </div>
               <div>
                 <p className="text-xs text-gray-500">Order and amount</p>
@@ -459,6 +471,9 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                   username: selectedRefund.customer,
                   email: selectedRefund.email,
                   phone: selectedRefund.phone,
+                  memberId: selectedRefund.memberId,
+                  avatar: selectedRefund.avatar,
+                  avatarType: selectedRefund.avatarType,
                 })
               }
               className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50"
@@ -484,6 +499,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                       decision: "rejected",
                     });
                     setProviderRefundRef("");
+                    setPromotionalGiftDisposition("");
                   }}
                   className="rounded-lg border border-red-300 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
                 >
@@ -498,6 +514,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                       decision: "approved",
                     });
                     setProviderRefundRef("");
+                    setPromotionalGiftDisposition("");
                   }}
                   className="flex items-center justify-center gap-2 rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-50"
                 >
@@ -629,6 +646,27 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                   </span>
                 </label>
               )}
+            {pendingConfirmation.type === "review" &&
+              pendingConfirmation.decision === "approved" &&
+              !pendingConfirmation.refund?.isPartial &&
+              pendingConfirmation.refund?.promotionalGiftStatus === "fulfilled" && (
+                <label className="mt-4 block text-sm font-bold text-gray-700">
+                  Promotional gift: {pendingConfirmation.refund.promotionalGiftName}
+                  <select
+                    required
+                    value={promotionalGiftDisposition}
+                    onChange={(event) => setPromotionalGiftDisposition(event.target.value)}
+                    className="mt-1.5 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal focus:border-[#2E5E58] focus:ring-[#2E5E58] outline-none"
+                  >
+                    <option value="">Select what happened to the gift</option>
+                    <option value="returned">Gift was physically returned</option>
+                    <option value="retained">Customer kept the gift</option>
+                  </select>
+                  <span className="mt-1 block text-xs font-normal text-gray-500">
+                    Stock is restored only when staff confirms the gift was returned.
+                  </span>
+                </label>
+              )}
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
@@ -636,6 +674,7 @@ const RefundDetails = ({ onBack, currentUser, selectedStoreId = null, onStoreCha
                   setPendingConfirmation(null);
                   setConfirmationPassword("");
                   setProviderRefundRef("");
+                  setPromotionalGiftDisposition("");
                 }}
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
               >

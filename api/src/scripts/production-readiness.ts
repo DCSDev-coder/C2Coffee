@@ -250,7 +250,13 @@ async function requireLatestSchema(): Promise<void> {
     '151_enforce_first_order_tier_qualification.sql',
     '152_add_verified_admin_recovery.sql',
     '153_separate_counter_exit_password.sql',
-    '154_create_order_manual_discounts.sql'
+    '154_create_order_manual_discounts.sql',
+    '155_add_new_order_chime.sql',
+    '156_create_customer_message_schedules.sql',
+    '157_create_promotional_addons.sql',
+    '158_snapshot_order_voucher_application.sql',
+    '159_add_customer_payment_method_settings.sql',
+    '160_simplify_admin_roles.sql'
   ];
   const [rows] = await mysqlPool.query<Array<RowDataPacket & { filename: string }>>(
     `SELECT filename FROM schema_migrations WHERE filename IN (:required)`,
@@ -260,6 +266,26 @@ async function requireLatestSchema(): Promise<void> {
   const missing = required.filter((filename) => !applied.has(filename));
   if (missing.length > 0) {
     throw new Error(`Latest schema migrations are missing: ${missing.join(', ')}.`);
+  }
+}
+
+async function requireConsolidatedAdminRoles(): Promise<void> {
+  const [roleRows] = await mysqlPool.query<Array<RowDataPacket & { code: string; account_count: number }>>(
+    `SELECT ar.code, COUNT(DISTINCT CASE WHEN au.status IN ('active', 'invited') THEN au.id END) AS account_count
+       FROM admin_roles ar
+       LEFT JOIN admin_user_roles aur ON aur.admin_role_id = ar.id
+       LEFT JOIN admin_users au ON au.id = aur.admin_user_id
+      WHERE ar.code IN ('super_admin', 'admin', 'support_admin', 'barista', 'operations_admin', 'marketing_admin')
+      GROUP BY ar.code`
+  );
+  const counts = new Map(roleRows.map((row) => [row.code, Number(row.account_count ?? 0)]));
+  const legacyAssignments = (counts.get('operations_admin') ?? 0) + (counts.get('marketing_admin') ?? 0);
+  const superAdmins = counts.get('super_admin') ?? 0;
+  if (legacyAssignments > 0) {
+    throw new Error('Legacy Operations Admin or Marketing Admin assignments remain. Run migration 160 before release.');
+  }
+  if (superAdmins !== 1) {
+    throw new Error(`Expected exactly one active Super Admin before release; found ${superAdmins}.`);
   }
 }
 
@@ -354,8 +380,13 @@ async function main(): Promise<void> {
   const checks: Check[] = [
     {
       name: 'Latest schema migrations',
-      detail: 'All current release migrations, including refunds, loyalty policy, admin recovery, and counter credential separation, must be applied.',
+      detail: 'All current release migrations, including payment-method settings and the consolidated admin-role migration, must be applied.',
       run: requireLatestSchema
+    },
+    {
+      name: 'Consolidated admin roles',
+      detail: 'Only the four supported roles may be assigned, with exactly one active Super Admin owner account.',
+      run: requireConsolidatedAdminRoles
     },
     {
       name: 'Inventory integrity',

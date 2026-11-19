@@ -15,6 +15,72 @@ String normalizeApiStatus(Object? value) {
       '';
 }
 
+List<OrderItem> parseOrderItems(Object? rawItems) {
+  if (rawItems is! List) return const [];
+  return rawItems
+      .whereType<Map>()
+      .map((raw) {
+        final item = raw.map((key, value) => MapEntry(key.toString(), value));
+        final promotionRaw =
+            item['promotional_addon'] ?? item['promotionalAddon'];
+        final promotion = promotionRaw is Map
+            ? promotionRaw.map((key, value) => MapEntry(key.toString(), value))
+            : const <String, dynamic>{};
+        String? value(String snakeKey, String camelKey) {
+          final rawValue =
+              item[snakeKey] ??
+              item[camelKey] ??
+              promotion[snakeKey] ??
+              promotion[camelKey];
+          final text = rawValue?.toString().trim();
+          return text == null || text.isEmpty ? null : text;
+        }
+
+        final quantity = item['qty'] ?? item['quantity'] ?? 1;
+        final title = '${quantity}x ${item['name'] ?? 'Item'}';
+        final tags = <String>[];
+        void addIfPresent(
+          String? tag, [
+          String prefix = '',
+          String suffix = '',
+        ]) {
+          if (tag != null && tag.trim().isNotEmpty) {
+            tags.add('$prefix$tag$suffix');
+          }
+        }
+
+        addIfPresent(item['bean']?.toString());
+        final shot = item['espressoShot']?.toString();
+        if (shot != null && shot.trim().isNotEmpty) {
+          addIfPresent(
+            shot,
+            '',
+            shot.toLowerCase().contains('shot') ? '' : ' Shot',
+          );
+        }
+        addIfPresent(item['temperature']?.toString());
+        addIfPresent(item['sparkling']?.toString(), 'Sparkling: ');
+        addIfPresent(item['milk']?.toString());
+        addIfPresent(item['sweetness']?.toString());
+        addIfPresent(item['iceLevel']?.toString());
+        addIfPresent(item['orderType']?.toString());
+        addIfPresent(item['remarks']?.toString(), 'Remarks: ');
+
+        final menuItemId = item['menuItemId'] ?? item['menu_item_id'];
+        return OrderItem(
+          title: title,
+          tags: tags,
+          menuItemId: menuItemId is num
+              ? menuItemId.toInt()
+              : int.tryParse(menuItemId?.toString() ?? ''),
+          lineType: value('line_type', 'lineType') ?? 'sale',
+          campaignName: value('campaign_name', 'campaignName'),
+          assignmentMode: value('assignment_mode', 'assignmentMode'),
+        );
+      })
+      .toList(growable: false);
+}
+
 class ApiService {
   static String get baseUrl => ApiConfig.baseUrl;
 
@@ -269,9 +335,14 @@ class ApiService {
               // Parse status
               OrderStatus? parsedStatus;
               final statusStr = normalizeApiStatus(json['status']);
-              if (statusStr == 'pending_payment' ||
-                  statusStr == 'paid' ||
-                  statusStr == 'accepted') {
+              final paymentMethodStr = json['paymentMethod']?.toString() ?? '';
+              // Manual counter orders wait in New Orders so the barista can
+              // confirm the cash/terminal payment. Unpaid online orders stay
+              // hidden until CHIP confirms them.
+              if (statusStr == 'paid' ||
+                  statusStr == 'accepted' ||
+                  (statusStr == 'pending_payment' &&
+                      paymentMethodStr.startsWith('manual_'))) {
                 parsedStatus = OrderStatus.newOrder;
               } else if (statusStr.contains('preparing')) {
                 parsedStatus = OrderStatus.preparing;
@@ -287,48 +358,7 @@ class ApiService {
               if (parsedStatus == null) return null;
 
               // Parse items
-              List<OrderItem> parsedItems = [];
-              if (json['items'] != null) {
-                for (var item in json['items']) {
-                  final title = '${item['qty']}x ${item['name']}';
-
-                  List<String> tags = [];
-                  void addIfPresent(
-                    String? val, [
-                    String prefix = '',
-                    String suffix = '',
-                  ]) {
-                    if (val != null && val.trim().isNotEmpty) {
-                      tags.add('$prefix$val$suffix');
-                    }
-                  }
-
-                  addIfPresent(item['bean']?.toString());
-                  final shotVal = item['espressoShot']?.toString();
-                  if (shotVal != null && shotVal.trim().isNotEmpty) {
-                    addIfPresent(
-                      shotVal,
-                      '',
-                      shotVal.toLowerCase().contains('shot') ? '' : ' Shot',
-                    );
-                  }
-                  addIfPresent(item['temperature']?.toString());
-                  addIfPresent(item['sparkling']?.toString(), 'Sparkling: ');
-                  addIfPresent(item['milk']?.toString());
-                  addIfPresent(item['sweetness']?.toString());
-                  addIfPresent(item['iceLevel']?.toString());
-                  addIfPresent(item['orderType']?.toString());
-                  addIfPresent(item['remarks']?.toString(), 'Remarks: ');
-
-                  parsedItems.add(
-                    OrderItem(
-                      title: title,
-                      tags: tags,
-                      menuItemId: (item['menuItemId'] as num?)?.toInt(),
-                    ),
-                  );
-                }
-              }
+              final parsedItems = parseOrderItems(json['items']);
 
               // Keep the real creation time so the preparation queue is FIFO.
               final createdAt =
@@ -348,14 +378,27 @@ class ApiService {
                 ),
                 orderDate: createdAt,
                 statusStartedAt: statusStartedAt,
-                customerDetails:
-                    '${json['customer'] ?? 'guest'} - ${parsedItems.length} items',
+                customerDetails: _orderItemCountLabel(
+                  json['customer']?.toString() ?? 'guest',
+                  parsedItems,
+                ),
                 items: parsedItems,
                 voucherName: json['voucherName']?.toString(),
                 voucherType: json['voucherType']?.toString(),
                 discount: (json['discount'] as num?)?.toDouble() ?? 0,
+                voucherDiscountTokens:
+                    (json['voucherDiscountTokens'] as num?)?.toInt() ?? 0,
+                voucherRewardSummary: json['voucherRewardSummary']?.toString(),
                 paymentMethod: json['paymentMethod']?.toString(),
                 paymentStatus: normalizeApiStatus(json['paymentStatus']),
+                paymentMode: json['paymentMode']?.toString(),
+                tokenAmountCharged:
+                    (json['tokenAmountCharged'] as num?)?.toInt() ?? 0,
+                subsidyTokenAmount:
+                    (json['subsidyTokenAmount'] as num?)?.toInt() ?? 0,
+                isEmployee:
+                    json['isEmployee'] == true || json['isEmployee'] == 1,
+                subsidyRole: json['subsidyRole']?.toString() ?? 'none',
                 orderChannel: json['orderChannel']?.toString(),
                 total: (json['total'] as num?)?.toDouble() ?? 0,
                 cancellationRequestStatus: json['cancellationRequestStatus']
@@ -656,6 +699,30 @@ class ApiService {
     } catch (_) {
       return const ApiRequestResult.failure(
         'Unable to update your shift. Check the connection and try again.',
+      );
+    }
+  }
+
+  static Future<ApiRequestResult> fetchShiftSummary() async {
+    try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.get(
+          Uri.parse('$baseUrl/barista/attendance/shift-summary'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+        ),
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return ApiRequestResult.success(
+          decoded is Map<String, dynamic> ? decoded : null,
+        );
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (_) {
+      return const ApiRequestResult.failure(
+        'Unable to load shift summary. Check the connection and try again.',
       );
     }
   }
@@ -1040,6 +1107,15 @@ class ApiService {
     value: bean,
     isAvailable: isAvailable,
   );
+}
+
+String _orderItemCountLabel(String customer, List<OrderItem> items) {
+  final gifts = items.where((item) => item.isPromotionalAddon).length;
+  final saleItems = items.length - gifts;
+  final itemLabel = saleItems == 1 ? 'item' : 'items';
+  if (gifts == 0) return '$customer - $saleItems $itemLabel';
+  final giftLabel = gifts == 1 ? 'gift' : 'gifts';
+  return '$customer - $saleItems $itemLabel + $gifts $giftLabel';
 }
 
 String formatOrderDisplayDateTime(DateTime value) {

@@ -19,6 +19,16 @@ import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 import { allocateIntegerTotal, incrementalQuantityAllocation } from '../../services/partial-refund.js';
 import { formatTierName, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
+import {
+  cancelPromotionalAddonForOrder,
+  fulfilPromotionalAddonForOrder,
+  recordPromotionalAddonRefundDisposition,
+} from '../../services/promotional-addons.js';
+import {
+  collectMatchedUnits,
+  parsePromotionRule,
+  parseVoucherScope,
+} from './checkout.js';
 
 export function formatDisplayDate(dateObj: Date, timeZone = 'Asia/Kuala_Lumpur'): string {
   if (!dateObj) return '';
@@ -47,7 +57,7 @@ function capitalizeWords(str: string): string {
 
 function requireOrderAccess(request: { adminAuth?: { roles?: string[] } }): void {
   const roles = request.adminAuth?.roles ?? [];
-  const allowedRoles = ['super_admin', 'operations_admin', 'barista'];
+  const allowedRoles = ['super_admin', 'admin', 'barista'];
   if (!allowedRoles.some((role) => roles.includes(role))) {
     throw new ApiError(403, 'admin_forbidden', 'You do not have permission to manage orders.');
   }
@@ -59,8 +69,8 @@ function requireRefundRequestAccess(
 ): void {
   const roles = request.adminAuth?.roles ?? [];
   const allowedRoles = isPartialItemRefund
-    ? ['super_admin', 'operations_admin', 'support_admin', 'barista']
-    : ['super_admin', 'operations_admin', 'support_admin'];
+    ? ['super_admin', 'admin', 'support_admin', 'barista']
+    : ['super_admin', 'admin', 'support_admin'];
   if (!roles.some((role) => allowedRoles.includes(role))) {
     throw new ApiError(403, 'admin_forbidden', 'You do not have permission to manage refund requests.');
   }
@@ -74,7 +84,7 @@ function requireRefundApprovalAccess(request: { adminAuth?: { roles?: string[] }
 
 function requireFinanceAccess(request: { adminAuth?: { roles?: string[] } }): void {
   const roles = request.adminAuth?.roles ?? [];
-  if (!roles.includes('super_admin')) {
+  if (!roles.includes('super_admin') && !roles.includes('admin')) {
     throw new ApiError(403, 'admin_forbidden', 'You do not have permission to view finance data.');
   }
 }
@@ -780,18 +790,26 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         SELECT 
           o.id as internal_id,
           o.order_ref as id,
+          COALESCE(o.is_guest, 0) as is_guest,
           up.display_name as customer,
           up.email,
           u.phone_e164 as phone,
           u.id as user_id,
           COALESCE(ctm.is_employee, 0) as isEmployee,
+          COALESCE(ctm.subsidy_role, 'none') as subsidyRole,
+          up.avatar_type as avatar_type,
           up.avatar_value as avatar,
           o.discount_total_rm as discount,
-          vt.name as voucherName,
-          vt.voucher_type as voucherType,
-          vt.code as voucherCode,
+          o.voucher_discount_tokens as voucherDiscountTokens,
+          o.voucher_reward_summary as voucherRewardSummary,
+          COALESCE(o.voucher_name_snapshot, vt.name) as voucherName,
+          COALESCE(o.voucher_type_snapshot, vt.voucher_type) as voucherType,
+          COALESCE(o.voucher_code_snapshot, vt.code) as voucherCode,
+          COALESCE(o.voucher_discount_mode_snapshot, vt.discount_mode) as voucherDiscountMode,
+          vt.eligible_scope_json as voucherEligibleScope,
           o.final_total_rm as total,
           o.token_amount_charged as tokenAmountCharged,
+          o.gift_card_token_amount as giftCardTokenAmount,
           o.employee_allowance_tokens_used as subsidyTokenAmount,
           opc.original_token_amount as originalTokenAmount,
           opc.correction_token_amount as priceCorrectionAmount,
@@ -802,13 +820,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           COALESCE(o.order_channel, 'mobile') as orderChannel,
           COALESCE(o.fulfillment_type, 'pickup') as fulfillmentType,
           o.status as status,
-          (
+          CASE WHEN COALESCE(o.is_guest, 0) = 1 THEN NULL ELSE (
             SELECT lts.tier_code
             FROM loyalty_tier_snapshots lts
             WHERE lts.user_id = u.id
             ORDER BY lts.effective_at DESC, lts.id DESC
             LIMIT 1
-          ) AS tier_code,
+          ) END AS tier_code,
           p.provider as paymentProvider,
           p.payment_method as paymentMethod,
           p.status as paymentStatus,
@@ -842,9 +860,28 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         WHERE t.code = :tenantCode
           AND (:storeId IS NULL OR s.id = :storeId)
           AND (
-            :view = 'all'
+            (:view = 'all' AND :isBaristaOnly = 0)
             OR (
               o.status IN ('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+              AND (
+                o.payment_mode = 'token'
+                OR (
+                  o.status = 'pending_payment'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM payments manual_gate
+                    WHERE manual_gate.order_id = o.id
+                      AND manual_gate.status = 'pending'
+                      AND manual_gate.payment_method LIKE 'manual%'
+                  )
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM payments payment_gate
+                  WHERE payment_gate.order_id = o.id
+                    AND payment_gate.status IN ('paid', 'partially_refunded')
+                )
+              )
               AND DATE(DATE_ADD(o.created_at, INTERVAL 8 HOUR)) =
                   DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))
             )
@@ -879,12 +916,30 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           oi.order_id,
           oi.id as order_item_id,
           oi.menu_item_id,
+          oi.line_type,
           oi.item_name_snapshot as name,
           oi.quantity as qty,
           oi.base_price_rm_snapshot as unitPrice,
-          mi.image_url as img
+          oi.line_subtotal_rm as lineSubtotalRm,
+          oi.line_token_amount as lineTokenAmount,
+          mi.code as menuItemCode,
+          mi.is_handcrafted_drink as isHandcraftedDrink,
+          mi.is_qualifying_cup as isQualifyingCup,
+          category.id as categoryId,
+          category.code as categoryCode,
+          category.name as categoryName,
+          category.product_kind_code as productKindCode,
+          subcategory.code as subcategoryCode,
+          subcategory.name as subcategoryName,
+          mi.image_url as img,
+          promotion.campaign_name_snapshot AS campaign_name,
+          promotion.assignment_mode_snapshot AS assignment_mode,
+          promotion.fulfilment_status AS promotional_fulfilment_status
         FROM order_items oi
         LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+        LEFT JOIN menu_categories category ON category.id = mi.category_id
+        LEFT JOIN menu_subcategories subcategory ON subcategory.id = mi.subcategory_id
+        LEFT JOIN order_promotional_addons promotion ON promotion.order_item_id = oi.id
         WHERE oi.order_id IN (?)
       `, [orderIds]);
 
@@ -896,7 +951,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           SELECT 
             order_item_id,
             modifier_group_name_snapshot as group_name,
-            modifier_option_name_snapshot as option_name
+            modifier_option_name_snapshot as option_name,
+            price_delta_rm_snapshot as price_delta_rm,
+            token_price_delta_snapshot as token_price_delta
           FROM order_item_modifiers
           WHERE order_item_id IN (?)
         `, [itemIds]);
@@ -907,10 +964,70 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           }
           modifiersByItemId[mod.order_item_id].push({
             group: mod.group_name,
-            option: mod.option_name
+            option: mod.option_name,
+            priceDeltaRm: Number(mod.price_delta_rm || 0),
+            tokenDelta: Number(mod.token_price_delta || 0)
           });
         }
       }
+
+      const rawItemsByOrderId: Record<number, any[]> = {};
+      for (const item of itemRows) {
+        (rawItemsByOrderId[item.order_id] ??= []).push(item);
+      }
+
+      const inferVoucherRewardSummary = (order: any): string | null => {
+        if (order.voucherDiscountMode !== 'free_drink') return null;
+        const rawItems = (rawItemsByOrderId[order.internal_id] || [])
+          .filter((item) => (item.line_type || 'sale') === 'sale');
+        if (rawItems.length === 0) return null;
+
+        const normalized = rawItems.map((item) => {
+          const quantity = Math.max(1, Number(item.qty || 1));
+          const modifiers = modifiersByItemId[item.order_item_id] || [];
+          const modifierRm = modifiers.reduce((sum, modifier) => sum + Number(modifier.priceDeltaRm || 0), 0);
+          const modifierTokens = modifiers.reduce((sum, modifier) => sum + Number(modifier.tokenDelta || 0), 0);
+          return {
+            payload: { menu_item_id: Number(item.menu_item_id), quantity, remarks: null, modifiers: [] },
+            menuItem: {
+              id: Number(item.menu_item_id),
+              category_id: Number(item.categoryId || 0),
+              code: item.menuItemCode || '',
+              name: item.name || 'Item',
+              base_price_rm: String(item.unitPrice || 0),
+              base_price_token: Math.max(0, Math.round(Number(item.lineTokenAmount || 0) / quantity) - modifierTokens),
+              base_calories_kcal: 0,
+              is_available: 1,
+              is_handcrafted_drink: Number(item.isHandcraftedDrink || 0),
+              is_qualifying_cup: Number(item.isQualifyingCup || 0),
+              category_code: item.categoryCode || '',
+              category_name: item.categoryName || '',
+              category_product_kind_code: item.productKindCode || '',
+              subcategory_code: item.subcategoryCode || null,
+              subcategory_name: item.subcategoryName || null,
+            },
+            basePriceRm: Math.max(0, Number(item.lineSubtotalRm || 0) / quantity - modifierRm),
+            tokenPrice: Math.max(0, Math.round(Number(item.lineTokenAmount || 0) / quantity) - modifierTokens),
+            modifierRm,
+            modifierTokens,
+          };
+        });
+        const rule = parsePromotionRule(parseVoucherScope(order.voucherEligibleScope));
+        const rewardable = collectMatchedUnits(rule.reward_scope, normalized as any[])
+          .slice()
+          .sort((a, b) =>
+            (b.basePriceRm + b.modifierRm) - (a.basePriceRm + a.modifierRm) ||
+            Math.max(0, b.tokenPrice + b.modifierTokens) - Math.max(0, a.tokenPrice + a.modifierTokens)
+          )
+          .slice(0, rule.reward_quantity);
+        const counts = new Map<string, number>();
+        for (const unit of rewardable) {
+          counts.set(unit.menuItem.name, (counts.get(unit.menuItem.name) ?? 0) + 1);
+        }
+        return Array.from(counts.entries())
+          .map(([name, quantity]) => `${quantity}x ${name}`)
+          .join(', ') || null;
+      };
 
       // Group items by order_id
       const itemsByOrderId: Record<number, any[]> = {};
@@ -939,6 +1056,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         itemsByOrderId[item.order_id].push({
           orderItemId: Number(item.order_item_id),
           menuItemId: item.menu_item_id == null ? null : Number(item.menu_item_id),
+          line_type: item.line_type || 'sale',
+          campaign_name: item.campaign_name || null,
+          assignment_mode: item.assignment_mode || null,
+          promotional_fulfilment_status: item.promotional_fulfilment_status || null,
           name: item.name,
           qty: item.qty,
           unitPrice: Number(item.unitPrice || 0),
@@ -958,17 +1079,42 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       const formattedOrders = orderRows.map(o => {
         const d = new Date(o.created_at);
+        const rawItems = rawItemsByOrderId[o.internal_id] || [];
+        const lineTokenTotal = rawItems.reduce(
+          (sum, item) => sum + Number(item.lineTokenAmount || 0),
+          0
+        );
+        const inferredVoucherDiscountTokens = Math.max(
+          0,
+          lineTokenTotal - Number(
+            o.originalTokenAmount == null
+              ? o.tokenAmountCharged || 0
+              : o.originalTokenAmount
+          ) - Number(o.giftCardTokenAmount || 0)
+        );
+        const inferredVoucherRewardSummary = o.voucherRewardSummary
+          ? null
+          : inferVoucherRewardSummary(o);
+        const isGuest = Number(o.is_guest || 0) === 1;
         return {
           id: o.id,
           customer: o.customer || 'Unknown',
           email: o.email || '',
           phone: o.phone || '',
-          tier: formatTierName(tiers, o.tier_code),
-          tierCode: o.tier_code ? String(o.tier_code).trim().toLowerCase() : null,
-          memberId: 'C2-' + String(o.user_id).padStart(3, '0'),
-          avatar: o.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+          isGuest,
+          tier: isGuest ? null : formatTierName(tiers, o.tier_code),
+          tierCode: isGuest || !o.tier_code ? null : String(o.tier_code).trim().toLowerCase(),
+          memberId: isGuest ? null : 'C2-' + String(o.user_id).padStart(3, '0'),
+          avatarType: o.avatar_type || 'preset',
+          avatar: o.avatar || null,
           items: itemsByOrderId[o.internal_id] || [],
           discount: Number(o.discount || 0),
+          voucherDiscountTokens: Math.max(
+            Number(o.voucherDiscountTokens || 0),
+            inferredVoucherDiscountTokens
+          ),
+          voucherRewardSummary: o.voucherRewardSummary || inferredVoucherRewardSummary,
+          voucherRewardSummaryInferred: Boolean(inferredVoucherRewardSummary),
           voucherName: o.voucherName || null,
           voucherType: o.voucherType || null,
           voucherCode: o.voucherCode || null,
@@ -984,6 +1130,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           orderChannel: o.orderChannel || 'mobile',
           fulfillmentType: o.fulfillmentType || 'pickup',
           isEmployee: Number(o.isEmployee || 0) === 1,
+          subsidyRole: o.subsidyRole || 'none',
           status: capitalizeWords(o.status),
           payment: o.paymentMode || '',
           paymentMethod: o.paymentMethod || '',
@@ -1547,6 +1694,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           o.order_ref as orderId,
           up.display_name as customer,
           up.email,
+          up.avatar_type as avatar_type,
+          up.avatar_value as avatar,
           u.phone_e164 as phone,
           u.id as user_id,
           r.refund_amount_rm as amount_rm,
@@ -1568,6 +1717,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           r.reason as customerNotes
           ,s.id as storeId
           ,s.name as storeName
+          ,(SELECT opa.reward_name_snapshot FROM order_promotional_addons opa WHERE opa.order_id = o.id LIMIT 1) as promotionalGiftName
+          ,(SELECT opa.fulfilment_status FROM order_promotional_addons opa WHERE opa.order_id = o.id LIMIT 1) as promotionalGiftStatus
         FROM refunds r
         JOIN orders o ON r.order_id = o.id
         JOIN users u ON o.user_id = u.id
@@ -1617,6 +1768,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           customer: r.customer || 'Unknown',
           email: r.email || '',
           phone: r.phone || '',
+          avatarType: r.avatar_type || 'preset',
+          avatar: r.avatar || null,
           tier: formatTierName(tiers, r.tier_code),
           tierCode: r.tier_code ? String(r.tier_code).trim().toLowerCase() : null,
           memberId: 'C2-' + String(r.user_id).padStart(3, '0'),
@@ -1633,6 +1786,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           customerNotes: r.customerNotes || '',
           storeId: Number(r.storeId),
           storeName: r.storeName,
+          promotionalGiftName: r.promotionalGiftName || '',
+          promotionalGiftStatus: r.promotionalGiftStatus || '',
           timeline: [
             { label: "Refund Requested", date: `${formatDisplayDate(reqDate)} ${formatDisplayTime(reqDate)}`, done: true },
             { label: "Refund Review", date: r.reviewedAt ? `${formatDisplayDate(new Date(r.reviewedAt))} ${formatDisplayTime(new Date(r.reviewedAt))}` : '', done: r.status !== 'pending' },
@@ -1659,10 +1814,11 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     requireRefundApprovalAccess(request);
 
     const { refundRef } = request.params as { refundRef: string };
-    const { decision, confirmation_password: confirmationPassword, provider_refund_ref: providerRefundRef } = z.object({
+    const { decision, confirmation_password: confirmationPassword, provider_refund_ref: providerRefundRef, promotional_gift_disposition: promotionalGiftDisposition } = z.object({
       decision: z.enum(['approved', 'rejected']),
       confirmation_password: z.string().trim().min(8).max(200),
-      provider_refund_ref: z.string().trim().min(3).max(255).optional()
+      provider_refund_ref: z.string().trim().min(3).max(255).optional(),
+      promotional_gift_disposition: z.enum(['returned', 'retained']).optional(),
     }).parse(request.body);
 
     const connection = await mysqlPool.getConnection();
@@ -1784,6 +1940,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             { paymentId: refund.payment_id }
           );
           await releaseInventoryForOrder(connection, refund.order_id);
+          await cancelPromotionalAddonForOrder(connection, Number(refund.order_id));
+          await recordPromotionalAddonRefundDisposition(
+            connection,
+            Number(refund.order_id),
+            promotionalGiftDisposition,
+            false,
+          );
           await restoreGiftCardForRefund(
             connection,
             refund.order_id,
@@ -1917,6 +2080,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             { orderId: refund.order_id }
           );
         await reverseInventoryForOrder(connection, refund.order_id);
+        await recordPromotionalAddonRefundDisposition(
+          connection,
+          Number(refund.order_id),
+          promotionalGiftDisposition,
+          true,
+        );
         await restoreGiftCardForRefund(
           connection,
           refund.order_id,
@@ -2241,6 +2410,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         }
       );
       await releaseInventoryForOrder(connection, order.id);
+      await cancelPromotionalAddonForOrder(connection, Number(order.id));
       await restoreGiftCardForRefund(
         connection,
         order.id,
@@ -2472,6 +2642,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       // reward outcome identical to customer-confirmed collection.
       if (effectiveStatus === 'collected') {
         await consumeInventoryForOrder(connection, internalId);
+        await fulfilPromotionalAddonForOrder(connection, internalId);
       }
       if (effectiveStatus === 'collected' && Number(rows[0].is_guest) !== 1) {
         await processOrderLoyalty(internalId, Number(rows[0].user_id), connection);

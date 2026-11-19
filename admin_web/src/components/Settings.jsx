@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FileText, KeyRound, Palette, ShieldCheck, Smartphone, Store, Wrench } from "lucide-react";
+import { CreditCard, FileText, KeyRound, Palette, ShieldCheck, Smartphone, Store, Wrench } from "lucide-react";
 import {
   loadAdminAppearance,
   loadAdminStore,
@@ -7,6 +7,8 @@ import {
   updateAdminStoreName,
   loadAdminMaintenance,
   updateAdminMaintenance,
+  loadAdminPaymentMethods,
+  updateAdminPaymentMethods,
 } from "../lib/adminApi";
 import InfoTooltip from "./InfoTooltip";
 
@@ -67,7 +69,7 @@ const Settings = ({ setCurrentPage, currentUser }) => {
   const canManageStore =
     Array.isArray(currentUser?.roles) &&
     currentUser.roles.some((role) =>
-      ["super_admin", "operations_admin"].includes(role),
+      ["super_admin", "admin"].includes(role),
     );
   const [storeName, setStoreName] = useState("");
   const [storeMessage, setStoreMessage] = useState("");
@@ -81,6 +83,10 @@ const Settings = ({ setCurrentPage, currentUser }) => {
   const [maintenance, setMaintenance] = useState({ enabled: false, title: "C2 Coffee is under maintenance", message: "We are making improvements. Please check back soon.", expected_end_at: null });
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
   const [isSavingMaintenance, setIsSavingMaintenance] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [paymentMethodsMessage, setPaymentMethodsMessage] = useState("");
+  const [isPaymentMethodsLoaded, setIsPaymentMethodsLoaded] = useState(false);
+  const [isSavingPaymentMethods, setIsSavingPaymentMethods] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -118,6 +124,17 @@ const Settings = ({ setCurrentPage, currentUser }) => {
         setMaintenance((current) => ({ ...current, ...data?.maintenance }));
       })
       .catch(() => {});
+    loadAdminPaymentMethods()
+      .then((data) => {
+        if (!active) return;
+        setPaymentMethods(Array.isArray(data?.methods) ? data.methods : []);
+        setIsPaymentMethodsLoaded(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPaymentMethodsMessage("Payment availability could not be loaded. Refresh this page before saving.");
+        setIsPaymentMethodsLoaded(false);
+      });
     return () => {
       active = false;
     };
@@ -150,6 +167,35 @@ const Settings = ({ setCurrentPage, currentUser }) => {
     } finally {
       setIsSavingMaintenance(false);
     }
+  };
+
+  const savePaymentMethods = async () => {
+    if (!isPaymentMethodsLoaded) {
+      setPaymentMethodsMessage("Payment availability has not loaded. Refresh this page before saving.");
+      return;
+    }
+    const enabledMethods = paymentMethods
+      .filter((method) => method.enabled)
+      .map((method) => method.code);
+    if (enabledMethods.length === 0) {
+      setPaymentMethodsMessage("Select at least one payment method before saving.");
+      return;
+    }
+    setIsSavingPaymentMethods(true);
+    setPaymentMethodsMessage("");
+    try {
+      const saved = await updateAdminPaymentMethods(enabledMethods);
+      setPaymentMethods(Array.isArray(saved?.methods) ? saved.methods : paymentMethods);
+      setPaymentMethodsMessage("Customer payment availability saved.");
+    } catch {
+      setPaymentMethodsMessage("Payment availability could not be saved.");
+    } finally {
+      setIsSavingPaymentMethods(false);
+    }
+  };
+
+  const togglePaymentMethod = (code) => {
+    setPaymentMethods((current) => current.map((method) => method.code === code ? { ...method, enabled: !method.enabled } : method));
   };
 
   const saveAppearance = async () => {
@@ -259,6 +305,42 @@ const Settings = ({ setCurrentPage, currentUser }) => {
             </div>
           </div>
         </section>
+
+        {canManageStore && (
+          <section className="rounded-2xl border border-blue-200/90 bg-white p-6 shadow-2xs transition-shadow hover:shadow-xs">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-800 shadow-2xs">
+                <CreditCard size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">Payment methods</h2>
+                  <InfoTooltip title="Customer payment availability" content="Controls which payment methods customers can choose. A method must also be active with CHIP before it can be used." />
+                </div>
+                <p className="mt-1 text-sm text-gray-500">Customer availability</p>
+                <p className="mt-2 text-sm text-gray-600">Tick the methods C2 Coffee accepts. Customers see only methods that are ticked and currently active with CHIP.</p>
+                <div className="mt-4 space-y-3">
+                  {paymentMethods.map((method) => (
+                    <label key={method.code} className={`flex items-start gap-3 rounded-xl border border-gray-200 px-4 py-3 ${method.available || method.enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+                      <input type="checkbox" checked={Boolean(method.enabled)} disabled={!method.available && !method.enabled} onChange={() => togglePaymentMethod(method.code)} className="mt-1 h-4 w-4 rounded-sm border-gray-300 text-[#1F3A34] focus:ring-[#1F3A34]" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-gray-800">{method.label}</span>
+                        {!method.deployment_enabled && <span className="mt-1 block text-xs text-gray-600">Not enabled on this server.</span>}
+                        {method.deployment_enabled && !method.provider_active && <span className="mt-1 block text-xs text-amber-700">Waiting for CHIP activation.</span>}
+                        {method.provider_review_note && <span className="mt-1 block text-xs text-amber-700">{method.provider_review_note}</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-gray-500">International cards are not supported yet. CHIP must approve a method before customers can use it.</p>
+                <button type="button" disabled={isSavingPaymentMethods || !isPaymentMethodsLoaded} onClick={savePaymentMethods} className="mt-5 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:cursor-not-allowed disabled:opacity-60 transition-colors shadow-2xs hover:shadow-xs cursor-pointer">
+                  {isSavingPaymentMethods ? "Saving..." : "Save payment methods"}
+                </button>
+                {paymentMethodsMessage && <p className="mt-2 text-sm text-gray-600" role="status">{paymentMethodsMessage}</p>}
+              </div>
+            </div>
+          </section>
+        )}
 
         {canManageStore && (
           <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-2xs transition-shadow hover:shadow-xs">

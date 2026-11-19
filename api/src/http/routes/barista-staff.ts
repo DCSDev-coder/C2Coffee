@@ -17,6 +17,7 @@ import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 import { calculatePersonalTokenRefund, restoreEmployeeAllowanceForRefund } from '../../services/employee-token-allowance.js';
 import { consumeMarketingDrinkInventory, reverseMarketingDrinkInventory } from '../../services/marketing-drink-usage.js';
+import { cancelPromotionalAddonForOrder } from '../../services/promotional-addons.js';
 
 const guideTypeSchema = z.enum(['attire', 'rules', 'drink']);
 const imageUploadSchema = z.object({
@@ -90,6 +91,145 @@ function malaysiaDate(value = new Date()): string {
   }).formatToParts(value);
   const date = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${date.year}-${date.month}-${date.day}`;
+}
+
+type DbConnection = Awaited<ReturnType<typeof mysqlPool.getConnection>>;
+
+async function buildOutletShiftReport(
+  connection: DbConnection,
+  options: {
+    storeId: number;
+    startAt: Date | string;
+    endAt: Date | string;
+    displayStartAt?: Date | string;
+    displayEndAt?: Date | string;
+    attendanceId: number;
+    baristaName: string;
+    reportType: 'shift_session' | 'daily_summary';
+  }
+) {
+  const [shiftOrders] = await connection.query<RowDataPacket[]>(
+    `SELECT o.id, o.order_ref, o.daily_order_number, o.status, o.payment_mode,
+            CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+            CAST(o.discount_total_rm AS CHAR) AS discount_total_rm,
+            COALESCE(o.token_amount_charged, 0) AS token_amount_charged,
+            COALESCE(o.employee_allowance_tokens_used, 0) AS employee_allowance_tokens_used,
+            o.created_at,
+            (SELECT p.payment_method FROM payments p
+             WHERE p.order_id = o.id ORDER BY p.id DESC LIMIT 1) AS payment_method,
+            COALESCE((SELECT SUM(r.refund_amount_rm) FROM refunds r
+                      WHERE r.order_id = o.id AND r.status = 'completed'), 0) AS refunded_rm,
+            COALESCE((SELECT SUM(r.refund_token_amount) FROM refunds r
+                      WHERE r.order_id = o.id AND r.status = 'completed'), 0) AS refunded_tokens
+     FROM orders o
+     WHERE o.store_id = :storeId
+       AND o.created_at >= :startAt
+       AND o.created_at <= :endAt
+       AND (
+         o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+         OR EXISTS (
+           SELECT 1 FROM refunds r
+           WHERE r.order_id = o.id AND r.status = 'completed'
+         )
+       )
+     ORDER BY o.created_at ASC, o.id ASC`,
+    {
+      storeId: options.storeId,
+      startAt: options.startAt,
+      endAt: options.endAt,
+    }
+  );
+  const [itemSummary] = await connection.query<RowDataPacket[]>(
+    `SELECT oi.item_name_snapshot AS item_name, SUM(oi.quantity) AS quantity
+     FROM order_items oi
+     JOIN orders o ON o.id = oi.order_id
+     WHERE o.store_id = :storeId
+       AND o.created_at >= :startAt
+       AND o.created_at <= :endAt
+       AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+     GROUP BY oi.item_name_snapshot
+     ORDER BY quantity DESC, item_name ASC`,
+    {
+      storeId: options.storeId,
+      startAt: options.startAt,
+      endAt: options.endAt,
+    }
+  );
+
+  let grossSalesRm = 0;
+  let discountTotalRm = 0;
+  let refundedRm = 0;
+  let refundedTokens = 0;
+  let counterSalesRm = 0;
+  let onlineSalesRm = 0;
+  let creditSalesRm = 0;
+  let totalTokensCharged = 0;
+
+  for (const order of shiftOrders) {
+    const orderTotal = Number(order.final_total_rm || 0);
+    const paymentMode = String(order.payment_mode || '').toLowerCase();
+    const paymentMethod = String(order.payment_method || '').toLowerCase();
+    grossSalesRm += orderTotal;
+    discountTotalRm += Number(order.discount_total_rm || 0);
+    refundedRm += Number(order.refunded_rm || 0);
+    refundedTokens += Number(order.refunded_tokens || 0);
+    totalTokensCharged += Number(order.token_amount_charged || 0);
+    if (paymentMode === 'token') {
+      creditSalesRm += orderTotal;
+    } else if (paymentMethod === 'manual_counter') {
+      counterSalesRm += orderTotal;
+    } else {
+      onlineSalesRm += orderTotal;
+    }
+  }
+
+  const totalItems = itemSummary.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const displayStart = options.displayStartAt
+    ?? (shiftOrders[0]?.created_at ? new Date(shiftOrders[0].created_at) : options.startAt);
+  const displayEnd = options.displayEndAt ?? options.endAt;
+
+  return {
+    report_type: options.reportType,
+    attendance_id: options.attendanceId,
+    barista_name: options.baristaName,
+    clocked_in_at: new Date(displayStart).toISOString(),
+    clocked_out_at: new Date(displayEnd).toISOString(),
+    order_count: shiftOrders.length,
+    total_items: totalItems,
+    gross_sales_rm: grossSalesRm.toFixed(2),
+    discount_total_rm: discountTotalRm.toFixed(2),
+    refunded_rm: refundedRm.toFixed(2),
+    refunded_tokens: refundedTokens,
+    net_sales_rm: Math.max(0, grossSalesRm - refundedRm).toFixed(2),
+    counter_sales_rm: counterSalesRm.toFixed(2),
+    online_sales_rm: onlineSalesRm.toFixed(2),
+    credit_sales_rm: creditSalesRm.toFixed(2),
+    total_tokens_charged: totalTokensCharged,
+    orders: shiftOrders.map((order) => {
+      const paymentMode = String(order.payment_mode || '');
+      const normalizedPaymentMethod = order.payment_method
+        ? String(order.payment_method)
+        : paymentMode.toLowerCase() === 'token'
+          ? 'c2_credit'
+          : 'manual_counter';
+      return {
+        order_ref: String(order.order_ref),
+        daily_order_number: Number(order.daily_order_number),
+        status: String(order.status),
+        payment_mode: paymentMode,
+        payment_method: normalizedPaymentMethod,
+        final_total_rm: Number(order.final_total_rm || 0).toFixed(2),
+        discount_total_rm: Number(order.discount_total_rm || 0).toFixed(2),
+        refunded_rm: Number(order.refunded_rm || 0).toFixed(2),
+        token_amount_charged: Number(order.token_amount_charged || 0),
+        created_at: new Date(order.created_at).toISOString(),
+      };
+    }),
+    items: itemSummary.map((item) => ({
+      name: String(item.item_name),
+      quantity: Number(item.quantity),
+    })),
+  };
 }
 
 function addDays(date: string, days: number): string {
@@ -366,6 +506,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         await connection.execute(`UPDATE payments SET status = 'cancelled' WHERE id = :paymentId AND status IN ('pending', 'authorized')`, { paymentId: order.payment_id });
         await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'pending_payment'`, { orderId: order.id });
         await releaseInventoryForOrder(connection, Number(order.id));
+        await cancelPromotionalAddonForOrder(connection, Number(order.id));
       } else {
         // A mobile/direct order must go through the customer cancellation
         // request flow so the provider refund is reviewed explicitly. Only
@@ -381,6 +522,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         );
         await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'paid'`, { orderId: order.id });
         await releaseInventoryForOrder(connection, Number(order.id));
+        await cancelPromotionalAddonForOrder(connection, Number(order.id));
       }
       await connection.execute(
         `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
@@ -883,88 +1025,78 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         { attendanceId: selectedAttendance.id }
       );
       const attendance = attendanceRows[0];
-      const [shiftOrders] = await connection.query<RowDataPacket[]>(
-        `SELECT o.id, o.order_ref, o.daily_order_number, o.status, o.payment_mode,
-                CAST(o.final_total_rm AS CHAR) AS final_total_rm,
-                CAST(o.discount_total_rm AS CHAR) AS discount_total_rm,
-                o.created_at,
-                (SELECT p.payment_method FROM payments p
-                 WHERE p.order_id = o.id ORDER BY p.id DESC LIMIT 1) AS payment_method,
-                COALESCE((SELECT SUM(r.refund_amount_rm) FROM refunds r
-                          WHERE r.order_id = o.id AND r.status = 'completed'), 0) AS refunded_rm
-         FROM orders o
-         WHERE o.store_id = :storeId
-           AND o.created_at >= :clockedInAt
-           AND o.created_at <= :clockedOutAt
-           AND o.status NOT IN ('draft', 'payment_failed')
-         ORDER BY o.created_at ASC, o.id ASC`,
-        {
-          storeId,
-          clockedInAt: attendance.clocked_in_at,
-          clockedOutAt: attendance.clocked_out_at,
-        }
-      );
-      const [itemSummary] = await connection.query<RowDataPacket[]>(
-        `SELECT oi.item_name_snapshot AS item_name, SUM(oi.quantity) AS quantity
-         FROM order_items oi
-         JOIN orders o ON o.id = oi.order_id
-         WHERE o.store_id = :storeId
-           AND o.created_at >= :clockedInAt
-           AND o.created_at <= :clockedOutAt
-           AND o.status NOT IN ('draft', 'pending_payment', 'payment_failed', 'cancelled')
-         GROUP BY oi.item_name_snapshot
-         ORDER BY quantity DESC, item_name ASC`,
-        {
-          storeId,
-          clockedInAt: attendance.clocked_in_at,
-          clockedOutAt: attendance.clocked_out_at,
-        }
-      );
-      const grossSalesRm = shiftOrders.reduce(
-        (sum, order) => sum + (
-          ['cancelled', 'pending_payment'].includes(String(order.status))
-            ? 0
-            : Number(order.final_total_rm || 0)
-        ),
-        0
-      );
-      const refundedRm = shiftOrders.reduce(
-        (sum, order) => sum + Number(order.refunded_rm || 0),
-        0
-      );
+      const shiftReport = await buildOutletShiftReport(connection, {
+        storeId,
+        startAt: attendance.clocked_in_at,
+        endAt: attendance.clocked_out_at,
+        displayStartAt: attendance.clocked_in_at,
+        displayEndAt: attendance.clocked_out_at,
+        attendanceId: Number(attendance.id),
+        baristaName: String(attendance.barista_name),
+        reportType: 'shift_session',
+      });
       await connection.commit();
       return reply.send({
         success: true,
         unchanged: result.affectedRows === 0,
-        shift_report: {
-          attendance_id: Number(attendance.id),
-          barista_name: String(attendance.barista_name),
-          clocked_in_at: new Date(attendance.clocked_in_at).toISOString(),
-          clocked_out_at: new Date(attendance.clocked_out_at).toISOString(),
-          order_count: shiftOrders.length,
-          gross_sales_rm: grossSalesRm.toFixed(2),
-          refunded_rm: refundedRm.toFixed(2),
-          net_sales_rm: Math.max(0, grossSalesRm - refundedRm).toFixed(2),
-          orders: shiftOrders.map((order) => ({
-            order_ref: String(order.order_ref),
-            daily_order_number: Number(order.daily_order_number),
-            status: String(order.status),
-            payment_mode: String(order.payment_mode),
-            payment_method: order.payment_method ? String(order.payment_method) : null,
-            final_total_rm: Number(order.final_total_rm || 0).toFixed(2),
-            discount_total_rm: Number(order.discount_total_rm || 0).toFixed(2),
-            refunded_rm: Number(order.refunded_rm || 0).toFixed(2),
-            created_at: new Date(order.created_at).toISOString(),
-          })),
-          items: itemSummary.map((item) => ({
-            name: String(item.item_name),
-            quantity: Number(item.quantity),
-          })),
-        },
+        shift_report: shiftReport,
       });
     } catch (error) {
       await connection.rollback();
       throw error;
+    } finally {
+      connection.release();
+    }
+  });
+
+  app.get('/v1/barista/attendance/shift-summary', {
+    preHandler: authenticateAdminRequest,
+  }, async (request, reply) => {
+    assertStaffAccess(request);
+    const storeId = await resolveAttendanceStoreId(request);
+    const today = malaysiaDate();
+    const dayStart = new Date(`${today}T00:00:00+08:00`);
+    const now = new Date();
+    const connection = await mysqlPool.getConnection();
+    try {
+      const [attendanceRows] = await connection.query<RowDataPacket[]>(
+        `SELECT a.id, a.clocked_in_at, b.name AS barista_name
+         FROM barista_attendance a
+         JOIN baristas b ON b.id = a.barista_id
+         WHERE a.tenant_id = :tenantId
+           AND (a.store_id = :storeId OR a.store_id IS NULL)
+           AND a.clocked_in_at >= :dayStart
+         ORDER BY a.clocked_in_at ASC, a.id ASC`,
+        {
+          tenantId: request.adminAuth.tenantId,
+          storeId,
+          dayStart,
+        }
+      );
+      const baristaNames = Array.from(
+        new Set(
+          attendanceRows
+            .map((row) => String(row.barista_name || '').trim())
+            .filter(Boolean)
+        )
+      );
+      const latestAttendanceId = attendanceRows.length > 0
+        ? Number(attendanceRows[attendanceRows.length - 1].id)
+        : 0;
+      const earliestClockIn = attendanceRows[0]?.clocked_in_at
+        ? new Date(attendanceRows[0].clocked_in_at)
+        : undefined;
+      const shiftReport = await buildOutletShiftReport(connection, {
+        storeId,
+        startAt: dayStart,
+        endAt: now,
+        displayStartAt: earliestClockIn,
+        displayEndAt: now,
+        attendanceId: latestAttendanceId,
+        baristaName: baristaNames.length > 0 ? baristaNames.join(', ') : 'All Staff',
+        reportType: 'daily_summary',
+      });
+      return reply.send({ shift_report: shiftReport });
     } finally {
       connection.release();
     }
@@ -1059,6 +1191,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
             { orderId: order.id, fromStatus: order.status, adminUserId: request.adminAuth.adminUserId, reason }
           );
           await releaseInventoryForOrder(connection, Number(order.id));
+          await cancelPromotionalAddonForOrder(connection, Number(order.id));
           await restoreGiftCardForRefund(connection, Number(order.id), Number(order.user_id), `Returned after emergency cancellation ${order.order_ref}`);
           await createUserNotification(connection, { userId: Number(order.user_id), type: 'order_cancelled_emergency', title: 'Order cancelled — outlet temporarily closed', body: 'Your order was cancelled before payment completed because this outlet temporarily closed for an emergency.' });
           pushMessages.push({ userId: Number(order.user_id), type: 'order_cancelled_emergency', title: 'Order cancelled', body: 'This outlet temporarily closed for an emergency. Your unpaid order was cancelled.' });
@@ -1123,6 +1256,7 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
             { orderId: order.id, paymentId: order.payment_id, refundRef, amountRm: order.final_total_rm, tokenAmount, reason, adminUserId: request.adminAuth.adminUserId }
           );
           await releaseInventoryForOrder(connection, Number(order.id));
+          await cancelPromotionalAddonForOrder(connection, Number(order.id));
           await restoreGiftCardForRefund(connection, Number(order.id), Number(order.user_id), `Returned after emergency cancellation ${order.order_ref}`);
           await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status IN ('paid', 'accepted')`, { orderId: order.id });
           await connection.execute(

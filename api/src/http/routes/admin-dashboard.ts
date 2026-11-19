@@ -344,6 +344,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance): Promis
           AND (:storeId IS NULL OR s.id = :storeId)
           AND o.created_at >= :start
           AND o.created_at < :end
+          AND oi.line_type = 'sale'
           AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
         GROUP BY oi.item_name_snapshot, category_name, subcategory_name
         ORDER BY units_sold DESC, revenue_rm DESC, name ASC

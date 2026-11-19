@@ -1293,6 +1293,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.get('/v1/admin/users', { preHandler: authenticateAdminRequest }, async (request) => {
+    // Admin may view the roster, but only Super Admin may create, edit, or deactivate accounts.
     requireAdminRole(request, 'super_admin');
 
     const [rows] = await mysqlPool.query<

@@ -26,8 +26,8 @@ test('manual card discounts are barista-only, paired with remarks, and auditable
 test('clock-out returns an outlet report bounded by the selected attendance', async () => {
   const staff = await source('src/http/routes/barista-staff.ts');
 
-  assert.match(staff, /o\.created_at >= :clockedInAt/);
-  assert.match(staff, /o\.created_at <= :clockedOutAt/);
+  assert.match(staff, /o\.created_at >= :startAt/);
+  assert.match(staff, /o\.created_at <= :endAt/);
   assert.match(staff, /shift_report:/);
   assert.match(staff, /gross_sales_rm: grossSalesRm\.toFixed\(2\)/);
   assert.match(staff, /net_sales_rm: Math\.max\(0, grossSalesRm - refundedRm\)\.toFixed\(2\)/);

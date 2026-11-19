@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
+import { mysqlPool } from './db/mysql.js';
 import rawBody from 'fastify-raw-body';
 import { env } from './config/env.js';
 import { assertSingleCafeDeployment } from './admin/deployment.js';
@@ -47,6 +48,9 @@ import { registerBaristaMenuAvailabilityRoutes } from './http/routes/barista-men
 import { registerAdminMaintenanceRoutes } from './http/routes/admin-maintenance.js';
 import { registerAdminGiftCardRoutes } from './http/routes/admin-gift-cards.js';
 import { registerWebsiteContactRoutes } from './http/routes/website-contact.js';
+import { registerPromotionalAddonRoutes } from './http/routes/promotional-addons.js';
+import { registerAdminPromotionalAddonRoutes } from './http/routes/admin-promotional-addons.js';
+import { registerAdminPaymentMethodRoutes } from './http/routes/admin-payment-methods.js';
 
 function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean {
   let requestUrl: URL;
@@ -106,6 +110,37 @@ export async function buildApp() {
 
   app.setErrorHandler(errorHandler);
 
+  // Detailed route handlers record business changes in their own audit entry.
+  // This safety-net entry guarantees that every authenticated mutation still
+  // leaves an immutable request/status trail, including failed or newly added
+  // mutation routes that have not yet gained a domain-specific audit record.
+  app.addHook('onResponse', async (request, reply) => {
+    const path = request.url.split('?')[0];
+    const isAuditedMutation = !['GET', 'HEAD', 'OPTIONS'].includes(request.method) &&
+      (path.startsWith('/v1/admin/') || path.startsWith('/v1/barista/')) &&
+      request.adminAuth;
+    if (!isAuditedMutation) return;
+    try {
+      await mysqlPool.execute(
+        `INSERT INTO admin_audit_logs
+          (admin_user_id, effective_roles_json, action_code, target_type,
+           after_json, reason_note, ip_address, user_agent, created_at)
+         VALUES
+          (:adminUserId, :roles, 'admin_mutation_request', 'admin_route', NULL,
+           :reasonNote, :ipAddress, :userAgent, UTC_TIMESTAMP())`,
+        {
+          adminUserId: request.adminAuth.adminUserId,
+          roles: JSON.stringify(request.adminAuth.roles),
+          reasonNote: `${request.method} ${path} -> HTTP ${reply.statusCode}; request ${request.id}`,
+          ipAddress: request.ip,
+          userAgent: String(request.headers['user-agent'] ?? '').slice(0, 512) || null
+        }
+      );
+    } catch (error) {
+      request.log.error({ err: error, requestId: request.id, path }, 'Admin mutation safety audit failed');
+    }
+  });
+
   await app.register(helmet);
   await app.register(cookie);
   await app.register(cors, {
@@ -160,6 +195,8 @@ export async function buildApp() {
   await registerAdminOptionLibraryRoutes(app);
   await registerAdminAuditRoutes(app);
   await registerAdminMarketingRoutes(app);
+  await registerAdminPromotionalAddonRoutes(app);
+  await registerAdminPaymentMethodRoutes(app);
   await registerAdminCustomerMessageScheduleRoutes(app);
   await registerAdminBaristasRoutes(app);
   await registerAdminStoreRoutes(app);
@@ -178,6 +215,7 @@ export async function buildApp() {
   await registerHomeFeaturedRoutes(app);
   await registerMeRoutes(app);
   await registerCatalogRoutes(app);
+  await registerPromotionalAddonRoutes(app);
   await registerWebsiteContactRoutes(app);
   await registerCheckoutRoutes(app);
   await registerCustomerDataRoutes(app);

@@ -9,6 +9,7 @@ import '../services/cart_service.dart';
 import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/payment_security.dart';
+import '../services/promotion_api_service.dart';
 import '../services/secure_session_service.dart';
 import '../services/subsidy_checkout_policy.dart';
 import '../services/voucher_intent_service.dart';
@@ -56,10 +57,36 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   EmployeeSubsidy? _subsidy;
   bool _isSubsidyLoading = true;
   String? _subsidyError;
+  PromotionalAddonQuote? _promotionQuote;
+  int? _selectedPromotionalRewardMenuItemId;
+  bool _promotionalRewardDeclined = false;
+  bool _promotionLoading = false;
 
   Color get orangeColor => AppColors.deepTeal;
 
   CartSnapshot? get _snapshot => _cart.snapshot;
+
+  double get _promotionalAddonRmCharge {
+    final quote = _promotionQuote;
+    if (_promotionalRewardDeclined ||
+        quote == null ||
+        _paymentMode != 'direct' ||
+        quote.priceMode != 'fixed_rm') {
+      return 0;
+    }
+    return double.tryParse(quote.priceRm) ?? 0;
+  }
+
+  int get _promotionalAddonTokenCharge {
+    final quote = _promotionQuote;
+    if (_promotionalRewardDeclined ||
+        quote == null ||
+        _paymentMode != 'token' ||
+        quote.priceMode != 'fixed_token') {
+      return 0;
+    }
+    return quote.tokenAmount;
+  }
 
   @override
   void initState() {
@@ -69,7 +96,240 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _applyRememberedVoucher();
       _loadDirectPaymentMethods();
       _loadSubsidy();
+      _loadPromotionQuote();
     });
+  }
+
+  Future<PromotionalAddonQuote?> _loadPromotionQuote() async {
+    final snapshot = _snapshot;
+    if (snapshot == null) return null;
+    if (mounted) setState(() => _promotionLoading = true);
+    try {
+      final accessToken =
+          await SecureSessionService.instance.getValidAccessToken();
+      if (accessToken == null || accessToken.isEmpty) return null;
+      final quote = await PromotionApiService.instance.quote(
+        accessToken: accessToken,
+        cart: snapshot,
+        paymentMode: _paymentMode,
+      );
+      if (!mounted) return quote;
+      final previousCampaignId = _promotionQuote?.id;
+      setState(() {
+        _promotionQuote = quote;
+        if (quote == null ||
+            !quote.rewards.any((reward) =>
+                reward.menuItemId == _selectedPromotionalRewardMenuItemId &&
+                reward.isAvailable)) {
+          _selectedPromotionalRewardMenuItemId = null;
+        }
+        if (quote == null || previousCampaignId != quote.id) {
+          _promotionalRewardDeclined = false;
+        }
+      });
+      return quote;
+    } finally {
+      if (mounted) setState(() => _promotionLoading = false);
+    }
+  }
+
+  Future<bool> _confirmPromotionChoice(PromotionalAddonQuote quote) async {
+    if (quote.isRandom ||
+        _selectedPromotionalRewardMenuItemId != null ||
+        _promotionalRewardDeclined) {
+      return true;
+    }
+    final selected = await showModalBottomSheet<int?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Choose your gift',
+                  style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: orangeColor)),
+              const SizedBox(height: 6),
+              Text('${quote.name} · ${quote.qualificationSummary}',
+                  style: const TextStyle(
+                      fontFamily: 'Afacad', color: Colors.black54)),
+              const SizedBox(height: 14),
+              ...quote.rewards.map((reward) => ListTile(
+                    enabled: reward.isAvailable,
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                        backgroundColor: orangeColor.withValues(alpha: .1),
+                        child: Icon(Icons.redeem_rounded,
+                            color: reward.isAvailable
+                                ? orangeColor
+                                : Colors.grey)),
+                    title: Text(reward.name,
+                        style: const TextStyle(
+                            fontFamily: 'Afacad', fontWeight: FontWeight.w700)),
+                    subtitle: Text(reward.isAvailable
+                        ? '${reward.availableQuantity} available'
+                        : 'Sold out'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: reward.isAvailable
+                        ? () => Navigator.pop(context, reward.menuItemId)
+                        : null,
+                  )),
+              if (quote.allowDecline)
+                TextButton(
+                    onPressed: () => Navigator.pop(context, -1),
+                    child: const Text('No gift for this order')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return false;
+    setState(() {
+      _promotionalRewardDeclined = selected == -1;
+      _selectedPromotionalRewardMenuItemId = selected == -1 ? null : selected;
+    });
+    return true;
+  }
+
+  Widget _buildPromotionCard() {
+    if (_promotionLoading && _promotionQuote == null) {
+      return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 10),
+          child: Center(child: CircularProgressIndicator()));
+    }
+    final quote = _promotionQuote;
+    if (quote == null) return const SizedBox.shrink();
+    PromotionalRewardOption? selected;
+    for (final reward in quote.rewards) {
+      if (reward.menuItemId == _selectedPromotionalRewardMenuItemId) {
+        selected = reward;
+      }
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          color: const Color(0xFFFFF8E7),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE8C66A))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.redeem_rounded, color: orangeColor),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Text(quote.name,
+                  style: TextStyle(
+                      fontFamily: 'Recoleta',
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: orangeColor)))
+        ]),
+        const SizedBox(height: 6),
+        Text(
+            quote.isRandom
+                ? 'A random in-stock gift will be assigned after checkout. Browse the collection below.'
+                : 'Choose one available gift for this order.',
+            style: const TextStyle(fontFamily: 'Afacad', fontSize: 13.5)),
+        const SizedBox(height: 5),
+        Text(
+            quote.priceMode == 'fixed_rm'
+                ? 'Add-on price: RM${double.tryParse(quote.priceRm)?.toStringAsFixed(2) ?? quote.priceRm}'
+                : quote.priceMode == 'fixed_token'
+                    ? 'Add-on price: ${quote.tokenAmount} C2 Credit token${quote.tokenAmount == 1 ? '' : 's'}'
+                    : 'Add-on price: Free',
+            style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 13,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 132,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: quote.rewards.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 9),
+            itemBuilder: (context, index) {
+              final reward = quote.rewards[index];
+              final isSelected =
+                  reward.menuItemId == _selectedPromotionalRewardMenuItemId;
+              return InkWell(
+                onTap: !quote.isRandom && reward.isAvailable
+                    ? () => setState(() {
+                          _selectedPromotionalRewardMenuItemId =
+                              reward.menuItemId;
+                          _promotionalRewardDeclined = false;
+                        })
+                    : null,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  width: 112,
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color:
+                            isSelected ? orangeColor : const Color(0xFFE7D7AF),
+                        width: isSelected ? 2 : 1),
+                  ),
+                  child: Column(children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Opacity(
+                          opacity: reward.isAvailable ? 1 : .45,
+                          child: CatalogProductImage(
+                            imageUrl: reward.imageUrl,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(reward.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                    Text(
+                        reward.isAvailable
+                            ? quote.isRandom
+                                ? '${reward.availableQuantity} available'
+                                : isSelected
+                                    ? 'Selected'
+                                    : 'Tap to choose'
+                            : 'Sold out',
+                        style: TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 10.5,
+                            color: isSelected ? orangeColor : Colors.black54)),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ),
+        if (selected != null)
+          Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('Selected: ${selected.name}',
+                  style: const TextStyle(fontWeight: FontWeight.w700))),
+        if (_promotionalRewardDeclined)
+          const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('Gift declined for this order.',
+                  style: TextStyle(color: Colors.black54))),
+      ]),
+    );
   }
 
   Future<void> _loadSubsidy() async {
@@ -238,7 +498,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final discountTokens = _calculateDiscountTokens(snapshot);
     final totalCharge = max(
       0,
-      snapshot.subtotalTokens - discountTokens,
+      snapshot.subtotalTokens - discountTokens + _promotionalAddonTokenCharge,
     );
     final subsidy = _subsidy;
     return SubsidyCheckoutBreakdown.calculate(
@@ -605,6 +865,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                       _buildOrderCard(item),
                       const SizedBox(height: 14),
                     ],
+                    _buildPromotionCard(),
+                    if (_promotionQuote != null || _promotionLoading)
+                      const SizedBox(height: 18),
                     const SizedBox(height: 8),
                     Text(
                       'Rewards & Discounts',
@@ -957,7 +1220,11 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final selection = await Navigator.of(context).push<_PaymentSelection>(
       MaterialPageRoute(
         builder: (_) => _PaymentMethodPickerPage(
-          tokenCharge: max(0, snapshot.subtotalTokens - discountTokens),
+          tokenCharge: max(
+              0,
+              snapshot.subtotalTokens -
+                  discountTokens +
+                  _promotionalAddonTokenCharge),
           tokenBalance: breakdown.availableForOrder,
           directPaymentMethods: _directPaymentMethods,
           initialMode: _paymentMode,
@@ -974,6 +1241,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       _paymentMode = selection.mode;
       _directPaymentMethod = selection.method;
     });
+    await _loadPromotionQuote();
   }
 
   Widget _buildEmptyState() {
@@ -1569,14 +1837,18 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   }
 
   double _finalDirectCharge(CartSnapshot snapshot) {
-    return max<double>(0, snapshot.subtotalRm - _calculateDiscountRm(snapshot));
+    return max<double>(
+        0,
+        snapshot.subtotalRm -
+            _calculateDiscountRm(snapshot) +
+            _promotionalAddonRmCharge);
   }
 
   Widget _buildSummaryCard(CartSnapshot snapshot) {
     final discountTokens = _calculateDiscountTokens(snapshot);
     final finalTokens = max(
       0,
-      snapshot.subtotalTokens - discountTokens,
+      snapshot.subtotalTokens - discountTokens + _promotionalAddonTokenCharge,
     );
     final directDiscount = _calculateDiscountRm(snapshot);
     final directTotal = _finalDirectCharge(snapshot);
@@ -1619,6 +1891,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   ? '-RM${directDiscount.toStringAsFixed(2)}'
                   : '-${_formatTokenCount(discountTokens)}',
               isDiscount: true,
+            ),
+          ],
+          if (_promotionalAddonRmCharge > 0 ||
+              _promotionalAddonTokenCharge > 0) ...[
+            const SizedBox(height: 10),
+            _buildSummaryRow(
+              'Promotional add-on',
+              _paymentMode == 'direct'
+                  ? 'RM${_promotionalAddonRmCharge.toStringAsFixed(2)}'
+                  : _formatTokenCount(_promotionalAddonTokenCharge),
             ),
           ],
           Padding(
@@ -1847,7 +2129,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final discountTokens = _calculateDiscountTokens(snapshot);
     final effectiveTokenCharge = max(
       0,
-      snapshot.subtotalTokens - discountTokens,
+      snapshot.subtotalTokens - discountTokens + _promotionalAddonTokenCharge,
     );
     final breakdown = _subsidyBreakdown(snapshot);
     final canPlaceOrder =
@@ -1944,6 +2226,13 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       await showPendingPaymentServiceNotice(context);
       if (!mounted) return;
 
+      final promotionQuote = await _loadPromotionQuote();
+      if (!mounted) return;
+      if (promotionQuote != null) {
+        final confirmed = await _confirmPromotionChoice(promotionQuote);
+        if (!confirmed) return;
+      }
+
       final checkoutResult = _paymentMode == 'direct'
           ? await CheckoutApiService.instance.createDirectOrder(
               accessToken: accessToken,
@@ -1952,6 +2241,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               idempotencyKey: _checkoutIdempotencyKey ??=
                   _newCheckoutIdempotencyKey(),
               appliedVoucherId: _selectedVoucher?.id,
+              selectedPromotionalRewardMenuItemId:
+                  _selectedPromotionalRewardMenuItemId,
+              promotionalRewardDeclined: _promotionalRewardDeclined,
             )
           : await CheckoutApiService.instance.createTokenOrder(
               accessToken: accessToken,
@@ -1959,6 +2251,9 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
               idempotencyKey: _checkoutIdempotencyKey ??=
                   _newCheckoutIdempotencyKey(),
               appliedVoucherId: _selectedVoucher?.id,
+              selectedPromotionalRewardMenuItemId:
+                  _selectedPromotionalRewardMenuItemId,
+              promotionalRewardDeclined: _promotionalRewardDeclined,
             );
 
       final checkoutUrl = checkoutResult.payment?['checkout_url'] as String?;
@@ -2085,36 +2380,42 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
     final options = <({
       String key,
       String label,
+      String description,
       IconData icon,
       bool enabled,
     })>[
       (
         key: 'token',
         label: 'C2 Credit',
+        description: 'Use tokens already in your C2 wallet.',
         icon: Icons.account_balance_wallet_outlined,
         enabled: true,
       ),
       (
         key: 'fpx',
-        label: 'FPX',
+        label: 'FPX Online Banking',
+        description: 'Pay from a participating Malaysian bank.',
         icon: Icons.account_balance_outlined,
         enabled: widget.directPaymentMethods.contains('fpx'),
       ),
       (
         key: 'duitnow_qr',
         label: 'DuitNow QR',
+        description: 'Scan with a supported banking or wallet app.',
         icon: Icons.qr_code_2_rounded,
         enabled: widget.directPaymentMethods.contains('duitnow_qr'),
       ),
       (
         key: 'ewallet',
-        label: 'Online Payment',
+        label: 'E-wallets',
+        description: 'Use ShopeePay or another supported wallet.',
         icon: Icons.account_balance_wallet_outlined,
         enabled: widget.directPaymentMethods.contains('ewallet'),
       ),
       (
         key: 'card',
-        label: 'Card',
+        label: 'Malaysian card',
+        description: 'Debit or credit card issued in Malaysia.',
         icon: Icons.credit_card_outlined,
         enabled: widget.directPaymentMethods.contains('card'),
       ),
@@ -2130,7 +2431,7 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: orangeColor),
         ),
         title: Text(
-          'Payment Type',
+          'Payment Method',
           style: TextStyle(
             fontFamily: 'Recoleta',
             fontSize: 22,
@@ -2158,7 +2459,7 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Select one payment type to continue with your order.',
+                    'Choose one option. Direct payments are processed securely by CHIP.',
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 16,
@@ -2231,12 +2532,27 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
                                     const SizedBox(height: 14),
                                     Text(
                                       option.label,
-                                      maxLines: 1,
+                                      maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontFamily: 'Afacad',
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      option.description,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontSize: 12,
+                                        height: 1.2,
+                                        color: selected
+                                            ? orangeColor.withValues(
+                                                alpha: 0.78)
+                                            : Colors.black54,
                                       ),
                                     ),
                                     if (!option.enabled)
@@ -2257,6 +2573,18 @@ class _PaymentMethodPickerPageState extends State<_PaymentMethodPickerPage> {
                       );
                     },
                   ),
+                  if (widget.directPaymentMethods.contains('card')) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Card payments currently accept Malaysian-issued cards only. International cards are not supported yet.',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 13,
+                        color: Colors.black54,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                   if (_mode == 'token') ...[
                     const SizedBox(height: 16),
                     Container(

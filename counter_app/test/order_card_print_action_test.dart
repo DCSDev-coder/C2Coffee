@@ -20,8 +20,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Print receipt'), findsOneWidget);
-    await tester.tap(find.text('Print receipt'));
+    expect(find.text('Print itemised receipt'), findsOneWidget);
+    await tester.tap(find.text('Print itemised receipt'));
     expect(pressed, isTrue);
   });
 
@@ -43,7 +43,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Reprint receipt'), findsOneWidget);
+    expect(find.text('Reprint itemised receipt'), findsOneWidget);
   });
 
   testWidgets('ready orders stay printable with the correct status', (
@@ -65,7 +65,7 @@ void main() {
     );
 
     expect(find.text('Ready for pickup'), findsOneWidget);
-    expect(find.text('Print receipt'), findsOneWidget);
+    expect(find.text('Print itemised receipt'), findsOneWidget);
   });
 
   testWidgets('pending pay-at-counter orders expose payment confirmation', (

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package, Gift,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap, X
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap, Sparkles, X
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
@@ -24,6 +24,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Voucher', icon: Ticket, section: 'Marketing & loyalty' },
     { name: 'Gift Cards', icon: Gift, section: 'Marketing & loyalty' },
     { name: 'Referral Program', icon: Share2, section: 'Marketing & loyalty' },
+    { name: 'Promotional Add-ons', icon: Sparkles, section: 'Marketing & loyalty' },
     { name: 'C2 Credit Ledger', icon: Coins, section: 'Marketing & loyalty' },
     { name: 'Tier Management', icon: Crown, section: 'Marketing & loyalty' },
     { name: 'Finance', icon: LineChart, section: 'Reports' },

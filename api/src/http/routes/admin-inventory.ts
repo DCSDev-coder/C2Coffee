@@ -50,7 +50,7 @@ function requireInventoryAccess(request: FastifyRequest): void {
 }
 
 function canViewInventoryCosts(request: FastifyRequest): boolean {
-  return request.adminAuth.roles.includes('super_admin');
+  return request.adminAuth.roles.some((role) => ['super_admin', 'admin'].includes(role));
 }
 
 function normalizeCode(value: string): string {

@@ -77,18 +77,14 @@ const RoleTag = ({ role }) => {
     displayRole = 'Super Admin';
     bgColor = 'bg-orange-100';
     textColor = 'text-orange-600';
-  } else if (role === 'marketing_admin' || role === 'Marketing Admin') {
-    displayRole = 'Marketing Admin';
+  } else if (role === 'admin' || role === 'Admin') {
+    displayRole = 'Admin';
     bgColor = 'bg-blue-100';
-    textColor = 'text-blue-600';
+    textColor = 'text-blue-700';
   } else if (role === 'support_admin' || role === 'Support Admin') {
     displayRole = 'Support Admin';
     bgColor = 'bg-green-100';
     textColor = 'text-green-700';
-  } else if (role === 'operations_admin' || role === 'Operations Admin') {
-    displayRole = 'Operations Admin';
-    bgColor = 'bg-[#1F3A34]/10';
-    textColor = 'text-[#1F3A34]';
   } else if (role === 'barista' || role === 'Barista') {
     displayRole = 'Barista';
     bgColor = 'bg-[#D4AF7A]/20';
@@ -135,7 +131,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
   const [formUsername, setFormUsername] = useState('');
   const [formFullName, setFormFullName] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formRole, setFormRole] = useState('super_admin');
+  const [formRole, setFormRole] = useState('admin');
   const [formStatus, setFormStatus] = useState('active');
   const [formPassword, setFormPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -200,8 +196,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
       if (selectedRole !== 'All Admin') {
         const roleMap = {
           'Super Admin': 'super_admin',
-          'Marketing Admin': 'marketing_admin',
-          'Operations Admin': 'operations_admin',
+          Admin: 'admin',
           'Support Admin': 'support_admin',
           Barista: 'barista'
         };
@@ -278,7 +273,9 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
     setFormUsername(admin ? admin.username : '');
     setFormFullName(admin ? admin.fullName : '');
     setFormEmail(admin ? admin.email : '');
-    setFormRole(admin ? admin.role : 'super_admin');
+    // New staff should begin with the broad day-to-day role. Super Admin is
+    // reserved for owners/approvers and must be selected deliberately.
+    setFormRole(admin ? admin.role : 'admin');
     setFormStatus(admin ? (admin.status === 'Active' ? 'active' : 'inactive') : 'active');
     setFormPassword('');
     setFormError('');
@@ -496,7 +493,7 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
               </button>
               {isRoleDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 transition-transform duration-200 peer-focus:-rotate-180">
-                  {['All Admin', 'Super Admin', 'Marketing Admin', 'Operations Admin', 'Support Admin', 'Barista'].map(role => (
+                  {['All Admin', 'Super Admin', 'Admin', 'Support Admin', 'Barista'].map(role => (
                     <button
                       key={role}
                       onClick={() => {
@@ -743,11 +740,19 @@ const AdminManagement = ({ currentUser, initialRole = 'All Admin' }) => {
                     className="peer w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#2E5E58] bg-white"
                   >
                     <option value="super_admin">Super Admin</option>
-                    <option value="marketing_admin">Marketing Admin</option>
-                    <option value="operations_admin">Operations Admin</option>
+                    <option value="admin">Admin</option>
                     <option value="support_admin">Support Admin</option>
                     <option value="barista">Barista</option>
                   </select>
+                  <p className="mt-1.5 text-xs leading-5 text-gray-500">
+                    {formRole === 'super_admin'
+                      ? 'Full access, including refund approvals, finance, credit ledger, tier management, deployment, audit logs, and account management.'
+                      : formRole === 'admin'
+                        ? 'All pages and normal operations. Super Admin approval is required for refunds, credit, gift-card balances, roles, deployment, and other sensitive changes.'
+                        : formRole === 'support_admin'
+                          ? 'Customer and support access. Can create refund requests, but cannot approve or reject them.'
+                          : 'Barista workspace access for store operations only.'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>

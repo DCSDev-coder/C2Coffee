@@ -371,7 +371,6 @@ export default function AttendanceTimetable({ attendance = [], attendanceByDate 
               <div className="mt-4 space-y-3">
                 {records.map((record) => {
                   const review = isNeedsReview(record);
-                  const active = !record.clocked_out_at && !review;
                   return (
                     <div key={record.id} className="rounded-xl border border-slate-200/80 bg-white px-4 py-3">
                       <div className="flex items-center justify-between gap-3">

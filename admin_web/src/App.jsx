@@ -22,6 +22,7 @@ const Profile = lazy(() => import('./components/Profile'));
 const Vouchers = lazy(() => import('./components/Vouchers'));
 const GiftCards = lazy(() => import('./components/GiftCards'));
 const ReferralProgram = lazy(() => import('./components/ReferralProgram'));
+const PromotionalAddons = lazy(() => import('./components/PromotionalAddons'));
 const LoyaltyTokens = lazy(() => import('./components/LoyaltyTokens'));
 const Menu = lazy(() => import('./components/Menu'));
 const OptionsNutrition = lazy(() => import('./components/OptionsNutrition'));
@@ -73,17 +74,18 @@ function clearLastAdminPage() {
 class AdminPageErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, resetKey: props.resetKey };
   }
 
   static getDerivedStateFromError(error) {
     return { error };
   }
 
-  componentDidUpdate(prevProps) {
-    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
-      this.setState({ error: null });
+  static getDerivedStateFromProps(nextProps, prevState) {
+    if (nextProps.resetKey !== prevState.resetKey) {
+      return { error: null, resetKey: nextProps.resetKey };
     }
+    return null;
   }
 
   componentDidCatch(error) {
@@ -182,6 +184,7 @@ function AppContent({
         {currentPage === 'Voucher' && <Vouchers onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Gift Cards' && <GiftCards currentUser={currentUser} />}
         {currentPage === 'Referral Program' && <ReferralProgram />}
+        {currentPage === 'Promotional Add-ons' && <PromotionalAddons />}
         {currentPage === 'C2 Credit Ledger' && <LoyaltyTokens onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('C2 Credit Ledger')} />}
         {currentPage === 'Menu' && <Menu onNavigate={navigateWithPrompt} />}

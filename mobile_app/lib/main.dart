@@ -143,6 +143,7 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
   static const _refreshInterval = Duration(seconds: 45);
   static const _updateCheckCooldown = Duration(minutes: 15);
   Timer? _refreshTimer;
+  Timer? _initialUpdateTimer;
   Timer? _updateTimer;
   final MobileAppUpdateService _updateService = MobileAppUpdateService();
   DateTime? _lastUpdateCheck;
@@ -153,7 +154,7 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startRefreshLoop();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    _initialUpdateTimer = Timer(const Duration(seconds: 5), () {
       _checkForUpdate();
     });
     _updateTimer = Timer.periodic(const Duration(hours: 6), (_) {
@@ -164,6 +165,7 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _initialUpdateTimer?.cancel();
     _updateTimer?.cancel();
     _updateService.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -196,51 +198,58 @@ class _AppLifecycleRefreshGateState extends State<AppLifecycleRefreshGate>
     try {
       final check = await _updateService.checkForUpdate();
       if (!mounted || !await _updateService.shouldPrompt(check)) return;
+      final navContext = AppNotification.navigatorKey.currentContext;
+      if (navContext == null || !navContext.mounted) return;
       await _updateService.markPrompted(check);
-      if (!mounted) return;
+      if (!navContext.mounted) return;
       await showDialog<void>(
-        context: context,
+        context: navContext,
         barrierDismissible: !check.mandatory,
-        builder: (dialogContext) => AlertDialog(
-          icon: const Icon(Icons.system_update_alt_rounded),
-          title: const Text('C2 Coffee update available'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Version ${check.release.versionName} is ready to install.'),
-              if (check.release.releaseNotes != null) ...[
-                const SizedBox(height: 14),
-                const Text('What’s new',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                Text(check.release.releaseNotes!),
+        builder: (dialogContext) => PopScope(
+          canPop: !check.mandatory,
+          child: AlertDialog(
+            icon: const Icon(Icons.system_update_alt_rounded),
+            title: const Text('C2 Coffee update available'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Version ${check.release.versionName} is ready to install.'),
+                if (check.release.releaseNotes != null) ...[
+                  const SizedBox(height: 14),
+                  const Text('What’s new',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(check.release.releaseNotes!),
+                ],
               ],
+            ),
+            actions: [
+              if (!check.mandatory)
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Later'),
+                ),
+              FilledButton.icon(
+                onPressed: () async {
+                  final opened = await _updateService.openStore(check.release);
+                  if (!dialogContext.mounted) return;
+                  if (opened) {
+                    if (!check.mandatory) {
+                      Navigator.pop(dialogContext);
+                    }
+                  } else {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      const SnackBar(
+                          content: Text('Unable to open the app store.')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: const Text('Update now'),
+              ),
             ],
           ),
-          actions: [
-            if (!check.mandatory)
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Later'),
-              ),
-            FilledButton.icon(
-              onPressed: () async {
-                final opened = await _updateService.openStore(check.release);
-                if (!dialogContext.mounted) return;
-                if (opened) {
-                  Navigator.pop(dialogContext);
-                } else {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                        content: Text('Unable to open the app store.')),
-                  );
-                }
-              },
-              icon: const Icon(Icons.open_in_new_rounded),
-              label: const Text('Update now'),
-            ),
-          ],
         ),
       );
     } catch (error, stackTrace) {

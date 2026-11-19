@@ -38,7 +38,7 @@ export default function CounterDevices({ currentUser }) {
   const devicesRequestInFlight = useRef(false);
 
   const canManage = Array.isArray(currentUser?.roles) &&
-    currentUser.roles.some((role) => ['super_admin', 'operations_admin'].includes(role));
+    currentUser.roles.some((role) => ['super_admin', 'admin'].includes(role));
   const isSuperAdmin = Array.isArray(currentUser?.roles) && currentUser.roles.includes('super_admin');
 
   const loadDevices = useCallback(async ({ showError = true } = {}) => {

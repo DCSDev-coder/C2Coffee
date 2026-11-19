@@ -1,7 +1,7 @@
 import React, { useState, forwardRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Wallet, Search, ChevronDown, Download, Upload, Plus,
+  Search, ChevronDown, Download, Upload, Plus,
   X, Crown, ChevronRight, User, ClipboardList, Coins, Ticket, BarChart3,
   ArrowUp, ArrowDown, ArrowUpDown, Users
 } from 'lucide-react';
@@ -16,9 +16,9 @@ import OrderHistory from './OrderHistory';
 import TokenTransaction from './TokenTransaction';
 import VoucherHistory from './VoucherHistory';
 import TiersHistory from './TiersHistory';
+import UserAvatar from './UserAvatar';
 import {
   loadAdminCustomers,
-  getAdminApiBaseUrl,
   createAdminCustomer,
   importAdminCustomers,
   updateAdminCustomer,
@@ -160,54 +160,6 @@ const formatTokens = (value) => {
 const subsidyRoleForCustomer = (customer) => customer?.subsidyRole || (customer?.isEmployee ? 'employee' : 'none');
 const subsidyRoleLabel = (role) => ({ employee: 'Employee', intern: 'Intern', boss: 'Boss', none: 'No subsidy' }[role] || 'No subsidy');
 
-const presetAvatarUrls = {
-  'dato.png': new URL('../../../mobile_app/assets/images/dato.png', import.meta.url).href,
-  'datin.png': new URL('../../../mobile_app/assets/images/datin.png', import.meta.url).href
-};
-
-const resolveAvatarUrl = (avatar, avatarType) => {
-  if (!avatar) return null;
-  if (/^(?:https?:|data:|blob:)/i.test(avatar)) return avatar;
-  if (avatarType === 'preset') {
-    const fileName = avatar.split('/').pop()?.toLowerCase();
-    return fileName ? presetAvatarUrls[fileName] ?? null : null;
-  }
-  const normalizedPath = avatar.startsWith('/') ? avatar : `/${avatar}`;
-  return `${getAdminApiBaseUrl()}${normalizedPath}`;
-};
-
-const Avatar = ({ customer, size = 'md' }) => {
-  const initials = String(customer?.username || 'C2')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
-  const sizeClass = size === 'lg' ? 'h-16 w-16 text-xl' : 'h-10 w-10 text-sm';
-
-  const avatarUrl = resolveAvatarUrl(customer?.avatar, customer?.avatarType);
-
-  return avatarUrl ? (
-    <img
-      src={avatarUrl}
-      alt={`${customer.username} profile`}
-      className={`${sizeClass} shrink-0 rounded-full object-cover ring-1 ring-gray-200`}
-      onError={(event) => {
-        event.currentTarget.replaceWith(Object.assign(document.createElement('span'), {
-          className: `${sizeClass} shrink-0 rounded-full bg-[#2E5E58] text-white flex items-center justify-center font-bold`,
-          textContent: initials,
-          ariaLabel: `${customer.username} profile`
-        }));
-      }}
-    />
-  ) : (
-    <div className={`${sizeClass} shrink-0 rounded-full bg-[#2E5E58] text-white flex items-center justify-center font-bold`} aria-label={`${customer.username} profile`}>
-      {initials}
-    </div>
-  );
-};
-
 const getStatusColor = (status) => {
   switch (status) {
     case 'Active': return 'bg-green-100 text-green-600';
@@ -256,7 +208,7 @@ const CustomerDetailPanel = ({ customer, tiers, onClose, canManageCustomers, onE
 
       <div className="mb-6 sm:mb-8 shrink-0">
         <div className="flex items-center gap-3">
-          <Avatar customer={customer} size="lg" />
+          <UserAvatar user={customer} size="xl" />
           <div className="min-w-0">
             <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">{customer.username}</h3>
@@ -576,7 +528,7 @@ const Customers = ({ currentUser }) => {
 
   const renderView = () => {
     switch (activeView) {
-      case 'profile': return <ViewProfile customer={selectedCustomer} progress={resolveTierProgress(selectedCustomer, tiers)} avatar={<Avatar customer={selectedCustomer} size="lg" />} onBack={() => setActiveView('list')} />;
+      case 'profile': return <ViewProfile customer={selectedCustomer} progress={resolveTierProgress(selectedCustomer, tiers)} onBack={() => setActiveView('list')} />;
       case 'orders': return <OrderHistory customer={selectedCustomer} onBack={() => setActiveView('list')} />;
       case 'tokens': return <TokenTransaction customer={selectedCustomer} onBack={() => setActiveView('list')} />;
       case 'vouchers': return <VoucherHistory customer={selectedCustomer} onBack={() => setActiveView('list')} />;
@@ -1163,7 +1115,7 @@ const Customers = ({ currentUser }) => {
                   >
                     <td className="px-6 py-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <Avatar customer={customer} />
+                        <UserAvatar user={customer} size="md" />
                         <div>
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-bold text-gray-900">{customer.username}</div>

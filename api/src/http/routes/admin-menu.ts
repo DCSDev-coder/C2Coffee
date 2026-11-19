@@ -39,6 +39,7 @@ const adminMenuUpsertSchema = z.object({
   counter_price_rm: z.coerce.number().positive().optional(),
   base_price_token: z.coerce.number().int().min(0),
   image_url: z.string().trim().max(512).optional().or(z.literal('')),
+  sale_visibility: z.enum(['normal', 'promotion_only', 'hidden']).optional(),
   is_active: z.coerce.boolean().optional(),
   is_handcrafted_drink: z.coerce.boolean().optional(),
   is_qualifying_cup: z.coerce.boolean().optional(),
@@ -147,6 +148,7 @@ type AdminMenuRow = RowDataPacket & {
   base_calories_kcal: number;
   image_url: string | null;
   is_available: number;
+  sale_visibility: 'normal' | 'promotion_only' | 'hidden';
   is_handcrafted_drink: number;
   is_qualifying_cup: number;
   allow_choice_of_beans: number;
@@ -216,6 +218,7 @@ type AdminMenuItem = {
   image_url: string | null;
   is_available: boolean;
   is_active: boolean;
+  sale_visibility: 'normal' | 'promotion_only' | 'hidden';
   is_handcrafted_drink: boolean;
   is_qualifying_cup: boolean;
   allow_choice_of_beans: boolean;
@@ -356,6 +359,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.base_calories_kcal,
           i.image_url,
           i.is_active AS is_available,
+          i.sale_visibility,
           i.is_handcrafted_drink,
           i.is_qualifying_cup,
           i.allow_choice_of_beans,
@@ -409,6 +413,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           FROM order_items oi
           JOIN orders o ON o.id = oi.order_id
           WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+            AND oi.line_type = 'sale'
           GROUP BY oi.menu_item_id
         ) sales
           ON sales.menu_item_id = i.id
@@ -465,6 +470,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           i.base_calories_kcal,
           i.image_url,
           i.is_active AS is_available,
+          i.sale_visibility,
           i.is_handcrafted_drink,
           i.is_qualifying_cup,
           i.allow_choice_of_beans,
@@ -523,6 +529,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
             AND (:storeId IS NULL OR report_store.id = :storeId)
             AND (:selectedDate IS NULL OR (o.created_at >= :selectedDate AND o.created_at < :selectedDateEnd))
             AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+            AND oi.line_type = 'sale'
           GROUP BY oi.menu_item_id
         ) sales
           ON sales.menu_item_id = i.id
@@ -573,6 +580,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
             is_handcrafted_drink,
             is_qualifying_cup,
             is_active,
+            sale_visibility,
             image_url,
             sort_order,
             allow_choice_of_beans,
@@ -599,6 +607,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
             :isHandcraftedDrink,
             :isQualifyingCup,
             :isActive,
+            :saleVisibility,
             :imageUrl,
             :sortOrder,
             :allowChoiceOfBeans,
@@ -626,6 +635,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           isHandcraftedDrink: payload.is_handcrafted_drink ?? 0,
           isQualifyingCup: payload.is_qualifying_cup ?? 0,
           isActive: payload.is_active ?? true,
+          saleVisibility: payload.sale_visibility ?? 'normal',
           imageUrl: nullableString(payload.image_url),
           sortOrder: payload.sort_order ?? 0,
           allowChoiceOfBeans: payload.allow_choice_of_beans ?? payload.is_handcrafted_drink ?? 0,
@@ -785,6 +795,10 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
       if (payload.image_url !== undefined) {
         updateFields.push('image_url = :imageUrl');
         updateParams.imageUrl = nullableString(payload.image_url);
+      }
+      if (payload.sale_visibility !== undefined) {
+        updateFields.push('sale_visibility = :saleVisibility');
+        updateParams.saleVisibility = payload.sale_visibility;
       }
       if (payload.is_active !== undefined) {
         updateFields.push('is_active = :isActive');
@@ -1376,6 +1390,7 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
         image_url: row.image_url,
         is_available: row.is_available === 1,
         is_active: row.is_available === 1,
+        sale_visibility: row.sale_visibility,
         is_handcrafted_drink: row.is_handcrafted_drink === 1,
         is_qualifying_cup: row.is_qualifying_cup === 1,
         allow_choice_of_beans: row.allow_choice_of_beans === 1,
@@ -1619,6 +1634,7 @@ async function loadMenuItemById(menuItemId: number, tenantId: number): Promise<A
         FROM order_items oi
         JOIN orders o ON o.id = oi.order_id
         WHERE o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+          AND oi.line_type = 'sale'
         GROUP BY oi.menu_item_id
       ) sales
         ON sales.menu_item_id = i.id

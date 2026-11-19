@@ -74,6 +74,11 @@ The API now refuses to start with this configuration when `NODE_ENV=production`.
 
 ## 4. Build and start the container
 
+Before running any migration, take a full MySQL backup and verify that the
+backup can be restored to a separate database. Do not treat a successful
+Docker build as a backup or rollback point. Migration 159 changes the tenant
+schema and migration 160 changes administrator role assignments.
+
 From:
 
 ```text
@@ -87,6 +92,10 @@ docker compose build --no-cache
 docker compose run --rm --no-deps c2-api npm run migrate:prod
 docker compose up -d
 ```
+
+After migration, use Admin Management to keep exactly one owner account as
+Super Admin. Set normal staff to Admin, Support Admin, or Barista before the
+readiness check can pass.
 
 ## 5. Verify the container
 

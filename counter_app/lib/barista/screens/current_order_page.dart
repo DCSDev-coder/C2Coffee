@@ -157,7 +157,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
       TopNotice.error(context, result.errorMessage!);
       return;
     }
-    TopNotice.info(context, 'Receipt queued for printing.');
+    TopNotice.info(context, 'Itemised receipt queued for printing.');
   }
 
   void _openOrderDetails(CurrentOrder order) {
@@ -197,8 +197,15 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
       voucherName: order.voucherName,
       voucherType: order.voucherType,
       discount: order.discount,
+      voucherDiscountTokens: order.voucherDiscountTokens,
+      voucherRewardSummary: order.voucherRewardSummary,
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus,
+      paymentMode: order.paymentMode,
+      tokenAmountCharged: order.tokenAmountCharged,
+      subsidyTokenAmount: order.subsidyTokenAmount,
+      isEmployee: order.isEmployee,
+      subsidyRole: order.subsidyRole,
       total: order.total,
       cancellationRequestStatus: order.cancellationRequestStatus,
       isActionLoading: _updatingOrderIds.contains(order.orderId),

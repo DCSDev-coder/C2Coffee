@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, KeyRound, MailCheck, ShieldCheck, X } from 'lucide-react';
+import UserAvatar from './UserAvatar';
 import {
   clearAdminTokens,
   confirmAdminPasswordChange,
@@ -77,7 +78,7 @@ const Profile = ({ onBack, currentUser, onVerifyRecoveryEmail }) => {
         </div>
 
         <section className="mt-7 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#1F3A34] text-xl font-bold text-white">{name.charAt(0).toUpperCase()}</div><div><h2 className="text-lg font-bold text-gray-900">{name}</h2><p className="mt-1 capitalize text-sm text-gray-500">{role}</p></div></div>
+          <div className="flex items-center gap-4"><UserAvatar user={currentUser} name={name} bgClass="bg-[#1F3A34]" size="lg" fallback="A" /><div><h2 className="text-lg font-bold text-gray-900">{name}</h2><p className="mt-1 capitalize text-sm text-gray-500">{role}</p></div></div>
           <dl className="mt-6 divide-y divide-gray-100 border-y border-gray-100 text-sm"><div className="flex justify-between gap-4 py-4"><dt className="text-gray-500">Username</dt><dd className="font-semibold text-gray-900">{currentUser?.username || 'Not available'}</dd></div><div className="flex justify-between gap-4 py-4"><dt className="text-gray-500">Admin email</dt><dd className="max-w-[65%] truncate font-semibold text-gray-900">{email || 'No email configured'}</dd></div><div className="flex justify-between gap-4 py-4"><dt className="text-gray-500">Last sign-in</dt><dd className="font-semibold text-gray-900">{currentUser?.last_login_at ? new Date(currentUser.last_login_at).toLocaleString() : 'Not available'}</dd></div></dl>
         </section>
 

@@ -33,7 +33,8 @@ class OrderDetailsPage extends StatelessWidget {
       return primaryTitle;
     }
 
-    final itemTitle = order.items.isNotEmpty ? order.items.first.name.trim() : '';
+    final itemTitle =
+        order.items.isNotEmpty ? order.items.first.name.trim() : '';
     if (itemTitle.isNotEmpty) {
       return itemTitle;
     }
@@ -57,7 +58,9 @@ class OrderDetailsPage extends StatelessWidget {
     final buffer = StringBuffer();
     for (final item in order.items) {
       if (buffer.isNotEmpty) buffer.writeln();
-      buffer.write('${item.quantity}x ${item.name}');
+      buffer.write(item.lineType == 'promotional_addon'
+          ? 'PROMOTIONAL GIFT — ${item.name}'
+          : '${item.quantity}x ${item.name}');
 
       final modifierLabels = item.modifiers
           .map((modifier) => modifier.optionName.trim())
@@ -82,8 +85,11 @@ class OrderDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageUrl = _resolveOrderImageUrl();
     final firstItem = order.items.isNotEmpty ? order.items.first : null;
-    final totalItems = order.itemCount > 0 ? order.itemCount : order.items.length;
-    final totalLabel = totalItems > 0 ? '$totalItems item${totalItems == 1 ? '' : 's'}' : '0 items';
+    final totalItems =
+        order.itemCount > 0 ? order.itemCount : order.items.length;
+    final totalLabel = totalItems > 0
+        ? '$totalItems item${totalItems == 1 ? '' : 's'}'
+        : '0 items';
     const Color bgColor = Colors.white;
 
     return PopScope(

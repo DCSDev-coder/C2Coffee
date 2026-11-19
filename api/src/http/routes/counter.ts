@@ -29,6 +29,7 @@ import {
   type AppliedVoucherRow
 } from './checkout.js';
 import { getActiveChipMethods, type ChipPaymentMethod } from '../../payments/chip-client.js';
+import { asChipPaymentMethods, loadTenantPaymentMethodSettings } from '../../services/payment-method-settings.js';
 
 const lookupCustomerSchema = z.object({
   phone: z.string().trim().min(1).max(32)
@@ -566,12 +567,36 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
         { printerTargetId: printer.id }
       );
       const [jobs] = await connection.execute<RowDataPacket[]>(
-        `SELECT j.id, j.job_ref, o.order_ref, o.created_at, o.discount_total_rm,
-                vt.name AS voucher_name, vt.voucher_type, vt.code AS voucher_code,
+        `SELECT j.id, j.job_ref, j.request_type, o.order_ref, o.created_at,
+                o.is_guest, o.fulfillment_type,
+                (o.subtotal_rm + o.modifier_total_rm) AS subtotal_rm,
+                o.discount_total_rm, o.final_total_rm,
+                o.gift_card_token_amount,
+                COALESCE(opc.correction_token_amount, 0) AS price_correction_token_amount,
+                (SELECT pmt.payment_method FROM payments pmt
+                  WHERE pmt.order_id = o.id
+                  ORDER BY pmt.id DESC LIMIT 1) AS payment_method,
+                (SELECT pmt.provider_payment_ref FROM payments pmt
+                  WHERE pmt.order_id = o.id
+                  ORDER BY pmt.id DESC LIMIT 1) AS payment_reference,
+                GREATEST(
+                  o.voucher_discount_tokens,
+                  COALESCE((SELECT SUM(oi.line_token_amount) FROM order_items oi WHERE oi.order_id = o.id), 0)
+                    - COALESCE(opc.original_token_amount, o.token_amount_charged)
+                    - COALESCE(o.gift_card_token_amount, 0)
+                ) AS voucher_discount_tokens,
+                o.voucher_reward_summary,
+                COALESCE(o.voucher_name_snapshot, vt.name) AS voucher_name,
+                COALESCE(o.voucher_type_snapshot, vt.voucher_type) AS voucher_type,
+                COALESCE(o.voucher_code_snapshot, vt.code) AS voucher_code,
+                COALESCE(o.voucher_discount_mode_snapshot, vt.discount_mode) AS voucher_discount_mode,
+                vt.eligible_scope_json AS voucher_eligible_scope,
                 omd.discount_percent AS manual_discount_percent,
                 omd.remarks AS manual_discount_remarks,
                 COALESCE(NULLIF(TRIM(up.display_name), ''), 'Guest') AS customer_name,
-                COALESCE(ctm.is_employee, 0) AS is_employee
+                COALESCE(ctm.is_employee, 0) AS is_employee,
+                COALESCE(ctm.subsidy_role, 'none') AS subsidy_role,
+                o.payment_mode, o.token_amount_charged, o.employee_allowance_tokens_used
          FROM print_jobs j
          JOIN orders o ON o.id = j.order_id AND o.store_id = :storeId
          JOIN stores s ON s.id = o.store_id
@@ -581,6 +606,7 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
          LEFT JOIN user_vouchers uv ON uv.id = o.voucher_id
          LEFT JOIN voucher_templates vt ON vt.id = uv.voucher_template_id
          LEFT JOIN order_manual_discounts omd ON omd.order_id = o.id
+         LEFT JOIN order_price_corrections opc ON opc.order_id = o.id
          WHERE j.printer_target_id = :printerTargetId AND j.status = 'queued'
          ORDER BY j.created_at ASC LIMIT 1 FOR UPDATE`,
         { printerTargetId: printer.id, storeId: request.counterAuth.storeId }
@@ -598,25 +624,118 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
         { jobId: job.id }
       );
       const [items] = await connection.execute<RowDataPacket[]>(
-        `SELECT oi.id, oi.item_name_snapshot, oi.quantity
+        `SELECT oi.id, oi.menu_item_id, oi.item_name_snapshot, oi.quantity, oi.line_type,
+                oi.base_price_rm_snapshot, oi.line_subtotal_rm, oi.line_token_amount,
+                mi.code AS menu_item_code, mi.is_handcrafted_drink, mi.is_qualifying_cup,
+                category.id AS category_id, category.code AS category_code,
+                category.name AS category_name, category.product_kind_code,
+                subcategory.code AS subcategory_code, subcategory.name AS subcategory_name,
+                promotion.campaign_name_snapshot AS campaign_name,
+                promotion.assignment_mode_snapshot AS assignment_mode
          FROM order_items oi
+         LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+         LEFT JOIN menu_categories category ON category.id = mi.category_id
+         LEFT JOIN menu_subcategories subcategory ON subcategory.id = mi.subcategory_id
+         LEFT JOIN order_promotional_addons promotion ON promotion.order_item_id = oi.id
          WHERE oi.order_id = (SELECT order_id FROM print_jobs WHERE id = :jobId)
          ORDER BY oi.id ASC`,
         { jobId: job.id }
       );
       const [modifiers] = await connection.execute<RowDataPacket[]>(
-        `SELECT oim.order_item_id, oim.modifier_group_name_snapshot, oim.modifier_option_name_snapshot
+        `SELECT oim.order_item_id, oim.modifier_group_name_snapshot, oim.modifier_option_name_snapshot,
+                oim.price_delta_rm_snapshot, oim.token_price_delta_snapshot,
+                oim.option_group_option_id, option_value.option_group_id
          FROM order_item_modifiers oim
          JOIN order_items oi ON oi.id = oim.order_item_id
+         LEFT JOIN menu_option_group_options option_value ON option_value.id = oim.option_group_option_id
          WHERE oi.order_id = (SELECT order_id FROM print_jobs WHERE id = :jobId)
          ORDER BY oim.id ASC`,
         { jobId: job.id }
       );
       const detailsByItemId = new Map<number, string[]>();
+      const modifiersByItemId = new Map<number, RowDataPacket[]>();
       for (const modifier of modifiers) {
         const details = detailsByItemId.get(Number(modifier.order_item_id)) ?? [];
         details.push(`${modifier.modifier_group_name_snapshot}: ${modifier.modifier_option_name_snapshot}`);
         detailsByItemId.set(Number(modifier.order_item_id), details);
+        const auditModifiers = modifiersByItemId.get(Number(modifier.order_item_id)) ?? [];
+        auditModifiers.push(modifier);
+        modifiersByItemId.set(Number(modifier.order_item_id), auditModifiers);
+      }
+      let historicalVoucherRewardSummary: string | null = null;
+      if (!job.voucher_reward_summary && job.voucher_discount_mode) {
+        const normalizedItems = items
+          .filter((item) => (item.line_type || 'sale') === 'sale')
+          .map((item) => {
+            const quantity = Math.max(1, Number(item.quantity || 1));
+            const itemModifiers = modifiersByItemId.get(Number(item.id)) ?? [];
+            const modifierRm = itemModifiers.reduce(
+              (sum, modifier) => sum + Number(modifier.price_delta_rm_snapshot || 0),
+              0
+            );
+            const modifierTokens = itemModifiers.reduce(
+              (sum, modifier) => sum + Number(modifier.token_price_delta_snapshot || 0),
+              0
+            );
+            return {
+              payload: {
+                menu_item_id: Number(item.menu_item_id),
+                quantity,
+                remarks: null,
+                modifiers: itemModifiers.map((modifier) => ({
+                  group_name: String(modifier.modifier_group_name_snapshot || ''),
+                  option_name: String(modifier.modifier_option_name_snapshot || ''),
+                  price_delta_rm: Number(modifier.price_delta_rm_snapshot || 0),
+                  token_price_delta: Number(modifier.token_price_delta_snapshot || 0),
+                  calorie_delta_kcal: 0,
+                  option_group_option_id: modifier.option_group_option_id == null ? null : Number(modifier.option_group_option_id),
+                  option_group_id: modifier.option_group_id == null ? null : Number(modifier.option_group_id),
+                })),
+              },
+              menuItem: {
+                id: Number(item.menu_item_id),
+                category_id: Number(item.category_id || 0),
+                code: String(item.menu_item_code || ''),
+                name: String(item.item_name_snapshot || 'Item'),
+                base_price_rm: String(item.base_price_rm_snapshot || 0),
+                base_price_token: Math.max(0, Math.round(Number(item.line_token_amount || 0) / quantity) - modifierTokens),
+                base_calories_kcal: 0,
+                is_available: 1,
+                is_handcrafted_drink: Number(item.is_handcrafted_drink || 0),
+                is_qualifying_cup: Number(item.is_qualifying_cup || 0),
+                category_code: String(item.category_code || ''),
+                category_name: String(item.category_name || ''),
+                category_product_kind_code: String(item.product_kind_code || ''),
+                subcategory_code: item.subcategory_code == null ? null : String(item.subcategory_code),
+                subcategory_name: item.subcategory_name == null ? null : String(item.subcategory_name),
+              },
+              basePriceRm: Math.max(0, Number(item.line_subtotal_rm || 0) / quantity - modifierRm),
+              tokenPrice: Math.max(0, Math.round(Number(item.line_token_amount || 0) / quantity) - modifierTokens),
+              modifierRm,
+              modifierTokens,
+            };
+          });
+        const rule = parsePromotionRule(parseVoucherScope(job.voucher_eligible_scope));
+        if (job.voucher_discount_mode === 'free_drink') {
+          const rewardable = collectMatchedUnits(rule.reward_scope, normalizedItems as any[])
+            .slice()
+            .sort((a, b) =>
+              (b.basePriceRm + b.modifierRm) - (a.basePriceRm + a.modifierRm) ||
+              Math.max(0, b.tokenPrice + b.modifierTokens) - Math.max(0, a.tokenPrice + a.modifierTokens)
+            )
+            .slice(0, rule.reward_quantity);
+          const counts = new Map<string, number>();
+          for (const unit of rewardable) counts.set(unit.menuItem.name, (counts.get(unit.menuItem.name) ?? 0) + 1);
+          historicalVoucherRewardSummary = Array.from(counts.entries())
+            .map(([name, quantity]) => `${quantity}x ${name}`)
+            .join(', ') || null;
+        } else if (job.voucher_discount_mode === 'free_option') {
+          historicalVoucherRewardSummary = collectMatchedOptionUnits(rule.reward_scope, normalizedItems as any[])
+            .sort((a, b) => b.priceRm - a.priceRm || b.priceTokens - a.priceTokens)
+            .slice(0, rule.reward_quantity)
+            .map((option) => `${option.optionName} on ${option.itemName}`)
+            .join(', ') || null;
+        }
       }
       await connection.commit();
       return reply.send({
@@ -652,19 +771,46 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
           preparing_alert_style: printer.preparing_alert_style
         },
         order: {
+          request_type: job.request_type,
           order_ref: job.order_ref,
           customer_name: job.customer_name,
+          is_guest: Number(job.is_guest) === 1,
+          fulfillment_type: job.fulfillment_type,
           is_employee: Number(job.is_employee) === 1,
+          subsidy_role: job.subsidy_role || 'none',
+          payment_mode: job.payment_mode,
+          payment_method: job.payment_method,
+          payment_reference: job.payment_reference,
+          subtotal_rm: Number(job.subtotal_rm || 0),
+          discount_total_rm: Number(job.discount_total_rm || 0),
+          final_total_rm: Number(job.final_total_rm || 0),
+          gift_card_token_amount: Number(job.gift_card_token_amount || 0),
+          price_correction_token_amount: Number(job.price_correction_token_amount || 0),
+          token_amount_charged: Number(job.token_amount_charged || 0),
+          subsidy_token_amount: Number(job.employee_allowance_tokens_used || 0),
           voucher: job.voucher_name || job.manual_discount_percent ? {
             name: job.voucher_name ?? `Manual discount ${Number(job.manual_discount_percent).toFixed(2)}%`,
             type: job.voucher_type ?? 'Manual Discount',
             code: job.voucher_code ?? job.manual_discount_remarks,
-            discount_rm: Number(job.discount_total_rm || 0)
+            discount_rm: Number(job.discount_total_rm || 0),
+            discount_tokens: Number(job.voucher_discount_tokens || 0),
+            reward_summary: job.voucher_reward_summary ?? historicalVoucherRewardSummary
           } : null,
           created_at: new Date(job.created_at).toISOString(),
           items: items.map((item) => ({
             name: item.item_name_snapshot,
             quantity: Number(item.quantity),
+            unit_price_rm: Number(item.quantity) > 0
+              ? Number(item.line_subtotal_rm || 0) / Number(item.quantity)
+              : Number(item.base_price_rm_snapshot || 0),
+            line_total_rm: Number(item.line_subtotal_rm || 0),
+            unit_token_value: Number(item.quantity) > 0
+              ? Math.round(Number(item.line_token_amount || 0) / Number(item.quantity))
+              : Number(item.line_token_amount || 0),
+            line_token_value: Number(item.line_token_amount || 0),
+            line_type: item.line_type,
+            campaign_name: item.campaign_name ?? null,
+            assignment_mode: item.assignment_mode ?? null,
             details: detailsByItemId.get(Number(item.id)) ?? []
           }))
         }
@@ -710,11 +856,12 @@ export async function registerCounterRoutes(app: FastifyInstance): Promise<void>
     return menu;
   });
 
-  app.get('/v1/counter/payment-methods', { preHandler: authenticateCounterDevice }, async () => {
+  app.get('/v1/counter/payment-methods', { preHandler: authenticateCounterDevice }, async (request) => {
     if (!env.TOPUP_GATEWAY_ENABLED || env.TOPUP_GATEWAY_PROVIDER !== 'chip') {
       return { methods: ['manual_counter'] };
     }
-    const active = await getActiveChipMethods();
+    const configured = asChipPaymentMethods(await loadTenantPaymentMethodSettings(mysqlPool, request.counterAuth.tenantId));
+    const active = await getActiveChipMethods(100, configured);
     const allowed: ChipPaymentMethod[] = ['duitnow_qr', 'ewallet'];
     return { methods: [...allowed.filter((method) => active.has(method)), 'manual_counter'] };
   });

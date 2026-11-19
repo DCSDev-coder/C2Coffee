@@ -144,6 +144,7 @@ class DevicePrinterWorker {
     final voucher = order['voucher'] as Map<String, dynamic>?;
     return DirectPrintJob(
       jobRef: json['job_ref'].toString(),
+      requestType: order['request_type']?.toString() ?? 'original',
       config: DirectPrinterConfig(
         host: printer['host'].toString(),
         port: (printer['port'] as num).toInt(),
@@ -153,20 +154,32 @@ class DevicePrinterWorker {
           ? order['customer_name'].toString().trim()
           : 'Guest',
       customerIsEmployee: readJsonBool(order['is_employee']),
+      isGuest: readJsonBool(order['is_guest']),
+      fulfillmentType: order['fulfillment_type']?.toString() ?? 'pickup',
+      subsidyRole: order['subsidy_role']?.toString() ?? 'none',
+      paymentMode: order['payment_mode']?.toString(),
+      paymentMethod: order['payment_method']?.toString(),
+      paymentReference: order['payment_reference']?.toString(),
+      subtotal: double.tryParse(order['subtotal_rm']?.toString() ?? '') ?? 0,
+      finalTotal:
+          double.tryParse(order['final_total_rm']?.toString() ?? '') ?? 0,
+      tokenAmountCharged: (order['token_amount_charged'] as num?)?.toInt() ?? 0,
+      subsidyTokenAmount: (order['subsidy_token_amount'] as num?)?.toInt() ?? 0,
+      giftCardTokenAmount:
+          (order['gift_card_token_amount'] as num?)?.toInt() ?? 0,
+      priceCorrectionTokenAmount:
+          (order['price_correction_token_amount'] as num?)?.toInt() ?? 0,
       voucherName: voucher?['name']?.toString(),
       voucherType: voucher?['type']?.toString(),
       voucherCode: voucher?['code']?.toString(),
       discount: (voucher?['discount_rm'] as num?)?.toDouble() ?? 0,
+      voucherDiscountTokens:
+          (voucher?['discount_tokens'] as num?)?.toInt() ?? 0,
+      voucherRewardSummary: voucher?['reward_summary']?.toString(),
       createdAt: DateTime.parse(order['created_at'].toString()),
       items: (order['items'] as List).map((item) {
         final value = item as Map<String, dynamic>;
-        return DirectPrintItem(
-          name: value['name'].toString(),
-          quantity: (value['quantity'] as num).toInt(),
-          details: (value['details'] as List? ?? const [])
-              .map((detail) => detail.toString())
-              .toList(),
-        );
+        return parseDirectPrintItem(value);
       }).toList(),
     );
   }

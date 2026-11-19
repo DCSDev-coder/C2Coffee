@@ -575,7 +575,7 @@ function requireMarketingAccess(request: {
   adminAuth?: { roles: string[] };
 }): void {
   const roles = request.adminAuth?.roles || [];
-  if (!roles.includes("super_admin") && !roles.includes("marketing_admin")) {
+  if (!roles.includes("super_admin") && !roles.includes("admin")) {
     throw new ApiError(
       403,
       "admin_forbidden",

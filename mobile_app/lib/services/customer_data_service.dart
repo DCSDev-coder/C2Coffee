@@ -1177,6 +1177,7 @@ class CustomerOrderStore {
 class CustomerOrderItem {
   final int id;
   final int menuItemId;
+  final String lineType;
   final String name;
   final String basePriceRm;
   final int? tokenPrice;
@@ -1189,6 +1190,7 @@ class CustomerOrderItem {
   const CustomerOrderItem({
     required this.id,
     required this.menuItemId,
+    required this.lineType,
     required this.name,
     required this.basePriceRm,
     required this.tokenPrice,
@@ -1203,6 +1205,7 @@ class CustomerOrderItem {
     return CustomerOrderItem(
       id: (json['id'] as num).toInt(),
       menuItemId: (json['menu_item_id'] as num?)?.toInt() ?? 0,
+      lineType: json['line_type'] as String? ?? 'sale',
       name: json['name'] as String? ?? '',
       basePriceRm: json['base_price_rm'] as String? ?? '0.00',
       tokenPrice: (json['token_price'] as num?)?.toInt(),

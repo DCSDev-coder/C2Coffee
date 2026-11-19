@@ -68,6 +68,30 @@ export async function registerPrintConnectorRoutes(app: FastifyInstance): Promis
     const connection = await mysqlPool.getConnection();
     try {
       await connection.beginTransaction();
+      // A queued job is not proof of payment. Invalidate stale jobs before
+      // claiming so pending, failed, and cancelled checkouts never print.
+      await connection.execute(
+        `UPDATE print_jobs j
+         JOIN orders o ON o.id = j.order_id
+         SET j.status = 'failed', j.last_error_code = 'payment_not_confirmed'
+         WHERE j.status = 'queued'
+           AND j.printer_target_id IN (
+             SELECT p0.id FROM printer_targets p0
+             WHERE p0.printer_reference = :printerReference
+           )
+           AND NOT (
+             o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+             AND (
+               o.payment_mode = 'token'
+               OR EXISTS (
+                 SELECT 1 FROM payments pmt0
+                 WHERE pmt0.order_id = o.id
+                   AND pmt0.status IN ('paid', 'partially_refunded')
+               )
+             )
+           )`,
+        { printerReference: body.printer_reference }
+      );
       const [jobs] = await connection.execute<JobRow[]>(
         `SELECT j.id, j.job_ref, j.order_id, o.order_ref, o.daily_order_number,
                 CAST(o.final_total_rm AS CHAR) AS final_total_rm, o.token_amount_charged, o.created_at
@@ -77,6 +101,15 @@ export async function registerPrintConnectorRoutes(app: FastifyInstance): Promis
          WHERE p.printer_reference = :printerReference
            AND p.status = 'connected'
            AND j.status = 'queued'
+           AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+           AND (
+             o.payment_mode = 'token'
+             OR EXISTS (
+               SELECT 1 FROM payments pmt
+               WHERE pmt.order_id = o.id
+                 AND pmt.status IN ('paid', 'partially_refunded')
+             )
+           )
          ORDER BY j.created_at ASC
          LIMIT 1
          FOR UPDATE`,

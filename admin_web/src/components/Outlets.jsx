@@ -322,7 +322,7 @@ export default function Outlets({ currentUser }) {
 
   const visibleOutlets = showArchived ? outlets : outlets.filter((outlet) => outlet.status === 'active');
 
-  if (!Array.isArray(currentUser?.roles) || !currentUser.roles.some((role) => ['super_admin', 'operations_admin'].includes(role))) {
+  if (!Array.isArray(currentUser?.roles) || !currentUser.roles.some((role) => ['super_admin', 'admin'].includes(role))) {
     return null;
   }
 

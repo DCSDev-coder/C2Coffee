@@ -122,7 +122,8 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     try {
       final token = await SecureSessionService.instance.getValidAccessToken();
       if (token == null || token.isEmpty) return;
-      final value = await CustomerDataService.instance.getSubsidy(accessToken: token);
+      final value =
+          await CustomerDataService.instance.getSubsidy(accessToken: token);
       if (mounted) setState(() => _subsidy = value);
     } catch (_) {}
   }
@@ -510,6 +511,9 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
         _paymentMethod = methods.contains(_paymentMethod)
             ? _paymentMethod
             : _preferredPaymentMethod(methods);
+        _paymentMethodsError = methods.isEmpty
+            ? 'No online payment methods are enabled right now. Please retry or contact C2 Coffee.'
+            : null;
         _isPaymentMethodsLoading = false;
       });
     } on ApiException catch (error) {
@@ -1053,14 +1057,50 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: AppColors.surfaceLight, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [Icon(Icons.local_cafe_outlined, color: AppColors.deepTeal), const SizedBox(width: 8), const Expanded(child: Text('Monthly Subsidy', style: TextStyle(fontFamily: 'Afacad', fontSize: 17, fontWeight: FontWeight.w700))), Text(_subsidy!.allowanceMode == 'unlimited' ? '∞ available' : '${_subsidy!.remaining ?? 0} left', style: const TextStyle(fontFamily: 'Afacad', fontWeight: FontWeight.w700))]),
-                    const SizedBox(height: 8),
-                    ClipRRect(borderRadius: BorderRadius.circular(8), child: LinearProgressIndicator(value: _subsidy!.allowanceMode == 'unlimited' ? null : ((_subsidy!.remaining ?? 0) / (_subsidy!.granted ?? 1)), minHeight: 7, backgroundColor: AppColors.border, color: AppColors.deepTeal)),
-                    const SizedBox(height: 6),
-                    Text(_subsidy!.enabled ? 'Used first for drinks • enabled' : 'Subsidy is turned off', style: const TextStyle(fontFamily: 'Afacad', color: Colors.black54)),
-                  ]),
+                  decoration: BoxDecoration(
+                      color: AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border)),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.local_cafe_outlined,
+                              color: AppColors.deepTeal),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                              child: Text('Monthly Subsidy',
+                                  style: TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700))),
+                          Text(
+                              _subsidy!.allowanceMode == 'unlimited'
+                                  ? '∞ available'
+                                  : '${_subsidy!.remaining ?? 0} left',
+                              style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontWeight: FontWeight.w700))
+                        ]),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                                value: _subsidy!.allowanceMode == 'unlimited'
+                                    ? null
+                                    : ((_subsidy!.remaining ?? 0) /
+                                        (_subsidy!.granted ?? 1)),
+                                minHeight: 7,
+                                backgroundColor: AppColors.border,
+                                color: AppColors.deepTeal)),
+                        const SizedBox(height: 6),
+                        Text(
+                            _subsidy!.enabled
+                                ? 'Used first for drinks • enabled'
+                                : 'Subsidy is turned off',
+                            style: const TextStyle(
+                                fontFamily: 'Afacad', color: Colors.black54)),
+                      ]),
                 ),
               ],
               const SizedBox(height: 24),
@@ -1608,6 +1648,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 spacing: 10,
                 runSpacing: 10,
                 children: TopUpPaymentMethod.values
+                    .where(_availablePaymentMethods.contains)
                     .map((method) => SizedBox(
                           width: cardWidth,
                           child: _buildPaymentMethodCard(method),
@@ -1615,6 +1656,29 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                     .toList(),
               );
             }),
+            if (_paymentMethodsError != null && !_isPaymentMethodsLoading) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: _loadPaymentMethods,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Retry payment methods'),
+                ),
+              ),
+            ],
+            if (_availablePaymentMethods.contains(TopUpPaymentMethod.card)) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'Card payments currently accept Malaysian-issued cards only. International cards are not supported yet.',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 13,
+                  color: Colors.black54,
+                  height: 1.3,
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
           ],
           SizedBox(
@@ -1711,12 +1775,25 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
     final selected = _paymentMethod == method;
     final available = _availablePaymentMethods.contains(method);
     final presentation = switch (method) {
-      TopUpPaymentMethod.fpx => ('FPX Banking', Icons.account_balance_outlined),
-      TopUpPaymentMethod.duitNowQr => ('DuitNow QR', Icons.qr_code_rounded),
-      TopUpPaymentMethod.card => ('Debit / Credit', Icons.credit_card_outlined),
+      TopUpPaymentMethod.fpx => (
+          label: 'FPX Banking',
+          helper: 'Pay from a Malaysian bank account',
+          icon: Icons.account_balance_outlined,
+        ),
+      TopUpPaymentMethod.duitNowQr => (
+          label: 'DuitNow QR',
+          helper: 'Scan with a banking or wallet app',
+          icon: Icons.qr_code_rounded,
+        ),
+      TopUpPaymentMethod.card => (
+          label: 'Debit / Credit',
+          helper: 'Malaysia-issued debit or credit card',
+          icon: Icons.credit_card_outlined,
+        ),
       TopUpPaymentMethod.ewallet => (
-          'Online Payment',
-          Icons.account_balance_wallet_outlined
+          label: 'Online Payment',
+          helper: 'ShopeePay and other supported wallets',
+          icon: Icons.account_balance_wallet_outlined,
         ),
     };
 
@@ -1727,7 +1804,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        height: 108,
+        height: 126,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: selected
@@ -1769,7 +1846,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    presentation.$2,
+                    presentation.icon,
                     size: 26,
                     color: selected
                         ? Colors.white
@@ -1779,7 +1856,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    presentation.$1,
+                    presentation.label,
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1793,6 +1870,21 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
                           : available
                               ? AppColors.deepTeal
                               : Colors.grey.shade500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    presentation.helper,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 11,
+                      height: 1.15,
+                      color: selected
+                          ? Colors.white.withValues(alpha: 0.78)
+                          : Colors.black54,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1838,7 +1930,7 @@ class _TopUpWalletPageState extends State<TopUpWalletPage>
           CircularProgressIndicator(color: AppColors.deepTeal),
           const SizedBox(height: 12),
           Text(
-                            'Loading C2 Credit transactions...',
+            'Loading C2 Credit transactions...',
             style: TextStyle(
               fontFamily: 'Afacad',
               fontSize: 16,

@@ -632,7 +632,9 @@ class _OrdersPageState extends State<OrdersPage>
                 (item) => Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
-                    '${item.quantity}x ${item.name}',
+                    item.lineType == 'promotional_addon'
+                        ? '🎁 Promotional gift: ${item.name}'
+                        : '${item.quantity}x ${item.name}',
                     style: const TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 16,

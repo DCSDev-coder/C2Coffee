@@ -28,8 +28,10 @@ import {
   type ChipPaymentMethod
 } from '../../payments/chip-client.js';
 import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
+import { asChipPaymentMethods, loadTenantPaymentMethodSettings } from '../../services/payment-method-settings.js';
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
+import { cancelPromotionalAddonForOrder } from '../../services/promotional-addons.js';
 import { calculatePersonalTokenRefund, getEmployeeSubsidyStatus, restoreEmployeeAllowanceForRefund, setEmployeeSubsidyEnabled } from '../../services/employee-token-allowance.js';
 import {
   evaluateVoucherTopUpEligibility,
@@ -221,6 +223,7 @@ type OrderItemRow = RowDataPacket & {
   order_id: number;
   item_id: number;
   menu_item_id: number;
+  line_type: 'sale' | 'promotional_addon';
   item_name_snapshot: string;
   base_price_rm_snapshot: string;
   token_price_snapshot: number | null;
@@ -2251,6 +2254,7 @@ export async function registerCustomerDataRoutes(
           );
         }
         await releaseInventoryForOrder(connection, order.id);
+        await cancelPromotionalAddonForOrder(connection, Number(order.id));
         await restoreGiftCardForRefund(
           connection,
           order.id,
@@ -2462,7 +2466,7 @@ export async function registerCustomerDataRoutes(
         LEFT JOIN order_cancellation_requests ocr
           ON ocr.order_id = o.id
         LEFT JOIN order_items oi
-          ON oi.order_id = o.id
+          ON oi.order_id = o.id AND oi.line_type = 'sale'
         WHERE o.user_id = :userId
         GROUP BY
           o.id,
@@ -2509,6 +2513,7 @@ export async function registerCustomerDataRoutes(
           order_id,
           id AS item_id,
           menu_item_id,
+          line_type,
           item_name_snapshot,
           CAST(base_price_rm_snapshot AS CHAR) AS base_price_rm_snapshot,
           token_price_snapshot,
@@ -2577,6 +2582,7 @@ export async function registerCustomerDataRoutes(
       items.push({
         id: row.item_id,
         menu_item_id: row.menu_item_id,
+        line_type: row.line_type,
         name: row.item_name_snapshot,
         base_price_rm: row.base_price_rm_snapshot,
         token_price: row.token_price_snapshot,
@@ -2688,7 +2694,7 @@ export async function registerCustomerDataRoutes(
       ? purchase.checkout_url
       : null;
     const providerStatus = typeof purchase.status === 'string' ? purchase.status.toLowerCase() : 'unknown';
-    const providerTerminal = ['paid', 'failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus);
+    const providerTerminal = ['paid', 'failed', 'cancelled', 'expired', 'error', 'payment_failure'].includes(providerStatus);
     if (providerTerminal) {
       await settleChipMobilePurchase(row.provider_bill_id, purchase, 'customer_status_check');
     }
@@ -2711,16 +2717,18 @@ export async function registerCustomerDataRoutes(
       id: number;
       order_ref: string;
       status: string;
+      tenant_id: number;
       final_total_rm: string;
       payment_id: number | null;
       payment_status: string | null;
       provider_bill_id: string | null;
       payment_expires_at: Date | null;
     }>>(
-      `SELECT o.id, o.order_ref, o.status, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+      `SELECT o.id, o.order_ref, o.status, s.tenant_id, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
               p.id AS payment_id, p.status AS payment_status, p.provider_bill_id,
               p.expires_at AS payment_expires_at
        FROM orders o
+       JOIN stores s ON s.id = o.store_id
        LEFT JOIN payments p ON p.id = (
          SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
        )
@@ -2749,16 +2757,16 @@ export async function registerCustomerDataRoutes(
         throw new ApiError(409, 'order_payment_not_retryable', 'This payment has already been completed.');
       }
 
-      if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
-        const paymentExpired = current.payment_expires_at != null &&
-          current.payment_expires_at.getTime() <= Date.now();
-        if (!paymentExpired) {
-          throw new ApiError(409, 'payment_still_pending', 'The current payment is still available. Retry it or wait for the final status before choosing another method.');
+      const terminalFailureStatuses = ['failed', 'cancelled', 'expired', 'error', 'payment_failure'];
+      if (!terminalFailureStatuses.includes(providerStatus)) {
+        // Cancel the open provider purchase first so there can never be two
+        // payable CHIP gates for one order, allowing immediate method switch.
+        try {
+          purchase = await cancelChipPurchase(current.provider_bill_id);
+        } catch (error) {
+          request.log.warn({ orderId: params.orderId, err: error }, 'CHIP cancel failed; re-checking purchase status');
+          purchase = await getChipPurchase(current.provider_bill_id);
         }
-
-        // The local checkout window has ended. Cancel the provider purchase
-        // first so there can never be two payable CHIP gates for one order.
-        purchase = await cancelChipPurchase(current.provider_bill_id);
         providerStatus = typeof purchase.status === 'string'
           ? purchase.status.trim().toLowerCase()
           : 'unknown';
@@ -2766,13 +2774,13 @@ export async function registerCustomerDataRoutes(
           await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_cancel_race');
           throw new ApiError(409, 'order_payment_not_retryable', 'This payment was completed while its status was being checked.');
         }
-        if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
+        if (!terminalFailureStatuses.includes(providerStatus)) {
           throw new ApiError(409, 'payment_still_pending', 'The previous payment could not be closed safely yet. Please check its status again.');
         }
       }
 
       await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_reconcile');
-      retryableStatus = providerStatus === 'cancelled' ? 'cancelled' : 'failed';
+      retryableStatus = providerStatus === 'cancelled' || providerStatus === 'expired' ? 'cancelled' : 'failed';
     } else if (['pending', 'authorized'].includes(retryableStatus)) {
       const paymentExpired = current.payment_expires_at != null &&
         current.payment_expires_at.getTime() <= Date.now();
@@ -2801,12 +2809,14 @@ export async function registerCustomerDataRoutes(
       const [lockedRows] = await connection.execute<Array<RowDataPacket & {
         status: string;
         final_total_rm: string;
+        tenant_id: number;
         payment_id: number | null;
         payment_status: string | null;
       }>>(
-        `SELECT o.status, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+        `SELECT o.status, s.tenant_id, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
                 p.id AS payment_id, p.status AS payment_status
          FROM orders o
+         JOIN stores s ON s.id = o.store_id
          LEFT JOIN payments p ON p.id = (
            SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
          )
@@ -2858,6 +2868,7 @@ export async function registerCustomerDataRoutes(
         amountCents: Math.round(Number(current.final_total_rm) * 100),
         description: `C2 Coffee order ${current.order_ref} payment retry`,
         method: payload.payment_method as ChipPaymentMethod,
+        approvedMethods: asChipPaymentMethods(await loadTenantPaymentMethodSettings(mysqlPool, current.tenant_id)),
         callbackUrl: `${env.PUBLIC_API_BASE_URL.replace(/\/+$/, '')}/payments/chip/callback`
       });
       const [attachResult] = await mysqlPool.execute<ResultSetHeader>(

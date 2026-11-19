@@ -24,6 +24,10 @@ Do not mark the release complete until every required item has evidence.
 4. Run `docker compose exec c2-api npm run production-readiness:prod`.
 5. Save the audit and `PASS` output with the deployment date and API commit identifier.
 6. Do not release if the audit fails or any readiness line begins with `FAIL`.
+7. Confirm migrations `159_add_customer_payment_method_settings.sql` and
+   `160_simplify_admin_roles.sql` are applied.
+8. Confirm the tenant has exactly one active Super Admin and all other
+   administrator accounts use Admin, Support Admin, or Barista.
 
 ## Required physical acceptance evidence
 

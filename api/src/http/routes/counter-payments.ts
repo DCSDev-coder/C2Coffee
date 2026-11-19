@@ -15,8 +15,10 @@ import {
   type ChipPaymentMethod
 } from '../../payments/chip-client.js';
 import { settleChipCounterPurchase } from '../../services/chip-counter-settlement.js';
+import { asChipPaymentMethods, loadTenantPaymentMethodSettings } from '../../services/payment-method-settings.js';
 import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 import { releaseInventoryForOrder, reserveInventoryForOrder } from '../../services/inventory.js';
+import { cancelPromotionalAddonForOrder } from '../../services/promotional-addons.js';
 import { evaluateVoucherTopUpEligibility } from '../../services/voucher-topup-eligibility.js';
 import { ApiError } from '../errors.js';
 import {
@@ -316,6 +318,11 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
       }
       const totalBeforeDiscount = normalizeMoney(subtotal + modifiersTotal);
       let discountRm = 0;
+      let voucherRewardSummary: string | null = null;
+      let voucherNameSnapshot: string | null = null;
+      let voucherCodeSnapshot: string | null = null;
+      let voucherTypeSnapshot: string | null = null;
+      let voucherDiscountModeSnapshot: string | null = null;
       if (payload.applied_voucher_id) {
         if (!session || !payload.voucher_authorization_token) {
           throw new ApiError(401, 'voucher_authorization_required', 'Customer approval is required to use this voucher.');
@@ -416,10 +423,22 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         const rewardable = rewards.slice().sort(
           (a, b) => (b.basePriceRm + b.modifierRm) - (a.basePriceRm + a.modifierRm)
         ).slice(0, rule.reward_quantity);
+        voucherNameSnapshot = voucher.template_name;
+        voucherCodeSnapshot = voucher.template_code;
+        voucherTypeSnapshot = voucher.voucher_type;
+        voucherDiscountModeSnapshot = voucher.discount_mode;
         if (voucher.discount_mode === 'fixed_rm') discountRm = Math.min(totalBeforeDiscount, Number(voucher.discount_value));
         else if (voucher.discount_mode === 'percent_rm') discountRm = Math.min(totalBeforeDiscount, totalBeforeDiscount * Number(voucher.discount_value) / 100);
-        else if (voucher.discount_mode === 'free_drink') discountRm = rewardable.reduce((sum, unit) => sum + unit.basePriceRm + unit.modifierRm, 0);
-        else if (voucher.discount_mode === 'free_option') discountRm = options.sort((a, b) => b.priceRm - a.priceRm).slice(0, rule.reward_quantity).reduce((sum, option) => sum + option.priceRm, 0);
+        else if (voucher.discount_mode === 'free_drink') {
+          discountRm = rewardable.reduce((sum, unit) => sum + unit.basePriceRm + unit.modifierRm, 0);
+          const counts = new Map<string, number>();
+          for (const unit of rewardable) counts.set(unit.menuItem.name, (counts.get(unit.menuItem.name) ?? 0) + 1);
+          voucherRewardSummary = Array.from(counts.entries()).map(([name, quantity]) => `${quantity}x ${name}`).join(', ');
+        } else if (voucher.discount_mode === 'free_option') {
+          const rewardableOptions = options.sort((a, b) => b.priceRm - a.priceRm).slice(0, rule.reward_quantity);
+          discountRm = rewardableOptions.reduce((sum, option) => sum + option.priceRm, 0);
+          voucherRewardSummary = rewardableOptions.map((option) => `${option.optionName} on ${option.itemName}`).join(', ');
+        }
         else throw new ApiError(400, 'voucher_payment_mode_mismatch', 'This voucher cannot be used for an RM counter order.');
         discountRm = normalizeMoney(discountRm);
         await connection.execute(
@@ -453,11 +472,15 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         `INSERT INTO orders
            (order_ref, checkout_idempotency_key, daily_order_number, user_id, is_guest,
             order_channel, fulfillment_type, store_id, status, payment_mode, paid_at,
-            subtotal_rm, modifier_total_rm, discount_total_rm, final_total_rm,
+            subtotal_rm, modifier_total_rm, discount_total_rm, voucher_discount_tokens,
+            voucher_reward_summary, voucher_name_snapshot, voucher_code_snapshot,
+            voucher_type_snapshot, voucher_discount_mode_snapshot, final_total_rm,
             token_amount_charged, voucher_id, pickup_slot_at, created_at)
          VALUES
            (:orderRef, :key, :dailyNumber, :userId, :isGuest, 'counter', :fulfillment,
-            :storeId, :orderStatus, 'direct', :paidAt, :subtotal, :modifiers, :discount, :total,
+            :storeId, :orderStatus, 'direct', :paidAt, :subtotal, :modifiers, :discount, 0,
+            :voucherRewardSummary, :voucherNameSnapshot, :voucherCodeSnapshot,
+            :voucherTypeSnapshot, :voucherDiscountModeSnapshot, :total,
             0, :voucherId, :pickupAt, UTC_TIMESTAMP())`,
         {
           orderRef: newOrderRef,
@@ -472,6 +495,11 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
           subtotal: normalizeMoney(subtotal).toFixed(2),
           modifiers: normalizeMoney(modifiersTotal).toFixed(2),
           discount: discountRm.toFixed(2),
+          voucherRewardSummary,
+          voucherNameSnapshot,
+          voucherCodeSnapshot,
+          voucherTypeSnapshot,
+          voucherDiscountModeSnapshot,
           total: totalRm.toFixed(2),
           voucherId: payload.applied_voucher_id ?? null,
           pickupAt: mysqlDate(pickupAt)
@@ -605,6 +633,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
         amountCents: Math.round(totalRm * 100),
         description: `C2 Coffee counter order ${newOrderRef}`,
         method: payload.payment_method as ChipPaymentMethod,
+        approvedMethods: asChipPaymentMethods(await loadTenantPaymentMethodSettings(mysqlPool, request.counterAuth.tenantId)),
         callbackUrl: callbackUrl()
       });
     } catch (error) {
@@ -622,6 +651,7 @@ export async function registerCounterPaymentRoutes(app: FastifyInstance): Promis
       try {
         await inventoryConnection.beginTransaction();
         await releaseInventoryForOrder(inventoryConnection, orderId);
+        await cancelPromotionalAddonForOrder(inventoryConnection, orderId);
         await inventoryConnection.commit();
       } catch (inventoryError) {
         await inventoryConnection.rollback();

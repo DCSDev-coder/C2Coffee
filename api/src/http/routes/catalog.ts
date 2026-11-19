@@ -830,6 +830,7 @@ export async function loadCatalogMenu(storeId: number, priceChannel: 'mobile' | 
           ON imo.modifier_group_id = img.id
          AND imo.is_active = 1
         WHERE c.is_active = 1
+          AND i.sale_visibility = 'normal'
         ORDER BY
           c.sort_order,
           c.id,

@@ -66,6 +66,7 @@ class OrderReorderService {
       final itemsToAdd = <CartItem>[];
 
       for (final orderItem in order.items) {
+        if (orderItem.lineType == 'promotional_addon') continue;
         // Prefer the immutable historical ID. If an administrator replaced a
         // menu row, use a unique exact-name match as a safe compatibility
         // fallback so the customer's previous order remains reorderable.

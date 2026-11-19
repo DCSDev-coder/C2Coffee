@@ -44,6 +44,7 @@ class CheckoutResult {
   final int tokenReserved;
   final int tokenCap;
   final Map<String, dynamic>? payment;
+  final Map<String, dynamic>? promotionalAddon;
 
   const CheckoutResult({
     required this.order,
@@ -51,6 +52,7 @@ class CheckoutResult {
     required this.tokenReserved,
     required this.tokenCap,
     this.payment,
+    this.promotionalAddon,
   });
 
   factory CheckoutResult.fromApi(Map<String, dynamic> json) {
@@ -63,6 +65,9 @@ class CheckoutResult {
       tokenCap: (json['token_cap'] as num?)?.toInt() ?? 0,
       payment: json['payment'] is Map
           ? Map<String, dynamic>.from(json['payment'] as Map)
+          : null,
+      promotionalAddon: json['promotional_addon'] is Map
+          ? Map<String, dynamic>.from(json['promotional_addon'] as Map)
           : null,
     );
   }
@@ -84,6 +89,8 @@ class CheckoutApiService {
     required String idempotencyKey,
     int? appliedVoucherId,
     String? giftCardCode,
+    int? selectedPromotionalRewardMenuItemId,
+    bool promotionalRewardDeclined = false,
   }) async {
     return _createOrder(
       accessToken: accessToken,
@@ -92,6 +99,8 @@ class CheckoutApiService {
       idempotencyKey: idempotencyKey,
       appliedVoucherId: appliedVoucherId,
       giftCardCode: giftCardCode,
+      selectedPromotionalRewardMenuItemId: selectedPromotionalRewardMenuItemId,
+      promotionalRewardDeclined: promotionalRewardDeclined,
     );
   }
 
@@ -102,6 +111,8 @@ class CheckoutApiService {
     required String paymentMethod,
     int? appliedVoucherId,
     String? giftCardCode,
+    int? selectedPromotionalRewardMenuItemId,
+    bool promotionalRewardDeclined = false,
   }) {
     return _createOrder(
       accessToken: accessToken,
@@ -111,6 +122,8 @@ class CheckoutApiService {
       idempotencyKey: idempotencyKey,
       appliedVoucherId: appliedVoucherId,
       giftCardCode: giftCardCode,
+      selectedPromotionalRewardMenuItemId: selectedPromotionalRewardMenuItemId,
+      promotionalRewardDeclined: promotionalRewardDeclined,
     );
   }
 
@@ -159,11 +172,15 @@ class CheckoutApiService {
     required String idempotencyKey,
     int? appliedVoucherId,
     String? giftCardCode,
+    int? selectedPromotionalRewardMenuItemId,
+    bool promotionalRewardDeclined = false,
   }) async {
     final Map<String, dynamic> requestPayload = {
       'store_id': cart.storeId,
       'payment_mode': paymentMode,
       'items': cart.items.map((item) => item.toApi()).toList(),
+      'client_capabilities': const ['promotion_addons_v1'],
+      'promotional_reward_declined': promotionalRewardDeclined,
     };
     if (paymentMethod != null) {
       requestPayload['payment_method'] = paymentMethod;
@@ -173,6 +190,10 @@ class CheckoutApiService {
     }
     if (giftCardCode != null && giftCardCode.trim().isNotEmpty) {
       requestPayload['gift_card_code'] = giftCardCode.trim();
+    }
+    if (selectedPromotionalRewardMenuItemId != null) {
+      requestPayload['selected_promotional_reward_menu_item_id'] =
+          selectedPromotionalRewardMenuItemId;
     }
 
     final response = await _client

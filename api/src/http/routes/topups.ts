@@ -21,6 +21,7 @@ import { chipTerminalFailure, settleChipTopUpPurchase } from '../../services/chi
 import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
 import { settleChipGiftCardPurchase } from '../../services/chip-gift-card-settlement.js';
 import { assertCustomerAccess } from '../../services/app-maintenance.js';
+import { asChipPaymentMethods, loadUserPaymentMethodSettings } from '../../services/payment-method-settings.js';
 
 type CustomerTopUpRow = RowDataPacket & {
   id: number;
@@ -142,7 +143,15 @@ async function reconcileCustomerTopUpsBeforeCreate(
     }
     let purchase = await getChipPurchase(row.provider_bill_id);
     if (row.local_status === 'pending_payment' && !shouldSettlePurchaseStatus(purchase.status)) {
-      purchase = await cancelChipPurchase(row.provider_bill_id);
+      try {
+        purchase = await cancelChipPurchase(row.provider_bill_id);
+      } catch (error) {
+        // CHIP refuses to cancel purchases that already expired or were paid
+        // in the meantime. Re-read the authoritative status instead of
+        // blocking every future top-up with a gateway error.
+        logger.warn({ topupRef: row.topup_ref, err: error }, 'CHIP cancel failed; re-checking purchase status');
+        purchase = await getChipPurchase(row.provider_bill_id);
+      }
     }
     if (!shouldSettlePurchaseStatus(purchase.status)) {
       throw new ApiError(409, 'topup_payment_still_pending', 'We are still checking your previous payment. Please try again shortly.');
@@ -178,12 +187,18 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
     return { packages: packages.map((item) => ({ id: Number(item.id), code: item.code, name: item.name, token_amount: Number(item.token_amount), amount_rm: item.rm_amount })) };
   });
 
-  app.get('/v1/topups/payment-methods', { preHandler: authenticateRequest }, async () => {
+  app.get('/v1/topups/payment-methods', { preHandler: authenticateRequest }, async (request) => {
     if (!env.TOPUP_GATEWAY_ENABLED || env.TOPUP_GATEWAY_PROVIDER !== 'chip') {
       return { methods: [] };
     }
-    const activeMethods = await getActiveChipMethods();
-    return { methods: [...activeMethods.keys()] };
+    const connection = await getUtcConnection();
+    try {
+      const configured = asChipPaymentMethods(await loadUserPaymentMethodSettings(connection, request.auth.userId));
+      const activeMethods = await getActiveChipMethods(100, configured);
+      return { methods: [...activeMethods.keys()] };
+    } finally {
+      connection.release();
+    }
   });
 
   app.post('/v1/topups', { preHandler: authenticateRequest }, async (request) => {
@@ -309,6 +324,7 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
         amountCents: Math.round(rmAmount * 100),
         description: `C2 Token top-up ${topupRef}`,
         method: paymentMethod as ChipPaymentMethod,
+        approvedMethods: asChipPaymentMethods(await loadUserPaymentMethodSettings(mysqlPool, request.auth.userId)),
         callbackUrl: callbackUrl()
       });
     } catch (error) {
@@ -487,7 +503,12 @@ export async function registerTopUpRoutes(app: FastifyInstance): Promise<void> {
 
     let purchase = await getChipPurchase(topup.provider_bill_id);
     if (!shouldSettlePurchaseStatus(purchase.status)) {
-      purchase = await cancelChipPurchase(topup.provider_bill_id);
+      try {
+        purchase = await cancelChipPurchase(topup.provider_bill_id);
+      } catch (error) {
+        request.log.warn({ topupRef: params.topupRef, err: error }, 'CHIP cancel failed; re-checking purchase status');
+        purchase = await getChipPurchase(topup.provider_bill_id);
+      }
     }
     if (!shouldSettlePurchaseStatus(purchase.status)) {
       throw new ApiError(409, 'topup_payment_still_pending', 'We are still checking your previous payment. Please try again shortly.');

@@ -61,7 +61,10 @@ export function assertChipConfigured(): void {
   }
 }
 
-export async function getActiveChipMethods(amountCents = 100): Promise<Map<ChipPaymentMethod, string[]>> {
+export async function getActiveChipMethods(
+  amountCents = 100,
+  approvedMethods: readonly ChipPaymentMethod[] = env.TOPUP_GATEWAY_ALLOWED_METHODS as ChipPaymentMethod[]
+): Promise<Map<ChipPaymentMethod, string[]>> {
   assertChipConfigured();
   const query = new URLSearchParams({
     brand_id: env.TOPUP_GATEWAY_BRAND_ID,
@@ -79,7 +82,7 @@ export async function getActiveChipMethods(amountCents = 100): Promise<Map<ChipP
   );
   const result = new Map<ChipPaymentMethod, string[]>();
   for (const method of ['fpx', 'duitnow_qr', 'card', 'ewallet'] as const) {
-    if (!env.TOPUP_GATEWAY_ALLOWED_METHODS.includes(method)) continue;
+    if (!approvedMethods.includes(method)) continue;
     const active = methodCodes(method).filter((code) => activeCodes.has(code));
     if (active.length > 0) result.set(method, active);
   }
@@ -94,8 +97,9 @@ export async function createChipPurchase(input: {
   description: string;
   method: ChipPaymentMethod;
   callbackUrl: string;
+  approvedMethods?: readonly ChipPaymentMethod[];
 }): Promise<{ id: string; checkoutUrl: string }> {
-  const active = await getActiveChipMethods(input.amountCents);
+  const active = await getActiveChipMethods(input.amountCents, input.approvedMethods);
   const whitelist = active.get(input.method);
   if (!whitelist?.length) {
     throw new ApiError(503, 'topup_method_unavailable', 'That payment method is not active for C2 Coffee yet.');

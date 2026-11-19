@@ -44,7 +44,7 @@ class TermsOfUsePage extends StatelessWidget {
             title: 'Checkout & Payment Gateway Security',
             body:
                 '4.1 Menu item checkout in the App may be completed using C2 Credit, including any eligible Company Subsidy amount, or by direct RM payment through an available payment method shown at checkout. Direct cash payment is not accepted inside the App.\n\n'
-                '4.2 Direct RM checkout, online C2 Credit top-up, and RM gift-card purchases are processed by an authorised payment gateway when offered. Available methods may include FPX Online Banking, DuitNow QR, debit or credit card, and supported online payment services, subject to the options enabled for C2 Coffee and available from the provider at that time.\n\n'
+                '4.2 Direct RM checkout, online C2 Credit top-up, and RM gift-card purchases are processed by an authorised payment gateway when offered. Available methods may include FPX Online Banking, DuitNow QR, Malaysian-issued debit or credit cards, and supported online payment services, subject to the options enabled for C2 Coffee and available from the provider at that time. International cards are not currently supported.\n\n'
                 '4.3 C2 Coffee does not capture, process, log, or store credit/debit card numbers (PAN), CVV security codes, or banking credentials in the App.',
           ),
           _buildSection(

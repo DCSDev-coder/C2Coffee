@@ -25,6 +25,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late Future<BaristaAttendanceStatus> _attendance;
   bool _attendanceUpdating = false;
+  bool _printingShiftSummary = false;
 
   @override
   void initState() {
@@ -63,16 +64,10 @@ class _SettingsPageState extends State<SettingsPage> {
         final report = result.data?['shift_report'];
         if (report is Map<String, dynamic>) {
           try {
-            final config = await DirectPrinterService.instance.loadConfig();
-            if (config == null) {
-              printMessage =
-                  ' Shift report was not printed: configure a printer first.';
-            } else {
-              await DirectPrinterService.instance.printShiftReport(
-                ShiftReportPrintSlip.fromJson(config, report),
-              );
-              printMessage = ' Shift report printed.';
-            }
+            await DirectPrinterService.instance.printShiftSummaryReport(report);
+            printMessage = ' Shift report printed.';
+          } on StateError catch (error) {
+            printMessage = ' Shift report was not printed: ${error.message}';
           } catch (error) {
             printMessage = ' Shift report could not be printed: $error';
           }
@@ -86,6 +81,37 @@ class _SettingsPageState extends State<SettingsPage> {
         context,
         '${barista.name} clocked ${clockIn ? 'in' : 'out'}.${printMessage ?? ''}',
       );
+    }
+  }
+
+  Future<void> _printShiftSummary() async {
+    if (_printingShiftSummary) return;
+    setState(() => _printingShiftSummary = true);
+    try {
+      final result = await ApiService.fetchShiftSummary();
+      if (!mounted) return;
+      if (!result.isSuccess) {
+        TopNotice.error(context, result.errorMessage!);
+        return;
+      }
+      final report = result.data?['shift_report'];
+      if (report is! Map<String, dynamic>) {
+        TopNotice.error(context, 'Shift summary data is unavailable.');
+        return;
+      }
+      await DirectPrinterService.instance.printShiftSummaryReport(report);
+      if (!mounted) return;
+      TopNotice.success(context, 'Shift summary printed.');
+    } on StateError catch (error) {
+      if (mounted) TopNotice.error(context, error.message);
+    } catch (error) {
+      if (mounted) {
+        TopNotice.error(context, 'Shift summary could not be printed: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _printingShiftSummary = false);
+      }
     }
   }
 
@@ -397,6 +423,36 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _printingShiftSummary || status == null
+                          ? null
+                          : _printShiftSummary,
+                      icon: _printingShiftSummary
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.print_rounded),
+                      label: Text(
+                        _printingShiftSummary
+                            ? 'Printing shift summary...'
+                            : 'Print Shift Summary',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        foregroundColor: SettingsPage.green,
+                        side: BorderSide(
+                          color: SettingsPage.green.withValues(alpha: 0.35),
+                        ),
+                      ),
+                    ),
                   ),
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 14),

@@ -166,14 +166,14 @@ function planningWindow(): { from: string; to: string } {
 
 function canOperate(request: { adminAuth?: { roles?: string[] } }): void {
   const roles = request.adminAuth?.roles ?? [];
-  if (!roles.some((role) => ['super_admin', 'operations_admin', 'barista'].includes(role))) {
+  if (!roles.some((role) => ['super_admin', 'admin', 'barista'].includes(role))) {
     throw new ApiError(403, 'forbidden', 'You do not have access to operational integrations.');
   }
 }
 
 function canConfigure(request: { adminAuth?: { roles?: string[] } }): void {
   const roles = request.adminAuth?.roles ?? [];
-  if (!roles.some((role) => ['super_admin', 'operations_admin'].includes(role))) {
+  if (!roles.some((role) => ['super_admin', 'admin'].includes(role))) {
     throw new ApiError(403, 'forbidden', 'Only operations administrators can configure integrations.');
   }
 }
@@ -972,7 +972,8 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
     try {
       await connection.beginTransaction();
       const [orders] = await connection.execute<RowDataPacket[]>(
-        `SELECT o.id
+        `SELECT o.id, o.status, o.payment_mode,
+                (SELECT p.status FROM payments p WHERE p.order_id = o.id ORDER BY p.id DESC LIMIT 1) AS payment_status
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
@@ -985,6 +986,11 @@ export async function registerOperationalIntegrationRoutes(app: FastifyInstance)
         { orderRef: body.order_ref, tenantCode: request.adminAuth.tenantCode, adminUserId: request.adminAuth.adminUserId, isBaristaOnly: request.adminAuth.isBaristaOnly ? 1 : 0 }
       );
       if (!orders[0]) throw new ApiError(404, 'order_not_found', 'Order not found for this tenant.');
+      const orderIsPaid = ['paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected'].includes(String(orders[0].status)) &&
+        (String(orders[0].payment_mode) === 'token' || ['paid', 'partially_refunded'].includes(String(orders[0].payment_status)));
+      if (!orderIsPaid) {
+        throw new ApiError(409, 'payment_not_confirmed', 'This order cannot be printed until payment is confirmed.');
+      }
 
       const [printers] = await connection.execute<RowDataPacket[]>(
         `SELECT pt.id FROM printer_targets pt

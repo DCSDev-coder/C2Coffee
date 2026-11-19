@@ -1,9 +1,9 @@
 import React from 'react';
 import { Menu } from 'lucide-react';
+import UserAvatar from './UserAvatar';
 
 const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpenMenu }) => {
   const displayName = currentUser?.full_name || currentUser?.username || 'Admin';
-  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <header className="flex justify-between md:justify-end items-center bg-transparent py-3 md:py-4 px-4 sm:px-6 md:px-8 border-b border-gray-100/60 md:border-b-0" style={{ fontFamily: '"DM Sans", sans-serif' }}>
@@ -33,13 +33,13 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpe
           }`}
           title="View Profile"
         >
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#1F3A34] flex items-center justify-center text-white font-bold text-xs sm:text-sm overflow-hidden shadow-sm shrink-0">
-            {currentUser?.avatarUrl ? (
-              <img src={currentUser.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              initial
-            )}
-          </div>
+          <UserAvatar
+            user={currentUser}
+            name={displayName}
+            bgClass="bg-[#1F3A34]"
+            size="w-8 h-8 sm:w-10 sm:h-10 text-xs sm:text-sm"
+            fallback="A"
+          />
           <div className="flex flex-col min-w-0">
             <p className="text-xs sm:text-sm font-bold text-gray-900 leading-tight truncate max-w-[110px] sm:max-w-none">{displayName}</p>
             <p className="hidden sm:block text-xs text-gray-500 leading-tight truncate max-w-[140px]">{currentUser?.email || ''}</p>

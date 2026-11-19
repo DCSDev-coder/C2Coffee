@@ -13,6 +13,7 @@ import { useResponsivePageSize } from '../utils/useResponsivePageSize';
 import TokenTransaction from './TokenTransaction';
 import LoyaltyAnalytics from './LoyaltyAnalytics';
 import LoyaltyProgramSummary from './LoyaltyProgramSummary';
+import UserAvatar from './UserAvatar';
 import { exportReportSections, exportToCSV } from '../utils/exportToCSV';
 import { adjustAdminCustomerTokens, loadAdminLoyaltyOverview, loadEmployeeAllowanceReport, loadSubsidyPolicies, saveSubsidyPolicies } from '../lib/adminApi';
 
@@ -160,7 +161,7 @@ const CreditDetailPanel = ({
           {/* Profile Info */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
+              <UserAvatar user={customer} size="xl" />
               <div className="min-w-0">
                 <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">{customer.name}</h3>
                 <p className="text-[11px] text-gray-400 mt-0.5 truncate">{customer.email}</p>
@@ -761,7 +762,7 @@ const LoyaltyTokens = () => {
                       </td>
                       <td className="px-6 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-[#2E5E58] shrink-0 shadow-sm"></div>
+                          <UserAvatar user={group.member} size="md" />
                           <div>
                             <p className="text-sm font-bold text-gray-900">{group.member.name}</p>
                             <p className="text-xs text-gray-500 mt-0.5">{group.member.email || group.member.phone}</p>

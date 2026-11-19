@@ -51,6 +51,8 @@ type TransactionRow = RowDataPacket & {
   display_name: string | null;
   email: string | null;
   phone_e164: string;
+  avatar_type: 'preset' | 'uploaded' | null;
+  avatar_value: string | null;
   direction: 'credit' | 'debit';
   source_type: string;
   source_id: number;
@@ -83,6 +85,8 @@ type WalletMemberRow = RowDataPacket & {
   display_name: string | null;
   email: string | null;
   phone_e164: string;
+  avatar_type: 'preset' | 'uploaded' | null;
+  avatar_value: string | null;
   token_balance: number | string | null;
   tier_code: string | null;
   cups_last_180d: number | string | null;
@@ -525,6 +529,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             tl.user_id,
             up.display_name,
             up.email,
+            up.avatar_type,
+            up.avatar_value,
             u.phone_e164,
             tl.direction,
             tl.source_type,
@@ -582,6 +588,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             u.id AS user_id,
             up.display_name,
             up.email,
+            up.avatar_type,
+            up.avatar_value,
             u.phone_e164,
             ta.balance_available AS token_balance,
             (
@@ -772,6 +780,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
             name: row.display_name || row.email || row.phone_e164,
             email: row.email || '',
             phone: row.phone_e164,
+            avatarType: row.avatar_type || 'preset',
+            avatar: row.avatar_value || null,
             memberId: `C2-${String(row.user_id).padStart(3, '0')}`,
             tier: tierName,
             tierCode,
@@ -811,6 +821,8 @@ export async function registerAdminLoyaltyRoutes(app: FastifyInstance): Promise<
           name: row.display_name || row.email || row.phone_e164,
           email: row.email || '',
           phone: row.phone_e164,
+          avatarType: row.avatar_type || 'preset',
+          avatar: row.avatar_value || null,
           memberId: `C2-${String(row.user_id).padStart(3, '0')}`,
           tier: tierName,
           tierCode,

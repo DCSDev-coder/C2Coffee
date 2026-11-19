@@ -22,7 +22,8 @@ class GiftCardsPage extends StatefulWidget {
   State<GiftCardsPage> createState() => _GiftCardsPageState();
 }
 
-class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserver {
+class _GiftCardsPageState extends State<GiftCardsPage>
+    with WidgetsBindingObserver {
   final AppSessionService _session = AppSessionService.instance;
 
   bool _loading = true;
@@ -34,7 +35,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
   bool _refreshingPendingPurchase = false;
 
   // Preset Card Options matching C2 Coffee brand theme (Plum / Teal / Gold / Terracotta)
-  List<({int amount, String title, List<Color> gradient, Color shadowColor, Color accentColor})> get _presets {
+  List<
+      ({
+        int amount,
+        String title,
+        List<Color> gradient,
+        Color shadowColor,
+        Color accentColor
+      })> get _presets {
     final prim = AppColors.primary;
     final gold = AppColors.gold;
     final terracotta = const Color(0xFFC05844);
@@ -117,7 +125,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
     try {
       final token = await SecureSessionService.instance.getValidAccessToken();
       if (token == null || token.isEmpty) return;
-      final status = await CustomerDataService.instance.getGiftCardPurchaseStatus(accessToken: token, purchaseRef: purchaseRef);
+      final status = await CustomerDataService.instance
+          .getGiftCardPurchaseStatus(
+              accessToken: token, purchaseRef: purchaseRef);
       if (!mounted) return;
       if (status != 'pending_payment') {
         final code = _pendingGiftCardCode ?? '';
@@ -160,7 +170,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
       if (token == null || token.isEmpty) {
         throw Exception('Please sign in again.');
       }
-      final cards = await CustomerDataService.instance.getGiftCards(accessToken: token, includeHistory: true);
+      final cards = await CustomerDataService.instance
+          .getGiftCards(accessToken: token, includeHistory: true);
       if (mounted) setState(() => _cards = cards);
     } catch (error, stackTrace) {
       AppDiagnostics.recordError(
@@ -183,7 +194,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
   }
 
   Future<void> _shareGiftCard(GiftCard card) async {
-    final valueText = card.currency == 'rm' ? 'RM ${card.originalAmount}' : '${card.originalAmount} C2 Tokens';
+    final valueText = card.currency == 'rm'
+        ? 'RM ${card.originalAmount}'
+        : '${card.originalAmount} C2 Tokens';
     final note = (card.recipientMessage ?? '').trim();
     final messageLines = <String>[
       'Here is a C2 Coffee Gift Card ($valueText) for you! ☕🎁',
@@ -209,7 +222,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-            final safeBottom = bottomInset > 0 ? bottomInset + 12 : MediaQuery.paddingOf(context).bottom + 18;
+            final safeBottom = bottomInset > 0
+                ? bottomInset + 12
+                : MediaQuery.paddingOf(context).bottom + 18;
             final currentText = controller.text.trim();
             return Container(
               decoration: const BoxDecoration(
@@ -268,7 +283,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               style: TextStyle(
                                 fontFamily: 'Afacad',
                                 fontSize: 13.5,
-                                color: AppColors.brandText.withValues(alpha: 0.65),
+                                color:
+                                    AppColors.brandText.withValues(alpha: 0.65),
                               ),
                             ),
                           ],
@@ -290,11 +306,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                       color: AppColors.surfaceLight,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: currentText.isNotEmpty ? AppColors.primary : AppColors.border,
+                        color: currentText.isNotEmpty
+                            ? AppColors.primary
+                            : AppColors.border,
                         width: currentText.isNotEmpty ? 1.5 : 1,
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
                     child: Row(
                       children: [
                         Icon(
@@ -321,7 +340,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               hintStyle: TextStyle(
                                 fontFamily: 'Afacad',
                                 fontSize: 15.5,
-                                color: AppColors.brandText.withValues(alpha: 0.35),
+                                color:
+                                    AppColors.brandText.withValues(alpha: 0.35),
                               ),
                               border: InputBorder.none,
                             ),
@@ -337,14 +357,18 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                             }
                           },
                           style: TextButton.styleFrom(
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                            backgroundColor:
+                                AppColors.primary.withValues(alpha: 0.1),
                             foregroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
                           ),
-                          icon: const Icon(Icons.content_paste_rounded, size: 14),
+                          icon:
+                              const Icon(Icons.content_paste_rounded, size: 14),
                           label: const Text(
                             'Paste',
                             style: TextStyle(
@@ -367,7 +391,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                             foregroundColor: AppColors.brandText,
                             side: BorderSide(color: AppColors.border),
                             padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                           ),
                           child: const Text(
                             'Cancel',
@@ -383,14 +408,19 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                       Expanded(
                         flex: 2,
                         child: ElevatedButton(
-                          onPressed: currentText.isEmpty ? null : () => Navigator.pop(context, currentText.toUpperCase()),
+                          onPressed: currentText.isEmpty
+                              ? null
+                              : () => Navigator.pop(
+                                  context, currentText.toUpperCase()),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
-                            disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.35),
+                            disabledBackgroundColor:
+                                AppColors.primary.withValues(alpha: 0.35),
                             foregroundColor: Colors.white,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 13),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
                           ),
                           child: const Text(
                             'Claim Gift Card',
@@ -417,9 +447,11 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
     try {
       final token = await SecureSessionService.instance.getValidAccessToken();
       if (token == null || token.isEmpty) throw Exception();
-      await CustomerDataService.instance.claimGiftCard(accessToken: token, code: code);
+      await CustomerDataService.instance
+          .claimGiftCard(accessToken: token, code: code);
       if (!mounted) return;
-      AppNotification.showSuccess(context, 'Gift card claimed! Ready to use at checkout.');
+      AppNotification.showSuccess(
+          context, 'Gift card claimed! Ready to use at checkout.');
       await _load();
     } catch (error, stackTrace) {
       AppDiagnostics.recordError(
@@ -439,7 +471,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
   }
 
   // Procedure for purchasing a preset or Custom Amount Gift Card
-  Future<void> _buyPreset([({int amount, String title, List<Color> gradient, Color shadowColor, Color accentColor})? preset]) async {
+  Future<void> _buyPreset(
+      [({
+        int amount,
+        String title,
+        List<Color> gradient,
+        Color shadowColor,
+        Color accentColor
+      })? preset]) async {
     final token = await SecureSessionService.instance.getValidAccessToken();
     if (token == null || token.isEmpty) {
       if (mounted) AppNotification.showError(context, 'Please sign in again.');
@@ -448,7 +487,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
 
     Set<String> availableMethods = const {};
     try {
-      availableMethods = (await CustomerDataService.instance.getGiftCardPaymentMethods(accessToken: token)).methods;
+      availableMethods = (await CustomerDataService.instance
+              .getGiftCardPaymentMethods(accessToken: token))
+          .methods;
     } catch (error, stackTrace) {
       AppDiagnostics.recordError(
         error,
@@ -467,13 +508,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
     final phoneController = TextEditingController();
     final messageController = TextEditingController();
     var payWith = 'token'; // 'token' or 'rm'
-    String? paymentMethod = availableMethods.isEmpty ? null : availableMethods.first;
+    String? paymentMethod =
+        availableMethods.isEmpty ? null : availableMethods.first;
 
     const paymentLabels = {
       'fpx': 'FPX Online Banking',
       'duitnow_qr': 'DuitNow QR',
       'card': 'Credit / Debit Card',
-  'ewallet': 'Online Payment',
+      'ewallet': 'E-wallets',
     };
     const quickCustomAmounts = [15, 30, 75, 150, 200];
 
@@ -482,9 +524,17 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
       Color.lerp(AppColors.primary, AppColors.gold, 0.35)!,
     ];
     final cardGradient = preset?.gradient ?? defaultGradient;
-    final cardShadow = preset?.shadowColor ?? AppColors.primary.withValues(alpha: 0.26);
+    final cardShadow =
+        preset?.shadowColor ?? AppColors.primary.withValues(alpha: 0.26);
 
-    final request = await showModalBottomSheet<({String currency, num amount, String? phone, String message, String? method})>(
+    final request = await showModalBottomSheet<
+        ({
+          String currency,
+          num amount,
+          String? phone,
+          String message,
+          String? method
+        })>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -493,20 +543,30 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
           builder: (context, setSheetState) {
             final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
             final isKeyboardOpen = bottomInset > 0;
-            final safeBottom = isKeyboardOpen ? bottomInset + 10.0 : MediaQuery.paddingOf(context).bottom + 18.0;
+            final safeBottom = isKeyboardOpen
+                ? bottomInset + 10.0
+                : MediaQuery.paddingOf(context).bottom + 18.0;
 
-            final parsedCustom = num.tryParse(customAmountController.text.trim()) ?? 0;
-            final effectiveAmount = isCustomMode ? (payWith == 'token' ? parsedCustom.floor() : parsedCustom) : (preset?.amount ?? 30);
-            final isValidAmount = effectiveAmount >= 5 && effectiveAmount <= 5000 && effectiveAmount % 1 == 0;
+            final parsedCustom =
+                num.tryParse(customAmountController.text.trim()) ?? 0;
+            final effectiveAmount = isCustomMode
+                ? (payWith == 'token' ? parsedCustom.floor() : parsedCustom)
+                : (preset?.amount ?? 30);
+            final isValidAmount = effectiveAmount >= 5 &&
+                effectiveAmount <= 5000 &&
+                effectiveAmount % 1 == 0;
             final displayAmountStr = payWith == 'rm'
                 ? effectiveAmount.toDouble().toStringAsFixed(
                       effectiveAmount % 1 == 0 ? 0 : 2,
                     )
                 : '${effectiveAmount.floor()}';
-            final sheetTitle = isCustomMode ? 'Custom Gift Card' : (preset?.title ?? 'Custom Gift Card');
+            final sheetTitle = isCustomMode
+                ? 'Custom Gift Card'
+                : (preset?.title ?? 'Custom Gift Card');
 
             final tokenBal = _session.tokenBalance;
-            final hasEnoughTokens = tokenBal >= effectiveAmount && effectiveAmount >= 5;
+            final hasEnoughTokens =
+                tokenBal >= effectiveAmount && effectiveAmount >= 5;
 
             return Container(
               constraints: BoxConstraints(
@@ -551,11 +611,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               if (!isKeyboardOpen) ...[
                                 const SizedBox(height: 1),
                                 Text(
-                                  isCustomMode ? 'Enter any amount from 5 to 5,000.' : 'Send to a friend or yourself for easy coffee redemption.',
+                                  isCustomMode
+                                      ? 'Enter any amount from 5 to 5,000.'
+                                      : 'Send to a friend or yourself for easy coffee redemption.',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 13.5,
-                                    color: AppColors.brandText.withValues(alpha: 0.65),
+                                    color: AppColors.brandText
+                                        .withValues(alpha: 0.65),
                                   ),
                                 ),
                               ],
@@ -570,7 +633,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                             style: TextButton.styleFrom(
                               backgroundColor: AppColors.surfaceLight,
                               foregroundColor: AppColors.primary,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               shape: RoundedRectangleBorder(
@@ -628,11 +692,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               ),
                               padding: const EdgeInsets.all(14),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         'C2 COFFEE',
@@ -640,11 +707,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                           fontFamily: 'Recoleta',
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.white.withValues(alpha: 0.95),
+                                          color: Colors.white
+                                              .withValues(alpha: 0.95),
                                         ),
                                       ),
                                       Text(
-                                        effectiveAmount > 0 ? 'RM $displayAmountStr' : 'RM —',
+                                        effectiveAmount > 0
+                                            ? 'RM $displayAmountStr'
+                                            : 'RM —',
                                         style: const TextStyle(
                                           fontFamily: 'Recoleta',
                                           fontSize: 27,
@@ -656,17 +726,23 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                     ],
                                   ),
                                   Column(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.22),
-                                          borderRadius: BorderRadius.circular(999),
+                                          color: Colors.white
+                                              .withValues(alpha: 0.22),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
                                         ),
                                         child: Text(
-                                          isCustomMode ? 'CUSTOM PASS' : 'GIFT CARD',
+                                          isCustomMode
+                                              ? 'CUSTOM PASS'
+                                              : 'GIFT CARD',
                                           style: const TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 10,
@@ -698,13 +774,16 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  payWith == 'rm' ? 'CUSTOM AMOUNT (RM)' : 'CUSTOM AMOUNT (TOKENS)',
+                                  payWith == 'rm'
+                                      ? 'CUSTOM AMOUNT (RM)'
+                                      : 'CUSTOM AMOUNT (TOKENS)',
                                   style: TextStyle(
                                     fontFamily: 'Afacad',
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.8,
-                                    color: AppColors.brandText.withValues(alpha: 0.6),
+                                    color: AppColors.brandText
+                                        .withValues(alpha: 0.6),
                                   ),
                                 ),
                                 Text(
@@ -713,7 +792,10 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                     fontFamily: 'Afacad',
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
-                                    color: isValidAmount ? AppColors.brandText.withValues(alpha: 0.45) : Colors.redAccent,
+                                    color: isValidAmount
+                                        ? AppColors.brandText
+                                            .withValues(alpha: 0.45)
+                                        : Colors.redAccent,
                                   ),
                                 ),
                               ],
@@ -724,17 +806,24 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                 color: AppColors.surfaceLight,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: !isValidAmount && customAmountController.text.isNotEmpty ? Colors.redAccent : AppColors.primary.withValues(alpha: 0.45),
+                                  color: !isValidAmount &&
+                                          customAmountController.text.isNotEmpty
+                                      ? Colors.redAccent
+                                      : AppColors.primary
+                                          .withValues(alpha: 0.45),
                                   width: 1.3,
                                 ),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 2),
                               child: Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary.withValues(alpha: 0.12),
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
@@ -751,7 +840,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                   Expanded(
                                     child: TextField(
                                       controller: customAmountController,
-                                      keyboardType: TextInputType.numberWithOptions(
+                                      keyboardType:
+                                          TextInputType.numberWithOptions(
                                         decimal: payWith == 'rm',
                                       ),
                                       onChanged: (_) => setSheetState(() {}),
@@ -767,7 +857,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                           fontFamily: 'Afacad',
                                           fontSize: 15,
                                           fontWeight: FontWeight.w500,
-                                          color: AppColors.brandText.withValues(alpha: 0.38),
+                                          color: AppColors.brandText
+                                              .withValues(alpha: 0.38),
                                         ),
                                         border: InputBorder.none,
                                       ),
@@ -795,19 +886,28 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                           vertical: 6,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: isSelected ? AppColors.primary : AppColors.surfaceLight,
-                                          borderRadius: BorderRadius.circular(999),
+                                          color: isSelected
+                                              ? AppColors.primary
+                                              : AppColors.surfaceLight,
+                                          borderRadius:
+                                              BorderRadius.circular(999),
                                           border: Border.all(
-                                            color: isSelected ? AppColors.primary : AppColors.border,
+                                            color: isSelected
+                                                ? AppColors.primary
+                                                : AppColors.border,
                                           ),
                                         ),
                                         child: Text(
-                                          payWith == 'rm' ? 'RM $amt' : '$amt Tokens',
+                                          payWith == 'rm'
+                                              ? 'RM $amt'
+                                              : '$amt Tokens',
                                           style: TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 12.5,
                                             fontWeight: FontWeight.w700,
-                                            color: isSelected ? Colors.white : AppColors.brandText,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : AppColors.brandText,
                                           ),
                                         ),
                                       ),
@@ -835,23 +935,31 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                             children: [
                               Expanded(
                                 child: GestureDetector(
-                                  onTap: () => setSheetState(() => payWith = 'token'),
+                                  onTap: () =>
+                                      setSheetState(() => payWith = 'token'),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 160),
                                     padding: const EdgeInsets.all(11),
                                     decoration: BoxDecoration(
-                                      color: payWith == 'token' ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceLight,
+                                      color: payWith == 'token'
+                                          ? AppColors.primary
+                                              .withValues(alpha: 0.08)
+                                          : AppColors.surfaceLight,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: payWith == 'token' ? AppColors.primary : AppColors.border,
+                                        color: payWith == 'token'
+                                            ? AppColors.primary
+                                            : AppColors.border,
                                         width: payWith == 'token' ? 1.5 : 1,
                                       ),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             Image.asset(
                                               'assets/images/coin.png',
@@ -859,9 +967,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                               height: 20,
                                             ),
                                             Icon(
-                                              payWith == 'token' ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                              payWith == 'token'
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons
+                                                      .radio_button_unchecked_rounded,
                                               size: 16,
-                                              color: payWith == 'token' ? AppColors.primary : Colors.black26,
+                                              color: payWith == 'token'
+                                                  ? AppColors.primary
+                                                  : Colors.black26,
                                             ),
                                           ],
                                         ),
@@ -880,7 +993,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                           style: TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 12,
-                                            color: hasEnoughTokens ? AppColors.primary : Colors.redAccent,
+                                            color: hasEnoughTokens
+                                                ? AppColors.primary
+                                                : Colors.redAccent,
                                           ),
                                         ),
                                       ],
@@ -891,29 +1006,38 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               const SizedBox(width: 10),
                               Expanded(
                                 child: GestureDetector(
-                                  onTap: () => setSheetState(() => payWith = 'rm'),
+                                  onTap: () =>
+                                      setSheetState(() => payWith = 'rm'),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 160),
                                     padding: const EdgeInsets.all(11),
                                     decoration: BoxDecoration(
-                                      color: payWith == 'rm' ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceLight,
+                                      color: payWith == 'rm'
+                                          ? AppColors.primary
+                                              .withValues(alpha: 0.08)
+                                          : AppColors.surfaceLight,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: payWith == 'rm' ? AppColors.primary : AppColors.border,
+                                        color: payWith == 'rm'
+                                            ? AppColors.primary
+                                            : AppColors.border,
                                         width: payWith == 'rm' ? 1.5 : 1,
                                       ),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             Container(
                                               width: 20,
                                               height: 20,
                                               decoration: BoxDecoration(
-                                                color: AppColors.primary.withValues(alpha: 0.12),
+                                                color: AppColors.primary
+                                                    .withValues(alpha: 0.12),
                                                 shape: BoxShape.circle,
                                               ),
                                               alignment: Alignment.center,
@@ -928,9 +1052,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                               ),
                                             ),
                                             Icon(
-                                              payWith == 'rm' ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                              payWith == 'rm'
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons
+                                                      .radio_button_unchecked_rounded,
                                               size: 16,
-                                              color: payWith == 'rm' ? AppColors.primary : Colors.black26,
+                                              color: payWith == 'rm'
+                                                  ? AppColors.primary
+                                                  : Colors.black26,
                                             ),
                                           ],
                                         ),
@@ -949,7 +1078,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                           style: TextStyle(
                                             fontFamily: 'Afacad',
                                             fontSize: 12,
-                                            color: AppColors.brandText.withValues(alpha: 0.6),
+                                            color: AppColors.brandText
+                                                .withValues(alpha: 0.6),
                                           ),
                                         ),
                                       ],
@@ -960,22 +1090,39 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                             ],
                           ),
 
-                          if (payWith == 'rm' && availableMethods.isNotEmpty) ...[
+                          if (payWith == 'rm' &&
+                              availableMethods.isNotEmpty) ...[
                             const SizedBox(height: 10),
+                            Text(
+                              'Choose how to pay this RM gift card. Direct payments are processed securely by CHIP.',
+                              style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontSize: 13,
+                                color:
+                                    AppColors.brandText.withValues(alpha: 0.65),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
                             Wrap(
                               spacing: 8,
                               runSpacing: 8,
                               children: availableMethods.map((method) {
                                 final isSelected = paymentMethod == method;
                                 return GestureDetector(
-                                  onTap: () => setSheetState(() => paymentMethod = method),
+                                  onTap: () => setSheetState(
+                                      () => paymentMethod = method),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 7),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? AppColors.primary : AppColors.surfaceLight,
+                                      color: isSelected
+                                          ? AppColors.primary
+                                          : AppColors.surfaceLight,
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
-                                        color: isSelected ? AppColors.primary : AppColors.border,
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : AppColors.border,
                                       ),
                                     ),
                                     child: Text(
@@ -984,7 +1131,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                         fontFamily: 'Afacad',
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w700,
-                                        color: isSelected ? Colors.white : AppColors.brandText,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : AppColors.brandText,
                                       ),
                                     ),
                                   ),
@@ -1011,7 +1160,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(color: AppColors.border),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 2),
                             child: TextField(
                               controller: phoneController,
                               keyboardType: TextInputType.phone,
@@ -1023,12 +1173,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                 color: AppColors.brandText,
                               ),
                               decoration: InputDecoration(
-                                icon: Icon(Icons.phone_iphone_rounded, color: AppColors.primary, size: 18),
+                                icon: Icon(Icons.phone_iphone_rounded,
+                                    color: AppColors.primary, size: 18),
                                 hintText: 'e.g. 0123456789',
                                 hintStyle: TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 14,
-                                  color: AppColors.brandText.withValues(alpha: 0.4),
+                                  color: AppColors.brandText
+                                      .withValues(alpha: 0.4),
                                 ),
                                 border: InputBorder.none,
                               ),
@@ -1053,7 +1205,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(color: AppColors.border),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 2),
                             child: TextField(
                               controller: messageController,
                               maxLength: 140,
@@ -1070,7 +1223,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                                 hintStyle: TextStyle(
                                   fontFamily: 'Afacad',
                                   fontSize: 14,
-                                  color: AppColors.brandText.withValues(alpha: 0.4),
+                                  color: AppColors.brandText
+                                      .withValues(alpha: 0.4),
                                 ),
                                 border: InputBorder.none,
                               ),
@@ -1091,7 +1245,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                               foregroundColor: AppColors.brandText,
                               side: BorderSide(color: AppColors.border),
                               padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
                             ),
                             child: const Text(
                               'Cancel',
@@ -1107,25 +1262,33 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                         Expanded(
                           flex: 2,
                           child: ElevatedButton(
-                            onPressed: !isValidAmount || (payWith == 'token' && !hasEnoughTokens) || (payWith == 'rm' && paymentMethod == null)
+                            onPressed: !isValidAmount ||
+                                    (payWith == 'token' && !hasEnoughTokens) ||
+                                    (payWith == 'rm' && paymentMethod == null)
                                 ? null
                                 : () => Navigator.pop(context, (
                                       currency: payWith,
                                       amount: effectiveAmount,
-                                      phone: phoneController.text.trim().isEmpty ? null : phoneController.text.trim(),
+                                      phone: phoneController.text.trim().isEmpty
+                                          ? null
+                                          : phoneController.text.trim(),
                                       message: messageController.text.trim(),
                                       method: paymentMethod,
                                     )),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
-                              disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.35),
+                              disabledBackgroundColor:
+                                  AppColors.primary.withValues(alpha: 0.35),
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
                             ),
                             child: Text(
-                              payWith == 'token' ? 'Confirm & Send' : 'Pay RM ${effectiveAmount > 0 ? effectiveAmount.toDouble().toStringAsFixed(2) : "0.00"}',
+                              payWith == 'token'
+                                  ? 'Confirm & Send'
+                                  : 'Pay RM ${effectiveAmount > 0 ? effectiveAmount.toDouble().toStringAsFixed(2) : "0.00"}',
                               style: const TextStyle(
                                 fontFamily: 'Afacad',
                                 fontSize: 15,
@@ -1206,7 +1369,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
   }
 
   String _newGiftCardIdempotencyKey() {
-    final randomPart = Random.secure().nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
+    final randomPart =
+        Random.secure().nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
     return '${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}_$randomPart';
   }
 
@@ -1282,7 +1446,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                 borderRadius: BorderRadius.circular(999),
                 onTap: _submitting ? null : _claim,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceLight,
                     borderRadius: BorderRadius.circular(999),
@@ -1291,7 +1456,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.redeem_rounded, size: 15, color: AppColors.primary),
+                      Icon(Icons.redeem_rounded,
+                          size: 15, color: AppColors.primary),
                       const SizedBox(width: 6),
                       Text(
                         'Have a gift card code? Claim here',
@@ -1378,13 +1544,15 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                 child: Center(
                   child: Text(
                     _error!,
-                    style: const TextStyle(fontFamily: 'Afacad', color: Colors.black54),
+                    style: const TextStyle(
+                        fontFamily: 'Afacad', color: Colors.black54),
                   ),
                 ),
               )
             else if (_cards.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                 child: Center(
                   child: Text(
                     'No gift card transactions yet.\nTap any card above to purchase or send.',
@@ -1409,7 +1577,8 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
                   thickness: 1,
                   color: Colors.black.withValues(alpha: 0.05),
                 ),
-                itemBuilder: (context, index) => _buildTransactionRow(_cards[index]),
+                itemBuilder: (context, index) =>
+                    _buildTransactionRow(_cards[index]),
               ),
           ],
         ),
@@ -1572,7 +1741,14 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
   }
 
   // 2x2 Store Card Item widget
-  Widget _buildStoreCardItem(({int amount, String title, List<Color> gradient, Color shadowColor, Color accentColor}) preset) {
+  Widget _buildStoreCardItem(
+      ({
+        int amount,
+        String title,
+        List<Color> gradient,
+        Color shadowColor,
+        Color accentColor
+      }) preset) {
     return GestureDetector(
       onTap: _submitting ? null : () => _buyPreset(preset),
       child: Column(
@@ -1706,7 +1882,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isSent ? const Color(0xFFC05844).withValues(alpha: 0.12) : AppColors.primary.withValues(alpha: 0.10),
+              color: isSent
+                  ? const Color(0xFFC05844).withValues(alpha: 0.12)
+                  : AppColors.primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -1722,7 +1900,9 @@ class _GiftCardsPageState extends State<GiftCardsPage> with WidgetsBindingObserv
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isSent ? 'Gift to ${card.recipientPhone ?? 'Friend'}' : 'Received Gift Card',
+                  isSent
+                      ? 'Gift to ${card.recipientPhone ?? 'Friend'}'
+                      : 'Received Gift Card',
                   style: TextStyle(
                     fontFamily: 'Afacad',
                     fontSize: 15,

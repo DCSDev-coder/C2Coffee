@@ -1047,7 +1047,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         debugPrint(
           'Counter menu request failed with HTTP ${response.statusCode}.',
         );
-        if (mounted) {
+        if (mounted && _menuItems.isEmpty) {
           setState(() {
             _errorMessage = 'Failed to load menu (${response.statusCode})';
           });
@@ -1055,7 +1055,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
       }
     } catch (e, st) {
       debugPrint('Counter menu request failed: $e\n$st');
-      if (mounted) {
+      if (mounted && _menuItems.isEmpty) {
         setState(() {
           _errorMessage = 'Network error fetching menu';
         });
@@ -1084,6 +1084,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         }
       } else {
         _phoneController.clear();
+        unawaited(_loadMenu());
       }
     }
 
@@ -1098,6 +1099,7 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
     _sessionManager.startGuestSession();
     _phoneController.clear();
     setState(() {});
+    unawaited(_loadMenu());
   }
 
   // Kept for the legacy session form while checkout identification is rolled out.
@@ -1110,11 +1112,30 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
         _selectedVoucher = null;
       });
     }
+    unawaited(_loadMenu());
   }
 
   void _clearCart() {
     _cart.clear();
     _selectedVoucher = null;
+    _checkoutIdempotencyKey = null;
+    _checkoutFingerprint = null;
+  }
+
+  // One idempotency key per basket. A retry or double tap for the same
+  // basket reuses the key so the API returns the existing order instead of
+  // creating a duplicate. Any change to the basket produces a new key.
+  String? _checkoutIdempotencyKey;
+  String? _checkoutFingerprint;
+
+  String _idempotencyKeyFor(String fingerprint) {
+    if (_checkoutIdempotencyKey == null ||
+        _checkoutFingerprint != fingerprint) {
+      _checkoutFingerprint = fingerprint;
+      _checkoutIdempotencyKey =
+          'ctr-${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(fingerprint)}';
+    }
+    return _checkoutIdempotencyKey!;
   }
 
   void _addToCart(CounterMenuItem item, Map<String, dynamic> customization) {
@@ -2680,19 +2701,31 @@ class _CounterHomeScreenState extends State<CounterHomeScreen> {
           return;
         }
       }
+      final fulfillmentType =
+          (_orderType == 'Self-Pickup' || _orderType == 'Dine In')
+          ? 'dine_in'
+          : 'take_away';
+      final voucherId = selectedVoucher == null
+          ? null
+          : (selectedVoucher['id'] as num).toInt();
+      final idempotencyKey = _idempotencyKeyFor(
+        jsonEncode({
+          'items': items,
+          'method': method,
+          'fulfillment': fulfillmentType,
+          'customer': session.isGuest ? null : session.sessionToken,
+          'voucher': voucherId,
+        }),
+      );
       final payment = await _paymentService.createPayment(
         deviceToken: deviceToken,
         sessionToken: session.isGuest ? null : session.sessionToken,
         paymentMethod: method,
-        fulfillmentType:
-            (_orderType == 'Self-Pickup' || _orderType == 'Dine In')
-            ? 'dine_in'
-            : 'take_away',
+        fulfillmentType: fulfillmentType,
         items: items,
-        voucherId: selectedVoucher == null
-            ? null
-            : (selectedVoucher['id'] as num).toInt(),
+        voucherId: voucherId,
         voucherAuthorizationToken: voucherAuthorizationToken,
+        idempotencyKey: idempotencyKey,
         baristaAccessToken: baristaAccessToken,
       );
       final orderRef = payment['order_ref'].toString();
@@ -4808,7 +4841,10 @@ class _CheckoutPhoneBodyState extends State<_CheckoutPhoneBody> {
                 ),
               ),
               const SizedBox(height: 6),
-              TextButton(onPressed: widget.onReturn, child: const Text('Return')),
+              TextButton(
+                onPressed: widget.onReturn,
+                child: const Text('Return'),
+              ),
             ],
           );
 
@@ -4894,11 +4930,7 @@ class _CheckoutPhoneBodyState extends State<_CheckoutPhoneBody> {
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              leftColumn,
-              const SizedBox(height: 16),
-              keypadColumn,
-            ],
+            children: [leftColumn, const SizedBox(height: 16), keypadColumn],
           );
         },
       ),

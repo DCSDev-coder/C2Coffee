@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/api_service.dart';
+import '../services/direct_printer_service.dart';
 import '../widgets/order_card.dart';
 import '../widgets/barista_page_header.dart';
 import '../widgets/barista_card.dart';
@@ -21,6 +22,38 @@ class OrderHistoryPage extends StatefulWidget {
 class _OrderHistoryPageState extends State<OrderHistoryPage> {
   static const _darkGreen = Color(0xFF304A3A);
   final Set<String> _printingOrderIds = <String>{};
+  bool _printingShiftSummary = false;
+
+  Future<void> _printShiftSummary() async {
+    if (_printingShiftSummary) return;
+    setState(() => _printingShiftSummary = true);
+    try {
+      final result = await ApiService.fetchShiftSummary();
+      if (!mounted) return;
+      if (!result.isSuccess) {
+        TopNotice.error(context, result.errorMessage!);
+        return;
+      }
+      final report = result.data?['shift_report'];
+      if (report is! Map<String, dynamic>) {
+        TopNotice.error(context, 'Shift summary data is unavailable.');
+        return;
+      }
+      await DirectPrinterService.instance.printShiftSummaryReport(report);
+      if (!mounted) return;
+      TopNotice.success(context, 'Shift summary printed.');
+    } on StateError catch (error) {
+      if (mounted) TopNotice.error(context, error.message);
+    } catch (error) {
+      if (mounted) {
+        TopNotice.error(context, 'Shift summary could not be printed: $error');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _printingShiftSummary = false);
+      }
+    }
+  }
 
   Future<void> _refreshOrders() async {
     final result = await ApiService.fetchOrders();
@@ -46,7 +79,7 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
       TopNotice.error(context, result.errorMessage!);
       return;
     }
-    TopNotice.info(context, 'Receipt queued for printing.');
+    TopNotice.info(context, 'Itemised receipt queued for printing.');
   }
 
   void _openOrder(CurrentOrder order) {
@@ -88,33 +121,72 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
                             "Completed and finished orders for today's shift.",
                         onRefresh: _refreshOrders,
                         refreshTooltip: 'Refresh history',
-                        bottom: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF203E32,
-                              ).withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
+                        bottom: Wrap(
+                          spacing: 10,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
                                 color: const Color(
                                   0xFF203E32,
-                                ).withValues(alpha: 0.12),
+                                ).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF203E32,
+                                  ).withValues(alpha: 0.12),
+                                ),
+                              ),
+                              child: Text(
+                                '${newestFirst.length} finished orders today',
+                                style: const TextStyle(
+                                  color: Color(0xFF203E32),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                            child: Text(
-                              '${newestFirst.length} finished orders today',
-                              style: const TextStyle(
-                                color: Color(0xFF203E32),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                            OutlinedButton.icon(
+                              onPressed: _printingShiftSummary
+                                  ? null
+                                  : _printShiftSummary,
+                              icon: _printingShiftSummary
+                                  ? const SizedBox.square(
+                                      dimension: 15,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.print_rounded, size: 17),
+                              label: Text(
+                                _printingShiftSummary
+                                    ? 'Printing...'
+                                    : 'Print Shift Summary',
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _darkGreen,
+                                side: BorderSide(
+                                  color: _darkGreen.withValues(alpha: 0.35),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 22),
@@ -173,6 +245,16 @@ class _OrderHistoryPageState extends State<OrderHistoryPage> {
                             voucherName: order.voucherName,
                             voucherType: order.voucherType,
                             discount: order.discount,
+                            voucherDiscountTokens: order.voucherDiscountTokens,
+                            voucherRewardSummary: order.voucherRewardSummary,
+                            paymentMethod: order.paymentMethod,
+                            paymentStatus: order.paymentStatus,
+                            paymentMode: order.paymentMode,
+                            tokenAmountCharged: order.tokenAmountCharged,
+                            subsidyTokenAmount: order.subsidyTokenAmount,
+                            isEmployee: order.isEmployee,
+                            subsidyRole: order.subsidyRole,
+                            total: order.total,
                             cancellationRequestStatus:
                                 order.cancellationRequestStatus,
                             isPrintLoading: _printingOrderIds.contains(
