@@ -10,10 +10,12 @@ import { runAutoCollectSweep } from './services/auto-collect-orders.js';
 import { runEmployeeAllowanceSweep } from './services/employee-token-allowance.js';
 import { expireStaleCounterPendingOrders } from './services/counter-pending-order-maintenance.js';
 import { runChipTopUpReconciliationSweep } from './services/chip-topup-reconciliation.js';
+import { runMobileOrderPaymentReconciliationSweep } from './services/chip-mobile-order-reconciliation.js';
 import { runCustomerMessageScheduleSweep } from './services/customer-message-schedules.js';
 
 const app = await buildApp();
 let chipTopUpReconciliationRunning = false;
+let mobileOrderPaymentReconciliationRunning = false;
 
 async function runScheduledPickupReminders(): Promise<void> {
   try {
@@ -71,6 +73,22 @@ async function runScheduledChipTopUpReconciliation(): Promise<void> {
 // Run immediately after startup so a CHIP callback that arrived during a
 // deployment is recovered without waiting for the original checkout expiry.
 void runScheduledChipTopUpReconciliation();
+async function runScheduledMobileOrderPaymentReconciliation(): Promise<void> {
+  if (mobileOrderPaymentReconciliationRunning) return;
+  mobileOrderPaymentReconciliationRunning = true;
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runMobileOrderPaymentReconciliationSweep();
+    if (result.settled > 0 || result.finalized > 0 || result.review_required > 0 || result.failed > 0) {
+      app.log.info(result, 'completed mobile order payment reconciliation sweep');
+    }
+  } catch (error) {
+    app.log.error(error, 'mobile order payment reconciliation sweep failed');
+  } finally {
+    mobileOrderPaymentReconciliationRunning = false;
+  }
+}
+void runScheduledMobileOrderPaymentReconciliation();
 async function runScheduledVoucherMaintenance(): Promise<void> {
   try {
     await assertSingleCafeDeployment();
@@ -123,6 +141,10 @@ const chipTopUpReconciliationTimer = setInterval(() => {
   void runScheduledChipTopUpReconciliation();
 }, 60_000);
 chipTopUpReconciliationTimer.unref();
+const mobileOrderPaymentReconciliationTimer = setInterval(() => {
+  void runScheduledMobileOrderPaymentReconciliation();
+}, 60_000);
+mobileOrderPaymentReconciliationTimer.unref();
 const voucherExpiryReminderTimer = setInterval(() => {
   void runScheduledVoucherMaintenance();
 }, 24 * 60 * 60 * 1000);

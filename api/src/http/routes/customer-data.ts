@@ -25,10 +25,19 @@ import {
   createChipPurchase,
   getChipPurchase,
   isTrustedChipCheckoutUrl,
+  type ChipPurchase,
   type ChipPaymentMethod
 } from '../../payments/chip-client.js';
 import { settleChipMobilePurchase } from '../../services/chip-counter-settlement.js';
 import { asChipPaymentMethods, loadTenantPaymentMethodSettings } from '../../services/payment-method-settings.js';
+import { reconcilePendingMobileOrdersForUser } from '../../services/chip-mobile-order-reconciliation.js';
+import {
+  closeChipPurchaseSafely,
+  describeMobilePaymentState,
+  isPaidChipPurchaseStatus,
+  isTerminalChipPurchaseStatus,
+  normalizeChipPurchaseStatus
+} from '../../services/mobile-order-payment-state.js';
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { cancelPromotionalAddonForOrder } from '../../services/promotional-addons.js';
@@ -75,6 +84,87 @@ const pushTokenSchema = z.object({
 const deactivatePushTokenSchema = z.object({
   push_token: z.string().trim().min(20).max(512)
 });
+
+/**
+ * CHIP can reject cancellation while a purchase is pending_execute.  That
+ * status is not proof that no money will arrive later, so the old customer
+ * app must not be left permanently blocked either.  Detach only after a
+ * fresh provider read confirms the purchase is not paid; if CHIP later emits
+ * paid, settlement sees the cancelled payment and opens the normal refund
+ * path instead of attaching the late payment to a cancelled order.
+ */
+async function detachUnresolvedMobilePaymentForRecovery(input: {
+  paymentId: number;
+  orderId: number;
+  providerBillId: string;
+}): Promise<boolean> {
+  const [updated] = await mysqlPool.execute<ResultSetHeader>(
+    `UPDATE payments
+        SET status = 'cancelled', provider_checked_at = UTC_TIMESTAMP()
+      WHERE id = :paymentId
+        AND order_id = :orderId
+        AND provider = 'chip'
+        AND provider_bill_id = :providerBillId
+        AND status IN ('pending', 'authorized')`,
+    input
+  );
+  if (updated.affectedRows !== 1) return false;
+
+  await mysqlPool.execute(
+    `INSERT INTO payment_events
+       (payment_id, provider_event_id, event_type, event_payload_hash,
+        processed_at, process_result, created_at)
+     VALUES (:paymentId, :eventId, 'chip_customer_recovery_detach', :payloadHash,
+             UTC_TIMESTAMP(), 'detached_pending_provider_review', UTC_TIMESTAMP())`,
+    {
+      paymentId: input.paymentId,
+      eventId: `chip:mobile:recovery-detach:${input.paymentId}:${crypto.randomUUID()}`,
+      payloadHash: crypto.createHash('sha256')
+        .update(`${input.providerBillId}:customer_recovery_detach`)
+        .digest('hex')
+    }
+  );
+  return true;
+}
+
+async function closeOrDetachMobilePaymentForRecovery(input: {
+  paymentId: number;
+  orderId: number;
+  providerBillId: string;
+}): Promise<{ purchase: ChipPurchase; detached: boolean }> {
+  try {
+    return {
+      purchase: await closeChipPurchaseSafely(input.providerBillId, {
+        cancelPurchase: cancelChipPurchase,
+        getPurchase: getChipPurchase
+      }),
+      detached: false
+    };
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.code !== 'payment_still_processing') {
+      throw error;
+    }
+
+    const purchase = await getChipPurchase(input.providerBillId);
+    const providerStatus = normalizeChipPurchaseStatus(purchase);
+    if (isPaidChipPurchaseStatus(providerStatus)) {
+      return { purchase, detached: false };
+    }
+    if (isTerminalChipPurchaseStatus(providerStatus)) {
+      return { purchase, detached: false };
+    }
+
+    const detached = await detachUnresolvedMobilePaymentForRecovery(input);
+    if (!detached) {
+      throw new ApiError(
+        409,
+        'order_payment_changed',
+        'The payment attempt changed while it was being recovered. Please refresh the order and try again.'
+      );
+    }
+    return { purchase, detached: true };
+  }
+}
 
 type WalletTransactionRow = RowDataPacket & {
   id: number;
@@ -2181,27 +2271,35 @@ export async function registerCustomerDataRoutes(
     if (preflight.status === 'pending_payment' && preflight.payment_mode === 'direct') {
       if (preflight.provider_bill_id) {
         let purchase = await getChipPurchase(preflight.provider_bill_id);
-        let providerStatus = typeof purchase.status === 'string'
-          ? purchase.status.trim().toLowerCase()
-          : 'unknown';
-        if (providerStatus === 'paid') {
+        let detached = false;
+        let providerStatus = normalizeChipPurchaseStatus(purchase);
+        if (isPaidChipPurchaseStatus(providerStatus)) {
           await settleChipMobilePurchase(preflight.provider_bill_id, purchase, 'customer_cancel_paid_check');
           throw new ApiError(409, 'order_already_paid', 'This payment has already completed. Cancellation is not available here.');
         }
-        if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
-          purchase = await cancelChipPurchase(preflight.provider_bill_id);
-          providerStatus = typeof purchase.status === 'string'
-            ? purchase.status.trim().toLowerCase()
-            : 'unknown';
-          if (providerStatus === 'paid') {
+        if (!isTerminalChipPurchaseStatus(providerStatus)) {
+          const recovery = await closeOrDetachMobilePaymentForRecovery({
+            paymentId: Number(preflight.payment_id),
+            orderId: Number(preflight.id),
+            providerBillId: preflight.provider_bill_id
+          });
+          purchase = recovery.purchase;
+          providerStatus = normalizeChipPurchaseStatus(purchase);
+          if (isPaidChipPurchaseStatus(providerStatus)) {
             await settleChipMobilePurchase(preflight.provider_bill_id, purchase, 'customer_cancel_paid_race');
             throw new ApiError(409, 'order_already_paid', 'This payment completed while it was being cancelled. Cancellation is not available here.');
           }
+          if (recovery.detached) {
+            detached = true;
+            providerStatus = 'cancelled';
+          }
         }
-        if (!['failed', 'cancelled', 'error', 'payment_failure'].includes(providerStatus)) {
-          throw new ApiError(409, 'payment_still_pending', 'The payment could not be closed safely yet. Please check its status again.');
+        if (!isTerminalChipPurchaseStatus(providerStatus)) {
+          throw new ApiError(409, 'payment_still_processing', 'The payment is still being processed. Please check its status again shortly.');
         }
-        await settleChipMobilePurchase(preflight.provider_bill_id, purchase, 'customer_cancel_reconcile');
+        if (!detached) {
+          await settleChipMobilePurchase(preflight.provider_bill_id, purchase, 'customer_cancel_reconcile');
+        }
       }
     }
 
@@ -2424,6 +2522,19 @@ export async function registerCustomerDataRoutes(
 
   app.get('/v1/orders', { preHandler: authenticateRequest }, async (request) => {
     const { limit } = listQuerySchema.parse(request.query);
+
+    // Older app builds refresh this endpoint when the customer taps Check
+    // Status. Keep that path useful by reconciling a small, throttled set of
+    // pending direct payments. Provider failures are deliberately best-effort
+    // and must never make the customer's order list unavailable.
+    try {
+      await reconcilePendingMobileOrdersForUser(request.auth.userId, request.log);
+    } catch (error) {
+      request.log.warn(
+        { err: error, userId: request.auth.userId },
+        'Unable to reconcile pending mobile orders during order listing'
+      );
+    }
 
     const [rows] = await mysqlPool.query<Array<OrderSummaryRow>>(
       `
@@ -2660,16 +2771,18 @@ export async function registerCustomerDataRoutes(
     const [rows] = await mysqlPool.query<Array<RowDataPacket & {
       id: number;
       status: string;
+      tenant_id: number;
       payment_status: string | null;
       payment_method: string | null;
       payment_expires_at: Date | null;
       provider_bill_id: string | null;
       final_total_rm: string;
     }>>(
-      `SELECT o.id, o.status, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
+      `SELECT o.id, o.status, s.tenant_id, CAST(o.final_total_rm AS CHAR) AS final_total_rm,
               p.status AS payment_status, p.payment_method, p.expires_at AS payment_expires_at,
               p.provider_bill_id
        FROM orders o
+       JOIN stores s ON s.id = o.store_id
        LEFT JOIN payments p ON p.id = (
          SELECT p2.id FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.id DESC LIMIT 1
        )
@@ -2679,31 +2792,82 @@ export async function registerCustomerDataRoutes(
     );
     const row = rows[0];
     if (!row) throw new ApiError(404, 'order_not_found', 'Order was not found.');
+    const enabledMethods = await loadTenantPaymentMethodSettings(mysqlPool, row.tenant_id);
     if (row.status !== 'pending_payment' || !row.provider_bill_id) {
+      const state = describeMobilePaymentState({
+        providerStatus: row.payment_status,
+        localPaymentStatus: row.payment_status ?? row.status,
+        hasCheckoutUrl: false
+      });
       return {
         status: row.payment_status ?? row.status,
         checkout_url: null,
         payment_method: row.payment_method,
         amount_rm: row.final_total_rm,
-        expires_at: row.payment_expires_at?.toISOString() ?? null
+        expires_at: row.payment_expires_at?.toISOString() ?? null,
+        payment_state: state.state,
+        can_continue: state.can_continue,
+        can_change_method: state.can_change_method,
+        can_cancel: state.can_cancel,
+        enabled_methods: enabledMethods
       };
     }
 
-    const purchase = await getChipPurchase(row.provider_bill_id);
+    let purchase: ChipPurchase;
+    try {
+      purchase = await getChipPurchase(row.provider_bill_id);
+      await mysqlPool.execute(
+        `UPDATE payments SET provider_checked_at = UTC_TIMESTAMP()
+         WHERE provider = 'chip' AND provider_bill_id = :providerBillId`,
+        { providerBillId: row.provider_bill_id }
+      );
+    } catch (error) {
+      request.log.warn(
+        { err: error, orderId: row.id, providerPurchaseId: row.provider_bill_id },
+        'Unable to refresh CHIP mobile order payment status'
+      );
+      const state = describeMobilePaymentState({
+        localPaymentStatus: row.payment_status,
+        hasCheckoutUrl: false,
+        providerUnavailable: true
+      });
+      return {
+        status: row.payment_status ?? row.status,
+        checkout_url: null,
+        payment_method: row.payment_method,
+        amount_rm: row.final_total_rm,
+        expires_at: row.payment_expires_at?.toISOString() ?? null,
+        payment_state: 'provider_temporarily_unavailable',
+        can_continue: state.can_continue,
+        can_change_method: state.can_change_method,
+        can_cancel: state.can_cancel,
+        enabled_methods: enabledMethods
+      };
+    }
     const checkoutUrl = typeof purchase.checkout_url === 'string' && isTrustedChipCheckoutUrl(purchase.checkout_url)
       ? purchase.checkout_url
       : null;
-    const providerStatus = typeof purchase.status === 'string' ? purchase.status.toLowerCase() : 'unknown';
-    const providerTerminal = ['paid', 'failed', 'cancelled', 'expired', 'overdue', 'blocked', 'error', 'payment_failure'].includes(providerStatus);
+    const providerStatus = normalizeChipPurchaseStatus(purchase);
+    const providerTerminal = isTerminalChipPurchaseStatus(providerStatus);
     if (providerTerminal) {
       await settleChipMobilePurchase(row.provider_bill_id, purchase, 'customer_status_check');
     }
+    const state = describeMobilePaymentState({
+      providerStatus,
+      localPaymentStatus: row.payment_status,
+      hasCheckoutUrl: checkoutUrl !== null
+    });
     return {
       status: providerStatus === 'paid' ? 'paid' : providerStatus,
       checkout_url: providerTerminal ? null : checkoutUrl,
       payment_method: row.payment_method,
       amount_rm: row.final_total_rm,
-      expires_at: row.payment_expires_at?.toISOString() ?? null
+      expires_at: row.payment_expires_at?.toISOString() ?? null,
+      payment_state: state.state,
+      can_continue: state.can_continue,
+      can_change_method: state.can_change_method,
+      can_cancel: state.can_cancel,
+      enabled_methods: enabledMethods
     };
   });
 
@@ -2748,39 +2912,49 @@ export async function registerCustomerDataRoutes(
     let retryableStatus = current.payment_status ?? '';
     if (current.provider_bill_id) {
       let purchase = await getChipPurchase(current.provider_bill_id);
+      let detached = false;
       let providerStatus = typeof purchase.status === 'string'
         ? purchase.status.trim().toLowerCase()
         : 'unknown';
 
-      if (providerStatus === 'paid') {
+      if (isPaidChipPurchaseStatus(providerStatus)) {
         await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_check');
         throw new ApiError(409, 'order_payment_not_retryable', 'This payment has already been completed.');
       }
 
-      const terminalFailureStatuses = ['failed', 'cancelled', 'expired', 'overdue', 'blocked', 'error', 'payment_failure'];
-      if (!terminalFailureStatuses.includes(providerStatus)) {
+      if (!isTerminalChipPurchaseStatus(providerStatus)) {
         // Cancel the open provider purchase first so there can never be two
         // payable CHIP gates for one order, allowing immediate method switch.
         try {
-          purchase = await cancelChipPurchase(current.provider_bill_id);
+          const recovery = await closeOrDetachMobilePaymentForRecovery({
+            paymentId: Number(current.payment_id),
+            orderId: Number(current.id),
+            providerBillId: current.provider_bill_id
+          });
+          purchase = recovery.purchase;
+          if (recovery.detached) {
+            detached = true;
+            providerStatus = 'cancelled';
+          } else {
+            providerStatus = normalizeChipPurchaseStatus(purchase);
+          }
         } catch (error) {
-          request.log.warn({ orderId: params.orderId, providerStatus, err: error }, 'CHIP cancel failed; re-checking purchase status');
-          purchase = await getChipPurchase(current.provider_bill_id);
+          request.log.warn(
+            { orderId: params.orderId, providerStatus, err: error },
+            'CHIP payment could not be closed safely for retry'
+          );
+          throw error;
         }
-        providerStatus = typeof purchase.status === 'string'
-          ? purchase.status.trim().toLowerCase()
-          : 'unknown';
-        if (providerStatus === 'paid') {
+        if (!detached) providerStatus = normalizeChipPurchaseStatus(purchase);
+        if (isPaidChipPurchaseStatus(providerStatus)) {
           await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_cancel_race');
           throw new ApiError(409, 'order_payment_not_retryable', 'This payment was completed while its status was being checked.');
         }
-        if (!terminalFailureStatuses.includes(providerStatus)) {
-          request.log.warn({ orderId: params.orderId, providerStatus }, 'CHIP purchase remains non-terminal after cancel attempt');
-          throw new ApiError(409, 'payment_still_pending', 'The previous payment could not be closed safely yet. Please check its status again.');
-        }
       }
 
-      await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_reconcile');
+      if (!detached) {
+        await settleChipMobilePurchase(current.provider_bill_id, purchase, 'customer_retry_reconcile');
+      }
       retryableStatus = ['cancelled', 'expired', 'overdue'].includes(providerStatus) ? 'cancelled' : 'failed';
     } else if (['pending', 'authorized'].includes(retryableStatus)) {
       const paymentExpired = current.payment_expires_at != null &&

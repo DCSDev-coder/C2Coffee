@@ -832,6 +832,14 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           p.status as paymentStatus,
           p.provider_payment_ref as txnId,
           p.expires_at as paymentExpiresAt,
+          p.status = 'cancelled' AND EXISTS (
+            SELECT 1
+            FROM payment_events recovery_event
+            WHERE recovery_event.payment_id = p.id
+              AND recovery_event.event_type = 'chip_customer_recovery_detach'
+              AND recovery_event.process_result = 'detached_pending_provider_review'
+              AND recovery_event.created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
+          ) AS paymentRecoveryReviewRequired,
           ocr.status as cancellationRequestStatus,
           ocr.reason as cancellationRequestReason,
           ocr.requested_at as cancellationRequestedAt,
@@ -1140,6 +1148,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           cancellationRequestedAt: o.cancellationRequestedAt ? new Date(o.cancellationRequestedAt).toISOString() : null,
           txnId: o.txnId || `TXN${o.internal_id}`,
           paymentExpiresAt: o.paymentExpiresAt ? new Date(o.paymentExpiresAt).toISOString() : null,
+          paymentReviewRequired: o.status === 'pending_payment' &&
+            o.paymentMode === 'direct' &&
+            ['pending', 'authorized'].includes(String(o.paymentStatus || '').toLowerCase()) &&
+            o.paymentExpiresAt != null &&
+            new Date(o.paymentExpiresAt).getTime() <= Date.now(),
+          paymentRecoveryReviewRequired: Number(o.paymentRecoveryReviewRequired || 0) === 1,
           baristaName: o.baristaName || '',
           baristaUsername: '',
           createdAt: d.toISOString(),

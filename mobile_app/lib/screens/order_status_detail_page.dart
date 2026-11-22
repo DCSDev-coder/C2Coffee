@@ -12,24 +12,40 @@ import '../services/payment_security.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_notification.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/custom_bottom_nav.dart';
+import 'menu_page.dart';
+
+typedef OrderAccessTokenProvider = Future<String?> Function();
+typedef OrderCheckoutLauncher = Future<bool> Function(Uri uri);
 
 class OrderStatusDetailPage extends StatefulWidget {
   final CustomerOrder order;
+  final CustomerDataService? dataService;
+  final OrderAccessTokenProvider? accessTokenProvider;
+  final OrderCheckoutLauncher? checkoutLauncher;
 
   const OrderStatusDetailPage({
     super.key,
     required this.order,
+    this.dataService,
+    this.accessTokenProvider,
+    this.checkoutLauncher,
   });
 
   @override
   State<OrderStatusDetailPage> createState() => _OrderStatusDetailPageState();
 }
 
-class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
+class _OrderStatusDetailPageState extends State<OrderStatusDetailPage>
+    with WidgetsBindingObserver {
   late CustomerOrder _order;
+  OrderPaymentStatus? _paymentStatus;
   Timer? _pollTimer;
   Timer? _paymentTimer;
   bool _isRefreshing = false;
+  bool _isCheckingPayment = false;
+  bool _isPaymentActionInProgress = false;
+  bool _awaitingPaymentReturn = false;
   bool _isCollecting = false;
   bool _isCancelling = false;
   bool _isRetryingPayment = false;
@@ -38,19 +54,61 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _order = widget.order;
     _startPolling();
     _startPaymentTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _refreshOrder(silent: true);
+      if (_isPendingDirectPayment) {
+        _checkPaymentStatus(silent: true);
+      } else {
+        _refreshOrder(silent: true);
+      }
     });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _paymentTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _awaitingPaymentReturn) {
+      _awaitingPaymentReturn = false;
+      unawaited(_checkPaymentStatus(silent: true));
+    }
+  }
+
+  CustomerDataService get _dataService =>
+      widget.dataService ?? CustomerDataService.instance;
+
+  bool get _isPendingDirectPayment =>
+      _order.status == 'pending_payment' && _order.paymentMode == 'direct';
+
+  bool get _isPaymentBusy =>
+      _isCheckingPayment ||
+      _isPaymentActionInProgress ||
+      _isRetryingPayment ||
+      _isCancelling;
+
+  Future<String> _accessToken() async {
+    final token = widget.accessTokenProvider == null
+        ? await SecureSessionService.instance.getValidAccessToken()
+        : await widget.accessTokenProvider!();
+    if (token == null || token.isEmpty) {
+      throw ApiException('Missing access token.', code: 'missing_access_token');
+    }
+    return token;
+  }
+
+  Future<bool> _launchCheckout(Uri uri) {
+    final launcher = widget.checkoutLauncher;
+    if (launcher != null) return launcher(uri);
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   void _startPaymentTimer() {
@@ -75,28 +133,51 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
     return 'Payment window: $minutes:${seconds.toString().padLeft(2, '0')} remaining';
   }
 
+  String get _paymentPanelTitle {
+    return _paymentStatus?.state == OrderPaymentState.active
+        ? 'Complete your payment'
+        : 'Payment not confirmed yet';
+  }
+
+  String get _paymentPanelMessage {
+    final state = _paymentStatus?.state;
+    if (state == null) {
+      return 'We are checking the latest payment status. No new payment will be created while this check is in progress.';
+    }
+    return orderPaymentCustomerMessage(state);
+  }
+
   Future<void> _continuePayment() async {
-    if (_isRefreshing) return;
+    if (_isPaymentBusy) return;
+    setState(() => _isPaymentActionInProgress = true);
     try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) {
-        throw ApiException('Missing access token.',
-            code: 'missing_access_token');
-      }
-      final payment = await CustomerDataService.instance.getOrderPayment(
-        accessToken: accessToken,
+      final payment = await _dataService.getOrderPayment(
+        accessToken: await _accessToken(),
         orderId: _order.id,
       );
-      final checkoutUrl = payment['checkout_url'] as String?;
-      if (checkoutUrl == null || !isTrustedPaymentCheckoutUrl(checkoutUrl)) {
-        await _refreshOrder(silent: true);
-        if (!mounted) return;
-        await _retryPayment();
+      if (!mounted) return;
+      setState(() => _paymentStatus = payment);
+      final checkoutUrl = payment.checkoutUrl;
+      if (!payment.canContinue ||
+          checkoutUrl == null ||
+          !isTrustedPaymentCheckoutUrl(checkoutUrl)) {
+        AppNotification.showError(
+          context,
+          orderPaymentCustomerMessage(payment.state),
+        );
         return;
       }
-      await launchUrl(Uri.parse(checkoutUrl),
-          mode: LaunchMode.externalApplication);
+      _awaitingPaymentReturn = true;
+      final opened = await _launchCheckout(Uri.parse(checkoutUrl));
+      if (!opened) {
+        _awaitingPaymentReturn = false;
+        if (mounted) {
+          AppNotification.showError(
+            context,
+            'Unable to open the secure payment page right now.',
+          );
+        }
+      }
     } on ApiException catch (error) {
       if (mounted) AppNotification.showError(context, _friendlyMessage(error));
     } catch (_) {
@@ -104,59 +185,104 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
         AppNotification.showError(
             context, 'Unable to reopen the payment page right now.');
       }
+    } finally {
+      if (mounted) setState(() => _isPaymentActionInProgress = false);
     }
   }
 
-  Future<void> _retryPayment() async {
-    if (_isRetryingPayment) return;
-    final method = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Choose another payment method',
-            style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepTeal)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final option in const [
-              ('fpx', 'FPX Online Banking'),
-              ('duitnow_qr', 'DuitNow QR'),
-              ('card', 'Debit / Credit Card'),
-              ('ewallet', 'Online Payment'),
-            ])
-              ListTile(
-                title: Text(option.$2,
-                    style: const TextStyle(fontFamily: 'Afacad')),
-                leading: Icon(Icons.payment, color: AppColors.deepTeal),
-                onTap: () => Navigator.of(dialogContext).pop(option.$1),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (method == null || !mounted) return;
+  Future<void> _changePaymentMethod() async {
+    if (_isPaymentBusy) return;
     setState(() => _isRetryingPayment = true);
     try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) {
-        throw ApiException('Missing access token.',
-            code: 'missing_access_token');
+      final accessToken = await _accessToken();
+      final currentPayment = await _dataService.getOrderPayment(
+        accessToken: accessToken,
+        orderId: _order.id,
+      );
+      if (!mounted) return;
+      setState(() => _paymentStatus = currentPayment);
+      if (!currentPayment.canChangeMethod) {
+        AppNotification.showError(
+          context,
+          orderPaymentCustomerMessage(currentPayment.state),
+        );
+        return;
       }
-      final payment = await CustomerDataService.instance.retryOrderPayment(
+
+      final available = await _dataService.getChipPaymentMethods(
+        accessToken: accessToken,
+      );
+      var methods = currentPayment.enabledMethods.isEmpty
+          ? available.methods.toList(growable: false)
+          : currentPayment.enabledMethods
+              .where(available.methods.contains)
+              .toList(growable: false);
+      final descriptions = <String, String>{
+        ...currentPayment.methodDescriptions,
+        ...available.descriptions,
+      };
+      methods = methods
+          .where((method) => method != currentPayment.paymentMethod)
+          .toList(growable: false);
+      if (!mounted) return;
+      if (methods.isEmpty) {
+        AppNotification.showError(
+          context,
+          'No alternative payment method is available right now.',
+        );
+        return;
+      }
+
+      final method = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Choose another payment method',
+              style: TextStyle(
+                  fontFamily: 'Recoleta',
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.deepTeal)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final method in methods)
+                ListTile(
+                  title: Text(_paymentMethodLabel(method),
+                      style: const TextStyle(fontFamily: 'Afacad')),
+                  subtitle: descriptions[method] == null
+                      ? null
+                      : Text(descriptions[method]!),
+                  leading: Icon(Icons.payment, color: AppColors.deepTeal),
+                  onTap: () => Navigator.of(dialogContext).pop(method),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (method == null || !mounted) return;
+
+      final payment = await _dataService.retryOrderPayment(
         accessToken: accessToken,
         orderId: _order.id,
         paymentMethod: method,
       );
-      final checkoutUrl = payment['checkout_url'] as String?;
-      if (checkoutUrl == null || !isTrustedPaymentCheckoutUrl(checkoutUrl)) {
-        throw ApiException('The new payment page is not available yet.');
+      if (!mounted) return;
+      setState(() => _paymentStatus = payment);
+      final checkoutUrl = payment.checkoutUrl;
+      if (!payment.canContinue ||
+          checkoutUrl == null ||
+          !isTrustedPaymentCheckoutUrl(checkoutUrl)) {
+        AppNotification.showError(
+          context,
+          orderPaymentCustomerMessage(payment.state),
+        );
+        return;
       }
-      await launchUrl(Uri.parse(checkoutUrl),
-          mode: LaunchMode.externalApplication);
-      await _refreshOrder(silent: true);
+      _awaitingPaymentReturn = true;
+      final opened = await _launchCheckout(Uri.parse(checkoutUrl));
+      if (!opened) {
+        _awaitingPaymentReturn = false;
+        throw ApiException('Unable to open the secure payment page right now.');
+      }
     } on ApiException catch (error) {
       if (mounted) AppNotification.showError(context, _friendlyMessage(error));
     } catch (_) {
@@ -166,6 +292,51 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       }
     } finally {
       if (mounted) setState(() => _isRetryingPayment = false);
+    }
+  }
+
+  String _paymentMethodLabel(String method) {
+    return switch (method) {
+      'fpx' => 'FPX Online Banking',
+      'duitnow_qr' => 'DuitNow QR',
+      'card' => 'Debit / Credit Card',
+      'ewallet' => 'Online Payment',
+      _ => 'Payment method',
+    };
+  }
+
+  Future<void> _checkPaymentStatus({bool silent = false}) async {
+    if (_isCheckingPayment ||
+        _isPaymentActionInProgress ||
+        _isRetryingPayment ||
+        _isCancelling) {
+      return;
+    }
+    setState(() {
+      _isCheckingPayment = true;
+      if (!silent) _errorMessage = null;
+    });
+    try {
+      final payment = await _dataService.getOrderPayment(
+        accessToken: await _accessToken(),
+        orderId: _order.id,
+      );
+      if (!mounted) return;
+      setState(() => _paymentStatus = payment);
+      await _refreshOrder(silent: silent);
+    } on ApiException catch (error) {
+      if (!mounted || silent) return;
+      final message = _friendlyMessage(error);
+      setState(() => _errorMessage = message);
+      AppNotification.showError(context, message);
+    } catch (_) {
+      if (!mounted || silent) return;
+      const message =
+          'We could not confirm the payment status right now. Please check again shortly.';
+      setState(() => _errorMessage = message);
+      AppNotification.showError(context, message);
+    } finally {
+      if (mounted) setState(() => _isCheckingPayment = false);
     }
   }
 
@@ -180,25 +351,19 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
 
   Future<void> _refreshOrder({bool silent = false}) async {
     if (_isRefreshing) return;
-    if (!silent) {
+    if (mounted) {
       setState(() {
-        _errorMessage = null;
+        _isRefreshing = true;
+        if (!silent) {
+          _errorMessage = null;
+        }
       });
+    } else {
+      _isRefreshing = true;
     }
-
-    _isRefreshing = true;
     try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) {
-        throw ApiException(
-          'Missing access token.',
-          code: 'missing_access_token',
-        );
-      }
-
-      final snapshot = await CustomerDataService.instance.getOrders(
-        accessToken: accessToken,
+      final snapshot = await _dataService.getOrders(
+        accessToken: await _accessToken(),
         limit: 100,
       );
       AppSessionService.instance.syncBackendOrderState(
@@ -235,7 +400,11 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
         _errorMessage = 'Unable to refresh this order right now.';
       });
     } finally {
-      _isRefreshing = false;
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      } else {
+        _isRefreshing = false;
+      }
     }
   }
 
@@ -342,7 +511,9 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   }
 
   bool get _canCancelOrder =>
-      _order.status == 'pending_payment' && _order.paymentMode == 'direct';
+      _order.status == 'pending_payment' &&
+      _order.paymentMode == 'direct' &&
+      (_paymentStatus?.canCancel ?? false);
 
   bool get _canRequestCancellation =>
       const {'paid', 'accepted'}.contains(_order.status) &&
@@ -355,7 +526,7 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       _order.cancellationRequestStatus != 'withdrawn';
 
   Future<void> _cancelOrder() async {
-    if (_isCancelling) return;
+    if (_isPaymentBusy) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -397,29 +568,16 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       _errorMessage = null;
     });
     try {
-      final accessToken =
-          await SecureSessionService.instance.getValidAccessToken();
-      if (accessToken == null || accessToken.isEmpty) {
-        throw ApiException('Missing access token.',
-            code: 'missing_access_token');
-      }
-      final result = await CustomerDataService.instance.cancelOrder(
-        accessToken: accessToken,
+      final result = await _dataService.cancelOrder(
+        accessToken: await _accessToken(),
         orderId: _order.id,
       );
       final tokenBalance = (result['token_balance'] as num?)?.toInt();
       if (tokenBalance != null) {
         AppSessionService.instance.applyTokenBalance(tokenBalance);
       }
-      await _refreshOrder(silent: true);
       if (!mounted) return;
-      final returnedTokens = (result['returned_tokens'] as num?)?.toInt() ?? 0;
-      AppNotification.showSuccess(
-        context,
-        returnedTokens > 0
-            ? '$returnedTokens tokens returned. Your order is cancelled.'
-            : 'Your unpaid order is cancelled. No payment was taken.',
-      );
+      CustomBottomNav.switchTab(context, const MenuPage());
     } on ApiException catch (error) {
       if (!mounted) return;
       final message = _friendlyMessage(error);
@@ -597,6 +755,13 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
   }
 
   void _leavePage() {
+    if (_isPendingDirectPayment) {
+      AppNotification.showError(
+        context,
+        'Complete or cancel this payment before leaving.',
+      );
+      return;
+    }
     Navigator.of(context).maybePop(_order);
   }
 
@@ -610,6 +775,262 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
       default:
         return 'assets/images/OrderStatus/4.png';
     }
+  }
+
+  Widget _buildPendingPaymentPage() {
+    final items = _order.items;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Text(
+              'WAITING FOR PAYMENT',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Recoleta',
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: AppColors.deepTeal,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Center(
+            child: Text(
+              'Your order is reserved until payment is confirmed.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 17,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _orderTitle(),
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _order.store.name,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    color: Colors.black54,
+                  ),
+                ),
+                const Divider(height: 26),
+                if (items.isEmpty)
+                  Text(
+                    _order.primaryItemName ?? 'Selected items',
+                    style: const TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 17,
+                      color: Colors.black87,
+                    ),
+                  )
+                else
+                  ...items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${item.quantity}x ${item.name}',
+                                  style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                if (item.modifiers.isNotEmpty)
+                                  Text(
+                                    item.modifiers
+                                        .map((modifier) => modifier.optionName)
+                                        .join(' · '),
+                                    style: const TextStyle(
+                                      fontFamily: 'Afacad',
+                                      fontSize: 14,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            'RM ${item.lineSubtotalRm}',
+                            style: const TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const Divider(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'RM ${_order.finalTotalRm}',
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _paymentPanelTitle,
+                  style: TextStyle(
+                    fontFamily: 'Recoleta',
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.deepTeal,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _paymentCountdown(),
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 16,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _paymentPanelMessage,
+                  style: const TextStyle(
+                    fontFamily: 'Afacad',
+                    fontSize: 15,
+                    height: 1.3,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (_paymentStatus?.canContinue == true)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      key: const ValueKey('continue-payment'),
+                      onPressed: _isPaymentBusy ? null : _continuePayment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.deepTeal,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(_isPaymentActionInProgress
+                          ? 'OPENING PAYMENT...'
+                          : 'CONTINUE PAYMENT'),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    key: const ValueKey('check-payment-status'),
+                    onPressed:
+                        _isPaymentBusy ? null : () => _checkPaymentStatus(),
+                    child: Text(_isCheckingPayment
+                        ? 'CHECKING PAYMENT...'
+                        : 'CHECK PAYMENT STATUS'),
+                  ),
+                ),
+                if (_paymentStatus?.canChangeMethod == true) ...[
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      key: const ValueKey('change-payment-method'),
+                      onPressed: _isPaymentBusy ? null : _changePaymentMethod,
+                      child: Text(
+                        _isRetryingPayment
+                            ? 'CHECKING PAYMENT...'
+                            : 'CHANGE PAYMENT METHOD',
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.deepTeal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    key: const ValueKey('cancel-unpaid-order'),
+                    onPressed: _isPaymentBusy ? null : _cancelOrder,
+                    child: Text(
+                      _isCancelling ? 'CANCELLING...' : 'CANCEL',
+                      style: TextStyle(
+                        fontFamily: 'Afacad',
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   int _workflowStage(String status) {
@@ -750,255 +1171,284 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage> {
     final status = _order.status;
     final canCollect = status == 'ready_for_pickup';
 
-    return AppPageShell(
-      title: 'ORDER STATUS',
-      onBack: _leavePage,
-      backgroundColor: Colors.white,
-      scrollable: false,
-      bodyPadding: EdgeInsets.zero,
-      trailing: IconButton(
-        onPressed: () => _refreshOrder(),
-        icon: Icon(Icons.refresh, color: AppColors.deepTeal),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              _estimateLabel(status),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepTeal,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _orderTitle(),
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 17,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 28),
-            Image.asset(
-              _imagePath(status),
-              height: 220,
-              width: 220,
-              alignment: Alignment.center,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(height: 28),
-            _buildWorkflowTracker(status),
-            if (status == 'pending_payment' &&
-                _order.paymentMode == 'direct') ...[
-              const SizedBox(height: 18),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                ),
+    return PopScope(
+      canPop: !_isPendingDirectPayment,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isPendingDirectPayment) _leavePage();
+      },
+      child: AppPageShell(
+        title: _isPendingDirectPayment ? 'PAYMENT REQUIRED' : 'ORDER STATUS',
+        onBack: _leavePage,
+        backgroundColor: Colors.white,
+        scrollable: false,
+        bodyPadding: EdgeInsets.zero,
+        trailing: IconButton(
+          onPressed: _isPaymentBusy || _isRefreshing
+              ? null
+              : () => _isPendingDirectPayment
+                  ? _checkPaymentStatus()
+                  : _refreshOrder(),
+          icon: Icon(Icons.refresh, color: AppColors.deepTeal),
+        ),
+        child: _isPendingDirectPayment
+            ? _buildPendingPaymentPage()
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text('Payment still in progress',
-                        style: TextStyle(
-                            fontFamily: 'Recoleta',
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.deepTeal)),
-                    const SizedBox(height: 6),
-                    Text(_paymentCountdown(),
-                        style: const TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 16,
-                            color: Colors.black87)),
-                    const SizedBox(height: 8),
-                    const Text(
-                        'Retry reopens the current payment when it is still available. If its window has closed, you can safely choose another payment method for this same order.',
-                        style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 15,
-                            height: 1.3,
-                            color: Colors.black54)),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: OutlinedButton(
-                                onPressed: _isRefreshing
-                                    ? null
-                                    : () => _refreshOrder(),
-                                child: const Text('CHECK STATUS'))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: ElevatedButton(
-                                onPressed: _continuePayment,
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.deepTeal,
-                                    foregroundColor: Colors.white),
-                                child: const Text('RETRY PAYMENT'))),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: _isRetryingPayment ? null : _retryPayment,
-                        child: Text(
-                          _isRetryingPayment
-                              ? 'CHECKING PAYMENT...'
-                              : 'USE ANOTHER PAYMENT METHOD',
-                          style: TextStyle(
-                              fontFamily: 'Afacad',
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.deepTeal),
-                        ),
+                    Text(
+                      _estimateLabel(status),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _orderTitle(),
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 17,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Image.asset(
+                      _imagePath(status),
+                      height: 220,
+                      width: 220,
+                      alignment: Alignment.center,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 28),
+                    _buildWorkflowTracker(status),
+                    if (status == 'pending_payment' &&
+                        _order.paymentMode == 'direct') ...[
+                      const SizedBox(height: 18),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_paymentPanelTitle,
+                                style: TextStyle(
+                                    fontFamily: 'Recoleta',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.deepTeal)),
+                            const SizedBox(height: 6),
+                            Text(_paymentCountdown(),
+                                style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 16,
+                                    color: Colors.black87)),
+                            const SizedBox(height: 8),
+                            Text(_paymentPanelMessage,
+                                style: const TextStyle(
+                                    fontFamily: 'Afacad',
+                                    fontSize: 15,
+                                    height: 1.3,
+                                    color: Colors.black54)),
+                            const SizedBox(height: 14),
+                            if (_paymentStatus?.canContinue == true) ...[
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  key: const ValueKey('continue-payment'),
+                                  onPressed:
+                                      _isPaymentBusy ? null : _continuePayment,
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.deepTeal,
+                                      foregroundColor: Colors.white),
+                                  child: Text(_isPaymentActionInProgress
+                                      ? 'OPENING PAYMENT...'
+                                      : 'CONTINUE PAYMENT'),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                            ],
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                key: const ValueKey('check-payment-status'),
+                                onPressed: _isPaymentBusy
+                                    ? null
+                                    : () => _checkPaymentStatus(),
+                                child: Text(_isCheckingPayment
+                                    ? 'CHECKING PAYMENT...'
+                                    : 'CHECK PAYMENT STATUS'),
+                              ),
+                            ),
+                            if (_paymentStatus?.canChangeMethod == true) ...[
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                width: double.infinity,
+                                child: TextButton(
+                                  key: const ValueKey('change-payment-method'),
+                                  onPressed: _isPaymentBusy
+                                      ? null
+                                      : _changePaymentMethod,
+                                  child: Text(
+                                    _isRetryingPayment
+                                        ? 'CHECKING PAYMENT...'
+                                        : 'CHANGE PAYMENT METHOD',
+                                    style: TextStyle(
+                                        fontFamily: 'Afacad',
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.deepTeal),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 28),
+                    Text(
+                      _statusTitle(status),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Recoleta',
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepTeal,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      _statusDescription(status),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Afacad',
+                        fontSize: 19,
+                        color: Colors.black87,
+                        height: 1.35,
+                      ),
+                    ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 18),
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Afacad',
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade700,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    if (canCollect)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isCollecting ? null : _confirmCollect,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.deepTeal,
+                            disabledBackgroundColor:
+                                AppColors.deepTeal.withValues(alpha: 0.35),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          child: Text(
+                            _isCollecting ? 'UPDATING...' : 'MARK AS COLLECTED',
+                            style: const TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _leavePage,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.deepTeal,
+                            side: BorderSide(color: AppColors.border),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          child: const Text(
+                            'BACK TO MY ORDER',
+                            style: TextStyle(
+                              fontFamily: 'Recoleta',
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_canRequestCancellation) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          onPressed:
+                              _isCancelling ? null : _requestCancellation,
+                          child: Text(
+                            _isCancelling
+                                ? 'SENDING REQUEST...'
+                                : 'REQUEST CANCELLATION',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.deepTeal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (_hasCancellationRequest) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _order.cancellationRequestStatus == 'refund_pending'
+                            ? 'Cancellation approved. Direct-payment refund is still pending provider confirmation.'
+                            : 'Cancellation request sent. The barista will decide before preparation starts.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontFamily: 'Afacad', color: AppColors.deepTeal),
+                      ),
+                    ],
+                    if (_canCancelOrder) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          key: const ValueKey('cancel-unpaid-order'),
+                          onPressed: _isPaymentBusy ? null : _cancelOrder,
+                          child: Text(
+                            _isCancelling ? 'CANCELLING...' : 'CANCEL ORDER',
+                            style: TextStyle(
+                                fontFamily: 'Afacad',
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.deepTeal),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-            ],
-            const SizedBox(height: 28),
-            Text(
-              _statusTitle(status),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Recoleta',
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: AppColors.deepTeal,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              _statusDescription(status),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 19,
-                color: Colors.black87,
-                height: 1.35,
-              ),
-            ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 18),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Afacad',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red.shade700,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            if (canCollect)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isCollecting ? null : _confirmCollect,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.deepTeal,
-                    disabledBackgroundColor:
-                        AppColors.deepTeal.withValues(alpha: 0.35),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: Text(
-                    _isCollecting ? 'UPDATING...' : 'MARK AS COLLECTED',
-                    style: const TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              )
-            else
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _leavePage,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.deepTeal,
-                    side: BorderSide(color: AppColors.border),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: const Text(
-                    'BACK TO MY ORDER',
-                    style: TextStyle(
-                      fontFamily: 'Recoleta',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            if (_canRequestCancellation) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: _isCancelling ? null : _requestCancellation,
-                  child: Text(
-                    _isCancelling
-                        ? 'SENDING REQUEST...'
-                        : 'REQUEST CANCELLATION',
-                    style: TextStyle(
-                      fontFamily: 'Afacad',
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepTeal,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            if (_hasCancellationRequest) ...[
-              const SizedBox(height: 12),
-              Text(
-                _order.cancellationRequestStatus == 'refund_pending'
-                    ? 'Cancellation approved. Direct-payment refund is still pending provider confirmation.'
-                    : 'Cancellation request sent. The barista will decide before preparation starts.',
-                textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontFamily: 'Afacad', color: AppColors.deepTeal),
-              ),
-            ],
-            if (_canCancelOrder) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: _isCancelling ? null : _cancelOrder,
-                  child: Text(
-                    _isCancelling ? 'CANCELLING...' : 'CANCEL UNPAID PAYMENT',
-                    style: TextStyle(
-                        fontFamily: 'Afacad',
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepTeal),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

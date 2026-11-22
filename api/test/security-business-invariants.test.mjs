@@ -299,14 +299,25 @@ test('customer direct checkout uses RM pricing and trusted CHIP settlement', asy
   assert.match(settlement, /orderChannel: 'counter' \| 'mobile'/);
   assert.match(settlement, /o\.order_channel = :orderChannel/);
   assert.match(chipClient, /purchases\/\$\{encodeURIComponent\(id\)\}\/cancel\//);
-  assert.match(customerData, /await cancelChipPurchase\(current\.provider_bill_id\)/);
+  assert.match(customerData, /closeOrDetachMobilePaymentForRecovery\([\s\S]*providerBillId: current\.provider_bill_id/);
+  assert.match(customerData, /cancelPurchase: cancelChipPurchase/);
   assert.match(customerData, /customer_retry_cancel_race/);
+  assert.match(customerData, /detached_pending_provider_review/);
+  assert.match(customerData, /chip_customer_recovery_detach/);
   assert.match(customerData, /lockedRows\[0\]\.payment_id !== current\.payment_id/);
   assert.match(customerData, /pending_payment' && order\.payment_mode === 'direct'/);
   assert.match(customerData, /customer_cancel_paid_race/);
   assert.match(customerData, /releaseInventoryForOrder\(connection, order\.id\)/);
   assert.match(customerData, /payment_cancelled: true/);
   assert.match(settlement, /if \(orderChannel === 'counter'\)/);
+});
+
+test('direct checkout blocks a second unresolved customer payment order', async () => {
+  const checkout = await source('src/http/routes/checkout.ts');
+  assert.match(checkout, /pending_payment_order_exists/);
+  assert.match(checkout, /o\.payment_mode = 'direct'/);
+  assert.match(checkout, /o\.status = 'pending_payment'/);
+  assert.match(checkout, /Complete or cancel your existing payment/);
 });
 
 test('order cancellation is barista-reviewed and never fakes direct-payment refunds', async () => {

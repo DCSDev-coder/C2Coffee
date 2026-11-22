@@ -91,6 +91,12 @@ String friendlyCustomerErrorMessage(
       return 'This outlet is currently closed. Choose an open outlet before ordering.';
     case 'mobile_ordering_closed':
       return 'Mobile ordering closes 10 minutes before the outlet closes. Please order earlier or visit the counter.';
+    case 'payment_still_pending':
+    case 'payment_still_processing':
+      return 'We\'re still confirming your payment with the provider. You have not been charged twice. Check again shortly.';
+    case 'payment_status_unavailable':
+    case 'topup_gateway_error':
+      return 'The payment provider is temporarily unavailable. Your order remains unpaid and no new payment has been created. Please check again shortly.';
     case 'store_not_available':
       return 'This outlet is not available right now. Please choose another outlet.';
     case 'voucher_not_active':

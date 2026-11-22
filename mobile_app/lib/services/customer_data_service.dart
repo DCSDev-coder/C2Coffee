@@ -151,6 +151,173 @@ class OnlineTopUpPaymentMethods {
   }
 }
 
+enum OrderPaymentState {
+  active,
+  processing,
+  paid,
+  failed,
+  expired,
+  providerTemporarilyUnavailable,
+}
+
+String orderPaymentCustomerMessage(OrderPaymentState state) {
+  return switch (state) {
+    OrderPaymentState.active =>
+      'Your payment is not confirmed yet. Continue payment to reopen the same secure payment page.',
+    OrderPaymentState.processing =>
+      'We\'re still confirming your payment with the provider. You have not been charged twice. Check again shortly.',
+    OrderPaymentState.paid =>
+      'Your payment is confirmed. We are updating your order now.',
+    OrderPaymentState.failed =>
+      'This payment was not completed. You can choose another available payment method.',
+    OrderPaymentState.expired =>
+      'This payment window has expired. You can choose another available payment method.',
+    OrderPaymentState.providerTemporarilyUnavailable =>
+      'The payment provider is temporarily unavailable. Your order remains unpaid and no new payment has been created. Please check again shortly.',
+  };
+}
+
+class OrderPaymentStatus {
+  static const _supportedMethods = {
+    'fpx',
+    'duitnow_qr',
+    'card',
+    'ewallet',
+  };
+
+  final String providerStatus;
+  final OrderPaymentState state;
+  final String? checkoutUrl;
+  final String? paymentMethod;
+  final String? amountRm;
+  final DateTime? expiresAt;
+  final bool canContinue;
+  final bool canChangeMethod;
+  final bool canCancel;
+  final List<String> enabledMethods;
+  final Map<String, String> methodDescriptions;
+
+  const OrderPaymentStatus({
+    required this.providerStatus,
+    required this.state,
+    required this.checkoutUrl,
+    required this.paymentMethod,
+    required this.amountRm,
+    required this.expiresAt,
+    required this.canContinue,
+    required this.canChangeMethod,
+    required this.canCancel,
+    required this.enabledMethods,
+    required this.methodDescriptions,
+  });
+
+  factory OrderPaymentStatus.fromApi(Map<String, dynamic> json) {
+    final providerStatus =
+        (json['status'] as String? ?? '').trim().toLowerCase();
+    final checkoutUrl = (json['checkout_url'] as String?)?.trim();
+    final normalizedState = (json['normalized_state'] ??
+            json['payment_state'] ??
+            json['customer_state'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    final state = _parseState(
+      normalizedState: normalizedState,
+      providerStatus: providerStatus,
+      hasCheckoutUrl: checkoutUrl != null && checkoutUrl.isNotEmpty,
+    );
+
+    final rawMethods = json['enabled_methods'] ??
+        json['available_payment_methods'] ??
+        json['payment_methods'];
+    final enabledMethods = rawMethods is List
+        ? rawMethods
+            .whereType<String>()
+            .map((method) => method.trim().toLowerCase())
+            .where(_supportedMethods.contains)
+            .toSet()
+            .toList(growable: false)
+        : const <String>[];
+    final methodDescriptions = <String, String>{};
+    final rawDescriptions = json['method_descriptions'];
+    if (rawDescriptions is Map) {
+      for (final entry in rawDescriptions.entries) {
+        final key = entry.key.toString().trim().toLowerCase();
+        final value = entry.value?.toString().trim() ?? '';
+        if (_supportedMethods.contains(key) && value.isNotEmpty) {
+          methodDescriptions[key] = value;
+        }
+      }
+    }
+
+    final defaultCanContinue = state == OrderPaymentState.active &&
+        checkoutUrl != null &&
+        checkoutUrl.isNotEmpty;
+    final defaultCanChange =
+        state == OrderPaymentState.failed || state == OrderPaymentState.expired;
+    final defaultCanCancel = state != OrderPaymentState.processing &&
+        state != OrderPaymentState.paid &&
+        state != OrderPaymentState.providerTemporarilyUnavailable;
+
+    return OrderPaymentStatus(
+      providerStatus: providerStatus,
+      state: state,
+      checkoutUrl:
+          checkoutUrl == null || checkoutUrl.isEmpty ? null : checkoutUrl,
+      paymentMethod: (json['payment_method'] as String?)?.trim(),
+      amountRm: json['amount_rm']?.toString(),
+      expiresAt: _parseNullableDate(json['expires_at'] as String?),
+      canContinue: json['can_continue'] is bool
+          ? json['can_continue'] as bool
+          : defaultCanContinue,
+      canChangeMethod: json['can_change_method'] is bool
+          ? json['can_change_method'] as bool
+          : defaultCanChange,
+      canCancel: json['can_cancel'] is bool
+          ? json['can_cancel'] as bool
+          : defaultCanCancel,
+      enabledMethods: enabledMethods,
+      methodDescriptions: Map.unmodifiable(methodDescriptions),
+    );
+  }
+
+  static OrderPaymentState _parseState({
+    required String? normalizedState,
+    required String providerStatus,
+    required bool hasCheckoutUrl,
+  }) {
+    switch (normalizedState) {
+      case 'payment_active':
+        return OrderPaymentState.active;
+      case 'payment_processing':
+        return OrderPaymentState.processing;
+      case 'payment_paid':
+        return OrderPaymentState.paid;
+      case 'payment_failed':
+        return OrderPaymentState.failed;
+      case 'payment_expired':
+        return OrderPaymentState.expired;
+      case 'provider_temporarily_unavailable':
+        return OrderPaymentState.providerTemporarilyUnavailable;
+    }
+
+    if (providerStatus == 'paid') return OrderPaymentState.paid;
+    if (const {'expired', 'overdue', 'cancelled'}.contains(providerStatus)) {
+      return OrderPaymentState.expired;
+    }
+    if (const {'failed', 'error', 'payment_failure', 'blocked'}
+        .contains(providerStatus)) {
+      return OrderPaymentState.failed;
+    }
+    if (const {'pending_execute', 'processing', 'unknown'}
+        .contains(providerStatus)) {
+      return OrderPaymentState.processing;
+    }
+    if (hasCheckoutUrl) return OrderPaymentState.active;
+    return OrderPaymentState.processing;
+  }
+}
+
 class GiftCard {
   final int id;
   final String code;
@@ -1489,11 +1656,16 @@ class ReferralSnapshot {
 }
 
 class CustomerDataService {
-  CustomerDataService._();
+  CustomerDataService({
+    http.Client? client,
+    String? baseUrl,
+  })  : _client = client ?? http.Client(),
+        _baseUrl = baseUrl ?? ApiConfig.baseUrl;
 
-  static final CustomerDataService instance = CustomerDataService._();
+  static final CustomerDataService instance = CustomerDataService();
 
-  final http.Client _client = http.Client();
+  final http.Client _client;
+  final String _baseUrl;
 
   Future<EmployeeSubsidy> getSubsidy({
     required String accessToken,
@@ -1795,26 +1967,28 @@ class CustomerDataService {
     );
   }
 
-  Future<Map<String, dynamic>> getOrderPayment({
+  Future<OrderPaymentStatus> getOrderPayment({
     required String accessToken,
     required int orderId,
-  }) {
-    return _get(
+  }) async {
+    final response = await _get(
       '/orders/$orderId/payment',
       accessToken: accessToken,
     );
+    return OrderPaymentStatus.fromApi(response);
   }
 
-  Future<Map<String, dynamic>> retryOrderPayment({
+  Future<OrderPaymentStatus> retryOrderPayment({
     required String accessToken,
     required int orderId,
     required String paymentMethod,
-  }) {
-    return _post(
+  }) async {
+    final response = await _post(
       '/orders/$orderId/payment/retry',
       accessToken: accessToken,
       body: {'payment_method': paymentMethod},
     );
+    return OrderPaymentStatus.fromApi(response);
   }
 
   Future<ReferralSnapshot> getReferralInfo({
@@ -1846,7 +2020,7 @@ class CustomerDataService {
   }) async {
     http.Response response = await _client
         .post(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
+          Uri.parse('$_baseUrl$path'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $accessToken',
@@ -1862,7 +2036,7 @@ class CustomerDataService {
       if (refreshed != null && refreshed.isNotEmpty) {
         response = await _client
             .post(
-              Uri.parse('${ApiConfig.baseUrl}$path'),
+              Uri.parse('$_baseUrl$path'),
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer $refreshed',
@@ -1902,7 +2076,7 @@ class CustomerDataService {
   }) async {
     Future<http.Response> send(String token) => _client
         .put(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
+          Uri.parse('$_baseUrl$path'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',
@@ -1941,7 +2115,7 @@ class CustomerDataService {
     required String accessToken,
   }) async {
     http.Response response = await _client.get(
-      Uri.parse('${ApiConfig.baseUrl}$path'),
+      Uri.parse('$_baseUrl$path'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -1953,7 +2127,7 @@ class CustomerDataService {
           await SecureSessionService.instance.refreshTokenSilently();
       if (refreshed != null && refreshed.isNotEmpty) {
         response = await _client.get(
-          Uri.parse('${ApiConfig.baseUrl}$path'),
+          Uri.parse('$_baseUrl$path'),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $refreshed',

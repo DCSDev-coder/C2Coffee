@@ -613,6 +613,33 @@ export async function registerCheckoutRoutes(
     try {
       await connection.beginTransaction();
 
+      // A customer must resolve the existing direct-payment attempt before
+      // opening another checkout. This prevents duplicate unpaid orders and
+      // competing CHIP payment windows. The customer can explicitly cancel
+      // the pending order first, which closes the provider attempt and
+      // releases its reservation.
+      const [pendingPaymentOrders] = await connection.execute<Array<RowDataPacket & {
+        id: number;
+        order_ref: string;
+      }>>(
+        `SELECT o.id, o.order_ref
+           FROM orders o
+          WHERE o.user_id = :userId
+            AND o.payment_mode = 'direct'
+            AND o.status = 'pending_payment'
+          ORDER BY o.id DESC
+          LIMIT 1
+          FOR UPDATE`,
+        { userId: request.auth.userId }
+      );
+      if (pendingPaymentOrders[0]) {
+        throw new ApiError(
+          409,
+          'pending_payment_order_exists',
+          'Complete or cancel your existing payment before placing another order.'
+        );
+      }
+
       await autoReopenEmergencyClosures(connection, payload.store_id);
       const store = await _loadStore(connection, payload.store_id);
       if (!store || store.status !== 'active' || store.supports_pickup !== 1) {

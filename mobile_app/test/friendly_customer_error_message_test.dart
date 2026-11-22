@@ -5,6 +5,37 @@ void main() {
   const fallback = 'Something went wrong. Please try again.';
 
   group('friendlyCustomerErrorMessage', () {
+    test('maps uncertain payment errors to safe specific messages', () {
+      expect(
+        friendlyCustomerErrorMessage(
+          ApiException('raw', code: 'payment_still_pending'),
+          fallback: 'fallback',
+        ),
+        contains('still confirming'),
+      );
+      expect(
+        friendlyCustomerErrorMessage(
+          ApiException('raw', code: 'payment_still_processing'),
+          fallback: 'fallback',
+        ),
+        contains('still confirming'),
+      );
+      expect(
+        friendlyCustomerErrorMessage(
+          ApiException('raw', code: 'topup_gateway_error'),
+          fallback: 'fallback',
+        ),
+        contains('temporarily unavailable'),
+      );
+      expect(
+        friendlyCustomerErrorMessage(
+          ApiException('raw', code: 'payment_status_unavailable'),
+          fallback: 'fallback',
+        ),
+        contains('temporarily unavailable'),
+      );
+    });
+
     test('maps known customer errors to actionable messages', () {
       expect(
         friendlyCustomerErrorMessage(

@@ -117,6 +117,9 @@ const normalizeOrderStatus = (rawStatus) => {
   if (s === 'pending payment' || s === 'pending') {
     return 'Pending Payment';
   }
+  if (s === 'payment failed' || s === 'failed payment') {
+    return 'Payment Failed';
+  }
   if (s === 'paid' || s === 'accepted' || s === 'new' || s === 'order received') {
     return 'Order Received';
   }
@@ -154,6 +157,8 @@ const getStatusBadge = (s) => {
       return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-amber-100 text-amber-800">Order Received</span>;
     case "Pending Payment":
       return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-yellow-100 text-yellow-800">Pending Payment</span>;
+    case "Payment Failed":
+      return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-700">Payment Failed</span>;
     case "Cancelled":
       return <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-md bg-red-100 text-red-700">Cancelled</span>;
     case "Refund Requested":
@@ -235,7 +240,7 @@ const OrderValueStack = ({ tokenValue, rmValue, align = 'items-start' }) => (
     <span className="text-[11px] text-gray-500">{formatRm(rmValue)}</span>
   </div>
 );
-const STATUSES = ["All Status", "Order Received", "Pending Payment", "Preparing", "Ready for Pickup", "Collected", "Cancelled"];
+const STATUSES = ["All Status", "Order Received", "Pending Payment", "Payment Failed", "Preparing", "Ready for Pickup", "Collected", "Cancelled"];
 const PAYMENT_TYPES = ["All Payment Types", "Personal C2 Credit", "Company Allowance", "Mixed C2 Credit", "Direct (RM)"];
 
 // Sleek KPI Card matching DashboardHome & Menu standard
@@ -1056,6 +1061,7 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
   const stageCounts = {
     'All Status': totalCount,
     'Pending Payment': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Pending Payment').length,
+    'Payment Failed': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Payment Failed').length,
     'Order Received': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Order Received').length,
     'Preparing': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Preparing').length,
     'Ready for Pickup': filtered.filter((o) => normalizeOrderStatus(o.status) === 'Ready for Pickup').length,
@@ -1353,6 +1359,16 @@ const Orders = ({ initialShowRefunds = false, onBackToOrders, currentUser }) => 
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           {getStatusBadge(order.status)}
                           {getPendingAge(order) && <div className="text-[10px] text-amber-700 mt-1">{getPendingAge(order)}</div>}
+                          {order.paymentReviewRequired && (
+                            <div className="mt-1 inline-flex rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-700" title="Provider payment status has not been confirmed after the payment window.">
+                              Payment review required
+                            </div>
+                          )}
+                          {order.paymentRecoveryReviewRequired && (
+                            <div className="mt-1 inline-flex rounded-md bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700" title="The payment page was detached while CHIP was still processing. Confirm the provider result and refund if payment completed.">
+                              Provider payment review
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           {getPaymentTypeBadge(order)}
