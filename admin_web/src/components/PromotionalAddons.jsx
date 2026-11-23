@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, Boxes, CalendarClock, CheckCircle2, ChevronDown, Gift, Pencil,
-  Plus, RefreshCw, Search, Shuffle, Sparkles, Store, Trash2, X,
+  AlertTriangle, ArrowLeft, Boxes, CalendarClock, CheckCircle2, ChevronDown, Gift, Pencil,
+  Plus, RefreshCw, Search, Shuffle, Sparkles, Store, Trash2,
 } from 'lucide-react';
 import {
   createAdminPromotionalAddon,
@@ -202,18 +202,35 @@ function CampaignForm({ initial, catalogue, readiness, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 z-100 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-xs sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="promotional-addon-form-title">
-      <div className="flex max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-[#F7F8F7] shadow-2xl sm:rounded-3xl">
-        <header className="flex items-start justify-between border-b border-gray-200 bg-white px-5 py-4 sm:px-6">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#2E5E58]">Promotional Add-ons</p>
-            <h2 id="promotional-addon-form-title" className="mt-1 text-lg font-bold text-gray-900">{form.id ? 'Edit campaign' : 'New campaign'}</h2>
-            <p className="mt-0.5 text-xs text-gray-500">Configure qualification, assignment, pricing, and the eligible gift collection.</p>
+    <div className="mx-auto w-full max-w-7xl space-y-5 px-4 pb-10 pt-2 sm:px-6 md:px-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <button
+            type="button"
+            onClick={() => void close()}
+            className="mb-2 inline-flex items-center gap-1.5 text-xs font-bold text-[#2E5E58] hover:text-[#1F3A34]"
+          >
+            <ArrowLeft size={15} />
+            Back to campaigns
+          </button>
+          <div className="flex items-center gap-2 text-[#2E5E58]">
+            <Sparkles size={18} />
+            <span className="text-xs font-bold uppercase tracking-[0.14em]">Promotional Add-ons</span>
           </div>
-          <button type="button" onClick={() => void close()} className="rounded-xl p-2 text-gray-500 hover:bg-gray-100" aria-label="Close campaign editor"><X size={19} /></button>
-        </header>
+          <h1 id="promotional-addon-form-title" className="mt-1 text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
+            {form.id ? 'Edit campaign' : 'New campaign'}
+          </h1>
+          <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+            Configure qualification, assignment, pricing, and the eligible gift collection.
+          </p>
+        </div>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+          <button type="button" onClick={() => void close()} disabled={saving} className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-2xs hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white shadow-2xs hover:bg-[#2E5E58] disabled:opacity-60">{saving && <RefreshCw className="animate-spin" size={15} />}{saving ? 'Saving…' : form.id ? 'Save campaign' : 'Create campaign'}</button>
+        </div>
+      </header>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+      <div className="space-y-4">
           {submitError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700" role="alert">{submitError}</div>}
           {readinessIssues.length > 0 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
@@ -281,13 +298,12 @@ function CampaignForm({ initial, catalogue, readiness, onClose, onSaved }) {
             <FieldError>{errors.rewardMenuItemIds}</FieldError>
             <p className="mt-2 text-[11px] leading-relaxed text-gray-500">Only reward-ready products should appear here. Stock and recipe blockers are checked again by the API before activation.</p>
           </FormSection>
-        </div>
-
-        <footer className="flex flex-col-reverse gap-2 border-t border-gray-200 bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <button type="button" onClick={() => void close()} disabled={saving} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-60">{saving && <RefreshCw className="animate-spin" size={15} />}{saving ? 'Saving…' : form.id ? 'Save campaign' : 'Create campaign'}</button>
-        </footer>
       </div>
+
+      <footer className="flex flex-col-reverse gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-2xs sm:flex-row sm:justify-end sm:px-6">
+        <button type="button" onClick={() => void close()} disabled={saving} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+        <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F3A34] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#2E5E58] disabled:opacity-60">{saving && <RefreshCw className="animate-spin" size={15} />}{saving ? 'Saving…' : form.id ? 'Save campaign' : 'Create campaign'}</button>
+      </footer>
     </div>
   );
 }
@@ -347,6 +363,21 @@ export default function PromotionalAddons() {
   const randomCount = campaigns.filter((campaign) => campaign.assignment_mode === 'server_random').length;
   const blockedCount = readiness.filter((row) => row.ready === false || (row.issues ?? row.blockers ?? []).length > 0).length;
 
+  if (editing) {
+    return (
+      <CampaignForm
+        initial={editing}
+        catalogue={catalogue}
+        readiness={readiness}
+        onClose={() => setEditing(null)}
+        onSaved={async () => {
+          setEditing(null);
+          await refresh();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 px-4 pb-8 pt-2 sm:px-6 md:px-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -394,8 +425,6 @@ export default function PromotionalAddons() {
           </tbody></table></div>
         )}
       </section>
-
-      {editing && <CampaignForm initial={editing} catalogue={catalogue} readiness={readiness} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
     </div>
   );
 }
