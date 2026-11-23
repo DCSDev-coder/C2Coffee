@@ -2946,7 +2946,7 @@ class _EmailChangeOtpDialogState extends State<_EmailChangeOtpDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Enter the 6-digit code sent to $_maskedEmail. It expires in $minutes minutes.',
+              'Enter the 6-digit code sent to $_maskedEmail. It expires in $minutes ${minutes == 1 ? 'minute' : 'minutes'}.',
               style: const TextStyle(
                 fontFamily: 'Afacad',
                 fontSize: 16,

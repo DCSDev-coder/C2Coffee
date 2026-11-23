@@ -41,6 +41,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 360),
+      value: globalOrderStatusVisible.value ? 1.0 : 0.0,
     );
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0.0, 1.0),
@@ -55,9 +56,6 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
 
-    if (globalOrderStatusVisible.value) {
-      _controller.forward();
-    }
     globalOrderStatusVisible.addListener(_handleVisibleChanged);
   }
 
@@ -451,7 +449,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
               ),
               const SizedBox(height: 2),
               Text(
-                allowExpand ? 'Tap chevron for details' : 'View orders',
+                allowExpand ? 'Tap arrow for details' : 'View orders',
                 style: TextStyle(
                   fontFamily: 'Afacad',
                   fontSize: 12,
@@ -567,7 +565,7 @@ class _OrderStatusBannerState extends State<OrderStatusBanner>
                                 progressColor: progressColor,
                                 allowExpand: true,
                                 helperText: _isExpanded
-                                    ? 'Tap chevron to collapse'
+                                    ? 'Tap arrow to collapse'
                                     : 'Tap header to open orders',
                               ),
                               const SizedBox(height: 6),

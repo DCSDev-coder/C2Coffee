@@ -88,6 +88,7 @@ export async function registerPrintConnectorRoutes(app: FastifyInstance): Promis
                  WHERE pmt0.order_id = o.id
                    AND pmt0.status IN ('paid', 'partially_refunded')
                )
+               OR COALESCE(o.final_total_rm, 0) = 0
              )
            )`,
         { printerReference: body.printer_reference }
@@ -108,7 +109,8 @@ export async function registerPrintConnectorRoutes(app: FastifyInstance): Promis
                SELECT 1 FROM payments pmt
                WHERE pmt.order_id = o.id
                  AND pmt.status IN ('paid', 'partially_refunded')
-             )
+            )
+            OR COALESCE(o.final_total_rm, 0) = 0
            )
          ORDER BY j.created_at ASC
          LIMIT 1

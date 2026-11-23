@@ -41,6 +41,7 @@ import {
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
 import { cancelPromotionalAddonForOrder } from '../../services/promotional-addons.js';
+import { isComplimentaryOrder } from '../../services/order-voucher.js';
 import { calculatePersonalTokenRefund, getEmployeeSubsidyStatus, restoreEmployeeAllowanceForRefund, setEmployeeSubsidyEnabled } from '../../services/employee-token-allowance.js';
 import {
   evaluateVoucherTopUpEligibility,
@@ -2191,8 +2192,12 @@ export async function registerCustomerDataRoutes(
         status: string;
         payment_mode: 'token' | 'direct';
         payment_status: string | null;
+        final_total_rm: string;
+        token_amount_charged: number;
+        voucher_id: number | null;
       }>>(
         `SELECT o.id, o.order_ref, o.user_id, o.status, o.payment_mode,
+                o.final_total_rm, o.token_amount_charged, o.voucher_id,
                 p.status AS payment_status
          FROM orders o
          LEFT JOIN payments p ON p.id = (
@@ -2204,8 +2209,9 @@ export async function registerCustomerDataRoutes(
       );
       const order = orders[0];
       if (!order) throw new ApiError(404, 'order_not_found', 'Order not found.');
+      const isComplimentary = isComplimentaryOrder(order);
       if (!['paid', 'accepted'].includes(order.status) ||
-          (order.payment_mode === 'direct' && order.payment_status !== 'paid')) {
+          (!isComplimentary && order.payment_mode === 'direct' && order.payment_status !== 'paid')) {
         throw new ApiError(409, 'cancellation_not_available', 'Cancellation requests are only available for paid orders before preparation starts.');
       }
       const [existing] = await connection.execute<Array<RowDataPacket & { id: number; status: string }>>(
@@ -2224,7 +2230,9 @@ export async function registerCustomerDataRoutes(
         userId: request.auth.userId,
         type: 'order_cancellation_requested',
         title: 'Cancellation request sent',
-        body: order.payment_mode === 'token'
+        body: isComplimentary
+          ? 'The barista will review your free-order cancellation request before preparation starts.'
+          : order.payment_mode === 'token'
           ? 'The barista will review your request before preparation starts. Your tokens remain reserved until a decision is made.'
           : 'The barista will review your request before preparation starts. Any direct-payment refund requires payment-provider processing.'
       });

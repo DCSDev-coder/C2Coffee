@@ -1651,6 +1651,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   Widget _buildVoucherCard(CartSnapshot snapshot) {
     final voucher = _selectedVoucher;
     final discountTokens = _calculateDiscountTokens(snapshot);
+    final voucherApplication =
+        voucher?.template.describeCartApplication(snapshot);
 
     return InkWell(
       onTap: () {
@@ -1753,7 +1755,10 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   const SizedBox(height: 2),
                   Text(
                     voucher != null
-                        ? 'Applied to this order • Tap to change'
+                        ? (voucherApplication != null &&
+                                voucherApplication.appliedItemNames.isNotEmpty
+                            ? 'Applied to ${voucherApplication.appliedItemNames.join(', ')} • Tap to change'
+                            : 'Applied to this order • Tap to change')
                         : 'Select an available reward or tier perk',
                     style: TextStyle(
                       fontFamily: 'Afacad',
@@ -1858,6 +1863,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     final totalQuantity =
         snapshot.items.fold<int>(0, (sum, item) => sum + item.quantity);
     final subsidyBreakdown = _subsidyBreakdown(snapshot);
+    final voucherApplication =
+        _selectedVoucher?.template.describeCartApplication(snapshot);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1879,6 +1886,25 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
             ),
           ),
           const SizedBox(height: 12),
+          for (var i = 0; i < snapshot.items.length; i += 1) ...[
+            _buildSummaryItemLine(
+              snapshot.items[i],
+              voucherLabel: _selectedVoucher?.template.displayLabel,
+              itemTokenDiscount:
+                  voucherApplication?.itemTokenDiscounts[snapshot.items[i].id] ??
+                      0,
+              itemRmDiscount:
+                  voucherApplication?.itemRmDiscounts[snapshot.items[i].id] ?? 0,
+            ),
+            if (i < snapshot.items.length - 1) const SizedBox(height: 8),
+          ],
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(
+              color: AppColors.border.withValues(alpha: 0.75),
+              height: 1,
+            ),
+          ),
           _buildSummaryRow(
             'Subtotal ($totalQuantity ${totalQuantity == 1 ? 'item' : 'items'})',
             _paymentMode == 'direct'
@@ -1894,6 +1920,12 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
                   ? '-RM${directDiscount.toStringAsFixed(2)}'
                   : '-${_formatTokenCount(discountTokens)}',
               isDiscount: true,
+              subtitle: _selectedVoucher == null
+                  ? null
+                  : (voucherApplication != null &&
+                          voucherApplication.appliedItemNames.isNotEmpty
+                      ? '${_selectedVoucher!.template.displayLabel} • Applied to ${voucherApplication.appliedItemNames.join(', ')}'
+                      : '${_selectedVoucher!.template.displayLabel} • Applied to order'),
             ),
           ],
           if (_promotionalAddonRmCharge > 0 ||
@@ -1997,32 +2029,131 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     );
   }
 
+  Widget _buildSummaryItemLine(
+    CartItem item, {
+    String? voucherLabel,
+    int itemTokenDiscount = 0,
+    double itemRmDiscount = 0,
+  }) {
+    final hasDetails =
+        item.displayDetails != null && item.displayDetails!.trim().isNotEmpty;
+    final hasItemVoucherDiscount = (_paymentMode == 'direct' &&
+            itemRmDiscount > 0) ||
+        (_paymentMode == 'token' && itemTokenDiscount > 0);
+    final priceText = _paymentMode == 'direct'
+        ? 'RM${item.lineTotalRm.toStringAsFixed(2)}'
+        : _formatTokenCount(item.lineTotalTokens);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                '${item.quantity}x ${item.name}',
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              priceText,
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        if (hasDetails) ...[
+          const SizedBox(height: 2),
+          Text(
+            item.displayDetails!.trim(),
+            style: const TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 12.5,
+              color: Colors.black54,
+            ),
+          ),
+        ],
+        if (hasItemVoucherDiscount) ...[
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${voucherLabel ?? 'Voucher'} applied • ${_paymentMode == 'direct' ? '-RM${itemRmDiscount.toStringAsFixed(2)}' : '-${_formatTokenCount(itemTokenDiscount)}'}',
+              style: const TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildSummaryRow(
     String label,
     String value, {
     bool isDiscount = false,
+    String? subtitle,
   }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontFamily: 'Afacad',
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              value,
+              style: TextStyle(
+                fontFamily: 'Afacad',
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isDiscount ? const Color(0xFF2E7D32) : orangeColor,
+              ),
+            ),
+          ],
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontFamily: 'Afacad',
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: isDiscount ? const Color(0xFF2E7D32) : orangeColor,
+        if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontFamily: 'Afacad',
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: isDiscount ? const Color(0xFF2E7D32) : Colors.black54,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -2307,12 +2438,16 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
       );
     } catch (error) {
       if (!mounted) return;
+      final requestId = error is ApiException ? error.requestId : null;
+      final referenceSuffix = requestId == null || requestId.isEmpty
+          ? ''
+          : '\nReference: $requestId';
       setState(() {
         _checkoutError = friendlyCustomerErrorMessage(
           error,
           fallback:
               'We could not place your order right now. Please try again.',
-        );
+        ) + referenceSuffix;
       });
     } finally {
       if (mounted) {

@@ -101,35 +101,22 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
 
   Future<void> _cancelOrder(CurrentOrder order) async {
     if (_updatingOrderIds.contains(order.orderId)) return;
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Cancel this order?'),
-            content: Text(
-              order.paymentStatus == 'paid'
-                  ? 'The order will be cancelled and a direct-payment refund will be opened for staff processing.'
-                  : 'The unpaid order will be cancelled and its stock reservation released.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Keep order'),
-              ),
-              FilledButton.tonal(
-                onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(
-                  foregroundColor: const Color(0xFF9B2C2C),
-                ),
-                child: const Text('Cancel order'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-    if (!confirmed || !mounted) return;
+    final requiresReview =
+        order.orderChannel != 'counter' &&
+        order.paymentStatus == 'paid' &&
+        !(order.total <= 0 && order.tokenAmountCharged <= 0);
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => _CancellationDialog(
+        requiresReview: requiresReview,
+        paymentStatus: order.paymentStatus,
+      ),
+    );
+    if (reason == null || !mounted) return;
     setState(() => _updatingOrderIds.add(order.orderId));
-    final result = await ApiService.cancelOrder(order.orderId);
+    final result = requiresReview
+        ? await ApiService.requestCancellation(order.orderId, reason)
+        : await ApiService.cancelOrder(order.orderId, reason: reason);
     if (!mounted) return;
     setState(() => _updatingOrderIds.remove(order.orderId));
     if (!result.isSuccess) {
@@ -140,7 +127,9 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
     if (mounted) {
       TopNotice.success(
         context,
-        result.data?['refund_pending'] == true
+        requiresReview
+            ? 'Cancellation request sent for review.'
+            : result.data?['refund_pending'] == true
             ? 'Order cancelled. Refund is pending.'
             : 'Order cancelled.',
       );
@@ -211,11 +200,19 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
       isActionLoading: _updatingOrderIds.contains(order.orderId),
       isPrintLoading: _printingOrderIds.contains(order.orderId),
       onPrintPressed: () => _printReceipt(order),
+      cancelTooltip:
+          order.orderChannel != 'counter' && order.paymentStatus == 'paid'
+          ? 'Request cancellation'
+          : 'Cancel order',
       onCancelPressed:
           order.paymentStatus == 'pending' ||
               (order.status == OrderStatus.newOrder &&
                   order.orderChannel == 'counter' &&
-                  order.paymentStatus == 'paid')
+                  order.paymentStatus == 'paid') ||
+              (order.status == OrderStatus.newOrder &&
+                  order.orderChannel != 'counter' &&
+                  order.paymentStatus == 'paid' &&
+                  order.cancellationRequestStatus == null)
           ? () => _cancelOrder(order)
           : null,
       onActionPressed: () {
@@ -277,6 +274,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                       color: darkGreen,
                       onRefresh: _refreshOrders,
                       child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
                         children: [
                           Column(
@@ -285,7 +283,7 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
                               BaristaPageHeader(
                                 title: 'Current Order',
                                 subtitle:
-                                    'Live order queue for preparation and customer pickup.',
+                                    'Live order queue for preparation and customer pickup. Pull down to refresh, or use the refresh button for an immediate sync.',
                                 onRefresh: _refreshOrders,
                                 refreshTooltip: 'Refresh orders',
                                 bottom: Row(
@@ -538,6 +536,89 @@ class _CurrentOrderPageState extends State<CurrentOrderPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _CancellationDialog extends StatefulWidget {
+  final bool requiresReview;
+  final String? paymentStatus;
+
+  const _CancellationDialog({
+    required this.requiresReview,
+    required this.paymentStatus,
+  });
+
+  @override
+  State<_CancellationDialog> createState() => _CancellationDialogState();
+}
+
+class _CancellationDialogState extends State<_CancellationDialog> {
+  final _reasonController = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.requiresReview
+        ? 'Request cancellation?'
+        : 'Cancel this order?';
+    final message = widget.requiresReview
+        ? 'This paid mobile order will be sent for cancellation review. It will not be cancelled until the request is approved.'
+        : widget.paymentStatus == 'paid'
+        ? 'The order will be cancelled and a direct-payment refund will be opened for staff processing.'
+        : 'The unpaid order will be cancelled and its stock reservation released.';
+    return AlertDialog(
+      title: Text(title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(message),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _reasonController,
+            maxLength: 300,
+            autofocus: widget.requiresReview,
+            decoration: InputDecoration(
+              labelText: widget.requiresReview ? 'Reason' : 'Reason (optional)',
+              hintText: 'For example: item unavailable',
+              errorText: _error,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Keep order'),
+        ),
+        FilledButton.tonal(
+          onPressed: () {
+            final reason = _reasonController.text.trim();
+            if (widget.requiresReview && reason.length < 3) {
+              setState(() => _error = 'Enter at least 3 characters.');
+              return;
+            }
+            Navigator.pop(
+              context,
+              reason.isEmpty ? 'Cancelled by barista.' : reason,
+            );
+          },
+          style: FilledButton.styleFrom(
+            foregroundColor: const Color(0xFF9B2C2C),
+          ),
+          child: Text(
+            widget.requiresReview ? 'Request cancellation' : 'Cancel order',
+          ),
+        ),
+      ],
     );
   }
 }

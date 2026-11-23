@@ -11,8 +11,9 @@ import 'api_config.dart';
 class ApiException implements Exception {
   final String message;
   final String? code;
+  final String? requestId;
 
-  ApiException(this.message, {this.code});
+  ApiException(this.message, {this.code, this.requestId});
 
   @override
   String toString() => message;
@@ -663,6 +664,7 @@ class AuthApiService {
       throw ApiException(
         (error['message'] as String?) ?? 'Request failed.',
         code: error['code'] as String?,
+        requestId: error['request_id'] as String?,
       );
     }
 

@@ -1427,7 +1427,7 @@ class _GiftCardsPageState extends State<GiftCardsPage>
                   ),
                   const SizedBox(height: 2),
                   const Text(
-                    'My Points / C2 Tokens',
+                    'My C2 Credit',
                     style: TextStyle(
                       fontFamily: 'Afacad',
                       fontSize: 13.5,

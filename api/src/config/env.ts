@@ -19,6 +19,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.string().default('info'),
+  LOG_FILE_PATH: z.string().trim().default('/app/logs/api.log'),
   OTP_DELIVERY_MODE: z.enum(['stub', 'log', 'email']).default('stub'),
   OTP_DEBUG_EXPOSE_CODE: envBoolean(false),
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),

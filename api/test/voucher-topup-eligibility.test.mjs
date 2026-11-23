@@ -52,6 +52,15 @@ test('admin issuance is an explicit top-up rule override', () => {
   }).eligible, true);
 });
 
+test('refund replacement inherits the original voucher eligibility', () => {
+  assert.equal(evaluateVoucherTopUpEligibility({
+    scope,
+    templateId: 22,
+    issueCaseRef: 'refund:RFD-20261122-A7F484',
+    issuedByType: 'system'
+  }).eligible, true);
+});
+
 test('invalid or absent top-up rule does not restrict ordinary vouchers', () => {
   assert.equal(getVoucherTopUpMinimum({ topup_reward: { min_tokens: 0 } }), null);
   assert.equal(evaluateVoucherTopUpEligibility({

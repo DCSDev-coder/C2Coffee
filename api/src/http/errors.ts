@@ -109,6 +109,7 @@ export function errorHandler(
     request.log.warn(logContext, 'request rejected');
   }
 
+  reply.header('x-request-id', request.id);
   void reply.status(statusCode).send({
     error: {
       code,

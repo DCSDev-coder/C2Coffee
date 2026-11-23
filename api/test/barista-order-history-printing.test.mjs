@@ -15,6 +15,7 @@ test('barista workspace order feed contains only today operational and history o
   // counter payment; online (CHIP) orders stay hidden until paid.
   assert.match(orders, /manual_gate\.status = 'pending'[\s\S]{0,120}manual_gate\.payment_method LIKE 'manual%'/);
   assert.match(orders, /payment_gate\.status IN \('paid', 'partially_refunded'\)/);
+  assert.match(orders, /COALESCE\(o\.final_total_rm, 0\) = 0/);
   assert.match(orders, /DATE_ADD\(o\.created_at, INTERVAL 8 HOUR\)/);
 });
 
@@ -22,6 +23,7 @@ test('print connector refuses jobs until the order payment is confirmed', async 
   const printing = await source('src/http/routes/print-connectors.ts');
   assert.match(printing, /o\.status IN \('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected'\)/);
   assert.match(printing, /pmt\.status IN \('paid', 'partially_refunded'\)/);
+  assert.match(printing, /COALESCE\(o\.final_total_rm, 0\) = 0/);
   assert.match(printing, /payment_not_confirmed/);
 });
 
@@ -42,6 +44,23 @@ test('manual receipt requests remain tenant, outlet, role, and printer guarded',
   assert.match(printing, /request_type/);
   assert.match(printing, /payment_not_confirmed/);
   assert.match(printing, /payment_mode/);
+});
+
+test('complimentary mobile orders can be cancelled without creating a refund', async () => {
+  const barista = await source('src/http/routes/barista-staff.ts');
+  const orders = await source('src/http/routes/admin-orders.ts');
+  assert.match(barista, /LEFT JOIN payments p ON p\.order_id = o\.id/);
+  assert.match(barista, /Number\(order\.final_total_rm \|\| 0\) <= 0/);
+  assert.match(barista, /Number\(order\.token_amount_charged \|\| 0\) <= 0/);
+  assert.match(barista, /if \(!isComplimentaryOrder\)/);
+  const customerData = await source('src/http/routes/customer-data.ts');
+  assert.match(customerData, /const isComplimentaryOrder = Number\(order\.final_total_rm \|\| 0\) <= 0/);
+  assert.match(customerData, /!isComplimentaryOrder && order\.payment_mode === 'direct'/);
+  assert.match(barista, /restoreVoucherForCancelledOrder/);
+  assert.match(orders, /restoreVoucherForCancelledOrder/);
+  const voucher = await source('src/services/order-voucher.ts');
+  assert.match(voucher, /JOIN voucher_redemptions vr[\s\S]*vr\.user_voucher_id = uv\.id/);
+  assert.match(voucher, /vr\.order_id = o\.id/);
 });
 
 test('counter print claim exposes the immutable itemised receipt contract', async () => {

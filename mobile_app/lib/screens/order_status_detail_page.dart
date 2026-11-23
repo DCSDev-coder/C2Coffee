@@ -517,7 +517,9 @@ class _OrderStatusDetailPageState extends State<OrderStatusDetailPage>
 
   bool get _canRequestCancellation =>
       const {'paid', 'accepted'}.contains(_order.status) &&
-      (_order.paymentMode == 'token' || _order.paymentStatus == 'paid') &&
+      (_order.paymentMode == 'token' ||
+          _order.paymentStatus == 'paid' ||
+          (double.tryParse(_order.finalTotalRm) ?? 0) <= 0) &&
       _order.cancellationRequestStatus == null;
 
   bool get _hasCancellationRequest =>

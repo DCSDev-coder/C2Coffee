@@ -14,6 +14,7 @@ import { createUserNotification } from '../notifications.js';
 import { deliverPushToUser } from '../../services/push-delivery.js';
 import { releaseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
+import { isComplimentaryOrder, restoreVoucherForCancelledOrder } from '../../services/order-voucher.js';
 import { issueRefundReplacementVoucher } from '../../services/voucher-replacement.js';
 import { calculatePersonalTokenRefund, restoreEmployeeAllowanceForRefund } from '../../services/employee-token-allowance.js';
 import { consumeMarketingDrinkInventory, reverseMarketingDrinkInventory } from '../../services/marketing-drink-usage.js';
@@ -483,10 +484,10 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.query<RowDataPacket[]>(
-        `SELECT o.id, o.store_id, o.status, o.order_channel, o.user_id, o.final_total_rm,
+        `SELECT o.id, o.store_id, o.status, o.order_channel, o.user_id, o.payment_mode, o.voucher_id, o.final_total_rm, o.token_amount_charged,
                 p.id AS payment_id, p.status AS payment_status, p.payment_method
            FROM orders o
-           JOIN payments p ON p.order_id = o.id
+           LEFT JOIN payments p ON p.order_id = o.id
            JOIN stores s ON s.id = o.store_id
            JOIN admin_tenants t ON t.id = s.tenant_id
           WHERE o.order_ref = :orderRef AND t.code = :tenantCode
@@ -511,18 +512,29 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         // A mobile/direct order must go through the customer cancellation
         // request flow so the provider refund is reviewed explicitly. Only
         // unpaid orders can be cancelled directly from the barista queue.
-        if (String(order.order_channel) !== 'counter') {
+        const isComplimentary = isComplimentaryOrder({
+          final_total_rm: order.final_total_rm,
+          token_amount_charged: order.token_amount_charged,
+          payment_mode: order.payment_mode,
+          voucher_id: order.voucher_id
+        });
+        if (String(order.order_channel) !== 'counter' && !isComplimentary) {
           throw new ApiError(409, 'cancellation_request_required', 'Paid mobile orders require a reviewed cancellation request.');
         }
-        const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
-        await connection.execute(
-          `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_at)
-           VALUES (:orderId, :paymentId, 'direct', :refundRef, :amountRm, NULL, 'pending', :reason, UTC_TIMESTAMP())`,
-          { orderId: order.id, paymentId: order.payment_id, refundRef, amountRm: order.final_total_rm, reason: `Barista cancellation: ${cancellationReason}` }
-        );
+        if (!isComplimentary) {
+          const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 6).toUpperCase()}`;
+          await connection.execute(
+            `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_at)
+             VALUES (:orderId, :paymentId, 'direct', :refundRef, :amountRm, NULL, 'pending', :reason, UTC_TIMESTAMP())`,
+            { orderId: order.id, paymentId: order.payment_id, refundRef, amountRm: order.final_total_rm, reason: `Barista cancellation: ${cancellationReason}` }
+          );
+        }
         await connection.execute(`UPDATE orders SET status = 'cancelled', cancelled_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP() WHERE id = :orderId AND status = 'paid'`, { orderId: order.id });
         await releaseInventoryForOrder(connection, Number(order.id));
         await cancelPromotionalAddonForOrder(connection, Number(order.id));
+        if (isComplimentary) {
+          await restoreVoucherForCancelledOrder(connection, Number(order.id));
+        }
       }
       await connection.execute(
         `INSERT INTO order_status_history (order_id, from_status, to_status, changed_by_type, changed_by_id, reason, created_at)
@@ -530,7 +542,65 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
         { orderId: order.id, fromStatus, adminUserId: request.adminAuth.adminUserId, reason: cancellationReason }
       );
       await connection.commit();
-      return reply.send({ order_ref: orderRef, status: 'cancelled', refund_pending: fromStatus === 'paid' });
+      return reply.send({ order_ref: orderRef, status: 'cancelled', refund_pending: fromStatus === 'paid' && !(Number(order.final_total_rm || 0) <= 0 && Number(order.token_amount_charged || 0) <= 0) });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  });
+  app.post('/v1/barista/orders/:orderRef/cancellation-request', { preHandler: authenticateAdminRequest }, async (request, reply) => {
+    assertStaffAccess(request);
+    const { orderRef } = z.object({ orderRef: z.string().trim().min(1).max(80) }).parse(request.params);
+    const { reason } = z.object({ reason: z.string().trim().min(3).max(300) }).parse(request.body ?? {});
+    const connection = await mysqlPool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT o.id, o.store_id, o.user_id, o.status, o.order_channel,
+                o.payment_mode, o.final_total_rm, o.token_amount_charged, o.voucher_id
+           FROM orders o
+           JOIN stores s ON s.id = o.store_id
+           JOIN admin_tenants t ON t.id = s.tenant_id
+          WHERE o.order_ref = :orderRef AND t.code = :tenantCode
+          LIMIT 1 FOR UPDATE`,
+        { orderRef, tenantCode: request.adminAuth.tenantCode }
+      );
+      const order = rows[0];
+      if (!order) throw new ApiError(404, 'order_not_found', 'Order was not found.');
+      const workstationStoreId = await resolveAttendanceStoreId(request);
+      if (Number(order.store_id) !== workstationStoreId) throw new ApiError(403, 'store_access_denied', 'This order belongs to another outlet.');
+      if (!['paid', 'accepted'].includes(String(order.status))) {
+        throw new ApiError(409, 'order_not_cancellable', 'This order is no longer waiting for preparation.');
+      }
+      if (String(order.order_channel) === 'counter' || isComplimentaryOrder({
+        final_total_rm: order.final_total_rm,
+        token_amount_charged: order.token_amount_charged,
+        payment_mode: order.payment_mode,
+        voucher_id: order.voucher_id
+      })) {
+        throw new ApiError(409, 'direct_cancellation_available', 'This order can be cancelled directly from the barista queue.');
+      }
+      const [existing] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM order_cancellation_requests WHERE order_id = :orderId LIMIT 1 FOR UPDATE`,
+        { orderId: order.id }
+      );
+      if (existing[0]) throw new ApiError(409, 'cancellation_request_exists', 'This order already has a cancellation request.');
+      const [inserted] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO order_cancellation_requests
+           (order_id, user_id, status, reason, requested_at, created_at, updated_at)
+         VALUES (:orderId, :userId, 'pending', :reason, UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+        { orderId: order.id, userId: order.user_id, reason }
+      );
+      await createUserNotification(connection, {
+        userId: Number(order.user_id),
+        type: 'order_cancellation_requested',
+        title: 'Store cancellation review started',
+        body: 'The store has requested cancellation of your order. The team will review it before preparation starts.'
+      });
+      await connection.commit();
+      return reply.send({ status: 'pending', cancellation_request_id: inserted.insertId });
     } catch (error) {
       await connection.rollback();
       throw error;

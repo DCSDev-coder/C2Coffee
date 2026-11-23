@@ -15,6 +15,31 @@ String normalizeApiStatus(Object? value) {
       '';
 }
 
+OrderStatus? parseBaristaOrderStatus(
+  Object? rawStatus, {
+  Object? rawPaymentMethod,
+}) {
+  final status = normalizeApiStatus(rawStatus);
+  final paymentMethod = rawPaymentMethod?.toString() ?? '';
+
+  // Admin Web presents these equivalent intake states as "Order Received".
+  // Keep the Counter queue compatible with both the raw API values and the
+  // formatted status returned by older API deployments.
+  if (status == 'paid' ||
+      status == 'accepted' ||
+      status == 'new' ||
+      status == 'order_received' ||
+      (status == 'pending_payment' && paymentMethod.startsWith('manual_'))) {
+    return OrderStatus.newOrder;
+  }
+  if (status.contains('preparing')) return OrderStatus.preparing;
+  if (status.contains('ready')) return OrderStatus.readyForPickup;
+  if (status.contains('completed') || status.contains('collected')) {
+    return OrderStatus.completed;
+  }
+  return null;
+}
+
 List<OrderItem> parseOrderItems(Object? rawItems) {
   if (rawItems is! List) return const [];
   return rawItems
@@ -209,6 +234,32 @@ class ApiService {
     }
   }
 
+  static Future<ApiRequestResult> requestCancellation(
+    String orderId,
+    String reason,
+  ) async {
+    try {
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/orders/$orderId/cancellation-request'),
+          headers: headers,
+          body: json.encode({'reason': reason}),
+        ),
+      );
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return ApiRequestResult.success(
+          decoded is Map<String, dynamic> ? decoded : null,
+        );
+      }
+      return ApiRequestResult.failure(_responseMessage(response));
+    } catch (_) {
+      return const ApiRequestResult.failure(
+        'Unable to request cancellation. Check the connection and try again.',
+      );
+    }
+  }
+
   static Future<ApiRequestResult> reviewCancellationRequest(
     String orderId,
     String decision,
@@ -333,25 +384,10 @@ class ApiService {
         final orders = ordersJson
             .map<CurrentOrder?>((json) {
               // Parse status
-              OrderStatus? parsedStatus;
-              final statusStr = normalizeApiStatus(json['status']);
-              final paymentMethodStr = json['paymentMethod']?.toString() ?? '';
-              // Manual counter orders wait in New Orders so the barista can
-              // confirm the cash/terminal payment. Unpaid online orders stay
-              // hidden until CHIP confirms them.
-              if (statusStr == 'paid' ||
-                  statusStr == 'accepted' ||
-                  (statusStr == 'pending_payment' &&
-                      paymentMethodStr.startsWith('manual_'))) {
-                parsedStatus = OrderStatus.newOrder;
-              } else if (statusStr.contains('preparing')) {
-                parsedStatus = OrderStatus.preparing;
-              } else if (statusStr.contains('ready')) {
-                parsedStatus = OrderStatus.readyForPickup;
-              } else if (statusStr.contains('completed') ||
-                  statusStr.contains('collected')) {
-                parsedStatus = OrderStatus.completed;
-              }
+              final parsedStatus = parseBaristaOrderStatus(
+                json['status'],
+                rawPaymentMethod: json['paymentMethod'],
+              );
 
               // Cancelled, refunded, and payment-failed orders must never enter
               // the preparation queue.

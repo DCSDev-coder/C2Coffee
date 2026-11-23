@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { resolveBaristaShiftAccess } from '../../services/barista-shift-access.js';
 import { consumeInventoryForOrder, releaseInventoryForOrder, reverseInventoryForOrder } from '../../services/inventory.js';
 import { restoreGiftCardForRefund } from '../../services/gift-cards.js';
+import { isComplimentaryOrder, restoreVoucherForCancelledOrder } from '../../services/order-voucher.js';
 import { deliverQueuedOrderReceiptEmail, queueOrderReceiptEmail } from '../../services/order-receipt-email.js';
 import { allocateIntegerTotal, incrementalQuantityAllocation } from '../../services/partial-refund.js';
 import { formatTierName, loadLoyaltyTiers } from '../../services/loyalty-tiers.js';
@@ -889,6 +890,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
                   WHERE payment_gate.order_id = o.id
                     AND payment_gate.status IN ('paid', 'partially_refunded')
                 )
+                OR COALESCE(o.final_total_rm, 0) = 0
               )
               AND DATE(DATE_ADD(o.created_at, INTERVAL 8 HOUR)) =
                   DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))
@@ -2255,6 +2257,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         payment_mode: 'token' | 'direct';
         token_amount_charged: number;
         final_total_rm: string;
+        voucher_id: number | null;
         payment_id: number | null;
         payment_status: string | null;
         request_id: number | null;
@@ -2262,7 +2265,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         request_reason: string | null;
       }>>(
         `SELECT o.id, o.order_ref, o.user_id, o.store_id, o.status, o.payment_mode,
-                o.token_amount_charged, o.final_total_rm,
+                o.token_amount_charged, o.final_total_rm, o.voucher_id,
                 p.id AS payment_id, p.status AS payment_status,
                 ocr.id AS request_id, ocr.status AS request_status, ocr.reason AS request_reason
          FROM orders o
@@ -2298,6 +2301,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       if (order.request_id == null || order.request_status !== 'pending') {
         throw new ApiError(409, 'cancellation_request_not_pending', 'There is no pending cancellation request for this order.');
       }
+
+      const isComplimentary = isComplimentaryOrder({
+        final_total_rm: order.final_total_rm,
+        token_amount_charged: order.token_amount_charged,
+        payment_mode: order.payment_mode,
+        voucher_id: order.voucher_id
+      });
       if (!['paid', 'accepted'].includes(order.status)) {
         await connection.execute(
           `UPDATE order_cancellation_requests
@@ -2334,7 +2344,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         return reply.send({ status: 'rejected' });
       }
 
-      if (order.payment_mode === 'direct') {
+      if (order.payment_mode === 'direct' && !isComplimentary) {
         const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
         await connection.execute(
           `INSERT INTO refunds (order_id, payment_id, payment_mode, refund_ref, refund_amount_rm, refund_token_amount, status, reason, created_by_admin_id, created_at)
@@ -2397,12 +2407,17 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
         );
       }
       const refundRef = `RFD-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
-      const replacementVoucherIssued = await issueRefundReplacementVoucher(connection, {
-        orderId: order.id,
-        userId: order.user_id,
-        issueCaseRef: `refund:${refundRef}`,
-        reason: `Replacement voucher for cancelled order ${order.order_ref}`
-      });
+      const replacementVoucherIssued = isComplimentary
+        ? false
+        : await issueRefundReplacementVoucher(connection, {
+            orderId: order.id,
+            userId: order.user_id,
+            issueCaseRef: `refund:${refundRef}`,
+            reason: `Replacement voucher for cancelled order ${order.order_ref}`
+          });
+      if (isComplimentary) {
+        await restoreVoucherForCancelledOrder(connection, Number(order.id));
+      }
       if (tokenAmount > 0) {
         await connection.execute(
           `INSERT INTO token_ledger (user_id, token_lot_id, direction, source_type, source_id, amount, balance_after, remarks, created_at)

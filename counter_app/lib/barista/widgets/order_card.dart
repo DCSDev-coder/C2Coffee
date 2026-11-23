@@ -166,6 +166,7 @@ class OrderCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onPrintPressed;
   final VoidCallback? onCancelPressed;
+  final String cancelTooltip;
   final bool isActionLoading;
   final bool isPrintLoading;
   final String? cancellationRequestStatus;
@@ -194,6 +195,7 @@ class OrderCard extends StatelessWidget {
     this.onTap,
     this.onPrintPressed,
     this.onCancelPressed,
+    this.cancelTooltip = 'Cancel order',
     this.isActionLoading = false,
     this.isPrintLoading = false,
     this.cancellationRequestStatus,
@@ -596,7 +598,7 @@ class OrderCard extends StatelessWidget {
                       onCancelPressed != null) ...[
                     const SizedBox(width: 8),
                     IconButton(
-                      tooltip: 'Cancel order',
+                      tooltip: cancelTooltip,
                       onPressed: isActionLoading ? null : onCancelPressed,
                       style: IconButton.styleFrom(
                         foregroundColor: const Color(0xFF9B2C2C),

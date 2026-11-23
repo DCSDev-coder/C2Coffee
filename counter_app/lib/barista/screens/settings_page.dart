@@ -39,6 +39,29 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+  Future<bool> _askToPrintShiftReport() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Print shift report?'),
+            content: const Text(
+              'The shift has ended. Would you like to print the shift report now?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Skip printing'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Print report'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> _updateAttendance(
     bool clockIn,
     AttendanceBarista barista,
@@ -63,13 +86,19 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!clockIn) {
         final report = result.data?['shift_report'];
         if (report is Map<String, dynamic>) {
-          try {
-            await DirectPrinterService.instance.printShiftSummaryReport(report);
-            printMessage = ' Shift report printed.';
-          } on StateError catch (error) {
-            printMessage = ' Shift report was not printed: ${error.message}';
-          } catch (error) {
-            printMessage = ' Shift report could not be printed: $error';
+          if (await _askToPrintShiftReport()) {
+            try {
+              await DirectPrinterService.instance.printShiftSummaryReport(
+                report,
+              );
+              printMessage = ' Shift report printed.';
+            } on StateError catch (error) {
+              printMessage = ' Shift report was not printed: ${error.message}';
+            } catch (error) {
+              printMessage = ' Shift report could not be printed: $error';
+            }
+          } else {
+            printMessage = ' Shift report was not printed.';
           }
         }
       }

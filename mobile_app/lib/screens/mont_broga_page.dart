@@ -453,16 +453,16 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       return 'Sweet sparkling orange juice topped with espresso.';
     }
     if (name.contains('espresso bomb')) {
-      return 'The trendy espresso bomb is here. Choice of sparkling of ginger ade or tonic water.';
+      return 'The trendy espresso bomb is here. Choice of sparkling ginger ade or tonic water.';
     }
     if (name.contains('pinky blush')) {
-      return 'Creamy strawberry, delicate banana puree, mix and shaken with milk.';
+      return 'Creamy strawberry, delicate banana puree, mixed and shaken with milk.';
     }
     if (name.contains('solero fizz')) {
       return 'Bright citrus notes with sparkling soda and creamy, silky cold foam.';
     }
     if (name.contains('paddle pop')) {
-      return 'Creamy strawberry, delicate banana puree, mix and shaken with milk.';
+      return 'Creamy strawberry, delicate banana puree, mixed and shaken with milk.';
     }
     if (name.contains('cloudy jasmine')) {
       return 'Refreshing jasmine tea soda with silky butterscotch cream foam.';
@@ -471,16 +471,16 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       return 'Sparkling mojito with hand-picked mint and calamansi flavour.';
     }
     if (name.contains('bloody peach')) {
-      return 'Sparkling jasmine tea with peach flavour and top with grenadine syrup.';
+      return 'Sparkling jasmine tea with peach flavour and topped with grenadine syrup.';
     }
     if (name.contains('fuji fizz')) {
-      return 'Ginger, apple and cinnamon comes together in a fizzy drinks. Fruity and spice.';
+      return 'Ginger, apple and cinnamon come together in a fizzy drink. Fruity and spiced.';
     }
     if (name.contains('spicy mimosa')) {
       return 'Hot and spicy orange juice topped with ginger ade and red berry based of grenadine syrup.';
     }
     if (name.contains('onde2pop')) {
-      return 'Green apple and coconut shaken together and topped with sparkling soda .';
+      return 'Green apple and coconut shaken together and topped with sparkling soda.';
     }
     if (name.contains('matcha latte')) {
       return 'Ceremonial grade matcha with smooth, creamy milk.';
@@ -492,7 +492,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       return 'Ceremonial grade matcha with strawberry puree sweetness.';
     }
     if (name.contains('milk chocolate')) {
-      return 'Rich and smooth chocolate milk drinks topped with marshmallows.';
+      return 'Rich and smooth chocolate milk drink topped with marshmallows.';
     }
     if (name.contains('nutty chocolate')) {
       return 'Chocolate drink mixed with crunchy peanut butter.';
@@ -501,13 +501,13 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       return 'Hand-poured coffee revealing delicate aroma and clarity.';
     }
     if (name.contains('espresso bomb')) {
-      return 'The trendy espresso bomb is here. Choice of sparkling of ginger ade or tonic water.';
+      return 'The trendy espresso bomb is here. Choice of sparkling ginger ade or tonic water.';
     }
     if (name.contains('pocco')) {
       return 'An espresso and oatmilk-small in size, rich in flavour.';
     }
     if (name.contains('butterscotch latte')) {
-      return 'Smooth espresso and milk mix with butterscotch flavour.';
+      return 'Smooth espresso and milk mixed with butterscotch flavour.';
     }
     if (name.contains('hazelnut latte')) {
       return 'Espresso and milk mixed with hazelnut flavour.';
@@ -516,7 +516,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
       return 'Gentle vanilla sweetness lifting smooth espresso.';
     }
     if (name.contains('flat white')) {
-      return 'Espresso top with hot milk with a thin layer of smooth foam.';
+      return 'Espresso topped with hot milk and a thin layer of smooth foam.';
     }
     if (name.contains('cappuccino') || name.contains('cappucino')) {
       return 'Espresso topped with light and thick foam and delicate milk.';

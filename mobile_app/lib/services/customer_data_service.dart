@@ -393,6 +393,18 @@ class GiftCardPurchase {
       );
 }
 
+class VoucherCartApplication {
+  final Map<String, int> itemTokenDiscounts;
+  final Map<String, double> itemRmDiscounts;
+  final List<String> appliedItemNames;
+
+  const VoucherCartApplication({
+    required this.itemTokenDiscounts,
+    required this.itemRmDiscounts,
+    required this.appliedItemNames,
+  });
+}
+
 class RewardVoucherTemplate {
   final String code;
   final String name;
@@ -847,6 +859,114 @@ class RewardVoucherTemplate {
     return prices
         .take(rewardQuantity)
         .fold<double>(0, (sum, price) => sum + price);
+  }
+
+  VoucherCartApplication describeCartApplication(CartSnapshot snapshot) {
+    final itemTokenDiscounts = <String, int>{};
+    final itemRmDiscounts = <String, double>{};
+    final appliedItemNames = <String>[];
+    final seenNames = <String>{};
+
+    void recordAppliedItem(CartItem item, int tokens, double rm) {
+      if (tokens > 0) {
+        itemTokenDiscounts[item.id] =
+            (itemTokenDiscounts[item.id] ?? 0) + tokens;
+      }
+      if (rm > 0) {
+        itemRmDiscounts[item.id] = (itemRmDiscounts[item.id] ?? 0) + rm;
+      }
+      if (seenNames.add(item.name)) {
+        appliedItemNames.add(item.name);
+      }
+    }
+
+    final promotionKind =
+        (promotionRule['kind'] as String? ?? 'standard').trim();
+    final qualifyingScope = _parseScopeMap(promotionRule['qualifying_scope']);
+    final configuredRewardScope = _parseScopeMap(promotionRule['reward_scope']);
+
+    if (discountMode == 'free_drink') {
+      final rewardScope =
+          promotionKind == 'bundle' && configuredRewardScope.isNotEmpty
+              ? configuredRewardScope
+              : qualifyingScope.isNotEmpty
+                  ? qualifyingScope
+                  : eligibleScope;
+      final units = <({CartItem item, int tokens, double rm})>[];
+      for (final item in snapshot.items) {
+        if (!_itemMatchesScope(item, rewardScope)) continue;
+        for (var index = 0; index < item.quantity; index += 1) {
+          units.add((
+            item: item,
+            tokens: item.unitTotalTokens,
+            rm: item.unitTotalRm,
+          ));
+        }
+      }
+      units.sort((left, right) => right.tokens.compareTo(left.tokens));
+      for (final unit in units.take(rewardQuantity)) {
+        recordAppliedItem(unit.item, unit.tokens, unit.rm);
+      }
+      return VoucherCartApplication(
+        itemTokenDiscounts: itemTokenDiscounts,
+        itemRmDiscounts: itemRmDiscounts,
+        appliedItemNames: appliedItemNames,
+      );
+    }
+
+    if (discountMode == 'free_option') {
+      final tokenRewardScope =
+          promotionKind == 'bundle' && configuredRewardScope.isNotEmpty
+              ? configuredRewardScope
+              : qualifyingScope;
+      final rmRewardScope = configuredRewardScope.isNotEmpty
+          ? configuredRewardScope
+          : tokenRewardScope;
+      final optionUnits = <({CartItem item, int tokens, double rm})>[];
+      for (final item in snapshot.items) {
+        if (!_itemMatchesScope(item, tokenRewardScope)) continue;
+        for (final modifier in item.modifiers) {
+          if (!_modifierMatchesOptionScope(modifier, tokenRewardScope) &&
+              !_modifierMatchesOptionScope(modifier, rmRewardScope)) {
+            continue;
+          }
+          optionUnits.add((
+            item: item,
+            tokens: math.max(0, modifier.tokenPriceDelta),
+            rm: math.max(0, modifier.priceDeltaRm),
+          ));
+        }
+      }
+      optionUnits.sort((left, right) => right.tokens.compareTo(left.tokens));
+      for (final unit in optionUnits.take(rewardQuantity)) {
+        recordAppliedItem(unit.item, unit.tokens, unit.rm);
+      }
+      return VoucherCartApplication(
+        itemTokenDiscounts: itemTokenDiscounts,
+        itemRmDiscounts: itemRmDiscounts,
+        appliedItemNames: appliedItemNames,
+      );
+    }
+
+    final scope =
+        qualifyingScope.isNotEmpty ? qualifyingScope : eligibleScope;
+    final matchedItems = snapshot.items
+        .where((item) => _itemMatchesScope(item, scope))
+        .toList();
+    if (matchedItems.isNotEmpty &&
+        matchedItems.length < snapshot.items.length) {
+      for (final item in matchedItems) {
+        if (seenNames.add(item.name)) {
+          appliedItemNames.add(item.name);
+        }
+      }
+    }
+
+    return VoucherCartApplication(
+      itemTokenDiscounts: itemTokenDiscounts,
+      itemRmDiscounts: itemRmDiscounts,
+      appliedItemNames: appliedItemNames,
+    );
   }
 
   String get availabilityLabel {
@@ -2063,6 +2183,7 @@ class CustomerDataService {
       throw ApiException(
         (error['message'] as String?) ?? 'Request failed.',
         code: error['code'] as String?,
+        requestId: error['request_id'] as String?,
       );
     }
 

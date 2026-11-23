@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
+import pino from 'pino';
 import { mysqlPool } from './db/mysql.js';
 import rawBody from 'fastify-raw-body';
 import { env } from './config/env.js';
@@ -91,6 +92,11 @@ function isAllowedCorsOrigin(origin: string, allowedOrigins: string[]): boolean 
 
 export async function buildApp() {
   await assertSingleCafeDeployment();
+  const fileLog = pino.destination({
+    dest: env.LOG_FILE_PATH,
+    mkdir: true,
+    sync: false
+  });
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -98,7 +104,11 @@ export async function buildApp() {
         'req.headers.authorization',
         'req.headers.cookie',
         'res.headers["set-cookie"]'
-      ]
+      ],
+      stream: pino.multistream([
+        { stream: process.stdout },
+        { stream: fileLog }
+      ])
     },
     genReqId: (request) => {
       const existing = request.headers['x-request-id'];
@@ -152,7 +162,7 @@ export async function buildApp() {
 
       callback(null, isAllowedCorsOrigin(origin, env.CORS_ALLOWED_ORIGINS));
     },
-    exposedHeaders: ['retry-after', 'x-ratelimit-reset'],
+    exposedHeaders: ['retry-after', 'x-ratelimit-reset', 'x-request-id'],
     credentials: true
   });
   await app.register(rateLimit, {

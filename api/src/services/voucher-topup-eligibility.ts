@@ -37,10 +37,13 @@ export function evaluateVoucherTopUpEligibility(input: {
     };
   }
 
-  // An explicit admin issue is an intentional override. System-issued copies
+  // An explicit admin issue is an intentional override. A voucher restored as
+  // a cancellation/refund replacement inherits the already-qualified source
+  // voucher, so it must remain eligible as well. Other system-issued copies
   // must carry the qualifying top-up reference produced by settlement.
   const expectedPrefix = `topup_reward:${input.templateId}:topup:`;
   const eligible = input.issuedByType === 'admin' ||
+    input.issueCaseRef?.startsWith('refund:') === true ||
     input.issueCaseRef?.startsWith(expectedPrefix) === true;
 
   return {
