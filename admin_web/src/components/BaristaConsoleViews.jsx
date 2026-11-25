@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { isBaristaHistoryStatus, malaysiaAttendanceDate } from '../utils/baristaHistory';
 import {
   AlertCircle,
   BookOpen,
@@ -75,17 +76,15 @@ function TabErrorBanner({ message, onRetry }) {
   );
 }
 
-export function OrderHistoryView({ orders, isLoading, onOpenOrder, formatOrderTime, itemModifiers }) {
+export function OrderHistoryView({ orders, isLoading, error, onOpenOrder, formatOrderTime, itemModifiers }) {
   const [query, setQuery] = useState('');
 
   const historyOrders = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return [...orders]
       .filter((order) => {
-        const status = String(order.status || '').trim().toLowerCase();
-        return status !== 'paid' && status !== 'accepted' && !status.includes('preparing');
+        return isBaristaHistoryStatus(order.status);
       })
-      .reverse()
       .filter((order) => {
         if (!normalizedQuery) return true;
         const id = String(order.id || '').toLowerCase();
@@ -94,6 +93,8 @@ export function OrderHistoryView({ orders, isLoading, onOpenOrder, formatOrderTi
         return id.includes(normalizedQuery) || customer.includes(normalizedQuery) || itemsText.includes(normalizedQuery);
       });
   }, [orders, query]);
+
+  if (error) return <TabErrorBanner message={error} />;
 
   if (isLoading) {
     return (
@@ -643,7 +644,7 @@ export function TimetableAndGuidesView({
   const groupedByDate = useMemo(() => {
     const map = new Map();
     attendanceHistory.forEach((entry) => {
-      const key = String(entry.date || entry.clocked_in_at || '').slice(0, 10) || 'Unknown';
+      const key = malaysiaAttendanceDate(entry.clocked_in_at);
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(entry);
     });

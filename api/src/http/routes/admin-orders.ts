@@ -216,7 +216,7 @@ const createRefundSchema = z.object({
 const adminListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(10000).optional().default(50),
   store_id: z.coerce.number().int().positive().optional(),
-  view: z.enum(['all', 'barista_workspace']).optional().default('all')
+  view: z.enum(['all', 'barista_workspace', 'barista_history']).optional().default('all')
 });
 
 const financeDate = z.iso.date();
@@ -883,7 +883,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           AND (:storeId IS NULL OR s.id = :storeId)
           AND (
             (:view = 'all' AND :isBaristaOnly = 0)
+            OR (:view = 'barista_history' AND o.status IN ('ready_for_pickup', 'collected', 'cancelled', 'refunded')
+              AND DATE(DATE_ADD(o.created_at, INTERVAL 8 HOUR)) = DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)))
             OR (
+              :view <> 'barista_history' AND
               o.status IN ('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
               AND (
                 o.payment_mode = 'token'

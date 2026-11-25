@@ -9,7 +9,9 @@ async function source(relativePath) {
 
 test('barista workspace order feed contains only today operational and history orders', async () => {
   const orders = await source('src/http/routes/admin-orders.ts');
-  assert.match(orders, /view: z\.enum\(\['all', 'barista_workspace'\]\)/);
+  assert.match(orders, /view: z\.enum\(\['all', 'barista_workspace', 'barista_history'\]\)/);
+  assert.match(orders, /:view = 'barista_history' AND o\.status IN \('ready_for_pickup', 'collected', 'cancelled', 'refunded'\)/);
+  assert.match(orders, /:isBaristaOnly = 0\s+OR EXISTS \(\s+SELECT 1\s+FROM admin_user_store_assignments/);
   assert.match(orders, /:view = 'all' AND :isBaristaOnly = 0/);
   assert.match(orders, /o\.status IN \('pending_payment', 'paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected'\)/);
   // Unpaid orders are visible only when a barista must confirm a manual
@@ -18,6 +20,12 @@ test('barista workspace order feed contains only today operational and history o
   assert.match(orders, /payment_gate\.status IN \('paid', 'partially_refunded'\)/);
   assert.match(orders, /COALESCE\(o\.final_total_rm, 0\) = 0/);
   assert.match(orders, /DATE_ADD\(o\.created_at, INTERVAL 8 HOUR\)/);
+});
+
+test('explicit workstation outlet is restricted to admin read requests and tenant-owned active outlets', async () => {
+  const staff = await source('src/http/routes/barista-staff.ts');
+  assert.match(staff, /request\.method === 'GET' && !request\.adminAuth\.isBaristaOnly/);
+  assert.match(staff, /WHERE id = :storeId AND tenant_id = :tenantId AND status = 'active'/);
 });
 
 test('print connector refuses jobs until the order payment is confirmed', async () => {

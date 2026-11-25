@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   BellRing,
@@ -18,7 +18,8 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { adminRequest, getAdminApiBaseUrl } from '../lib/adminApi';
+import { adminRequest, getAdminApiBaseUrl, loadAdminStores } from '../lib/adminApi';
+import { eligibleWorkstationOutlets } from '../utils/baristaHistory';
 import { playOrderAlertSound, primeOrderAlertSound, registerBaristaBrowserPush, stopBaristaBrowserPush } from '../lib/baristaPush';
 import {
   BaristaInventoryView,
@@ -439,7 +440,7 @@ const CONSOLE_TABS = [
   { key: 'timetable', label: 'Timetable & Guides', icon: CalendarDays },
 ];
 
-export default function BaristaConsole({ currentUser }) {
+function BaristaConsoleContent({ currentUser, selectedStoreId }) {
   const [activeTab, setActiveTab] = useState('orders');
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -473,19 +474,22 @@ export default function BaristaConsole({ currentUser }) {
   const [baristaInventory, setBaristaInventory] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState('');
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [historyError, setHistoryError] = useState('');
+  const outletQuery = selectedStoreId ? `?store_id=${selectedStoreId}` : '';
   const lastReminderAtByOrderId = useRef(new Map());
   const notifiedSideWorkIds = useRef(new Set());
   const canOperate = Array.isArray(currentUser?.roles)
     && currentUser.roles.length === 1
     && currentUser.roles[0] === 'barista';
 
-  const loadOrders = async ({ silent = false } = {}) => {
+  const loadOrders = useCallback(async ({ silent = false } = {}) => {
     try {
       setError('');
       if (silent) setIsRefreshing(true);
       else setIsLoading(true);
 
-      const response = await adminRequest('/v1/admin/orders?view=barista_workspace&limit=500');
+      const response = await adminRequest(`/v1/admin/orders?view=barista_workspace&limit=500${selectedStoreId ? `&store_id=${selectedStoreId}` : ''}`);
       const nextOrders = Array.isArray(response?.orders) ? response.orders : [];
       setOrders(nextOrders);
       setSelectedOrder((current) => current ? nextOrders.find((order) => order.id === current.id) || null : null);
@@ -496,12 +500,20 @@ export default function BaristaConsole({ currentUser }) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [selectedStoreId]);
 
-  const loadStaffWorkspace = async () => {
+  const loadHistory = useCallback(async () => {
+    try {
+      const response = await adminRequest(`/v1/admin/orders?view=barista_history&limit=500${selectedStoreId ? `&store_id=${selectedStoreId}` : ''}`);
+      setHistoryOrders(Array.isArray(response?.orders) ? response.orders : []);
+      setHistoryError('');
+    } catch (err) { setHistoryOrders([]); setHistoryError(err?.message || 'Unable to load order history.'); }
+  }, [selectedStoreId]);
+
+  const loadStaffWorkspace = useCallback(async () => {
     const [attendanceResult, historyResult, guidesResult, sideWorkResult] = await Promise.allSettled([
-      adminRequest('/v1/barista/attendance/status'),
-      adminRequest('/v1/barista/attendance/history'),
+      adminRequest(`/v1/barista/attendance/status${outletQuery}`),
+      adminRequest(`/v1/barista/attendance/history${outletQuery}`),
       adminRequest('/v1/barista/guides'),
       adminRequest('/v1/barista/side-work'),
     ]);
@@ -520,13 +532,13 @@ export default function BaristaConsole({ currentUser }) {
       const failedResult = [attendanceResult, historyResult, guidesResult, sideWorkResult].find((result) => result.status === 'rejected');
       setError(failedResult?.reason?.message || 'Unable to load the staff workspace. Please refresh the page.');
     }
-  };
+  }, [outletQuery]);
 
   const loadMenuAvailability = async () => {
     try {
       setMenuError('');
       setMenuLoading(true);
-      const response = await adminRequest('/v1/barista/menu/availability');
+      const response = await adminRequest(`/v1/barista/menu/availability${outletQuery}`);
       setMenuAvailability(response || null);
     } catch (loadError) {
       setMenuError(loadError?.message || 'Unable to load barista menu availability.');
@@ -540,8 +552,8 @@ export default function BaristaConsole({ currentUser }) {
       setMarketingError('');
       setMarketingLoading(true);
       const [catalogRes, usagesRes] = await Promise.all([
-        adminRequest('/v1/barista/marketing-drinks/catalog'),
-        adminRequest('/v1/barista/marketing-drinks'),
+        adminRequest(`/v1/barista/marketing-drinks/catalog${outletQuery}`),
+        adminRequest(`/v1/barista/marketing-drinks${outletQuery}`),
       ]);
       setMarketingDrinks(Array.isArray(catalogRes?.drinks) ? catalogRes.drinks : []);
       setMarketingUsages(Array.isArray(usagesRes?.usages) ? usagesRes.usages : []);
@@ -556,7 +568,7 @@ export default function BaristaConsole({ currentUser }) {
     try {
       setInventoryError('');
       setInventoryLoading(true);
-      const response = await adminRequest('/v1/barista/inventory');
+      const response = await adminRequest(`/v1/barista/inventory${outletQuery}`);
       setBaristaInventory(response || null);
     } catch (loadError) {
       setInventoryError(loadError?.message || 'Unable to load barista inventory.');
@@ -578,10 +590,12 @@ export default function BaristaConsole({ currentUser }) {
 
   useEffect(() => {
     void loadOrders();
+    void loadHistory();
     void loadStaffWorkspace();
     const intervalId = window.setInterval(() => {
       setCurrentTime(Date.now());
       void loadOrders({ silent: true });
+      void loadHistory();
       void loadStaffWorkspace();
     }, 15000);
     const refreshOnFocus = () => void loadOrders({ silent: true });
@@ -590,7 +604,7 @@ export default function BaristaConsole({ currentUser }) {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', refreshOnFocus);
     };
-  }, []);
+  }, [loadOrders, loadHistory, loadStaffWorkspace]);
 
   useEffect(() => {
     const primeAudio = () => void primeOrderAlertSound();
@@ -621,7 +635,7 @@ export default function BaristaConsole({ currentUser }) {
       active = false;
       stopBaristaBrowserPush();
     };
-  }, [canOperate, activeTab]);
+  }, [canOperate, activeTab, loadOrders]);
 
   const enableBrowserPush = async () => {
     try {
@@ -747,6 +761,7 @@ export default function BaristaConsole({ currentUser }) {
   };
 
   const handleRefreshActiveTab = () => {
+    void loadHistory();
     void loadOrders({ silent: true });
     void loadStaffWorkspace();
     if (activeTab === 'menu') void loadMenuAvailability();
@@ -937,7 +952,8 @@ export default function BaristaConsole({ currentUser }) {
 
         {activeTab === 'history' && (
           <OrderHistoryView
-            orders={orders}
+            orders={historyOrders}
+            error={historyError}
             isLoading={isLoading}
             onOpenOrder={setSelectedOrder}
             formatOrderTime={formatOrderTime}
@@ -1008,4 +1024,28 @@ export default function BaristaConsole({ currentUser }) {
       {guideType && <GuidesDialog guideType={guideType} guides={guides} initialGuideId={initialGuideId} onClose={() => { setGuideType(null); setInitialGuideId(null); }} />}
     </div>
   );
+}
+
+export default function BaristaConsole({ currentUser }) {
+  const [selectedStoreId, setSelectedStoreId] = useState(null);
+  const [outlets, setOutlets] = useState([]);
+  const [outletError, setOutletError] = useState('');
+  const [outletsLoading, setOutletsLoading] = useState(true);
+  const baristaOnly = Array.isArray(currentUser?.roles) && currentUser.roles.length === 1 && currentUser.roles[0] === 'barista';
+  useEffect(() => {
+    if (baristaOnly) return undefined;
+    let active = true;
+    loadAdminStores().then((response) => {
+      if (!active) return;
+      const available = eligibleWorkstationOutlets(response?.stores);
+      setOutlets(available);
+      if (available.length === 1) setSelectedStoreId(Number(available[0].id));
+    }).catch(() => { if (active) setOutletError('Unable to load outlets. Please refresh the page.'); })
+      .finally(() => { if (active) setOutletsLoading(false); });
+    return () => { active = false; };
+  }, [baristaOnly]);
+  return <>
+    {!baristaOnly && <div className="px-4 pt-4 sm:px-8"><label className="mr-2 text-sm text-gray-600" htmlFor="barista-outlet">Workstation outlet:</label><select id="barista-outlet" value={selectedStoreId ?? ''} onChange={(event) => setSelectedStoreId(Number(event.target.value))} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"><option value="" disabled>Select an outlet</option>{outlets.map((outlet) => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}</select>{outletError && <p role="alert" className="mt-2 text-sm text-red-700">{outletError}</p>}{!outletsLoading && !outletError && outlets.length === 0 && <p className="mt-2 text-sm text-gray-600">No active outlets are available.</p>}</div>}
+    {(baristaOnly || selectedStoreId != null) && <BaristaConsoleContent key={selectedStoreId ?? 'assigned'} currentUser={currentUser} selectedStoreId={selectedStoreId} />}
+  </>;
 }

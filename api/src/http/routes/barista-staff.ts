@@ -300,8 +300,22 @@ function assertStaffAccess(request: { adminAuth: { roles: string[] } }) {
 
 export async function resolveAttendanceStoreId(request: {
   headers: Record<string, string | string[] | undefined>;
+  method?: string;
+  query?: unknown;
   adminAuth: { adminUserId: number; tenantId: number; tenantCode: string; isBaristaOnly: boolean };
 }): Promise<number> {
+  const requestedStore = request.method === 'GET' && !request.adminAuth.isBaristaOnly && request.query && typeof request.query === 'object'
+    ? (request.query as Record<string, unknown>).store_id : undefined;
+  if (requestedStore != null) {
+    const storeId = Number(requestedStore);
+    if (!Number.isSafeInteger(storeId) || storeId <= 0) throw new ApiError(400, 'invalid_store', 'Select a valid outlet.');
+    const [stores] = await mysqlPool.query<RowDataPacket[]>(
+      `SELECT id FROM stores WHERE id = :storeId AND tenant_id = :tenantId AND status = 'active' LIMIT 1`,
+      { storeId, tenantId: request.adminAuth.tenantId }
+    );
+    if (!stores[0]) throw new ApiError(404, 'store_not_found', 'Outlet not found.');
+    return storeId;
+  }
   const rawKey = request.headers['x-c2-workstation-key'];
   const key = typeof rawKey === 'string' ? rawKey.trim().toUpperCase() : '';
   if (key) {
