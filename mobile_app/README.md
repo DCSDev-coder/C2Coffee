@@ -49,6 +49,12 @@ app compares that value with the installed build and opens the correct store
 listing when the customer chooses **Update now**. Keep the manifest valid JSON
 and serve it over HTTPS.
 
+The Flutter `version` in `pubspec.yaml` is shared by Android and iOS. The next
+aligned customer-app version is `1.0.10+37`: `1.0.10` is the marketing version
+and `37` is the Android version code/iOS build number. Keep both store
+submissions on this same pair; do not publish the update manifest until both
+store artifacts are available.
+
 ## Asset flow
 
 Poster and menu images are loaded from the API asset routes. If an image returns 404, verify that the file exists on the API host under `api/public/menu/uploads/` and that the API runtime can read it.

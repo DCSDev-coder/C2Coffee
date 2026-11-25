@@ -212,6 +212,12 @@ class ShiftReportPrintSlip {
     this.counterSales = 0,
     this.onlineSales = 0,
     this.creditSales = 0,
+    this.personalCreditSales = 0,
+    this.personalTokensUsed = 0,
+    this.allowanceSales = 0,
+    this.allowanceTokensUsed = 0,
+    this.salesExclAllowance = 0,
+    this.netSalesExclAllowance = 0,
     this.totalTokensCharged = 0,
     this.hasPaymentBreakdown = false,
     required this.orders,
@@ -281,10 +287,33 @@ class ShiftReportPrintSlip {
           0,
           (sum, order) => sum + order.tokenAmountCharged,
         );
+    final personalCreditSales = json.containsKey('personal_credit_sales_rm')
+        ? money(json['personal_credit_sales_rm'])
+        : creditSales;
+    final personalTokensUsed =
+        int.tryParse(json['personal_tokens_used']?.toString() ?? '') ??
+        totalTokensCharged;
+    final allowanceSales = json.containsKey('allowance_sales_rm')
+        ? money(json['allowance_sales_rm'])
+        : 0.0;
+    final allowanceTokensUsed =
+        int.tryParse(json['allowance_tokens_used']?.toString() ?? '') ?? 0;
+    final grossSales = money(json['gross_sales_rm']);
+    final refunded = money(json['refunded_rm']);
+    final netSales = money(json['net_sales_rm']);
+    final salesExclAllowance = json.containsKey('sales_excl_allowance_rm')
+        ? money(json['sales_excl_allowance_rm'])
+        : (counterSales + onlineSales + personalCreditSales > 0 || !json.containsKey('gross_sales_rm')
+              ? counterSales + onlineSales + personalCreditSales
+              : grossSales);
+    final netSalesExclAllowance = json.containsKey('net_sales_excl_allowance_rm')
+        ? money(json['net_sales_excl_allowance_rm'])
+        : (salesExclAllowance - refunded).clamp(0.0, double.infinity).toDouble();
     final hasPaymentBreakdown =
         json.containsKey('counter_sales_rm') ||
         json.containsKey('online_sales_rm') ||
         json.containsKey('credit_sales_rm') ||
+        json.containsKey('personal_credit_sales_rm') ||
         parsedOrders.isNotEmpty;
 
     return ShiftReportPrintSlip(
@@ -296,13 +325,19 @@ class ShiftReportPrintSlip {
       clockedOutAt: DateTime.parse(json['clocked_out_at'].toString()),
       orderCount: int.tryParse(json['order_count']?.toString() ?? '') ?? 0,
       totalItems: totalItems,
-      grossSales: money(json['gross_sales_rm']),
+      grossSales: grossSales,
       discountTotal: discountTotal,
-      refunded: money(json['refunded_rm']),
-      netSales: money(json['net_sales_rm']),
+      refunded: refunded,
+      netSales: netSales,
       counterSales: counterSales,
       onlineSales: onlineSales,
       creditSales: creditSales,
+      personalCreditSales: personalCreditSales,
+      personalTokensUsed: personalTokensUsed,
+      allowanceSales: allowanceSales,
+      allowanceTokensUsed: allowanceTokensUsed,
+      salesExclAllowance: salesExclAllowance,
+      netSalesExclAllowance: netSalesExclAllowance,
       totalTokensCharged: totalTokensCharged,
       hasPaymentBreakdown: hasPaymentBreakdown,
       orders: parsedOrders,
@@ -325,6 +360,12 @@ class ShiftReportPrintSlip {
   final double counterSales;
   final double onlineSales;
   final double creditSales;
+  final double personalCreditSales;
+  final int personalTokensUsed;
+  final double allowanceSales;
+  final int allowanceTokensUsed;
+  final double salesExclAllowance;
+  final double netSalesExclAllowance;
   final int totalTokensCharged;
   final bool hasPaymentBreakdown;
   final List<ShiftReportOrder> orders;
@@ -966,18 +1007,20 @@ class DirectPrinterService {
       );
       _writeRow(
         buffer,
-        'C2 Credit (Tokens)',
-        'RM ${slip.creditSales.toStringAsFixed(2)}',
+        'Personal Credit (${slip.personalTokensUsed}t)',
+        'RM ${slip.personalCreditSales.toStringAsFixed(2)}',
       );
-      if (slip.totalTokensCharged > 0) {
-        _writeRow(buffer, '  Tokens Charged', '${slip.totalTokensCharged} tok');
-      }
+      _writeRow(
+        buffer,
+        'Co. Allowance (${slip.allowanceTokensUsed}t)',
+        'RM ${slip.allowanceSales.toStringAsFixed(2)}',
+      );
     }
     write('--------------------------------\n');
     _writeRow(
       buffer,
-      'Sales After Disc.',
-      'RM ${slip.grossSales.toStringAsFixed(2)}',
+      'Sales Excl. Allow.',
+      'RM ${slip.salesExclAllowance.toStringAsFixed(2)}',
     );
     _writeRow(
       buffer,
@@ -988,54 +1031,16 @@ class DirectPrinterService {
     write('================================\n');
     buffer.add(const [0x1D, 0x21, 0x01]); // Tall bold NET SALES.
     buffer.add(const [0x1B, 0x45, 0x01]);
-    _writeRow(buffer, 'NET SALES', 'RM ${slip.netSales.toStringAsFixed(2)}');
+    _writeRow(
+      buffer,
+      'NET SALES',
+      'RM ${slip.netSalesExclAllowance.toStringAsFixed(2)}',
+    );
     buffer.add(const [0x1D, 0x21, 0x00]);
     buffer.add(const [0x1B, 0x45, 0x00]);
     write('================================\n');
 
-    if (slip.orders.isNotEmpty) {
-      write('\n');
-      buffer.add(const [0x1B, 0x45, 0x01]);
-      write('ORDERS (${slip.orders.length})\n');
-      buffer.add(const [0x1B, 0x45, 0x00]);
-      write('--------------------------------\n');
-      for (final order in slip.orders) {
-        final number = order.dailyOrderNumber > 0
-            ? '#${order.dailyOrderNumber.toString().padLeft(2, '0')}'
-            : order.shortOrderRef;
-        final time = _formatPrintedClock(order.createdAt);
-        buffer.add(const [0x1B, 0x45, 0x01]);
-        _writeRow(
-          buffer,
-          '$number  $time',
-          'RM ${order.finalTotal.toStringAsFixed(2)}',
-        );
-        buffer.add(const [0x1B, 0x45, 0x00]);
-        _writeWrapped(
-          buffer,
-          '${order.shortOrderRef} - ${order.formattedStatusLabel} - ${order.formattedPaymentLabel}',
-          indent: '  ',
-        );
-        if (order.discount > 0) {
-          _writeRow(
-            buffer,
-            '  Discount',
-            '-RM ${order.discount.toStringAsFixed(2)}',
-          );
-        }
-        if (order.refunded > 0) {
-          _writeRow(
-            buffer,
-            '  Refunded',
-            '-RM ${order.refunded.toStringAsFixed(2)}',
-          );
-        }
-        write('\n');
-      }
-    }
-
     if (slip.items.isNotEmpty) {
-      write('================================\n');
       buffer.add(const [0x1B, 0x45, 0x01]);
       write('ITEM SUMMARY\n');
       buffer.add(const [0x1B, 0x45, 0x00]);

@@ -249,6 +249,12 @@ void main() {
           'counter_sales_rm': '43.80',
           'online_sales_rm': '0.00',
           'credit_sales_rm': '18.42',
+          'personal_credit_sales_rm': '12.42',
+          'personal_tokens_used': 12,
+          'allowance_sales_rm': '6.00',
+          'allowance_tokens_used': 6,
+          'sales_excl_allowance_rm': '56.22',
+          'net_sales_excl_allowance_rm': '56.22',
           'total_tokens_charged': 18,
           'orders': [
             {
@@ -298,10 +304,15 @@ void main() {
           .buildShiftReportDocket(report);
       final docketText = latin1.decode(docketBytes, allowInvalid: true);
       expect(docketText, contains('DAILY SHIFT SUMMARY'));
-      expect(docketText, contains('C2 Credit (Tokens)'));
+      expect(docketText, contains('Personal Credit (12t)'));
+      expect(docketText, contains('Co. Allowance (6t)'));
+      expect(docketText, contains('Sales Excl. Allow.'));
+      expect(docketText, contains('RM 56.22'));
       expect(docketText, contains('NET SALES'));
-      expect(docketText, contains('C2-4EGOOF - Collected - Credit'));
-      expect(docketText, contains('C2-SWBFG2 - Ready - Counter'));
+      expect(docketText, contains('ITEM SUMMARY'));
+      expect(docketText, isNot(contains('ORDERS (')));
+      expect(docketText, isNot(contains('C2-4EGOOF - Collected - Credit')));
+      expect(docketText, isNot(contains('C2-SWBFG2 - Ready - Counter')));
       expect(docketText, isNot(contains('unpaid')));
       expect(docketText, isNot(contains('manual_counter')));
     },

@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   BarChart3,
+  Briefcase,
   ChevronDown,
   ChevronUp,
   Download,
@@ -29,14 +30,37 @@ import InfoTooltip from './InfoTooltip';
 
 const REFRESH_INTERVAL_MS = 60_000;
 
+const formatMonthLabel = (monthKey) => {
+  if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return 'All months';
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Kuala_Lumpur'
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+};
+
 const EMPTY_OVERVIEW = {
   summary: {
     totalRevenueRm: 0,
+    directPaymentOrderValueRm: 0,
+    directOrders: 0,
+    tokenOrders: 0,
+    tokenOrderValueRm: 0,
+    personalTokenOrders: 0,
+    personalTokensUsed: 0,
+    personalTokenOrderValueRm: 0,
+    allowanceOrders: 0,
+    allowanceTokensUsed: 0,
+    allowanceOrderValueRm: 0,
+    salesExcludingAllowanceRm: 0,
     totalTokensCharged: 0,
     totalRefundAmountRm: 0,
     totalRefundTokens: 0,
+    netTokens: 0,
     netRevenueRm: 0,
     totalOrders: 0,
+    qualifyingOrders: 0,
     activeOrders: 0,
     completedOrders: 0,
     refundedOrders: 0,
@@ -139,6 +163,7 @@ const Finance = ({ setCurrentPage }) => {
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [selectedStoreId, setSelectedStoreId] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [transactionSortKey, setTransactionSortKey] = useState('dateTime');
   const [transactionSortDirection, setTransactionSortDirection] = useState('desc');
   const [auditEntries, setAuditEntries] = useState([]);
@@ -149,7 +174,7 @@ const Finance = ({ setCurrentPage }) => {
     const loadOverview = async () => {
       try {
         setError('');
-        const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId });
+        const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId, month: selectedMonth || null });
         if (!active) return;
         setOverview(nextOverview || EMPTY_OVERVIEW);
         setLastUpdatedAt(new Date());
@@ -172,11 +197,11 @@ const Finance = ({ setCurrentPage }) => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [selectedStoreId]);
+  }, [selectedStoreId, selectedMonth]);
 
   useEffect(() => {
     let active = true;
-    void loadAdminFinanceAuditLedger({ storeId: selectedStoreId, limit: 100 })
+    void loadAdminFinanceAuditLedger({ storeId: selectedStoreId, month: selectedMonth || null, limit: 100 })
       .then((response) => {
         if (active) setAuditEntries(Array.isArray(response?.entries) ? response.entries : []);
       })
@@ -184,7 +209,7 @@ const Finance = ({ setCurrentPage }) => {
         if (active) setAuditEntries([]);
       });
     return () => { active = false; };
-  }, [selectedStoreId]);
+  }, [selectedStoreId, selectedMonth]);
 
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
@@ -222,14 +247,23 @@ const Finance = ({ setCurrentPage }) => {
         headers: ['Metric', 'Value'],
         rows: [
           ['Gross revenue (RM)', summary.totalRevenueRm || 0],
+          ['Sales excluding company allowance (RM eq.)', summary.salesExcludingAllowanceRm || 0],
+          ['Direct paid sales (RM)', summary.directPaymentOrderValueRm || 0],
+          ['Direct paid orders', summary.directOrders || 0],
+          ['Personal C2 Credit tokens', summary.personalTokensUsed || 0],
+          ['Personal C2 Credit orders', summary.personalTokenOrders || 0],
+          ['Personal C2 Credit value (RM eq.)', summary.personalTokenOrderValueRm || 0],
+          ['Company allowance tokens used (orders)', summary.allowanceTokensUsed || 0],
+          ['Company allowance orders', summary.allowanceOrders || 0],
+          ['Company allowance value (RM eq.)', summary.allowanceOrderValueRm || 0],
           ['Net revenue (RM)', summary.netRevenueRm || 0],
           ['Refunds (RM)', summary.totalRefundAmountRm || 0],
           ['Tokens charged', summary.totalTokensCharged || 0],
           ['Refund tokens', summary.totalRefundTokens || 0],
-          ['Orders', summary.totalOrders || 0],
-          ['Company allowance issued', subsidySummary.issuedTokens || 0],
-          ['Company allowance consumed', subsidySummary.consumedTokens || 0],
-          ['Company allowance remaining', subsidySummary.remainingIssuedTokens || 0]
+          ['Qualifying orders', summary.qualifyingOrders ?? summary.totalOrders ?? 0],
+          ['Company allowance issued (ledger)', subsidySummary.issuedTokens || 0],
+          ['Company allowance consumed (ledger)', subsidySummary.consumedTokens || 0],
+          ['Company allowance remaining (ledger)', subsidySummary.remainingIssuedTokens || 0]
         ]
       },
       { title: 'Recent transactions', headers: exportRows[0], rows: exportRows.slice(1) },
@@ -338,7 +372,7 @@ const Finance = ({ setCurrentPage }) => {
 
   const refreshOverview = async () => {
     try {
-      const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId });
+      const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId, month: selectedMonth || null });
       setOverview(nextOverview || EMPTY_OVERVIEW);
       setLastUpdatedAt(new Date());
       setError('');
@@ -347,21 +381,42 @@ const Finance = ({ setCurrentPage }) => {
     }
   };
 
+  const availableMonths = Array.isArray(overview.availableMonths) ? overview.availableMonths : [];
+  const scopeLabel = `${selectedMonth ? formatMonthLabel(selectedMonth) : 'All-time'} · ${selectedStoreId ? 'Selected outlet' : 'All outlets'}`;
+
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
       <div className="p-4 sm:p-6 lg:p-8 w-full h-full flex flex-col space-y-6">
         <div className="shrink-0 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Finance</h1>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Finance</h1>
+              <span className="rounded-full bg-[#EEF6F3] px-2.5 py-0.5 text-[11px] font-semibold text-[#1F5A4D]">
+                {scopeLabel}
+              </span>
+            </div>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
-              Token-first finance view for daily operations and RM reconciliation.
+              Sales breakdown by funding source (direct RM, personal C2 Credit, and company allowance) with daily and ledger reconciliation.
             </p>
             <p className="text-xs text-gray-400 mt-2">
               {loading ? 'Refreshing live data...' : error ? `Showing last successful data. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              aria-label="Filter finance by month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#2E5E58]/30 shadow-sm cursor-pointer"
+            >
+              <option value="">All months</option>
+              {availableMonths.map((monthKey) => (
+                <option key={monthKey} value={monthKey}>
+                  {formatMonthLabel(monthKey)}
+                </option>
+              ))}
+            </select>
             <OutletFilter value={selectedStoreId} onChange={setSelectedStoreId} />
             <button
               type="button"
@@ -373,22 +428,38 @@ const Finance = ({ setCurrentPage }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           <StatCard
-            title="Token orders"
-            value={formatReportTokens(summary.totalTokensCharged)}
-            subtitle={`${formatReportMoney(summary.tokenOrderValueRm)} RM equivalent`}
-            icon={Wallet}
-            iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
-            info="Tokens spent on completed orders. The RM figure is an equivalent order value, not a card or bank settlement."
-          />
-          <StatCard
-            title="Direct order value"
+            title="Direct paid sales"
             value={formatReportMoney(summary.directPaymentOrderValueRm)}
-            subtitle={`${summary.totalOrders.toLocaleString('en-US')} orders in scope`}
+            subtitle={`${Number(summary.directOrders || 0).toLocaleString('en-US')} direct orders`}
             icon={BarChart3}
             iconBg="bg-blue-500/10 text-blue-700"
-            info="Order value for direct-payment orders only. Actual gateway settlement is shown below from paid payment records."
+            info="Qualifying direct-payment orders (RM paid via counter, DuitNow QR, FPX, or card). Excludes token and company allowance orders."
+          />
+          <StatCard
+            title="Personal C2 Credit"
+            value={formatReportTokens(summary.personalTokensUsed)}
+            subtitle={`${Number(summary.personalTokenOrders || 0).toLocaleString('en-US')} orders · ${formatReportMoney(summary.personalTokenOrderValueRm)} eq.`}
+            icon={Wallet}
+            iconBg="bg-[#1F3A34]/10 text-[#1F3A34]"
+            info="Personal C2 Credit tokens spent on qualifying orders, excluding company allowance tokens. RM figure is the order-value equivalent."
+          />
+          <StatCard
+            title="Company allowance orders"
+            value={formatReportTokens(summary.allowanceTokensUsed)}
+            subtitle={`${Number(summary.allowanceOrders || 0).toLocaleString('en-US')} orders · ${formatReportMoney(summary.allowanceOrderValueRm)} eq.`}
+            icon={Briefcase}
+            iconBg="bg-emerald-500/10 text-emerald-700"
+            info="Company-funded employee/intern allowance tokens used on qualifying orders (from order funding split, separate from ledger role revokes/expiries)."
+          />
+          <StatCard
+            title="Total orders"
+            value={Number(summary.qualifyingOrders ?? summary.totalOrders ?? 0).toLocaleString('en-US')}
+            subtitle={`${Number(summary.activeOrders || 0).toLocaleString('en-US')} active · ${Number(summary.completedOrders || 0).toLocaleString('en-US')} completed`}
+            icon={ShoppingCart}
+            iconBg="bg-amber-500/15 text-amber-700"
+            info="All qualifying paid/fulfilled orders in scope (excludes draft, pending payment, payment failed, and cancelled orders)."
           />
           <StatCard
             title="Refunds"
@@ -396,16 +467,21 @@ const Finance = ({ setCurrentPage }) => {
             subtitle={`${formatReportTokens(summary.totalRefundTokens)} returned`}
             icon={ReceiptText}
             iconBg="bg-rose-500/10 text-rose-600"
-            info="Completed refunds only. Token returns and RM refunds are shown separately from sales."
+            info="Completed refunds only. RM refunds and token refunds are shown separately from sales."
           />
-          <StatCard
-            title="Orders in scope"
-            value={summary.totalOrders.toLocaleString('en-US')}
-            subtitle={`${summary.activeOrders.toLocaleString('en-US')} active · ${summary.completedOrders.toLocaleString('en-US')} completed`}
-            icon={ShoppingCart}
-            iconBg="bg-amber-500/15 text-amber-700"
-            info="Total order count handled by the counter and app fulfillment system."
-          />
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs px-4 py-3.5 sm:px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs sm:text-sm">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-gray-700">
+            <span className="font-bold text-gray-900">Sales excluding company allowance:</span>
+            <span className="font-extrabold text-[#1F3A34] tabular-nums">{formatReportMoney(summary.salesExcludingAllowanceRm)}</span>
+            <span className="text-gray-500">
+              ({formatReportMoney(summary.directPaymentOrderValueRm)} direct + {formatReportMoney(summary.personalTokenOrderValueRm)} personal C2 Credit eq.)
+            </span>
+          </div>
+          <div className="text-xs text-gray-500">
+            Total qualifying order value (incl. allowance): <span className="font-semibold text-gray-800 tabular-nums">{formatReportMoney(summary.totalRevenueRm)}</span>
+          </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-2">
@@ -570,7 +646,9 @@ const Finance = ({ setCurrentPage }) => {
               </div>
               <p className="text-sm text-gray-500">RM order value by day, including C2 Credit equivalents, after completed refunds.</p>
             </div>
-            <div className="rounded-full bg-[#EEF6F3] px-3 py-1 text-xs font-semibold text-[#1F5A4D]">Last 14 days</div>
+            <div className="rounded-full bg-[#EEF6F3] px-3 py-1 text-xs font-semibold text-[#1F5A4D]">
+              {selectedMonth ? formatMonthLabel(selectedMonth) : 'Last 14 days'}
+            </div>
           </div>
           <div className="overflow-x-auto pb-2">
             <div className="h-[300px]" style={{ minWidth: `${Math.max(720, dailySalesChartData.length * 72)}px` }}>

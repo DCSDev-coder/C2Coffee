@@ -433,12 +433,14 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
     requireAnyAdminRole(request, ['super_admin', 'marketing_admin', 'operations_admin']);
     const reportQuery = z.object({
       selected_date: z.string().datetime().optional(),
-      store_id: z.coerce.number().int().positive().optional()
+      store_id: z.coerce.number().int().positive().optional(),
+      month: z.string().regex(/^\d{4}-\d{2}$/).optional()
     }).parse(request.query);
     const selectedDateRaw = reportQuery.selected_date;
     const selectedDate = selectedDateRaw ? new Date(selectedDateRaw) : null;
     const safeSelectedDate = selectedDate && !Number.isNaN(selectedDate.getTime()) ? selectedDate : null;
     const selectedDateEnd = safeSelectedDate ? new Date(safeSelectedDate.getTime() + 24 * 60 * 60 * 1000) : null;
+    const month = reportQuery.month ?? null;
 
     const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(
       `
@@ -527,6 +529,7 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
           JOIN admin_tenants report_tenant ON report_tenant.id = report_store.tenant_id
           WHERE report_tenant.code = :tenantCode
             AND (:storeId IS NULL OR report_store.id = :storeId)
+            AND (:month IS NULL OR DATE_FORMAT(CONVERT_TZ(o.created_at, '+00:00', '+08:00'), '%Y-%m') = :month)
             AND (:selectedDate IS NULL OR (o.created_at >= :selectedDate AND o.created_at < :selectedDateEnd))
             AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
             AND oi.line_type = 'sale'
@@ -543,14 +546,82 @@ export async function registerAdminMenuRoutes(app: FastifyInstance): Promise<voi
         tenantId: request.adminAuth.tenantId,
         tenantCode: request.adminAuth.tenantCode,
         storeId: reportQuery.store_id ?? null,
+        month,
         selectedDate: safeSelectedDate,
         selectedDateEnd
       }
     );
 
+    const [segmentRows] = await mysqlPool.query<Array<RowDataPacket & {
+      menu_item_id: number;
+      customer_units_sold: string | number;
+      customer_revenue_rm: string | number;
+      employee_units_sold: string | number;
+      employee_revenue_rm: string | number;
+    }>>(
+      `
+        SELECT
+          oi.menu_item_id,
+          COALESCE(SUM(CASE WHEN COALESCE(ctm.is_employee, 0) = 0 THEN oi.quantity ELSE 0 END), 0) AS customer_units_sold,
+          COALESCE(SUM(CASE WHEN COALESCE(ctm.is_employee, 0) = 0 THEN oi.line_subtotal_rm ELSE 0 END), 0) AS customer_revenue_rm,
+          COALESCE(SUM(CASE WHEN COALESCE(ctm.is_employee, 0) = 1 THEN oi.quantity ELSE 0 END), 0) AS employee_units_sold,
+          COALESCE(SUM(CASE WHEN COALESCE(ctm.is_employee, 0) = 1 THEN oi.line_subtotal_rm ELSE 0 END), 0) AS employee_revenue_rm
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        JOIN stores report_store ON report_store.id = o.store_id
+        JOIN admin_tenants report_tenant ON report_tenant.id = report_store.tenant_id
+        LEFT JOIN customer_tenant_memberships ctm
+          ON ctm.user_id = o.user_id
+         AND ctm.tenant_id = report_tenant.id
+        WHERE report_tenant.code = :tenantCode
+          AND (:storeId IS NULL OR report_store.id = :storeId)
+          AND (:month IS NULL OR DATE_FORMAT(CONVERT_TZ(o.created_at, '+00:00', '+08:00'), '%Y-%m') = :month)
+          AND (:selectedDate IS NULL OR (o.created_at >= :selectedDate AND o.created_at < :selectedDateEnd))
+          AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+          AND oi.line_type = 'sale'
+        GROUP BY oi.menu_item_id
+      `,
+      {
+        tenantCode: request.adminAuth.tenantCode,
+        storeId: reportQuery.store_id ?? null,
+        month,
+        selectedDate: safeSelectedDate,
+        selectedDateEnd
+      }
+    );
+
+    const [monthRows] = await mysqlPool.query<Array<RowDataPacket & { month_key: string }>>(
+      `
+        SELECT DISTINCT DATE_FORMAT(CONVERT_TZ(o.created_at, '+00:00', '+08:00'), '%Y-%m') AS month_key
+        FROM orders o
+        JOIN stores report_store ON report_store.id = o.store_id
+        JOIN admin_tenants report_tenant ON report_tenant.id = report_store.tenant_id
+        WHERE report_tenant.code = :tenantCode
+          AND (:storeId IS NULL OR report_store.id = :storeId)
+          AND o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup', 'collected')
+        ORDER BY month_key DESC
+      `,
+      {
+        tenantCode: request.adminAuth.tenantCode,
+        storeId: reportQuery.store_id ?? null
+      }
+    );
+
+    const segmentByItemId = new Map<number, ProductSegmentBreakdown>();
+    for (const row of segmentRows) {
+      segmentByItemId.set(Number(row.menu_item_id), {
+        customerUnitsSold: Number(row.customer_units_sold || 0),
+        customerRevenueRm: Number(row.customer_revenue_rm || 0),
+        employeeUnitsSold: Number(row.employee_units_sold || 0),
+        employeeRevenueRm: Number(row.employee_revenue_rm || 0)
+      });
+    }
+
     return {
-      ...buildProductReportResponse(buildMenuResponse(rows)),
-      selectedStoreId: reportQuery.store_id ?? null
+      ...buildProductReportResponse(buildMenuResponse(rows), segmentByItemId),
+      selectedStoreId: reportQuery.store_id ?? null,
+      selectedMonth: month,
+      availableMonths: monthRows.map((row) => row.month_key).filter(Boolean)
     };
   });
 
@@ -1477,6 +1548,13 @@ function buildMenuResponse(rows: Array<AdminMenuRow>): AdminMenuResponse {
   };
 }
 
+type ProductSegmentBreakdown = {
+  customerUnitsSold: number;
+  customerRevenueRm: number;
+  employeeUnitsSold: number;
+  employeeRevenueRm: number;
+};
+
 type ProductReportProduct = {
   id: number;
   name: string;
@@ -1485,6 +1563,10 @@ type ProductReportProduct = {
   productKind: string;
   quantitySold: number;
   revenueRm: number;
+  customerUnitsSold: number;
+  customerRevenueRm: number;
+  employeeUnitsSold: number;
+  employeeRevenueRm: number;
   basePriceRm: number;
   basePriceToken: number;
   lastOrderedAt: string | null;
@@ -1494,24 +1576,43 @@ type ProductReportProduct = {
 
 type ProductReportResponse = {
   products: ProductReportProduct[];
-  chartData: Array<Pick<ProductReportProduct, 'name' | 'quantitySold' | 'revenueRm'>>;
+  chartData: Array<Pick<ProductReportProduct, 'name' | 'quantitySold' | 'revenueRm' | 'customerUnitsSold' | 'employeeUnitsSold'>>;
   summary: {
     totalProducts: number;
     totalUnitsSold: number;
     totalRevenueRm: number;
+    customerUnitsSold: number;
+    customerRevenueRm: number;
+    employeeUnitsSold: number;
+    employeeRevenueRm: number;
     topProduct: string;
     topProductUnits: number;
     topProductRevenueRm: number;
+    topCustomerProduct: string;
+    topCustomerProductUnits: number;
+    topCustomerProductRevenueRm: number;
+    topEmployeeProduct: string;
+    topEmployeeProductUnits: number;
+    topEmployeeProductRevenueRm: number;
   };
 };
 
-function buildProductReportResponse(menuResponse: AdminMenuResponse): ProductReportResponse {
+function buildProductReportResponse(
+  menuResponse: AdminMenuResponse,
+  segmentByItemId: Map<number, ProductSegmentBreakdown> = new Map()
+): ProductReportResponse {
   const categories = Array.isArray(menuResponse?.categories) ? menuResponse.categories : [];
 
   const products = categories.flatMap((category) => {
     const items = Array.isArray(category.items) ? category.items : [];
     return items.map((item) => {
       const lastOrderedAt = item.last_ordered_at ? new Date(item.last_ordered_at) : null;
+      const segment = segmentByItemId.get(item.id) ?? {
+        customerUnitsSold: 0,
+        customerRevenueRm: 0,
+        employeeUnitsSold: 0,
+        employeeRevenueRm: 0
+      };
 
       return {
         id: item.id,
@@ -1521,6 +1622,10 @@ function buildProductReportResponse(menuResponse: AdminMenuResponse): ProductRep
         productKind: category.product_kind_name ?? '',
         quantitySold: Math.round(item.sales_count ?? 0),
         revenueRm: Number((item.total_revenue_rm ?? '0').toString()),
+        customerUnitsSold: Math.round(segment.customerUnitsSold),
+        customerRevenueRm: Number(segment.customerRevenueRm.toFixed(2)),
+        employeeUnitsSold: Math.round(segment.employeeUnitsSold),
+        employeeRevenueRm: Number(segment.employeeRevenueRm.toFixed(2)),
         basePriceRm: Number((item.base_price_rm ?? '0').toString()),
         basePriceToken: Math.round(item.base_price_token ?? 0),
         lastOrderedAt,
@@ -1539,12 +1644,24 @@ function buildProductReportResponse(menuResponse: AdminMenuResponse): ProductRep
   const chartData = sortedProducts.slice(0, 5).map((product) => ({
     name: product.name,
     quantitySold: product.quantitySold,
-    revenueRm: product.revenueRm
+    revenueRm: product.revenueRm,
+    customerUnitsSold: product.customerUnitsSold,
+    employeeUnitsSold: product.employeeUnitsSold
   }));
 
   const totalUnitsSold = sortedProducts.reduce((acc, product) => acc + product.quantitySold, 0);
   const totalRevenueRm = sortedProducts.reduce((acc, product) => acc + product.revenueRm, 0);
+  const customerUnitsSold = sortedProducts.reduce((acc, product) => acc + product.customerUnitsSold, 0);
+  const customerRevenueRm = sortedProducts.reduce((acc, product) => acc + product.customerRevenueRm, 0);
+  const employeeUnitsSold = sortedProducts.reduce((acc, product) => acc + product.employeeUnitsSold, 0);
+  const employeeRevenueRm = sortedProducts.reduce((acc, product) => acc + product.employeeRevenueRm, 0);
   const topProduct = sortedProducts[0] || null;
+  const topCustomerProduct = [...sortedProducts]
+    .filter((product) => product.customerUnitsSold > 0)
+    .sort((a, b) => b.customerUnitsSold - a.customerUnitsSold || b.customerRevenueRm - a.customerRevenueRm || a.name.localeCompare(b.name))[0] || null;
+  const topEmployeeProduct = [...sortedProducts]
+    .filter((product) => product.employeeUnitsSold > 0)
+    .sort((a, b) => b.employeeUnitsSold - a.employeeUnitsSold || b.employeeRevenueRm - a.employeeRevenueRm || a.name.localeCompare(b.name))[0] || null;
 
   return {
     products: sortedProducts.map((product) => ({
@@ -1553,15 +1670,25 @@ function buildProductReportResponse(menuResponse: AdminMenuResponse): ProductRep
     })),
     chartData,
     summary: {
-        totalProducts: sortedProducts.length,
-        totalUnitsSold,
-        totalRevenueRm: Number(totalRevenueRm.toFixed(2)),
-        topProduct: topProduct?.name ?? '',
-        topProductUnits: topProduct?.quantitySold || 0,
-        topProductRevenueRm: Number((topProduct?.revenueRm || 0).toFixed(2))
-      }
-    };
-  }
+      totalProducts: sortedProducts.length,
+      totalUnitsSold,
+      totalRevenueRm: Number(totalRevenueRm.toFixed(2)),
+      customerUnitsSold,
+      customerRevenueRm: Number(customerRevenueRm.toFixed(2)),
+      employeeUnitsSold,
+      employeeRevenueRm: Number(employeeRevenueRm.toFixed(2)),
+      topProduct: topProduct?.name ?? '',
+      topProductUnits: topProduct?.quantitySold || 0,
+      topProductRevenueRm: Number((topProduct?.revenueRm || 0).toFixed(2)),
+      topCustomerProduct: topCustomerProduct?.name ?? '',
+      topCustomerProductUnits: topCustomerProduct?.customerUnitsSold || 0,
+      topCustomerProductRevenueRm: Number((topCustomerProduct?.customerRevenueRm || 0).toFixed(2)),
+      topEmployeeProduct: topEmployeeProduct?.name ?? '',
+      topEmployeeProductUnits: topEmployeeProduct?.employeeUnitsSold || 0,
+      topEmployeeProductRevenueRm: Number((topEmployeeProduct?.employeeRevenueRm || 0).toFixed(2))
+    }
+  };
+}
 
 async function loadMenuItemById(menuItemId: number, tenantId: number): Promise<AdminMenuItem | null> {
   const [rows] = await mysqlPool.query<Array<AdminMenuRow>>(

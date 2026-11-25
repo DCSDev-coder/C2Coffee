@@ -164,25 +164,46 @@ async function buildOutletShiftReport(
   let counterSalesRm = 0;
   let onlineSalesRm = 0;
   let creditSalesRm = 0;
+  let personalCreditSalesRm = 0;
+  let allowanceSalesRm = 0;
+  let personalTokensUsed = 0;
+  let allowanceTokensUsed = 0;
   let totalTokensCharged = 0;
 
   for (const order of shiftOrders) {
     const orderTotal = Number(order.final_total_rm || 0);
     const paymentMode = String(order.payment_mode || '').toLowerCase();
     const paymentMethod = String(order.payment_method || '').toLowerCase();
+    const orderTokens = Number(order.token_amount_charged || 0);
+    const orderAllowanceTokens = Math.min(orderTokens, Number(order.employee_allowance_tokens_used || 0));
+    const orderPersonalTokens = Math.max(0, orderTokens - orderAllowanceTokens);
+
     grossSalesRm += orderTotal;
     discountTotalRm += Number(order.discount_total_rm || 0);
     refundedRm += Number(order.refunded_rm || 0);
     refundedTokens += Number(order.refunded_tokens || 0);
-    totalTokensCharged += Number(order.token_amount_charged || 0);
+    totalTokensCharged += orderTokens;
+
     if (paymentMode === 'token') {
       creditSalesRm += orderTotal;
+      personalTokensUsed += orderPersonalTokens;
+      allowanceTokensUsed += orderAllowanceTokens;
+      if (orderTokens > 0) {
+        const allowanceShare = orderAllowanceTokens / orderTokens;
+        allowanceSalesRm += orderTotal * allowanceShare;
+        personalCreditSalesRm += orderTotal * (1 - allowanceShare);
+      } else if (orderAllowanceTokens === 0) {
+        personalCreditSalesRm += orderTotal;
+      }
     } else if (paymentMethod === 'manual_counter') {
       counterSalesRm += orderTotal;
     } else {
       onlineSalesRm += orderTotal;
     }
   }
+
+  const salesExclAllowanceRm = counterSalesRm + onlineSalesRm + personalCreditSalesRm;
+  const netSalesExclAllowanceRm = Math.max(0, salesExclAllowanceRm - refundedRm);
 
   const totalItems = itemSummary.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const displayStart = options.displayStartAt
@@ -205,6 +226,12 @@ async function buildOutletShiftReport(
     counter_sales_rm: counterSalesRm.toFixed(2),
     online_sales_rm: onlineSalesRm.toFixed(2),
     credit_sales_rm: creditSalesRm.toFixed(2),
+    personal_credit_sales_rm: personalCreditSalesRm.toFixed(2),
+    personal_tokens_used: personalTokensUsed,
+    allowance_sales_rm: allowanceSalesRm.toFixed(2),
+    allowance_tokens_used: allowanceTokensUsed,
+    sales_excl_allowance_rm: salesExclAllowanceRm.toFixed(2),
+    net_sales_excl_allowance_rm: netSalesExclAllowanceRm.toFixed(2),
     total_tokens_charged: totalTokensCharged,
     orders: shiftOrders.map((order) => {
       const paymentMode = String(order.payment_mode || '');

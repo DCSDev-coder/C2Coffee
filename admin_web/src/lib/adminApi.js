@@ -394,10 +394,12 @@ export async function saveAdminHomeFeaturedGroups(groups) {
 export async function loadAdminProductReport(
   selectedDate = null,
   storeId = null,
+  month = null,
 ) {
   const params = new URLSearchParams();
   if (selectedDate) params.set("selected_date", selectedDate.toISOString());
   if (storeId) params.set("store_id", String(storeId));
+  if (month) params.set("month", String(month));
   return adminRequest(
     `/v1/admin/reports/products${params.size ? `?${params}` : ""}`,
   );
@@ -733,15 +735,18 @@ export async function adjustAdminCustomerTokens(customerId, payload) {
   });
 }
 
-export async function loadAdminFinanceOverview({ storeId = null } = {}) {
-  return adminRequest(
-    `/v1/admin/finance/overview${storeId ? `?store_id=${encodeURIComponent(storeId)}` : ""}`,
-  );
+export async function loadAdminFinanceOverview({ storeId = null, month = null } = {}) {
+  const params = new URLSearchParams();
+  if (storeId) params.set("store_id", String(storeId));
+  if (month) params.set("month", String(month));
+  const query = params.toString();
+  return adminRequest(`/v1/admin/finance/overview${query ? `?${query}` : ""}`);
 }
 
-export async function loadAdminFinanceAuditLedger({ storeId = null, limit = 100 } = {}) {
+export async function loadAdminFinanceAuditLedger({ storeId = null, month = null, limit = 100 } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (storeId) params.set('store_id', String(storeId));
+  if (month) params.set('month', String(month));
   return adminRequest(`/v1/admin/finance/audit-ledger?${params.toString()}`);
 }
 

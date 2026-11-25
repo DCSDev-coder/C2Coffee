@@ -220,12 +220,14 @@ const adminListQuerySchema = z.object({
 });
 
 const financeQuerySchema = z.object({
-  store_id: z.coerce.number().int().positive().optional()
+  store_id: z.coerce.number().int().positive().optional(),
+  month: z.string().regex(/^\d{4}-\d{2}$/).optional()
 });
 
 const financeAuditQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional().default(100),
-  store_id: z.coerce.number().int().positive().optional()
+  store_id: z.coerce.number().int().positive().optional(),
+  month: z.string().regex(/^\d{4}-\d{2}$/).optional()
 });
 
 const priceCorrectionSchema = z.object({
@@ -1178,8 +1180,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     requireFinanceAccess(request);
 
     const tenantCode = request.adminAuth.tenantCode;
-    const { store_id: storeId } = financeQuerySchema.parse(request.query);
-    const queryParams = { tenantCode, storeId: storeId ?? null };
+    const { store_id: storeId, month } = financeQuerySchema.parse(request.query);
+    const queryParams = { tenantCode, storeId: storeId ?? null, month: month ?? null };
+    const monthFilter = (col: string) => `(:month IS NULL OR DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', '+08:00'), '%Y-%m') = :month)`;
     const revenueStatusClause = "o.status NOT IN ('draft', 'pending_payment', 'payment_failed', 'cancelled')";
     const completedRefundStatusClause = "r.status NOT IN ('pending', 'failed', 'cancelled', 'rejected', 'under_review', 'reviewing')";
     const connection = await mysqlPool.getConnection();
@@ -1187,22 +1190,53 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     try {
       const [orderSummaryRows] = await connection.query<Array<RowDataPacket & {
         total_orders: number;
+        qualifying_orders: number;
         active_orders: number;
         completed_orders: number;
         total_revenue_rm: string | number;
         total_tokens_charged: string | number;
+        direct_orders: number;
+        direct_payment_order_value_rm: string | number;
+        token_orders: number;
+        personal_token_orders: number;
+        personal_tokens_used: string | number;
+        personal_token_order_value_rm: string | number;
+        allowance_orders: number;
+        allowance_tokens_used: string | number;
+        allowance_order_value_rm: string | number;
       }>>(
         `SELECT
            COUNT(*) AS total_orders,
+           COALESCE(SUM(${revenueStatusClause}), 0) AS qualifying_orders,
            COALESCE(SUM(o.status IN ('paid', 'accepted', 'preparing', 'ready_for_pickup')), 0) AS active_orders,
            COALESCE(SUM(o.status = 'collected'), 0) AS completed_orders,
            COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.final_total_rm ELSE 0 END), 0) AS total_revenue_rm,
-           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.token_amount_charged ELSE 0 END), 0) AS total_tokens_charged
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN o.token_amount_charged ELSE 0 END), 0) AS total_tokens_charged,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'direct' THEN 1 ELSE 0 END), 0) AS direct_orders,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'direct' THEN o.final_total_rm ELSE 0 END), 0) AS direct_payment_order_value_rm,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'token' THEN 1 ELSE 0 END), 0) AS token_orders,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'token' AND (o.token_amount_charged > LEAST(o.token_amount_charged, o.employee_allowance_tokens_used) OR o.employee_allowance_tokens_used = 0) THEN 1 ELSE 0 END), 0) AS personal_token_orders,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'token' THEN GREATEST(0, o.token_amount_charged - LEAST(o.token_amount_charged, o.employee_allowance_tokens_used)) ELSE 0 END), 0) AS personal_tokens_used,
+           COALESCE(SUM(CASE
+             WHEN ${revenueStatusClause} AND o.payment_mode = 'token' AND o.token_amount_charged > 0
+               THEN o.final_total_rm * (GREATEST(0, o.token_amount_charged - LEAST(o.token_amount_charged, o.employee_allowance_tokens_used)) / o.token_amount_charged)
+             WHEN ${revenueStatusClause} AND o.payment_mode = 'token' AND o.employee_allowance_tokens_used = 0
+               THEN o.final_total_rm
+             ELSE 0
+           END), 0) AS personal_token_order_value_rm,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.employee_allowance_tokens_used > 0 THEN 1 ELSE 0 END), 0) AS allowance_orders,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} THEN LEAST(o.token_amount_charged, o.employee_allowance_tokens_used) ELSE 0 END), 0) AS allowance_tokens_used,
+           COALESCE(SUM(CASE
+             WHEN ${revenueStatusClause} AND o.token_amount_charged > 0
+               THEN o.final_total_rm * (LEAST(o.token_amount_charged, o.employee_allowance_tokens_used) / o.token_amount_charged)
+             ELSE 0
+           END), 0) AS allowance_order_value_rm
          FROM orders o
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
-           AND (:storeId IS NULL OR s.id = :storeId)`,
+           AND (:storeId IS NULL OR s.id = :storeId)
+           AND ${monthFilter('o.created_at')}`,
         queryParams
       );
       const [refundSummaryRows] = await connection.query<Array<RowDataPacket & {
@@ -1219,7 +1253,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN stores s ON s.id = o.store_id
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
-           AND (:storeId IS NULL OR s.id = :storeId)`,
+           AND (:storeId IS NULL OR s.id = :storeId)
+           AND ${monthFilter('r.created_at')}`,
         queryParams
       );
       const [monthlyOrderRows] = await connection.query<Array<RowDataPacket & {
@@ -1277,7 +1312,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
            AND (:storeId IS NULL OR s.id = :storeId)
-           AND DATE(CONVERT_TZ(o.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY
+           AND (
+             (:month IS NOT NULL AND DATE_FORMAT(CONVERT_TZ(o.created_at, '+00:00', '+08:00'), '%Y-%m') = :month)
+             OR (:month IS NULL AND DATE(CONVERT_TZ(o.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY)
+           )
          GROUP BY day_key
          ORDER BY day_key ASC`,
         queryParams
@@ -1297,7 +1335,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
            AND (:storeId IS NULL OR s.id = :storeId)
-           AND DATE(CONVERT_TZ(r.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY
+           AND (
+             (:month IS NOT NULL AND DATE_FORMAT(CONVERT_TZ(r.created_at, '+00:00', '+08:00'), '%Y-%m') = :month)
+             OR (:month IS NULL AND DATE(CONVERT_TZ(r.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY)
+           )
          GROUP BY day_key
          ORDER BY day_key ASC`,
         queryParams
@@ -1313,6 +1354,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
            AND (:storeId IS NULL OR s.id = :storeId)
+           AND ${monthFilter('o.created_at')}
          GROUP BY o.status
          ORDER BY value DESC, o.status ASC`,
         queryParams
@@ -1335,9 +1377,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          WHERE t.code = :tenantCode
            AND p.status = 'paid'
            AND tt.status = 'paid'
+           AND ${monthFilter('p.created_at')}
          GROUP BY NULLIF(p.payment_method, '')
          ORDER BY topup_count DESC, amount_rm DESC, payment_method ASC`,
-        { tenantCode }
+        { tenantCode, month: month ?? null }
       );
       const [tokenMovementRows] = await connection.query<Array<RowDataPacket & {
         source_type: string;
@@ -1351,9 +1394,10 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id
            JOIN admin_tenants t ON t.id = ctm.tenant_id
           WHERE t.code = :tenantCode
+            AND ${monthFilter('tl.created_at')}
           GROUP BY tl.source_type, tl.direction
           ORDER BY tl.source_type ASC, tl.direction ASC`,
-        { tenantCode }
+        { tenantCode, month: month ?? null }
       );
       const [paymentMethodRows] = await connection.query<Array<RowDataPacket & {
         payment_method: string | null;
@@ -1372,6 +1416,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           WHERE t.code = :tenantCode
             AND (:storeId IS NULL OR s.id = :storeId)
             AND p.status = 'paid'
+            AND ${monthFilter('p.created_at')}
           GROUP BY NULLIF(p.payment_method, ''), o.payment_mode
           ORDER BY payment_count DESC, amount_rm DESC`,
         queryParams
@@ -1410,6 +1455,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            LEFT JOIN payments p ON p.order_id = o.id
            WHERE t.code = :tenantCode
              AND (:storeId IS NULL OR s.id = :storeId)
+             AND ${monthFilter('o.created_at')}
            UNION ALL
            SELECT
              CONCAT('REFUND-', r.refund_ref) AS id,
@@ -1429,6 +1475,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            JOIN admin_tenants t ON t.id = s.tenant_id
            WHERE t.code = :tenantCode
              AND (:storeId IS NULL OR s.id = :storeId)
+             AND ${monthFilter('r.created_at')}
          ) AS transactions
          ORDER BY created_at DESC
          LIMIT 50`,
@@ -1498,7 +1545,21 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       }
 
       const orders = orderSummaryRows[0] ?? {
-        total_orders: 0, active_orders: 0, completed_orders: 0, total_revenue_rm: 0, total_tokens_charged: 0
+        total_orders: 0,
+        qualifying_orders: 0,
+        active_orders: 0,
+        completed_orders: 0,
+        total_revenue_rm: 0,
+        total_tokens_charged: 0,
+        direct_orders: 0,
+        direct_payment_order_value_rm: 0,
+        token_orders: 0,
+        personal_token_orders: 0,
+        personal_tokens_used: 0,
+        personal_token_order_value_rm: 0,
+        allowance_orders: 0,
+        allowance_tokens_used: 0,
+        allowance_order_value_rm: 0
       };
       const refunds = refundSummaryRows[0] ?? {
         refunded_orders: 0, total_refund_rm: 0, total_refund_tokens: 0
@@ -1507,12 +1568,17 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       const totalTokensCharged = Number(orders.total_tokens_charged || 0);
       const totalRefundAmountRm = Number(refunds.total_refund_rm || 0);
       const totalRefundTokens = Number(refunds.total_refund_tokens || 0);
-      const directPaymentOrderValueRm = Number((await connection.query<Array<RowDataPacket & { total: string | number }>>(
-        `SELECT COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'direct' THEN o.final_total_rm ELSE 0 END), 0) AS total
-           FROM orders o JOIN stores s ON s.id = o.store_id JOIN admin_tenants t ON t.id = s.tenant_id
-          WHERE t.code = :tenantCode AND (:storeId IS NULL OR s.id = :storeId)`,
-        queryParams
-      ))[0][0]?.total || 0);
+      const directPaymentOrderValueRm = Number(orders.direct_payment_order_value_rm || 0);
+      const directOrders = Number(orders.direct_orders || 0);
+      const tokenOrders = Number(orders.token_orders || 0);
+      const personalTokenOrders = Number(orders.personal_token_orders || 0);
+      const personalTokensUsed = Number(orders.personal_tokens_used || 0);
+      const personalTokenOrderValueRm = Number(orders.personal_token_order_value_rm || 0);
+      const allowanceOrders = Number(orders.allowance_orders || 0);
+      const allowanceTokensUsed = Number(orders.allowance_tokens_used || 0);
+      const allowanceOrderValueRm = Number(orders.allowance_order_value_rm || 0);
+      const qualifyingOrders = Number(orders.qualifying_orders || 0);
+      const salesExcludingAllowanceRm = directPaymentOrderValueRm + personalTokenOrderValueRm;
       const subsidyMovement = tokenMovementRows
         .filter((row) => ['employee_allowance_issue', 'employee_allowance_spend', 'employee_allowance_expiry', 'employee_allowance_role_revoke'].includes(row.source_type))
         .reduce((acc, row) => {
@@ -1525,21 +1591,33 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
       return {
         selectedStoreId: storeId ?? null,
+        selectedMonth: month ?? null,
+        availableMonths: Array.from(monthMap.keys()).sort((left, right) => right.localeCompare(left)),
         topUpScope: 'tenant',
         summary: {
           totalRevenueRm,
           directPaymentOrderValueRm,
+          directOrders,
+          tokenOrders,
           tokenOrderValueRm: Math.max(0, totalRevenueRm - directPaymentOrderValueRm),
+          personalTokenOrders,
+          personalTokensUsed,
+          personalTokenOrderValueRm,
+          allowanceOrders,
+          allowanceTokensUsed,
+          allowanceOrderValueRm,
+          salesExcludingAllowanceRm,
           totalTokensCharged,
           totalRefundAmountRm,
           totalRefundTokens,
           netTokens: totalTokensCharged - totalRefundTokens,
           netRevenueRm: totalRevenueRm - totalRefundAmountRm,
           totalOrders: Number(orders.total_orders || 0),
+          qualifyingOrders,
           activeOrders: Number(orders.active_orders || 0),
           completedOrders: Number(orders.completed_orders || 0),
           refundedOrders: Number(refunds.refunded_orders || 0),
-          averageOrderValueRm: Number(orders.total_orders || 0) > 0 ? totalRevenueRm / Number(orders.total_orders) : 0,
+          averageOrderValueRm: qualifyingOrders > 0 ? totalRevenueRm / qualifyingOrders : 0,
           accountingNote: 'RM order value is not cash revenue for token-funded orders.'
         },
         monthlyRevenue: Array.from(monthMap.entries())
@@ -1619,7 +1697,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
   app.get('/v1/admin/finance/audit-ledger', { preHandler: authenticateAdminRequest }, async (request) => {
     requireFinanceAccess(request);
-    const { limit, store_id: storeId } = financeAuditQuerySchema.parse(request.query);
+    const { limit, store_id: storeId, month } = financeAuditQuerySchema.parse(request.query);
+    const monthFilter = (col: string) => `(:month IS NULL OR DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', '+08:00'), '%Y-%m') = :month)`;
     const connection = await mysqlPool.getConnection();
     try {
       const [rows] = await connection.query<Array<RowDataPacket & {
@@ -1644,6 +1723,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
              JOIN customer_tenant_memberships ctm ON ctm.user_id = tl.user_id
              JOIN admin_tenants t ON t.id = ctm.tenant_id
             WHERE t.code = :tenantCode
+              AND ${monthFilter('tl.created_at')}
            UNION ALL
            SELECT CONCAT('PAYMENT-', p.id), p.created_at,
                 'Payment', COALESCE(p.payment_method, o.payment_mode, 'not_recorded'),
@@ -1657,6 +1737,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
              JOIN stores s ON s.id = o.store_id
              JOIN admin_tenants t ON t.id = s.tenant_id
             WHERE t.code = :tenantCode AND (:storeId IS NULL OR s.id = :storeId)
+              AND ${monthFilter('p.created_at')}
            UNION ALL
            SELECT CONCAT('REFUND-', r.id), r.created_at,
                   'Refund', r.payment_mode,
@@ -1670,10 +1751,11 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
              JOIN stores s ON s.id = o.store_id
              JOIN admin_tenants t ON t.id = s.tenant_id
             WHERE t.code = :tenantCode AND (:storeId IS NULL OR s.id = :storeId)
+              AND ${monthFilter('r.created_at')}
          ) audit_entries
          ORDER BY created_at DESC
          LIMIT :limit`,
-        { tenantCode: request.adminAuth.tenantCode, storeId: storeId ?? null, limit }
+        { tenantCode: request.adminAuth.tenantCode, storeId: storeId ?? null, month: month ?? null, limit }
       );
       return {
         selectedStoreId: storeId ?? null,
