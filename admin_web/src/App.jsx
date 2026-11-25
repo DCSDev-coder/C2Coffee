@@ -169,7 +169,6 @@ function AppContent({
       >
       <Suspense fallback={<div className="flex min-h-[320px] items-center justify-center text-sm font-semibold text-[#2E5E58]">Loading page...</div>}>
         {currentPage === 'Barista Console' && <BaristaConsole currentUser={currentUser} />}
-        {currentPage === 'Barista Workspace' && <BaristaConsole currentUser={currentUser} view="workspace" />}
         {currentPage === 'Dashboard' && <DashboardHome setCurrentPage={navigateWithPrompt} />}
         {currentPage === 'Customers' && <Customers currentUser={currentUser} />}
         {currentPage === 'Orders' && <Orders initialShowRefunds={false} currentUser={currentUser} />}

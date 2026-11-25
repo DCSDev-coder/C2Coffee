@@ -171,6 +171,7 @@ const ReportByProduct = ({ onBack }) => {
   const [productSortKey, setProductSortKey] = useState('unitsSold');
   const [productSortDirection, setProductSortDirection] = useState('desc');
   const [showAllProducts, setShowAllProducts] = useState(false);
+  const [showAllChartProducts, setShowAllChartProducts] = useState(false);
   const itemsPerPage = useResponsivePageSize(5, 10);
 
   useEffect(() => {
@@ -209,7 +210,9 @@ const ReportByProduct = ({ onBack }) => {
     () => Array.isArray(overview.products) ? overview.products : [],
     [overview.products]
   );
-  const chartData = Array.isArray(overview.chartData) ? overview.chartData : [];
+  const chartData = showAllChartProducts
+    ? [...products].filter((product) => Number(product.quantitySold || 0) > 0).sort((a, b) => Number(b.quantitySold || 0) - Number(a.quantitySold || 0) || Number(b.revenueRm || 0) - Number(a.revenueRm || 0) || String(a.name || '').localeCompare(String(b.name || '')))
+    : (Array.isArray(overview.chartData) ? overview.chartData : []);
 
   const safeSearchTerm = searchTerm.trim().toLowerCase();
   const filteredData = useMemo(() => {
@@ -406,18 +409,20 @@ const ReportByProduct = ({ onBack }) => {
           />
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-[360px] shrink-0">
-          <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-gray-900">Top 5 Products by Units Sold</h3>
-                <InfoTooltip content="Top five products ranked by total units sold, split between customers and employees/interns." title="Top Products" />
+                <h3 className="text-lg font-bold text-gray-900">{showAllChartProducts ? 'Products by Units Sold' : 'Top 5 Products by Units Sold'}</h3>
+                <InfoTooltip content="Products ranked by total units sold, split between customers and employees/interns. Show all includes products with sales." title="Top Products" />
               </div>
               <p className="text-sm text-gray-500">Customer vs employee/intern demand across top-selling items.</p>
             </div>
+            <button type="button" onClick={() => setShowAllChartProducts((value) => !value)} aria-pressed={showAllChartProducts} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-[#1F3A34] hover:bg-gray-50">{showAllChartProducts ? 'Show top 5' : 'Show all products'}</button>
           </div>
-          <div className="flex-1 w-full overflow-x-auto overflow-y-hidden touch-pan-x pb-2">
-            <div className="h-[320px] min-w-[500px] sm:min-w-full">
+          {showAllChartProducts && <p className="mb-2 text-xs text-gray-500">Scroll within the chart to see more products.</p>}
+          <div className="w-full max-h-[480px] overflow-auto pb-2" tabIndex={0} role="region" aria-label="Product sales chart, scroll to see more products">
+            <div className="min-w-[500px] sm:min-w-full" style={{ height: Math.max(320, chartData.length * 55 + 80) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 5 }} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />

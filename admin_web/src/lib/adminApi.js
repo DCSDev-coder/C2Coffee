@@ -735,19 +735,25 @@ export async function adjustAdminCustomerTokens(customerId, payload) {
   });
 }
 
-export async function loadAdminFinanceOverview({ storeId = null, month = null } = {}) {
+export async function loadAdminFinanceOverview({ storeId = null, month = null, fromDate = null, toDate = null } = {}) {
   const params = new URLSearchParams();
   if (storeId) params.set("store_id", String(storeId));
   if (month) params.set("month", String(month));
+  if (fromDate && toDate) { params.set('from_date', fromDate); params.set('to_date', toDate); }
   const query = params.toString();
-  return adminRequest(`/v1/admin/finance/overview${query ? `?${query}` : ""}`);
+  const response = await adminRequest(`/v1/admin/finance/overview${query ? `?${query}` : ""}`);
+  if (fromDate && toDate && (response?.selectedFromDate !== fromDate || response?.selectedToDate !== toDate)) throw new Error('The API does not support the selected date range.');
+  return response;
 }
 
-export async function loadAdminFinanceAuditLedger({ storeId = null, month = null, limit = 100 } = {}) {
+export async function loadAdminFinanceAuditLedger({ storeId = null, month = null, fromDate = null, toDate = null, limit = 100 } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (storeId) params.set('store_id', String(storeId));
   if (month) params.set('month', String(month));
-  return adminRequest(`/v1/admin/finance/audit-ledger?${params.toString()}`);
+  if (fromDate && toDate) { params.set('from_date', fromDate); params.set('to_date', toDate); }
+  const response = await adminRequest(`/v1/admin/finance/audit-ledger?${params.toString()}`);
+  if (fromDate && toDate && (response?.selectedFromDate !== fromDate || response?.selectedToDate !== toDate)) throw new Error('The API does not support the selected date range.');
+  return response;
 }
 
 export async function loadAdminTierConfigs() {

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package, Gift,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, CalendarDays, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap, Sparkles, X
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap, Sparkles, X
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
@@ -13,7 +13,6 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
   const [retentionDueCount, setRetentionDueCount] = useState(0);
   const menuItems = [
     { name: 'Barista Console', icon: Coffee, section: 'Daily work', hideOnMobile: true },
-    { name: 'Barista Workspace', icon: CalendarDays, section: 'Daily work', hideOnMobile: true },
     { name: 'Dashboard', icon: LayoutDashboard, section: 'Daily work' },
     { name: 'Orders', icon: ShoppingBag, section: 'Daily work' },
     { name: 'Customers', icon: Users, section: 'Daily work' },

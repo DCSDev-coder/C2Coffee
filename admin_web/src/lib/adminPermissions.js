@@ -1,7 +1,6 @@
 const ALL_ADMIN_WEB_ROLES = ['super_admin', 'admin'];
 const PAGE_ROLES = {
   'Barista Console': [...ALL_ADMIN_WEB_ROLES, 'barista'],
-  'Barista Workspace': [...ALL_ADMIN_WEB_ROLES, 'barista'],
   Dashboard: [...ALL_ADMIN_WEB_ROLES, 'support_admin'],
   Orders: [...ALL_ADMIN_WEB_ROLES],
   Refunds: [...ALL_ADMIN_WEB_ROLES, 'support_admin'],
@@ -38,7 +37,7 @@ export const ADMIN_ROLE_SECTIONS = {
   super_admin: 'All Admin Web sections',
   admin: 'All Admin Web sections; sensitive changes require Super Admin approval',
   support_admin: 'Customer lookup, gift-card lookup, and refund requests',
-  barista: 'Barista Console and workspace only'
+  barista: 'Barista Console only'
 };
 
 export function canAccessAdminPage(roles, page) {

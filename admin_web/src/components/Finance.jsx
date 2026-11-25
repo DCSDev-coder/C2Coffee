@@ -164,19 +164,25 @@ const Finance = ({ setCurrentPage }) => {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [selectedStoreId, setSelectedStoreId] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState('');
+  const [fromInput, setFromInput] = useState('');
+  const [toInput, setToInput] = useState('');
+  const [dateRange, setDateRange] = useState(null);
   const [transactionSortKey, setTransactionSortKey] = useState('dateTime');
   const [transactionSortDirection, setTransactionSortDirection] = useState('desc');
   const [auditEntries, setAuditEntries] = useState([]);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setOverview((previous) => ({ ...EMPTY_OVERVIEW, availableMonths: previous.availableMonths || [] }));
+    setAuditEntries([]);
 
     const loadOverview = async () => {
       try {
         setError('');
-        const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId, month: selectedMonth || null });
+        const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId, month: selectedMonth || null, ...dateRange });
         if (!active) return;
-        setOverview(nextOverview || EMPTY_OVERVIEW);
+        setOverview((previous) => nextOverview ? { ...nextOverview, availableMonths: [...new Set([...(previous.availableMonths || []), ...(nextOverview.availableMonths || [])])].sort().reverse() } : EMPTY_OVERVIEW);
         setLastUpdatedAt(new Date());
       } catch (err) {
         if (!active) return;
@@ -197,11 +203,11 @@ const Finance = ({ setCurrentPage }) => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [selectedStoreId, selectedMonth]);
+  }, [selectedStoreId, selectedMonth, dateRange]);
 
   useEffect(() => {
     let active = true;
-    void loadAdminFinanceAuditLedger({ storeId: selectedStoreId, month: selectedMonth || null, limit: 100 })
+    void loadAdminFinanceAuditLedger({ storeId: selectedStoreId, month: selectedMonth || null, ...dateRange, limit: 100 })
       .then((response) => {
         if (active) setAuditEntries(Array.isArray(response?.entries) ? response.entries : []);
       })
@@ -209,7 +215,7 @@ const Finance = ({ setCurrentPage }) => {
         if (active) setAuditEntries([]);
       });
     return () => { active = false; };
-  }, [selectedStoreId, selectedMonth]);
+  }, [selectedStoreId, selectedMonth, dateRange]);
 
   const summary = overview.summary || EMPTY_OVERVIEW.summary;
   const monthlyRevenue = Array.isArray(overview.monthlyRevenue) ? overview.monthlyRevenue : [];
@@ -373,8 +379,8 @@ const Finance = ({ setCurrentPage }) => {
 
   const refreshOverview = async () => {
     try {
-      const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId, month: selectedMonth || null });
-      setOverview(nextOverview || EMPTY_OVERVIEW);
+      const nextOverview = await loadAdminFinanceOverview({ storeId: selectedStoreId, month: selectedMonth || null, ...dateRange });
+      setOverview((previous) => nextOverview ? { ...nextOverview, availableMonths: [...new Set([...(previous.availableMonths || []), ...(nextOverview.availableMonths || [])])].sort().reverse() } : EMPTY_OVERVIEW);
       setLastUpdatedAt(new Date());
       setError('');
     } catch (err) {
@@ -383,7 +389,7 @@ const Finance = ({ setCurrentPage }) => {
   };
 
   const availableMonths = Array.isArray(overview.availableMonths) ? overview.availableMonths : [];
-  const scopeLabel = `${selectedMonth ? formatMonthLabel(selectedMonth) : 'All-time'} · ${selectedStoreId ? 'Selected outlet' : 'All outlets'}`;
+  const scopeLabel = `${dateRange ? `${dateRange.fromDate} to ${dateRange.toDate}` : selectedMonth ? formatMonthLabel(selectedMonth) : 'All-time'} · ${selectedStoreId ? 'Selected outlet' : 'All outlets'}`;
 
   return (
     <div className="flex-1 overflow-x-hidden overflow-y-auto bg-[#F9FAFB]">
@@ -400,7 +406,7 @@ const Finance = ({ setCurrentPage }) => {
               Sales breakdown by funding source (direct RM, personal C2 Credit, and company allowance) with daily and ledger reconciliation.
             </p>
             <p className="text-xs text-gray-400 mt-2">
-              {loading ? 'Refreshing live data...' : error ? `Showing last successful data. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
+              {loading ? 'Refreshing live data...' : error ? `Unable to refresh report. ${error}` : `Last updated ${lastUpdatedAt?.toLocaleString('en-MY') || 'just now'}`}
             </p>
           </div>
 
@@ -408,7 +414,7 @@ const Finance = ({ setCurrentPage }) => {
             <select
               aria-label="Filter finance by month"
               value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
+              onChange={(event) => { setSelectedMonth(event.target.value); setDateRange(null); setFromInput(''); setToInput(''); }}
               className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#2E5E58]/30 shadow-sm cursor-pointer"
             >
               <option value="">All months</option>
@@ -418,6 +424,9 @@ const Finance = ({ setCurrentPage }) => {
                 </option>
               ))}
             </select>
+            <label className="text-xs font-semibold text-gray-600">From <input aria-label="Finance start date" type="date" value={fromInput} onChange={(event) => setFromInput(event.target.value)} className="ml-1 rounded-lg border border-gray-300 p-2" /></label>
+            <label className="text-xs font-semibold text-gray-600">To <input aria-label="Finance end date" type="date" value={toInput} onChange={(event) => setToInput(event.target.value)} className="ml-1 rounded-lg border border-gray-300 p-2" /></label>
+            <button type="button" disabled={!fromInput || !toInput || fromInput > toInput} onClick={() => { setSelectedMonth(''); setDateRange({ fromDate: fromInput, toDate: toInput }); }} className="rounded-lg bg-[#1F3A34] px-3 py-2 text-sm font-semibold text-white disabled:opacity-40">Apply dates</button>
             <OutletFilter value={selectedStoreId} onChange={setSelectedStoreId} />
             <button
               type="button"
@@ -651,7 +660,7 @@ const Finance = ({ setCurrentPage }) => {
               <p className="text-sm text-gray-500">RM order value by day, including C2 Credit equivalents, after completed refunds.</p>
             </div>
             <div className="rounded-full bg-[#EEF6F3] px-3 py-1 text-xs font-semibold text-[#1F5A4D]">
-              {selectedMonth ? formatMonthLabel(selectedMonth) : 'Last 14 days'}
+              {dateRange ? `${dateRange.fromDate} to ${dateRange.toDate}` : selectedMonth ? formatMonthLabel(selectedMonth) : 'Last 14 days'}
             </div>
           </div>
           <div className="overflow-x-auto pb-2">

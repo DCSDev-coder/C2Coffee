@@ -219,16 +219,27 @@ const adminListQuerySchema = z.object({
   view: z.enum(['all', 'barista_workspace']).optional().default('all')
 });
 
+const financeDate = z.iso.date();
+const financePeriodFields = {
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+  from_date: financeDate.optional(),
+  to_date: financeDate.optional()
+};
+const validateFinancePeriod = (value: { month?: string; from_date?: string; to_date?: string }, ctx: z.RefinementCtx) => {
+  if (Boolean(value.from_date) !== Boolean(value.to_date) || (value.from_date && value.to_date && value.from_date > value.to_date) || (value.month && value.from_date)) {
+    ctx.addIssue({ code: 'custom', message: 'Provide an ordered date range or a month, not both.' });
+  }
+};
 const financeQuerySchema = z.object({
   store_id: z.coerce.number().int().positive().optional(),
-  month: z.string().regex(/^\d{4}-\d{2}$/).optional()
-});
+  ...financePeriodFields
+}).superRefine(validateFinancePeriod);
 
 const financeAuditQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional().default(100),
   store_id: z.coerce.number().int().positive().optional(),
-  month: z.string().regex(/^\d{4}-\d{2}$/).optional()
-});
+  ...financePeriodFields
+}).superRefine(validateFinancePeriod);
 
 const priceCorrectionSchema = z.object({
   corrected_token_amount: z.coerce.number().int().min(0),
@@ -1180,9 +1191,9 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
     requireFinanceAccess(request);
 
     const tenantCode = request.adminAuth.tenantCode;
-    const { store_id: storeId, month } = financeQuerySchema.parse(request.query);
-    const queryParams = { tenantCode, storeId: storeId ?? null, month: month ?? null };
-    const monthFilter = (col: string) => `(:month IS NULL OR DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', '+08:00'), '%Y-%m') = :month)`;
+    const { store_id: storeId, month, from_date: fromDate, to_date: toDate } = financeQuerySchema.parse(request.query);
+    const queryParams = { tenantCode, storeId: storeId ?? null, month: month ?? null, fromDate: fromDate ?? null, toDate: toDate ?? null };
+    const monthFilter = (col: string) => `(:month IS NULL OR DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', '+08:00'), '%Y-%m') = :month) AND (:fromDate IS NULL OR DATE(CONVERT_TZ(${col}, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate)`;
     const revenueStatusClause = "o.status NOT IN ('draft', 'pending_payment', 'payment_failed', 'cancelled')";
     const completedRefundStatusClause = "r.status NOT IN ('pending', 'failed', 'cancelled', 'rejected', 'under_review', 'reviewing')";
     const connection = await mysqlPool.getConnection();
@@ -1271,6 +1282,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
            AND (:storeId IS NULL OR s.id = :storeId)
+           AND (:fromDate IS NULL OR DATE(CONVERT_TZ(o.created_at, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate)
          GROUP BY month_key`,
         queryParams
       );
@@ -1289,6 +1301,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          JOIN admin_tenants t ON t.id = s.tenant_id
          WHERE t.code = :tenantCode
            AND (:storeId IS NULL OR s.id = :storeId)
+           AND (:fromDate IS NULL OR DATE(CONVERT_TZ(r.created_at, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate)
          GROUP BY month_key`,
         queryParams
       );
@@ -1312,7 +1325,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            AND (:storeId IS NULL OR s.id = :storeId)
            AND (
              (:month IS NOT NULL AND DATE_FORMAT(CONVERT_TZ(o.created_at, '+00:00', '+08:00'), '%Y-%m') = :month)
-             OR (:month IS NULL AND DATE(CONVERT_TZ(o.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY)
+             OR (:fromDate IS NOT NULL AND DATE(CONVERT_TZ(o.created_at, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate)
+             OR (:month IS NULL AND :fromDate IS NULL AND DATE(CONVERT_TZ(o.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY)
            )
          GROUP BY day_key
          ORDER BY day_key ASC`,
@@ -1335,7 +1349,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            AND (:storeId IS NULL OR s.id = :storeId)
            AND (
              (:month IS NOT NULL AND DATE_FORMAT(CONVERT_TZ(r.created_at, '+00:00', '+08:00'), '%Y-%m') = :month)
-             OR (:month IS NULL AND DATE(CONVERT_TZ(r.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY)
+             OR (:fromDate IS NOT NULL AND DATE(CONVERT_TZ(r.created_at, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate)
+             OR (:month IS NULL AND :fromDate IS NULL AND DATE(CONVERT_TZ(r.created_at, '+00:00', '+08:00')) >= DATE(CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+08:00')) - INTERVAL 13 DAY)
            )
          GROUP BY day_key
          ORDER BY day_key ASC`,
@@ -1378,7 +1393,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            AND ${monthFilter('p.created_at')}
          GROUP BY NULLIF(p.payment_method, '')
          ORDER BY topup_count DESC, amount_rm DESC, payment_method ASC`,
-        { tenantCode, month: month ?? null }
+        queryParams
       );
       const [tokenMovementRows] = await connection.query<Array<RowDataPacket & {
         source_type: string;
@@ -1395,7 +1410,7 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
             AND ${monthFilter('tl.created_at')}
           GROUP BY tl.source_type, tl.direction
           ORDER BY tl.source_type ASC, tl.direction ASC`,
-        { tenantCode, month: month ?? null }
+        queryParams
       );
       const [allowanceBalanceRows] = await connection.query<Array<RowDataPacket & { remaining: string | number }>>(
         `SELECT COALESCE(SUM(a.remaining_amount), 0) AS remaining
@@ -1597,6 +1612,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
       return {
         selectedStoreId: storeId ?? null,
         selectedMonth: month ?? null,
+        selectedFromDate: fromDate ?? null,
+        selectedToDate: toDate ?? null,
         availableMonths: Array.from(monthMap.keys()).sort((left, right) => right.localeCompare(left)),
         topUpScope: 'tenant',
         summary: {
@@ -1703,8 +1720,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
 
   app.get('/v1/admin/finance/audit-ledger', { preHandler: authenticateAdminRequest }, async (request) => {
     requireFinanceAccess(request);
-    const { limit, store_id: storeId, month } = financeAuditQuerySchema.parse(request.query);
-    const monthFilter = (col: string) => `(:month IS NULL OR DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', '+08:00'), '%Y-%m') = :month)`;
+    const { limit, store_id: storeId, month, from_date: fromDate, to_date: toDate } = financeAuditQuerySchema.parse(request.query);
+    const monthFilter = (col: string) => `(:month IS NULL OR DATE_FORMAT(CONVERT_TZ(${col}, '+00:00', '+08:00'), '%Y-%m') = :month) AND (:fromDate IS NULL OR DATE(CONVERT_TZ(${col}, '+00:00', '+08:00')) BETWEEN :fromDate AND :toDate)`;
     const connection = await mysqlPool.getConnection();
     try {
       const [rows] = await connection.query<Array<RowDataPacket & {
@@ -1761,10 +1778,12 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
          ) audit_entries
          ORDER BY created_at DESC
          LIMIT :limit`,
-        { tenantCode: request.adminAuth.tenantCode, storeId: storeId ?? null, month: month ?? null, limit }
+        { tenantCode: request.adminAuth.tenantCode, storeId: storeId ?? null, month: month ?? null, fromDate: fromDate ?? null, toDate: toDate ?? null, limit }
       );
       return {
         selectedStoreId: storeId ?? null,
+        selectedFromDate: fromDate ?? null,
+        selectedToDate: toDate ?? null,
         entries: rows.map((row) => ({
           id: row.id,
           createdAt: row.created_at,

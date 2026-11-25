@@ -2,16 +2,9 @@ export const adminManualSections = [
   {
     group: 'Daily work',
     page: 'Barista Console',
-    purpose: 'Monitor incoming customer orders and move each order through preparation, collection, and completion.',
-    steps: ['Open an order to review the customer, items, modifiers, voucher, and payment status.', 'Use the status action only when the order has actually moved to the next preparation stage.', 'Open the SOP guide when a drink or store procedure needs to be checked.'],
+    purpose: 'Monitor incoming customer orders, order history, menu availability, side-work tasks, marketing drinks, inventory, shift attendance, and staff guides.',
+    steps: ['Open an order to review the customer, items, modifiers, voucher, and payment status.', 'Switch tabs to inspect order history, menu availability, side work, complimentary drinks, inventory, and timetable/guides.', 'Admins view the console in read-only mode to see exactly what baristas see on the counter workstation.'],
     notes: 'Do not mark an order collected before the customer receives it. Payment status is controlled by the server.'
-  },
-  {
-    group: 'Daily work',
-    page: 'Barista Workspace',
-    purpose: 'Provide the barista team with the work queue, attendance context, store tasks, and visual SOP guides.',
-    steps: ['Review the current shift and assigned work.', 'Use the SOP library for drink preparation, attire, and store rules.', 'Complete operational tasks only for the current outlet and shift.'],
-    notes: 'Keep SOP images current in Staff Guides so the workspace always reflects the latest procedure.'
   },
   {
     group: 'Daily work',
