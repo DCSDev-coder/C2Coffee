@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { isComplimentaryOrder } from '../dist/services/order-voucher.js';
 
 async function source(relativePath) {
   return readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8');
@@ -47,15 +48,20 @@ test('manual receipt requests remain tenant, outlet, role, and printer guarded',
 });
 
 test('complimentary mobile orders can be cancelled without creating a refund', async () => {
+  assert.equal(isComplimentaryOrder({ final_total_rm: 0, token_amount_charged: 0 }), true);
+  assert.equal(isComplimentaryOrder({ final_total_rm: 10.90, token_amount_charged: 0, payment_mode: 'token', voucher_id: 284 }), true);
+  assert.equal(isComplimentaryOrder({ final_total_rm: 10.90, token_amount_charged: 10, payment_mode: 'token', voucher_id: 284 }), false);
+  assert.equal(isComplimentaryOrder({ final_total_rm: 10.90, token_amount_charged: 0, payment_mode: 'direct' }), false);
   const barista = await source('src/http/routes/barista-staff.ts');
   const orders = await source('src/http/routes/admin-orders.ts');
   assert.match(barista, /LEFT JOIN payments p ON p\.order_id = o\.id/);
   assert.match(barista, /Number\(order\.final_total_rm \|\| 0\) <= 0/);
   assert.match(barista, /Number\(order\.token_amount_charged \|\| 0\) <= 0/);
-  assert.match(barista, /if \(!isComplimentaryOrder\)/);
+  assert.match(barista, /const isComplimentary = isComplimentaryOrder\(\{/);
+  assert.match(barista, /if \(!isComplimentary\)\s*\{\s*const refundRef/);
   const customerData = await source('src/http/routes/customer-data.ts');
-  assert.match(customerData, /const isComplimentaryOrder = Number\(order\.final_total_rm \|\| 0\) <= 0/);
-  assert.match(customerData, /!isComplimentaryOrder && order\.payment_mode === 'direct'/);
+  assert.match(customerData, /const isComplimentary = isComplimentaryOrder\(order\)/);
+  assert.match(customerData, /!isComplimentary && order\.payment_mode === 'direct'/);
   assert.match(barista, /restoreVoucherForCancelledOrder/);
   assert.match(orders, /restoreVoucherForCancelledOrder/);
   const voucher = await source('src/services/order-voucher.ts');

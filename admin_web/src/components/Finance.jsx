@@ -263,7 +263,7 @@ const Finance = ({ setCurrentPage }) => {
           ['Qualifying orders', summary.qualifyingOrders ?? summary.totalOrders ?? 0],
           ['Company allowance issued (ledger)', subsidySummary.issuedTokens || 0],
           ['Company allowance consumed (ledger)', subsidySummary.consumedTokens || 0],
-          ['Company allowance remaining (ledger)', subsidySummary.remainingIssuedTokens || 0]
+          ['Recorded active allowance balance (current tenant-wide snapshot)', subsidySummary.recordedActiveBalanceTokens ?? 'Unavailable']
         ]
       },
       { title: 'Recent transactions', headers: exportRows[0], rows: exportRows.slice(1) },
@@ -295,7 +295,8 @@ const Finance = ({ setCurrentPage }) => {
     ], 'finance_overview.csv');
   };
 
-  const revenueChartData = monthlyRevenue.map((entry) => ({
+  const selectedChartMonth = selectedMonth ? new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(`${selectedMonth}-01T00:00:00+08:00`)) : null;
+  const revenueChartData = monthlyRevenue.filter((entry) => !selectedChartMonth || entry.month === selectedChartMonth).map((entry) => ({
     month: entry.month,
     tokensCharged: Number(entry.tokensCharged || 0),
     refundTokens: Number(entry.refundTokens || 0),
@@ -430,7 +431,7 @@ const Finance = ({ setCurrentPage }) => {
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           <StatCard
-            title="Direct paid sales"
+            title="Direct customer payments"
             value={formatReportMoney(summary.directPaymentOrderValueRm)}
             subtitle={`${Number(summary.directOrders || 0).toLocaleString('en-US')} direct orders`}
             icon={BarChart3}
@@ -473,7 +474,7 @@ const Finance = ({ setCurrentPage }) => {
 
         <div className="bg-white rounded-2xl border border-gray-200/80 shadow-xs px-4 py-3.5 sm:px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs sm:text-sm">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-gray-700">
-            <span className="font-bold text-gray-900">Sales excluding company allowance:</span>
+            <span className="font-bold text-gray-900">Customer-funded order value (before refunds):</span>
             <span className="font-extrabold text-[#1F3A34] tabular-nums">{formatReportMoney(summary.salesExcludingAllowanceRm)}</span>
             <span className="text-gray-500">
               ({formatReportMoney(summary.directPaymentOrderValueRm)} direct + {formatReportMoney(summary.personalTokenOrderValueRm)} personal C2 Credit eq.)
@@ -483,6 +484,8 @@ const Finance = ({ setCurrentPage }) => {
             Total qualifying order value (incl. allowance): <span className="font-semibold text-gray-800 tabular-nums">{formatReportMoney(summary.totalRevenueRm)}</span>
           </div>
         </div>
+
+        <p className="text-xs text-gray-500">Customer-funded order value combines direct order value and the personal C2 Credit share; it excludes company allowance. C2 Credit was paid for at top-up, so this total is not cash received during this period. Refunds are shown separately by refund date; orders are grouped by order date. Mixed-funding order counts can overlap.</p>
 
         <div className="grid gap-6 xl:grid-cols-2">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
@@ -513,13 +516,14 @@ const Finance = ({ setCurrentPage }) => {
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Company allowance</h3>
                 <p className="mt-1 text-sm text-gray-500">Employee and intern allowance movements from the immutable token ledger.</p>
+                <p className="mt-1 text-xs text-gray-500">Issued and debited are tenant-wide ledger activity for the selected period. Recorded active balance is a current tenant-wide snapshot, independent of the selected month or outlet; pending allowance rollover may change it.</p>
               </div>
               <InfoTooltip content="Issuance, expiry, role changes, spending, and refund returns remain ledger movements and are not treated as customer payments." title="Company allowance" />
             </div>
             <div className="mt-5 grid grid-cols-3 gap-3">
               <div className="rounded-xl bg-emerald-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-emerald-700">Issued</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.issuedTokens)}</p></div>
-              <div className="rounded-xl bg-amber-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-amber-700">Consumed</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.consumedTokens)}</p></div>
-              <div className="rounded-xl bg-gray-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-gray-600">Remaining</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.remainingIssuedTokens)}</p></div>
+              <div className="rounded-xl bg-amber-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-amber-700">Debited</p><p className="mt-1 font-bold text-gray-900">{formatReportTokens(subsidySummary.consumedTokens)}</p></div>
+              <div className="rounded-xl bg-gray-50 px-3 py-3"><p className="text-[11px] uppercase tracking-wide text-gray-600">Recorded active balance</p><p className="mt-1 font-bold text-gray-900">{subsidySummary.recordedActiveBalanceTokens == null ? 'Unavailable' : formatReportTokens(subsidySummary.recordedActiveBalanceTokens)}</p></div>
             </div>
             <div className="mt-5 space-y-2">
               {tokenMovementBreakdown.filter((entry) => String(entry.sourceType || '').startsWith('employee_allowance')).map((entry) => (

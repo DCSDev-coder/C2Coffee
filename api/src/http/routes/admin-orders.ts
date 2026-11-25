@@ -1215,13 +1215,11 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
            COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'direct' THEN 1 ELSE 0 END), 0) AS direct_orders,
            COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'direct' THEN o.final_total_rm ELSE 0 END), 0) AS direct_payment_order_value_rm,
            COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'token' THEN 1 ELSE 0 END), 0) AS token_orders,
-           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'token' AND (o.token_amount_charged > LEAST(o.token_amount_charged, o.employee_allowance_tokens_used) OR o.employee_allowance_tokens_used = 0) THEN 1 ELSE 0 END), 0) AS personal_token_orders,
+           COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'token' AND o.token_amount_charged > LEAST(o.token_amount_charged, o.employee_allowance_tokens_used) THEN 1 ELSE 0 END), 0) AS personal_token_orders,
            COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.payment_mode = 'token' THEN GREATEST(0, o.token_amount_charged - LEAST(o.token_amount_charged, o.employee_allowance_tokens_used)) ELSE 0 END), 0) AS personal_tokens_used,
            COALESCE(SUM(CASE
              WHEN ${revenueStatusClause} AND o.payment_mode = 'token' AND o.token_amount_charged > 0
                THEN o.final_total_rm * (GREATEST(0, o.token_amount_charged - LEAST(o.token_amount_charged, o.employee_allowance_tokens_used)) / o.token_amount_charged)
-             WHEN ${revenueStatusClause} AND o.payment_mode = 'token' AND o.employee_allowance_tokens_used = 0
-               THEN o.final_total_rm
              ELSE 0
            END), 0) AS personal_token_order_value_rm,
            COALESCE(SUM(CASE WHEN ${revenueStatusClause} AND o.employee_allowance_tokens_used > 0 THEN 1 ELSE 0 END), 0) AS allowance_orders,
@@ -1398,6 +1396,13 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           GROUP BY tl.source_type, tl.direction
           ORDER BY tl.source_type ASC, tl.direction ASC`,
         { tenantCode, month: month ?? null }
+      );
+      const [allowanceBalanceRows] = await connection.query<Array<RowDataPacket & { remaining: string | number }>>(
+        `SELECT COALESCE(SUM(a.remaining_amount), 0) AS remaining
+           FROM employee_token_allowances a
+           JOIN admin_tenants t ON t.id = a.tenant_id
+          WHERE t.code = :tenantCode AND a.status = 'active'`,
+        { tenantCode }
       );
       const [paymentMethodRows] = await connection.query<Array<RowDataPacket & {
         payment_method: string | null;
@@ -1673,7 +1678,8 @@ export async function registerAdminOrdersRoutes(app: FastifyInstance) {
           issuedTokens: subsidyMovement.issued,
           consumedTokens: subsidyMovement.consumed,
           movementCount: subsidyMovement.movements,
-          remainingIssuedTokens: Math.max(0, subsidyMovement.issued - subsidyMovement.consumed)
+          remainingIssuedTokens: Math.max(0, subsidyMovement.issued - subsidyMovement.consumed),
+          recordedActiveBalanceTokens: Number(allowanceBalanceRows[0]?.remaining || 0)
         },
         recentTransactions: transactionRows.map((row) => ({
           id: row.id,

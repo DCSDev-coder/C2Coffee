@@ -192,8 +192,6 @@ async function buildOutletShiftReport(
         const allowanceShare = orderAllowanceTokens / orderTokens;
         allowanceSalesRm += orderTotal * allowanceShare;
         personalCreditSalesRm += orderTotal * (1 - allowanceShare);
-      } else if (orderAllowanceTokens === 0) {
-        personalCreditSalesRm += orderTotal;
       }
     } else if (paymentMethod === 'manual_counter') {
       counterSalesRm += orderTotal;
