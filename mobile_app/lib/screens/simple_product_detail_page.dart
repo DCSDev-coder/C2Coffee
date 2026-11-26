@@ -174,6 +174,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                           imageUrl: widget.item['image_url']?.toString(),
                           height: 240,
                           fit: BoxFit.contain,
+                          imageCornerRadius: 18,
                         ),
                       ),
                     ),

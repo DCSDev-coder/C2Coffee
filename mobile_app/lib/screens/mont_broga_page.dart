@@ -1199,11 +1199,15 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Center(
-                      child: CatalogProductImage(
-                        assetPath: widget.item['image']?.toString(),
-                        imageUrl: widget.item['image_url']?.toString(),
-                        height: 200,
-                        fit: BoxFit.contain,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: CatalogProductImage(
+                          assetPath: widget.item['image']?.toString(),
+                          imageUrl: widget.item['image_url']?.toString(),
+                          height: 200,
+                          fit: BoxFit.contain,
+                          imageCornerRadius: 18,
+                        ),
                       ),
                     ),
                     Padding(

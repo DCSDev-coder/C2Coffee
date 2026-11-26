@@ -12,6 +12,7 @@ class CatalogProductImage extends StatelessWidget {
   final double? width;
   final double? height;
   final BoxFit fit;
+  final double? imageCornerRadius;
 
   const CatalogProductImage({
     super.key,
@@ -20,6 +21,7 @@ class CatalogProductImage extends StatelessWidget {
     this.width,
     this.height,
     this.fit = BoxFit.contain,
+    this.imageCornerRadius,
   });
 
   bool get _hasRemoteImage => isSecureRemoteImageSource(imageUrl);
@@ -34,6 +36,15 @@ class CatalogProductImage extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
+        imageBuilder: imageCornerRadius == null
+            ? null
+            : (_, provider) => _RoundedVisibleImage(
+                  provider: provider,
+                  width: width,
+                  height: height,
+                  fit: fit,
+                  radius: imageCornerRadius!,
+                ),
         // Do not force non-square artwork through a square cache decode.
         // A width cap preserves the source aspect ratio for banners and posters.
         memCacheWidth: _cacheDimension,
@@ -50,6 +61,16 @@ class CatalogProductImage extends StatelessWidget {
     }
 
     if (_hasAssetImage) {
+      if (imageCornerRadius != null) {
+        return _RoundedVisibleImage(
+          provider: AssetImage(assetPath!),
+          width: width,
+          height: height,
+          fit: fit,
+          radius: imageCornerRadius!,
+          errorBuilder: (_, __, ___) => _placeholder(),
+        );
+      }
       return Image.asset(
         assetPath!,
         width: width,
@@ -79,6 +100,104 @@ class CatalogProductImage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RoundedVisibleImage extends StatefulWidget {
+  const _RoundedVisibleImage({
+    required this.provider,
+    required this.width,
+    required this.height,
+    required this.fit,
+    required this.radius,
+    this.errorBuilder,
+  });
+
+  final ImageProvider provider;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final double radius;
+  final ImageErrorWidgetBuilder? errorBuilder;
+
+  @override
+  State<_RoundedVisibleImage> createState() => _RoundedVisibleImageState();
+}
+
+class _RoundedVisibleImageState extends State<_RoundedVisibleImage> {
+  ImageStream? _stream;
+  Size? _imageSize;
+  late final ImageStreamListener _listener = ImageStreamListener((info, _) {
+    final size =
+        Size(info.image.width.toDouble(), info.image.height.toDouble());
+    if (mounted && size != _imageSize) setState(() => _imageSize = size);
+  }, onError: (_, __) {});
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RoundedVisibleImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider != widget.provider) {
+      _imageSize = null;
+      _resolve();
+    }
+  }
+
+  void _resolve() {
+    final stream =
+        widget.provider.resolve(createLocalImageConfiguration(context));
+    if (_stream?.key == stream.key) return;
+    _stream?.removeListener(_listener);
+    _stream = stream;
+    stream.addListener(_listener);
+  }
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_listener);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      clipper: _VisibleImageClipper(_imageSize, widget.fit, widget.radius),
+      child: Image(
+        image: widget.provider,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        errorBuilder: widget.errorBuilder,
+      ),
+    );
+  }
+}
+
+class _VisibleImageClipper extends CustomClipper<RRect> {
+  const _VisibleImageClipper(this.imageSize, this.fit, this.radius);
+  final Size? imageSize;
+  final BoxFit fit;
+  final double radius;
+
+  @override
+  RRect getClip(Size size) {
+    final source = imageSize;
+    final destination = source == null || size.isEmpty
+        ? size
+        : applyBoxFit(fit, source, size).destination;
+    final rect = Alignment.center.inscribe(destination, Offset.zero & size);
+    return RRect.fromRectAndRadius(rect, Radius.circular(radius));
+  }
+
+  @override
+  bool shouldReclip(_VisibleImageClipper oldClipper) =>
+      imageSize != oldClipper.imageSize ||
+      fit != oldClipper.fit ||
+      radius != oldClipper.radius;
 }
 
 class C2ImageSkeleton extends StatefulWidget {

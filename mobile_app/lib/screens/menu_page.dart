@@ -1807,6 +1807,7 @@ class _MenuPageState extends State<MenuPage> {
                   child: CatalogProductImage(
                     assetPath: item['image'] as String?,
                     imageUrl: item['image_url'] as String?,
+                    imageCornerRadius: 12,
                   ),
                 ),
               ),

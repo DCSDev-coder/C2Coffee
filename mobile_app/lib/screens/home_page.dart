@@ -1279,10 +1279,14 @@ class _HomePageState extends State<HomePage> {
                                 padding:
                                     const EdgeInsets.fromLTRB(12, 12, 12, 6),
                                 child: Center(
-                                  child: CatalogProductImage(
-                                    assetPath: item['image'] as String?,
-                                    imageUrl: item['image_url'] as String?,
-                                    fit: BoxFit.contain,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: CatalogProductImage(
+                                      assetPath: item['image'] as String?,
+                                      imageUrl: item['image_url'] as String?,
+                                      fit: BoxFit.contain,
+                                      imageCornerRadius: 12,
+                                    ),
                                   ),
                                 ),
                               ),
