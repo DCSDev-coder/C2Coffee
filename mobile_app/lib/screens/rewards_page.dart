@@ -17,6 +17,7 @@ import 'gift_cards_page.dart';
 import 'app_review_page.dart';
 import '../utils/app_colors.dart';
 import '../widgets/app_page_shell.dart';
+import '../widgets/tier_artwork.dart';
 
 class RewardsPage extends StatefulWidget {
   final File? initialPickedImage;
@@ -248,9 +249,8 @@ class _RewardsPageState extends State<RewardsPage> {
     if (!_session.hasAccountData) {
       return _buildAccountUnavailableCard();
     }
-    final tierArtworkUrl = _currentTier()?.imageUrl;
-    final secureTierArtworkUrl =
-        isSecureRemoteImageSource(tierArtworkUrl) ? tierArtworkUrl : null;
+    // Preview the first tier's artwork before the customer qualifies for it.
+    final artworkTier = _session.tierQualified ? _currentTier() : _nextTier();
     final nextTier = _nextTier();
     final targetCups = _getMaxCupsForTier();
     final progress = (_session.qualifyingOrdersRolling12m /
@@ -285,17 +285,10 @@ class _RewardsPageState extends State<RewardsPage> {
                 height: 240,
                 child: AspectRatio(
                   aspectRatio: 3 / 4,
-                  child: secureTierArtworkUrl == null
-                      ? Image.asset('assets/images/card.png',
-                          fit: BoxFit.contain)
-                      : Image.network(
-                          secureTierArtworkUrl,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Image.asset(
-                            'assets/images/card.png',
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                  child: TierArtwork(
+                    tierCode: artworkTier?.code,
+                    imageUrl: artworkTier?.imageUrl,
+                  ),
                 ),
               ),
             ),
@@ -419,8 +412,7 @@ class _RewardsPageState extends State<RewardsPage> {
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
                     value: progress,
-                    backgroundColor:
-                        AppColors.deepTeal.withValues(alpha: 0.12),
+                    backgroundColor: AppColors.deepTeal.withValues(alpha: 0.12),
                     valueColor:
                         AlwaysStoppedAnimation<Color>(AppColors.deepTeal),
                     minHeight: 8,
