@@ -23,6 +23,7 @@ class _PosterPopupState extends State<PosterPopup>
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
   bool _dontShowAgain = false;
+  Future<void> _pendingPreferenceSave = Future.value();
 
   String get _dismissPreferenceKey {
     final code = (widget.banner?.code ?? '').trim();
@@ -49,31 +50,12 @@ class _PosterPopupState extends State<PosterPopup>
     );
 
     _animationController.forward();
-    _loadDontShowAgainState();
-  }
-
-  Future<void> _loadDontShowAgainState() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      final expiryString = prefs.getString(_dismissPreferenceKey);
-      bool isHidden = false;
-      if (expiryString != null) {
-        final expiryDate = DateTime.tryParse(expiryString);
-        if (expiryDate != null && DateTime.now().isBefore(expiryDate)) {
-          isHidden = true;
-        }
-      }
-      setState(() {
-        _dontShowAgain = isHidden;
-      });
-    }
   }
 
   Future<void> _saveDontShowAgainState(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     if (value) {
-      // Hide for 24 hours
-      final expiry = DateTime.now().add(const Duration(hours: 24));
+      final expiry = DateTime.now().add(const Duration(days: 30));
       await prefs.setString(_dismissPreferenceKey, expiry.toIso8601String());
     } else {
       await prefs.remove(_dismissPreferenceKey);
@@ -159,7 +141,9 @@ class _PosterPopupState extends State<PosterPopup>
                                         setState(() {
                                           _dontShowAgain = newVal;
                                         });
-                                        _saveDontShowAgainState(newVal);
+                                        _pendingPreferenceSave =
+                                            _pendingPreferenceSave.then((_) =>
+                                                _saveDontShowAgainState(newVal));
                                       },
                                       child: AnimatedContainer(
                                         duration:
@@ -210,7 +194,7 @@ class _PosterPopupState extends State<PosterPopup>
                                             ),
                                             const SizedBox(width: 8),
                                             const Text(
-                                              "Don't show again",
+                                              'Hide for 30 days',
                                               style: TextStyle(
                                                 fontFamily: 'Afacad',
                                                 fontSize: 14,
@@ -321,14 +305,17 @@ class _PosterPopupState extends State<PosterPopup>
     );
   }
 
-  void _closePopup({VoidCallback? afterClose}) {
-    _animationController.reverse().then((_) {
-      if (mounted) {
-        Navigator.of(context).pop();
-        widget.onClose?.call();
-        afterClose?.call();
-      }
-    });
+  Future<void> _closePopup({VoidCallback? afterClose}) async {
+    try {
+      await Future.wait([_animationController.reverse(), _pendingPreferenceSave]);
+    } catch (_) {
+      // Storage errors must not trap the customer in the popup.
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+      widget.onClose?.call();
+      afterClose?.call();
+    }
   }
 }
 
@@ -369,6 +356,13 @@ Future<void> showPosterPopup(BuildContext context,
   final routeIsReady = await _waitUntilOwningRouteIsCurrent(context);
   if (!routeIsReady) return;
   if (!context.mounted) return;
+
+  // Another popup can have saved a dismissal while this one was waiting.
+  final latestExpiry = DateTime.tryParse(prefs.getString(dismissKey) ?? '');
+  if (latestExpiry != null && DateTime.now().isBefore(latestExpiry)) {
+    onClose?.call();
+    return;
+  }
 
   await showDialog<void>(
     context: context,

@@ -76,7 +76,17 @@ void main() {
     expect(find.text('Payment service maintenance'), findsNothing);
     expect(find.text('Poster unavailable'), findsOneWidget);
 
+    await tester.tap(find.text('Hide for 30 days'));
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
+    final prefs = await SharedPreferences.getInstance();
+    final expiry = DateTime.parse(
+        prefs.getString('hide_menu_ad_popup_expiry_test-poster')!);
+    expect(expiry.difference(DateTime.now()).inDays, greaterThanOrEqualTo(29));
+    expect(expiry.difference(DateTime.now()).inDays, lessThanOrEqualTo(30));
+
+    unawaited(showPosterPopup(pageContext, banner: banner));
+    await tester.pumpAndSettle();
+    expect(find.text('Poster unavailable'), findsNothing);
   });
 }
