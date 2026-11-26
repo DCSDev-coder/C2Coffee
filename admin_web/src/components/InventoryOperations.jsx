@@ -189,8 +189,11 @@ function ItemLineEditor({ lines, setLines, items, mode = 'quantity', catalog = [
   );
 }
 
-export default function InventoryOperations({ storeId, stores, items, onInventoryChanged, requestedAction = null, onActionHandled }) {
-  const [section, setSection] = useState('supply');
+export default function InventoryOperations({ storeId, stores, items, onInventoryChanged, requestedAction = null, onActionHandled, forcedSection = null }) {
+  const [section, setSection] = useState(forcedSection || 'supply');
+  useEffect(() => {
+    if (forcedSection) setSection(forcedSection);
+  }, [forcedSection]);
   const [data, setData] = useState({ can_view_costs: false, supply_needs: [], suppliers: [], supplier_items: [], purchase_orders: [], transfers: [], stocktakes: [] });
   const [optionData, setOptionData] = useState({ options: [], recipes: [] });
   const [analytics, setAnalytics] = useState([]);

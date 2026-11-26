@@ -12,6 +12,7 @@ import { expireStaleCounterPendingOrders } from './services/counter-pending-orde
 import { runChipTopUpReconciliationSweep } from './services/chip-topup-reconciliation.js';
 import { runMobileOrderPaymentReconciliationSweep } from './services/chip-mobile-order-reconciliation.js';
 import { runCustomerMessageScheduleSweep } from './services/customer-message-schedules.js';
+import { runStockAlertEmailSweep } from './services/inventory-alerts.js';
 
 const app = await buildApp();
 let chipTopUpReconciliationRunning = false;
@@ -199,6 +200,23 @@ const referralRewardRetryTimer = setInterval(() => {
   void runScheduledReferralRewardRetries();
 }, 5 * 60_000);
 referralRewardRetryTimer.unref();
+
+async function runScheduledStockAlertEmails(): Promise<void> {
+  try {
+    await assertSingleCafeDeployment();
+    const result = await runStockAlertEmailSweep();
+    if (result.sent > 0 || result.failed > 0) {
+      app.log.info(result, 'completed stock alert email sweep');
+    }
+  } catch (error) {
+    app.log.error(error, 'stock alert email sweep failed');
+  }
+}
+void runScheduledStockAlertEmails();
+const stockAlertEmailTimer = setInterval(() => {
+  void runScheduledStockAlertEmails();
+}, 60_000);
+stockAlertEmailTimer.unref();
 
 try {
   await app.listen({ host: env.HOST, port: env.PORT });

@@ -44,12 +44,14 @@ const CounterDevices = lazy(() => import('./components/CounterDevices'));
 const PlatformTenants = lazy(() => import('./components/PlatformTenants'));
 const DataRetention = lazy(() => import('./components/DataRetention'));
 const Inventory = lazy(() => import('./components/Inventory'));
+const StorehubStockPage = lazy(() => import('./components/StorehubStockPage'));
 
 const LAST_ADMIN_PAGE_KEY = 'c2_admin_last_page';
 
 function readLastAdminPage() {
   try {
-    return window.localStorage.getItem(LAST_ADMIN_PAGE_KEY) || 'Dashboard';
+    const saved = window.localStorage.getItem(LAST_ADMIN_PAGE_KEY) || 'Dashboard';
+    return saved === 'Inventory' ? 'Supply Needs' : saved;
   } catch {
     return 'Dashboard';
   }
@@ -188,7 +190,18 @@ function AppContent({
         {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('C2 Credit Ledger')} />}
         {currentPage === 'Menu' && <Menu onNavigate={navigateWithPrompt} />}
         {currentPage === 'Options & Nutrition' && <OptionsNutrition />}
+        {currentPage === 'Suppliers' && <StorehubStockPage section="suppliers" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Stock Recipes' && <Inventory initialTab="recipes" pageTitle="Stock Recipes" pageSubtitle="Link menu items and options to inventory ingredients for automatic deduction." />}
         {currentPage === 'Inventory' && <Inventory />}
+        {currentPage === 'Supply Needs' && <StorehubStockPage section="supply_needs" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Stock Value' && <StorehubStockPage section="stock_value" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Purchase Orders' && <StorehubStockPage section="purchase_orders" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Stock Return' && <StorehubStockPage section="stock_return" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Stock Take' && <StorehubStockPage section="stock_take" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Stock Loss Report' && <StorehubStockPage section="stock_loss_report" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Stock Transfer' && <StorehubStockPage section="stock_transfer" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Audit Trail' && <StorehubStockPage section="audit_trail" onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Wastage Record' && <StorehubStockPage section="wastage_record" onNavigate={navigateWithPrompt} />}
         {currentPage === 'Marketing' && <Marketing setCurrentPage={navigateWithPrompt} />}
         {currentPage === 'Finance' && <Finance setCurrentPage={navigateWithPrompt} />}
         {currentPage === 'RevenueReport' && <RevenueReport onBack={() => navigateWithPrompt('Finance')} />}

@@ -1143,6 +1143,59 @@ class ApiService {
     value: bean,
     isAvailable: isAvailable,
   );
+
+  static Future<List<BaristaStockAlert>> fetchStockAlerts() async {
+    final workstationKey = await DirectPrinterService.instance.workstationKey();
+    final response = await _authenticatedRequest(
+      (headers) => http.get(
+        Uri.parse('$baseUrl/barista/inventory/alerts'),
+        headers: {...headers, 'x-c2-workstation-key': workstationKey},
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw StateError(_responseMessage(response));
+    }
+    final rows =
+        (json.decode(response.body) as Map<String, dynamic>)['alerts']
+            as List? ??
+        const [];
+    return rows
+        .map((row) => BaristaStockAlert.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<ApiRequestResult> respondToStockAlert({
+    required int alertId,
+    required String action,
+    List<int> menuItemIds = const [],
+    List<int> optionIds = const [],
+  }) async {
+    try {
+      final workstationKey = await DirectPrinterService.instance
+          .workstationKey();
+      final response = await _authenticatedRequest(
+        (headers) => http.post(
+          Uri.parse('$baseUrl/barista/inventory/alerts/$alertId/respond'),
+          headers: {...headers, 'x-c2-workstation-key': workstationKey},
+          body: json.encode({
+            'action': action,
+            'menu_item_ids': menuItemIds,
+            'option_ids': optionIds,
+          }),
+        ),
+      );
+      return response.statusCode == 200
+          ? ApiRequestResult.success(
+              json.decode(response.body) as Map<String, dynamic>,
+            )
+          : ApiRequestResult.failure(_responseMessage(response));
+    } catch (error) {
+      debugPrint('Stock alert response error: $error');
+      return const ApiRequestResult.failure(
+        'Unable to submit stock alert response.',
+      );
+    }
+  }
 }
 
 String _orderItemCountLabel(String customer, List<OrderItem> items) {
@@ -2008,5 +2061,103 @@ class BaristaMenuItemAvailability {
         imageUrl: json['image_url']?.toString(),
         allowChoiceOfBeans: readJsonBool(json['allow_choice_of_beans']),
         isAvailable: readJsonBool(json['is_available'], fallback: true),
+      );
+}
+
+
+class BaristaStockAlertMenuItem {
+  const BaristaStockAlertMenuItem({
+    required this.id,
+    required this.name,
+    required this.isAvailable,
+  });
+
+  final int id;
+  final String name;
+  final bool isAvailable;
+
+  factory BaristaStockAlertMenuItem.fromJson(Map<String, dynamic> json) =>
+      BaristaStockAlertMenuItem(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        name: json['name']?.toString() ?? 'Menu item',
+        isAvailable: readJsonBool(json['is_available'], fallback: true),
+      );
+}
+
+class BaristaStockAlertOption {
+  const BaristaStockAlertOption({
+    required this.id,
+    required this.groupName,
+    required this.optionName,
+    required this.isAvailable,
+  });
+
+  final int id;
+  final String groupName;
+  final String optionName;
+  final bool isAvailable;
+
+  factory BaristaStockAlertOption.fromJson(Map<String, dynamic> json) =>
+      BaristaStockAlertOption(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        groupName: json['group_name']?.toString() ?? 'Option',
+        optionName: json['option_name']?.toString() ?? 'Choice',
+        isAvailable: readJsonBool(json['is_available'], fallback: true),
+      );
+}
+
+class BaristaStockAlert {
+  const BaristaStockAlert({
+    required this.id,
+    required this.inventoryItemId,
+    required this.inventoryItemName,
+    required this.unitCode,
+    required this.alertLevel,
+    required this.availableQuantity,
+    required this.reorderLevel,
+    required this.affectedMenuItems,
+    required this.affectedOptions,
+  });
+
+  final int id;
+  final int inventoryItemId;
+  final String inventoryItemName;
+  final String unitCode;
+  final String alertLevel;
+  final String availableQuantity;
+  final String reorderLevel;
+  final List<BaristaStockAlertMenuItem> affectedMenuItems;
+  final List<BaristaStockAlertOption> affectedOptions;
+
+  String get unitLabel => unitCode == 'millilitre'
+      ? 'ml'
+      : unitCode == 'gram'
+      ? 'g'
+      : 'pcs';
+
+  factory BaristaStockAlert.fromJson(Map<String, dynamic> json) =>
+      BaristaStockAlert(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        inventoryItemId: (json['inventory_item_id'] as num?)?.toInt() ?? 0,
+        inventoryItemName:
+            json['inventory_item_name']?.toString() ?? 'Ingredient',
+        unitCode: json['unit_code']?.toString() ?? 'piece',
+        alertLevel: json['alert_level']?.toString() ?? 'low',
+        availableQuantity: json['available_quantity']?.toString() ?? '0',
+        reorderLevel: json['reorder_level']?.toString() ?? '0',
+        affectedMenuItems: (json['affected_menu_items'] as List? ?? const [])
+            .map(
+              (row) => BaristaStockAlertMenuItem.fromJson(
+                row as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
+        affectedOptions: (json['affected_options'] as List? ?? const [])
+            .map(
+              (row) => BaristaStockAlertOption.fromJson(
+                row as Map<String, dynamic>,
+              ),
+            )
+            .toList(),
       );
 }

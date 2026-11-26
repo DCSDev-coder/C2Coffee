@@ -44,6 +44,7 @@ import { registerAdminTenantStoreRoutes } from './http/routes/admin-tenants-stor
 import { registerAdminDataRetentionRoutes } from './http/routes/admin-data-retention.js';
 import { registerAdminInventoryRoutes } from './http/routes/admin-inventory.js';
 import { registerAdminInventoryOperationsRoutes } from './http/routes/admin-inventory-operations.js';
+import { registerAdminInventoryStorehubRoutes } from './http/routes/admin-inventory-storehub.js';
 import { registerBaristaInventoryRoutes } from './http/routes/barista-inventory.js';
 import { registerBaristaMenuAvailabilityRoutes } from './http/routes/barista-menu-availability.js';
 import { registerAdminMaintenanceRoutes } from './http/routes/admin-maintenance.js';
@@ -214,6 +215,7 @@ export async function buildApp() {
   await registerAdminDataRetentionRoutes(app);
   await registerAdminInventoryRoutes(app);
   await registerAdminInventoryOperationsRoutes(app);
+  await registerAdminInventoryStorehubRoutes(app);
   await registerBaristaInventoryRoutes(app);
   await registerBaristaMenuAvailabilityRoutes(app);
   await registerAdminMaintenanceRoutes(app);

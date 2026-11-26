@@ -41,10 +41,13 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isRefreshingOrders = false;
   bool _isRefreshingAccess = false;
   bool _isRefreshingSideWork = false;
+  bool _isRefreshingStockAlerts = false;
+  bool _stockAlertDialogOpen = false;
   bool _showHeaderMenu = false;
   bool _hasLoadedSideWork = false;
   final Set<int> _knownSideWorkTaskIds = <int>{};
   final Set<int> _alertedSideWorkTaskIds = <int>{};
+  final Set<int> _shownStockAlertIds = <int>{};
   final Set<String> _alertedOrderEvents = <String>{};
 
   @override
@@ -69,10 +72,64 @@ class _MainLayoutState extends State<MainLayout> {
       globalWorkstationAccess.value = access;
       BaristaSoundService.instance.configure(access.soundSettings);
       await _refreshSideWorkAlerts();
+      await _refreshStockAlerts();
     } catch (error) {
       debugPrint('Failed to refresh shift access: $error');
     } finally {
       _isRefreshingAccess = false;
+    }
+  }
+
+  Future<void> _refreshStockAlerts() async {
+    if (_isRefreshingStockAlerts || _stockAlertDialogOpen) return;
+    _isRefreshingStockAlerts = true;
+    try {
+      final alerts = await ApiService.fetchStockAlerts();
+      final nextAlert = alerts
+          .where((a) => !_shownStockAlertIds.contains(a.id))
+          .firstOrNull;
+      if (nextAlert == null || !mounted) return;
+      _shownStockAlertIds.add(nextAlert.id);
+      _stockAlertDialogOpen = true;
+      await BaristaSoundService.instance.play(BaristaSoundEvent.sideWork);
+      if (!mounted) {
+        _stockAlertDialogOpen = false;
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => _StockAlertDialog(
+          alert: nextAlert,
+          onSubmit: (action, menuItemIds, optionIds) async {
+            final res = await ApiService.respondToStockAlert(
+              alertId: nextAlert.id,
+              action: action,
+              menuItemIds: menuItemIds,
+              optionIds: optionIds,
+            );
+            if (!dialogContext.mounted) return;
+            Navigator.of(dialogContext).pop();
+            if (!mounted) return;
+            if (!res.isSuccess) {
+              TopNotice.error(context, res.errorMessage!);
+            } else {
+              TopNotice.info(
+                context,
+                action == 'mark_out_of_stock'
+                    ? 'Selected items marked out of stock.'
+                    : 'Items kept available.',
+              );
+            }
+          },
+        ),
+      );
+      _stockAlertDialogOpen = false;
+    } catch (error) {
+      _stockAlertDialogOpen = false;
+      debugPrint('Failed to refresh stock alerts: $error');
+    } finally {
+      _isRefreshingStockAlerts = false;
     }
   }
 
@@ -910,4 +967,165 @@ class _GateClockInSheetState extends State<_GateClockInSheet> {
       ),
     ),
   );
+}
+
+
+class _StockAlertDialog extends StatefulWidget {
+  const _StockAlertDialog({
+    required this.alert,
+    required this.onSubmit,
+  });
+
+  final BaristaStockAlert alert;
+  final Future<void> Function(
+    String action,
+    List<int> menuItemIds,
+    List<int> optionIds,
+  ) onSubmit;
+
+  @override
+  State<_StockAlertDialog> createState() => _StockAlertDialogState();
+}
+
+class _StockAlertDialogState extends State<_StockAlertDialog> {
+  late final Set<int> _selectedMenuItemIds;
+  late final Set<int> _selectedOptionIds;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMenuItemIds = widget.alert.affectedMenuItems
+        .where((item) => item.isAvailable)
+        .map((item) => item.id)
+        .toSet();
+    _selectedOptionIds = widget.alert.affectedOptions
+        .where((opt) => opt.isAvailable)
+        .map((opt) => opt.id)
+        .toSet();
+  }
+
+  Future<void> _handleAction(String action) async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    await widget.onSubmit(
+      action,
+      _selectedMenuItemIds.toList(),
+      _selectedOptionIds.toList(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEmpty = widget.alert.alertLevel == 'empty';
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            isEmpty ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
+            color: isEmpty ? Colors.red.shade700 : Colors.amber.shade800,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isEmpty ? 'Ingredient Out of Stock' : 'Low Stock Warning',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${widget.alert.inventoryItemName} has ${widget.alert.availableQuantity} ${widget.alert.unitLabel} available (alert level: ${widget.alert.reorderLevel} ${widget.alert.unitLabel}).',
+                style: const TextStyle(fontSize: 15, height: 1.4),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Nothing is turned off automatically. Choose whether to mark the affected menu items or options out of stock:',
+                style: TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+              if (widget.alert.affectedMenuItems.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                const Text(
+                  'Affected Menu Items',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                ...widget.alert.affectedMenuItems.map(
+                  (item) => CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: _selectedMenuItemIds.contains(item.id),
+                    title: Text(item.name),
+                    subtitle: item.isAvailable
+                        ? null
+                        : const Text('Already marked out of stock'),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selectedMenuItemIds.add(item.id);
+                        } else {
+                          _selectedMenuItemIds.remove(item.id);
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+              if (widget.alert.affectedOptions.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                const Text(
+                  'Affected Options',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                ...widget.alert.affectedOptions.map(
+                  (opt) => CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: _selectedOptionIds.contains(opt.id),
+                    title: Text('${opt.groupName}: ${opt.optionName}'),
+                    subtitle: opt.isAvailable
+                        ? null
+                        : const Text('Already marked out of stock'),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selectedOptionIds.add(opt.id);
+                        } else {
+                          _selectedOptionIds.remove(opt.id);
+                        }
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => _handleAction('keep_available'),
+          child: const Text('Keep available'),
+        ),
+        FilledButton(
+          onPressed: _submitting ||
+                  (_selectedMenuItemIds.isEmpty && _selectedOptionIds.isEmpty)
+              ? null
+              : () => _handleAction('mark_out_of_stock'),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF304A3A),
+          ),
+          child: Text(
+            _submitting ? 'Updating...' : 'Mark selected out of stock',
+          ),
+        ),
+      ],
+    );
+  }
 }

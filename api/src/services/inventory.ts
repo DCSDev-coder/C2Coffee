@@ -1,6 +1,7 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 import { ApiError } from '../http/errors.js';
+import { evaluateAndRaiseStockAlerts } from './inventory-alerts.js';
 
 type RequirementRow = RowDataPacket & {
   tenant_id: number;
@@ -120,9 +121,17 @@ async function lockAllocations(
 
 async function lockStock(
   connection: PoolConnection,
+  tenantId: number,
   storeId: number,
   inventoryItemId: number
 ): Promise<StockRow> {
+  // Ensure a stock row exists so unconfigured outlets never block checkout or
+  // collection; shortfalls are tracked negatively and surfaced via stock alerts.
+  await connection.execute(
+    `INSERT IGNORE INTO inventory_store_stocks (tenant_id, store_id, inventory_item_id)
+     VALUES (:tenantId, :storeId, :inventoryItemId)`,
+    { tenantId, storeId, inventoryItemId }
+  );
   const [rows] = await connection.query<StockRow[]>(
     `SELECT id, CAST(on_hand_quantity AS CHAR) AS on_hand_quantity,
             CAST(reserved_quantity AS CHAR) AS reserved_quantity,
@@ -157,23 +166,12 @@ export async function reserveInventoryForOrder(
   }
 
   const requirements = await loadRequirements(connection, orderId);
-  for (const requirement of requirements) {
-    const required = quantity(requirement.required_quantity);
-    if (required <= 0) continue;
-    const stock = await lockStock(connection, requirement.store_id, requirement.inventory_item_id);
-    const available = quantity(Number(stock.on_hand_quantity) - Number(stock.reserved_quantity));
-    if (available < required) {
-      throw new ApiError(
-        409,
-        'inventory_insufficient_stock',
-        `${requirement.item_name} does not have enough available stock for this order.`
-      );
-    }
-  }
+  const touchedByStore = new Map<string, { tenantId: number; storeId: number; itemIds: number[] }>();
 
   for (const requirement of requirements) {
     const required = quantity(requirement.required_quantity);
     if (required <= 0) continue;
+    await lockStock(connection, requirement.tenant_id, requirement.store_id, requirement.inventory_item_id);
     await connection.execute(
       `UPDATE inventory_store_stocks
           SET reserved_quantity = reserved_quantity + :required
@@ -200,6 +198,22 @@ export async function reserveInventoryForOrder(
         required
       }
     );
+    const key = `${requirement.tenant_id}:${requirement.store_id}`;
+    const bucket = touchedByStore.get(key) ?? {
+      tenantId: requirement.tenant_id,
+      storeId: requirement.store_id,
+      itemIds: []
+    };
+    bucket.itemIds.push(requirement.inventory_item_id);
+    touchedByStore.set(key, bucket);
+  }
+
+  for (const bucket of touchedByStore.values()) {
+    await evaluateAndRaiseStockAlerts(connection, {
+      tenantId: bucket.tenantId,
+      storeId: bucket.storeId,
+      inventoryItemIds: bucket.itemIds
+    });
   }
   return { reservedComponents: requirements.length };
 }
@@ -212,7 +226,7 @@ export async function releaseInventoryForOrder(
     (row) => row.status === 'reserved'
   );
   for (const allocation of allocations) {
-    await lockStock(connection, allocation.store_id, allocation.inventory_item_id);
+    await lockStock(connection, allocation.tenant_id, allocation.store_id, allocation.inventory_item_id);
     await connection.execute(
       `UPDATE inventory_store_stocks
           SET reserved_quantity = GREATEST(0, reserved_quantity - :amount)
@@ -229,6 +243,11 @@ export async function releaseInventoryForOrder(
         WHERE id = :allocationId AND status = 'reserved'`,
       { allocationId: allocation.id }
     );
+    await evaluateAndRaiseStockAlerts(connection, {
+      tenantId: allocation.tenant_id,
+      storeId: allocation.store_id,
+      inventoryItemIds: [allocation.inventory_item_id]
+    });
   }
   return { releasedComponents: allocations.length };
 }
@@ -242,11 +261,8 @@ export async function consumeInventoryForOrder(
   );
   for (const allocation of allocations) {
     const amount = quantity(allocation.quantity);
-    const stock = await lockStock(connection, allocation.store_id, allocation.inventory_item_id);
+    const stock = await lockStock(connection, allocation.tenant_id, allocation.store_id, allocation.inventory_item_id);
     const balanceAfter = quantity(Number(stock.on_hand_quantity) - amount);
-    if (balanceAfter < 0) {
-      throw new ApiError(409, 'inventory_balance_conflict', 'Reserved inventory is no longer available. Review the stock balance before collection.');
-    }
     await connection.execute(
       `UPDATE inventory_store_stocks
           SET on_hand_quantity = on_hand_quantity - :amount,
@@ -261,7 +277,7 @@ export async function consumeInventoryForOrder(
        VALUES
          (:tenantId, :storeId, :inventoryItemId, :orderId, 'consumption',
           :quantityChange, :unitCost, :totalCost, :balanceAfter,
-          'Consumed when order was collected.', UTC_TIMESTAMP())`,
+          :note, UTC_TIMESTAMP())`,
       {
         tenantId: allocation.tenant_id,
         storeId: allocation.store_id,
@@ -270,7 +286,10 @@ export async function consumeInventoryForOrder(
         quantityChange: -amount,
         unitCost: Number(stock.average_unit_cost_rm),
         totalCost: Math.round(amount * Number(stock.average_unit_cost_rm) * 100) / 100,
-        balanceAfter
+        balanceAfter,
+        note: balanceAfter < 0
+          ? 'Consumed when order was collected (stock shortfall recorded).'
+          : 'Consumed when order was collected.'
       }
     );
     await connection.execute(
@@ -279,6 +298,11 @@ export async function consumeInventoryForOrder(
         WHERE id = :allocationId AND status = 'reserved'`,
       { allocationId: allocation.id }
     );
+    await evaluateAndRaiseStockAlerts(connection, {
+      tenantId: allocation.tenant_id,
+      storeId: allocation.store_id,
+      inventoryItemIds: [allocation.inventory_item_id]
+    });
   }
   return { consumedComponents: allocations.length };
 }
@@ -292,7 +316,7 @@ export async function reverseInventoryForOrder(
   let releasedComponents = 0;
   for (const allocation of allocations) {
     if (allocation.status === 'reserved') {
-      await lockStock(connection, allocation.store_id, allocation.inventory_item_id);
+      await lockStock(connection, allocation.tenant_id, allocation.store_id, allocation.inventory_item_id);
       await connection.execute(
         `UPDATE inventory_store_stocks
             SET reserved_quantity = GREATEST(0, reserved_quantity - :amount)
@@ -309,12 +333,17 @@ export async function reverseInventoryForOrder(
           WHERE id = :allocationId AND status = 'reserved'`,
         { allocationId: allocation.id }
       );
+      await evaluateAndRaiseStockAlerts(connection, {
+        tenantId: allocation.tenant_id,
+        storeId: allocation.store_id,
+        inventoryItemIds: [allocation.inventory_item_id]
+      });
       releasedComponents += 1;
       continue;
     }
     if (allocation.status !== 'consumed') continue;
     const amount = quantity(allocation.quantity);
-    const stock = await lockStock(connection, allocation.store_id, allocation.inventory_item_id);
+    const stock = await lockStock(connection, allocation.tenant_id, allocation.store_id, allocation.inventory_item_id);
     const balanceAfter = quantity(Number(stock.on_hand_quantity) + amount);
     await connection.execute(
       `UPDATE inventory_store_stocks
@@ -344,6 +373,11 @@ export async function reverseInventoryForOrder(
         WHERE id = :allocationId AND status = 'consumed'`,
       { allocationId: allocation.id }
     );
+    await evaluateAndRaiseStockAlerts(connection, {
+      tenantId: allocation.tenant_id,
+      storeId: allocation.store_id,
+      inventoryItemIds: [allocation.inventory_item_id]
+    });
     reversedComponents += 1;
   }
   return { reversedComponents, releasedComponents };

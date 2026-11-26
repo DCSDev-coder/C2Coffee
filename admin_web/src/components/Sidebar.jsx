@@ -2,23 +2,46 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   LayoutDashboard, Users, ShoppingBag, Ticket, Coins, Crown, Package, Gift,
-  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap, Sparkles, X
+  Coffee, Megaphone, LineChart, UserCog, ClipboardList, Settings, LogOut, UserCheck, Printer, SlidersHorizontal, BookOpen, Share2, MapPin, Building2, MonitorSmartphone, DatabaseZap, Sparkles, X, ChevronDown, ChevronRight, Truck, Warehouse, ClipboardCheck, RotateCcw, AlertTriangle, ArrowRightLeft, Trash2, Link2
 } from 'lucide-react';
 
 import { canAccessAdminPage } from '../lib/adminPermissions';
 import { adminRequest } from '../lib/adminApi';
 
+const STOCK_MANAGEMENT_PAGES = new Set([
+  'Supply Needs',
+  'Stock Value',
+  'Purchase Orders',
+  'Stock Return',
+  'Stock Take',
+  'Stock Loss Report',
+  'Stock Transfer',
+  'Audit Trail',
+  'Wastage Record',
+]);
+
 const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, currentUser, mobileOpen, onClose }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [retentionDueCount, setRetentionDueCount] = useState(0);
+  const [stockOpen, setStockOpen] = useState(() => STOCK_MANAGEMENT_PAGES.has(currentPage));
   const menuItems = [
     { name: 'Barista Console', icon: Coffee, section: 'Daily work', hideOnMobile: true },
     { name: 'Dashboard', icon: LayoutDashboard, section: 'Daily work' },
     { name: 'Orders', icon: ShoppingBag, section: 'Daily work' },
     { name: 'Customers', icon: Users, section: 'Daily work' },
-    { name: 'Menu', icon: Coffee, section: 'Menu setup' },
-    { name: 'Options & Nutrition', icon: SlidersHorizontal, section: 'Menu setup' },
-    { name: 'Inventory', icon: Package, section: 'Menu setup' },
+    { name: 'Menu', icon: Coffee, section: 'Products' },
+    { name: 'Options & Nutrition', icon: SlidersHorizontal, section: 'Products' },
+    { name: 'Suppliers', icon: Truck, section: 'Products' },
+    { name: 'Stock Recipes', icon: Link2, section: 'Products' },
+    { name: 'Supply Needs', icon: Package, section: 'Stock Management' },
+    { name: 'Stock Value', icon: Warehouse, section: 'Stock Management' },
+    { name: 'Purchase Orders', icon: ShoppingBag, section: 'Stock Management' },
+    { name: 'Stock Return', icon: RotateCcw, section: 'Stock Management' },
+    { name: 'Stock Take', icon: ClipboardCheck, section: 'Stock Management' },
+    { name: 'Stock Loss Report', icon: AlertTriangle, section: 'Stock Management' },
+    { name: 'Stock Transfer', icon: ArrowRightLeft, section: 'Stock Management' },
+    { name: 'Audit Trail', icon: ClipboardList, section: 'Stock Management' },
+    { name: 'Wastage Record', icon: Trash2, section: 'Stock Management' },
     { name: 'Marketing', icon: Megaphone, section: 'Marketing & loyalty' },
     { name: 'Voucher', icon: Ticket, section: 'Marketing & loyalty' },
     { name: 'Gift Cards', icon: Gift, section: 'Marketing & loyalty' },
@@ -107,16 +130,29 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
             const Icon = item.icon;
             const isActive = currentPage ? currentPage === item.name : index === 0;
             const startsSection = index === 0 || visibleMenuItems[index - 1].section !== item.section;
+            const isStockSection = item.section === 'Stock Management';
             const sectionHasMobileItems = visibleMenuItems.some(
               (m) => m.section === item.section && !m.hideOnMobile
             );
             return (
               <React.Fragment key={item.name}>
                 {startsSection && (
-                  <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 ${index === 0 ? 'mb-1' : 'mb-1 mt-5'} ${sectionHasMobileItems ? '' : 'hidden md:block'}`}>
-                    {item.section}
-                  </p>
+                  isStockSection ? (
+                    <button
+                      type="button"
+                      onClick={() => setStockOpen((prev) => !prev)}
+                      className={`w-full flex items-center justify-between px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/60 hover:text-white cursor-pointer ${index === 0 ? 'mb-1' : 'mb-1 mt-5'} ${sectionHasMobileItems ? '' : 'hidden md:flex'}`}
+                    >
+                      <span>{item.section}</span>
+                      {stockOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    </button>
+                  ) : (
+                    <p className={`px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45 ${index === 0 ? 'mb-1' : 'mb-1 mt-5'} ${sectionHasMobileItems ? '' : 'hidden md:block'}`}>
+                      {item.section}
+                    </p>
+                  )
                 )}
+                {(!isStockSection || stockOpen || isActive) && (
                 <a
                   href="#"
                   onClick={(e) => {
@@ -144,7 +180,8 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
                   </span>
                 )}
               </a>
-            </React.Fragment>
+                )}
+              </React.Fragment>
           );
         })}
       </nav>

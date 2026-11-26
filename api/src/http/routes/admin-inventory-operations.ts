@@ -6,6 +6,7 @@ import { authenticateAdminRequest, requireAnyAdminRole } from '../../admin/guard
 import { mysqlPool } from '../../db/mysql.js';
 import { ApiError } from '../errors.js';
 import { loadRecipeAvailabilityIssues } from '../../services/inventory.js';
+import { evaluateAndRaiseStockAlerts } from '../../services/inventory-alerts.js';
 
 const id = z.coerce.number().int().positive();
 const quantity = z.coerce.number().positive().max(10_000_000);
@@ -174,6 +175,11 @@ async function addMovement(
       note: input.note || null
     }
   );
+  await evaluateAndRaiseStockAlerts(connection, {
+    tenantId: input.tenantId,
+    storeId: input.storeId,
+    inventoryItemIds: [input.itemId]
+  });
   return result.insertId;
 }
 
@@ -313,6 +319,11 @@ export async function registerAdminInventoryOperationsRoutes(app: FastifyInstanc
         { reorderLevel: payload.reorder_level, idealLevel: payload.ideal_stock_level, storeId: payload.store_id, itemId }
       );
       await audit(connection, request, 'inventory_levels_updated', 'inventory_item', itemId, payload);
+      await evaluateAndRaiseStockAlerts(connection, {
+        tenantId: request.adminAuth.tenantId,
+        storeId: payload.store_id,
+        inventoryItemIds: [itemId]
+      });
       await connection.commit();
       return { updated: true };
     } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
@@ -612,7 +623,11 @@ export async function registerAdminInventoryOperationsRoutes(app: FastifyInstanc
         const oldOnHand = Number(stock.on_hand_quantity);
         const balance = rounded(oldOnHand + stockIncrease);
         const stockUnitCost = Number(line.purchase_unit_cost_rm) / Number(line.stock_units_per_purchase_unit);
-        const averageCost = balance > 0 ? ((oldOnHand * Number(stock.average_unit_cost_rm)) + (stockIncrease * stockUnitCost)) / balance : stockUnitCost;
+        const positiveOldOnHand = Math.max(0, oldOnHand);
+        const positiveBalance = positiveOldOnHand + stockIncrease;
+        const averageCost = positiveBalance > 0
+          ? ((positiveOldOnHand * Number(stock.average_unit_cost_rm)) + (stockIncrease * stockUnitCost)) / positiveBalance
+          : stockUnitCost;
         await connection.execute('UPDATE inventory_store_stocks SET on_hand_quantity = :balance, average_unit_cost_rm = :averageCost WHERE id = :stockId', { balance, averageCost, stockId: stock.id });
         await connection.execute('UPDATE inventory_purchase_order_lines SET received_purchase_units = received_purchase_units + :received WHERE id = :lineId', { received: acceptedPurchaseUnits, lineId: receipt.line_id });
         await addMovement(connection, { tenantId: request.adminAuth.tenantId, storeId: order.store_id, itemId: line.inventory_item_id, type: 'purchase_receive', change: stockIncrease, balance, unitCost: stockUnitCost, note: `Received on ${receiptRef} against ${order.purchase_order_ref}.`, adminUserId: request.adminAuth.adminUserId });

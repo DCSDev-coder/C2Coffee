@@ -12,7 +12,6 @@ import {
 } from "../../services/store-availability.js";
 import { resolveBaristaShiftAccess } from "../../services/barista-shift-access.js";
 import { assertCustomerAccess, loadMaintenanceForUser } from "../../services/app-maintenance.js";
-import { loadRecipeAvailabilityIssues, summariseAvailability } from "../../services/inventory.js";
 import { autoReopenEmergencyClosures } from "../../services/outlet-emergency.js";
 import {
   normalizeCustomizationValue,
@@ -1146,14 +1145,11 @@ export async function loadCatalogMenu(storeId: number, priceChannel: 'mobile' | 
     );
   }
 
-  const stockStatus = summariseAvailability(
-    await loadRecipeAvailabilityIssues(mysqlPool, { storeId }),
-  );
+  // Inventory levels never auto-disable or auto-hide customer menu items.
+  // Baristas or admins explicitly control out-of-stock via store toggles.
   for (const category of categories.values()) {
     for (const item of category.items) {
-      item.availability_status = !item.is_available
-        ? "sold_out"
-        : (stockStatus.get(item.id) ?? "available");
+      item.availability_status = item.is_available ? "available" : "sold_out";
     }
   }
 

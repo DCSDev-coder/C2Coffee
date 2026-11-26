@@ -83,8 +83,8 @@ function SortableHeader({ label, columnKey, currentKey, direction, onSort, info,
   );
 }
 
-export default function Inventory() {
-  const [tab, setTab] = useState('stock');
+export default function Inventory({ initialTab = 'stock', forcedSection = null, pageTitle = null, pageSubtitle = null }) {
+  const [tab, setTab] = useState(initialTab);
   const [context, setContext] = useState({ stores: [], menu_items: [] });
   const [storeId, setStoreId] = useState('');
   const [items, setItems] = useState([]);
@@ -485,8 +485,8 @@ export default function Inventory() {
                 content="Manage physical ingredient and packaging stock, track store receipts, and link recipes for automated stock deduction on orders."
               />
             </div>
-            <h1 className="mt-1 text-3xl font-extrabold text-gray-900 tracking-tight">Inventory</h1>
-            <p className="mt-1.5 text-xs text-gray-500">Track stock purchases, link recipes to customer orders, and monitor outlet consumption.</p>
+            <h1 className="mt-1 text-3xl font-extrabold text-gray-900 tracking-tight">{pageTitle || 'Inventory'}</h1>
+            <p className="mt-1.5 text-xs text-gray-500">{pageSubtitle || 'Track stock purchases, link recipes to customer orders, and monitor outlet consumption.'}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -985,6 +985,7 @@ export default function Inventory() {
             onInventoryChanged={refreshAll}
             requestedAction={operationsAction}
             onActionHandled={() => setOperationsAction(null)}
+            forcedSection={forcedSection}
           />
         )}
 

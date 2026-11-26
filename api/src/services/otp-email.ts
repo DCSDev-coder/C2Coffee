@@ -309,3 +309,77 @@ export async function sendTopUpReceiptEmail(payload: TopUpReceiptEmailPayload): 
 
   return { messageId: info.messageId };
 }
+
+
+type StockAlertEmailPayload = {
+  to: string[];
+  storeName: string;
+  items: Array<{
+    name: string;
+    level: 'low' | 'empty';
+    available: string;
+    reorderLevel: string;
+    unitCode: string;
+  }>;
+};
+
+/** Send a digest email when one or more inventory items cross low/empty thresholds. */
+export async function sendStockAlertEmail(payload: StockAlertEmailPayload): Promise<{ messageId?: string }> {
+  const fromAddress = env.EMAIL_FROM_ADDRESS || env.EMAIL_SMTP_USER;
+  if (!fromAddress) {
+    throw new Error('EMAIL_FROM_ADDRESS is required for stock alert delivery.');
+  }
+  const unitLabels: Record<string, string> = { piece: 'pcs', gram: 'g', millilitre: 'ml' };
+  const subject = `Stock Alert (${payload.storeName}): ${payload.items.length} item${payload.items.length === 1 ? '' : 's'} need attention`;
+  const lines = payload.items.map((item) => {
+    const unit = unitLabels[item.unitCode] ?? item.unitCode;
+    const tag = item.level === 'empty' ? 'EMPTY' : 'LOW';
+    return `- [${tag}] ${item.name}: ${item.available} ${unit} available (alert level: ${item.reorderLevel} ${unit})`;
+  });
+  const text = [
+    'C2 Coffee & Candle — Stock Alert',
+    `Outlet: ${payload.storeName}`,
+    '',
+    ...lines,
+    '',
+    'Menu items are not automatically marked out of stock. Baristas and admins can review and toggle affected items manually.'
+  ].join('\n');
+
+  const rowsHtml = payload.items.map((item) => {
+    const unit = unitLabels[item.unitCode] ?? item.unitCode;
+    const badge = item.level === 'empty'
+      ? '<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:bold">EMPTY</span>'
+      : '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:bold">LOW</span>';
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">${escapeHtml(item.name)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">${badge}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">${escapeHtml(item.available)} ${escapeHtml(unit)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">${escapeHtml(item.reorderLevel)} ${escapeHtml(unit)}</td>
+    </tr>`;
+  }).join('');
+
+  const info = await getTransporter().sendMail({
+    from: `"${env.EMAIL_FROM_NAME}" <${fromAddress}>`,
+    to: payload.to.join(', '),
+    subject,
+    text,
+    html: `
+      <div style="max-width:640px;margin:auto;font-family:Arial,sans-serif;color:#1f2937;line-height:1.5">
+        <h1 style="font-size:22px;margin-bottom:4px">Stock Alert &mdash; ${escapeHtml(payload.storeName)}</h1>
+        <p style="margin-top:0;color:#4b5563">The following inventory items are low or empty. Menu items are never auto-disabled; baristas are prompted to confirm any out-of-stock toggles.</p>
+        <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px">
+          <thead>
+            <tr style="background:#f3f4f6;text-align:left">
+              <th style="padding:8px 10px">Item</th>
+              <th style="padding:8px 10px">Status</th>
+              <th style="padding:8px 10px">Available</th>
+              <th style="padding:8px 10px">Alert Level</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`
+  });
+
+  return { messageId: info.messageId };
+}
