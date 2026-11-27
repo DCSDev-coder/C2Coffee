@@ -196,3 +196,7 @@ graphify-out/
 C2Coffee-api-*.zip
 Administrator Windows PowerShell.txt
 **/scratch.ts
+# Machine-specific deployment settings and temporary review output
+/api/docker-compose.override.yml
+/release/stock-alerts-review/
+/BACKUP/
