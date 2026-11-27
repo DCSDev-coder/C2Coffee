@@ -41,6 +41,7 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().default(''),
   DB_NAME: z.string().min(1),
   DB_CONNECTION_LIMIT: z.coerce.number().int().positive().default(10),
+  DB_TLS_CA_FILE: z.string().trim().default(''),
   ACCESS_TOKEN_SECRET: z.string().min(32),
   REFRESH_TOKEN_SECRET: z.string().min(32),
   // Top-up stays fail-closed until a provider is approved and the gateway

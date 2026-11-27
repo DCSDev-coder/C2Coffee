@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import { env } from '../config/env.js';
+import { buildMysqlTlsOptions } from './mysql-tls.js';
 
 export const mysqlPool = mysql.createPool({
   host: env.DB_HOST,
@@ -10,6 +11,7 @@ export const mysqlPool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: env.DB_CONNECTION_LIMIT,
   namedPlaceholders: true,
+  ssl: buildMysqlTlsOptions(env.DB_HOST, env.DB_TLS_CA_FILE),
   timezone: 'Z',
   decimalNumbers: false
 });
