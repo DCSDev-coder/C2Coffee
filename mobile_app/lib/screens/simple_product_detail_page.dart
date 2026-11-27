@@ -65,7 +65,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
         );
     if (catalogItem == null) return _itemBasePrice.round();
     final baseTokenPrice = catalogItem.basePriceToken as int?;
-    if (baseTokenPrice != null && baseTokenPrice > 0) return baseTokenPrice;
+    if (baseTokenPrice != null && baseTokenPrice >= 0) return baseTokenPrice;
     return _itemBasePrice.round();
   }
 
@@ -396,6 +396,7 @@ class _SimpleProductDetailPageState extends State<SimpleProductDetailPage> {
                               imageAssetPath: null,
                               imageUrl: widget.item['image_url']?.toString(),
                               basePriceRm: _itemBasePrice,
+                              scheduledPriceId: (widget.item['scheduledPriceId'] as num?)?.toInt(),
                               tokenPrice: _tokenPrice,
                               quantity: quantity,
                               remarks: null,

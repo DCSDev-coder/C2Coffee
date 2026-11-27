@@ -1,0 +1,30 @@
+-- A schedule is scoped to one item and one outlet. Multiple rows can form a
+-- campaign; regular prices remain the fallback outside the configured window.
+CREATE TABLE mobile_price_schedules (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  tenant_id BIGINT UNSIGNED NOT NULL,
+  store_id BIGINT UNSIGNED NOT NULL,
+  menu_item_id BIGINT UNSIGNED NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  start_date DATE NULL,
+  end_date DATE NULL,
+  weekday_mask TINYINT UNSIGNED NOT NULL,
+  start_minute SMALLINT UNSIGNED NOT NULL,
+  end_minute SMALLINT UNSIGNED NOT NULL,
+  price_rm DECIMAL(12,2) NOT NULL,
+  price_tokens INT UNSIGNED NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 0,
+  created_by_admin_user_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_mobile_price_scope (tenant_id, store_id, menu_item_id, is_active),
+  CONSTRAINT fk_mobile_price_tenant FOREIGN KEY (tenant_id) REFERENCES admin_tenants(id),
+  CONSTRAINT fk_mobile_price_store FOREIGN KEY (store_id) REFERENCES stores(id),
+  CONSTRAINT fk_mobile_price_item FOREIGN KEY (menu_item_id) REFERENCES menu_items(id),
+  CONSTRAINT fk_mobile_price_creator FOREIGN KEY (created_by_admin_user_id) REFERENCES admin_users(id),
+  CONSTRAINT chk_mobile_price_days CHECK (weekday_mask BETWEEN 1 AND 127),
+  CONSTRAINT chk_mobile_price_minutes CHECK (start_minute < 1440 AND end_minute < 1440 AND start_minute <> end_minute),
+  CONSTRAINT chk_mobile_price_dates CHECK (start_date IS NULL OR end_date IS NULL OR start_date <= end_date),
+  CONSTRAINT chk_mobile_price_rm CHECK (price_rm >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

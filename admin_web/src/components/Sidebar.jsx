@@ -30,6 +30,7 @@ const Sidebar = ({ currentPage, setCurrentPage, onLogout, currentTenant, current
     { name: 'Orders', icon: ShoppingBag, section: 'Daily work' },
     { name: 'Customers', icon: Users, section: 'Daily work' },
     { name: 'Menu', icon: Coffee, section: 'Products' },
+    { name: 'Mobile Scheduled Prices', icon: Coffee, section: 'Products' },
     { name: 'Options & Nutrition', icon: SlidersHorizontal, section: 'Products' },
     { name: 'Suppliers', icon: Truck, section: 'Products' },
     { name: 'Stock Recipes', icon: Link2, section: 'Products' },

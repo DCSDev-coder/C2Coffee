@@ -46,6 +46,7 @@ class CartItem {
   final String? imageUrl;
   final double basePriceRm;
   final int tokenPrice;
+  final int? scheduledPriceId;
   final int quantity;
   final String? remarks;
   final String? displayDetails;
@@ -64,6 +65,7 @@ class CartItem {
     this.productKindName,
     required this.basePriceRm,
     required this.tokenPrice,
+    this.scheduledPriceId,
     required this.quantity,
     this.imageAssetPath,
     this.imageUrl,
@@ -99,6 +101,7 @@ class CartItem {
         productKindName == other.productKindName &&
         basePriceRm == other.basePriceRm &&
         tokenPrice == other.tokenPrice &&
+        scheduledPriceId == other.scheduledPriceId &&
         remarks == other.remarks &&
         displayDetails == other.displayDetails &&
         _sameModifiers(modifiers, other.modifiers);
@@ -126,6 +129,10 @@ class CartItem {
 
   CartItem copyWith({
     int? quantity,
+    double? basePriceRm,
+    int? tokenPrice,
+    int? scheduledPriceId,
+    bool clearScheduledPrice = false,
     String? remarks,
     bool clearRemarks = false,
     String? displayDetails,
@@ -144,8 +151,9 @@ class CartItem {
       productKindName: productKindName,
       imageAssetPath: imageAssetPath,
       imageUrl: imageUrl,
-      basePriceRm: basePriceRm,
-      tokenPrice: tokenPrice,
+      basePriceRm: basePriceRm ?? this.basePriceRm,
+      tokenPrice: tokenPrice ?? this.tokenPrice,
+      scheduledPriceId: clearScheduledPrice ? null : (scheduledPriceId ?? this.scheduledPriceId),
       quantity: quantity ?? this.quantity,
       remarks: clearRemarks ? null : (remarks ?? this.remarks),
       displayDetails: displayDetails ?? this.displayDetails,
@@ -157,6 +165,9 @@ class CartItem {
     return {
       'menu_item_id': menuItemId,
       'quantity': quantity,
+      'expected_base_price_rm': basePriceRm,
+      'expected_base_price_token': tokenPrice,
+      'expected_schedule_id': scheduledPriceId,
       'remarks': remarks,
       'modifiers': modifiers.map((modifier) => modifier.toApi()).toList(),
     };
@@ -178,6 +189,12 @@ class CartSnapshot {
 
   int get subtotalTokens =>
       items.fold(0, (sum, item) => sum + item.lineTotalTokens);
+
+  CartSnapshot get voucherEligible => CartSnapshot(
+        storeId: storeId,
+        storeName: storeName,
+        items: items.where((item) => item.scheduledPriceId == null).toList(),
+      );
 }
 
 class CartService extends ChangeNotifier {
@@ -242,6 +259,18 @@ class CartService extends ChangeNotifier {
     if (_items.isEmpty) {
       _storeId = null;
       _storeName = null;
+    }
+    notifyListeners();
+  }
+
+  void updateItemPrices(Map<int, ({double rm, int tokens, int? scheduleId})> prices) {
+    for (var index = 0; index < _items.length; index++) {
+      final price = prices[_items[index].menuItemId];
+      if (price == null) continue;
+      _items[index] = _items[index].copyWith(
+        basePriceRm: price.rm, tokenPrice: price.tokens,
+        scheduledPriceId: price.scheduleId, clearScheduledPrice: price.scheduleId == null,
+      );
     }
     notifyListeners();
   }

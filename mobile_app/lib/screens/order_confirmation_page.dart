@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/app_session_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/cart_service.dart';
+import '../services/catalog_api_service.dart';
 import '../services/checkout_api_service.dart';
 import '../services/customer_data_service.dart';
 import '../services/payment_security.dart';
@@ -1623,6 +1624,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
 
   int _calculateDiscountTokens(CartSnapshot snapshot) {
     if (_selectedVoucher == null) return 0;
+    snapshot = _voucherEligibleSnapshot(snapshot);
     final t = _selectedVoucher!.template;
     final subtotalTokens = snapshot.subtotalTokens;
     final subtotalRm = snapshot.subtotalRm;
@@ -1824,6 +1826,7 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
   double _calculateDiscountRm(CartSnapshot snapshot) {
     final voucher = _selectedVoucher;
     if (voucher == null) return 0;
+    snapshot = _voucherEligibleSnapshot(snapshot);
     final t = voucher.template;
     if (t.discountMode == 'fixed_rm') {
       return min(snapshot.subtotalRm, double.tryParse(t.discountValue) ?? 0);
@@ -1843,6 +1846,8 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
     }
     return 0;
   }
+
+  CartSnapshot _voucherEligibleSnapshot(CartSnapshot snapshot) => snapshot.voucherEligible;
 
   double _finalDirectCharge(CartSnapshot snapshot) {
     return max<double>(
@@ -2354,6 +2359,32 @@ class _OrderConfirmationPageState extends State<OrderConfirmationPage> {
           'Your session has expired. Please sign in again.',
           code: 'session_not_found',
         );
+      }
+
+      final categories = await CatalogApiService.instance.getMenu(
+        accessToken: accessToken, storeId: snapshot.storeId,
+      );
+      final menuItems = {for (final category in categories) for (final item in category.items) item.id: item};
+      final prices = <int, ({double rm, int tokens, int? scheduleId})>{};
+      var changed = false;
+      for (final item in snapshot.items) {
+        final latest = menuItems[item.menuItemId];
+        final rm = latest == null ? null : double.tryParse(latest.basePriceRm);
+        if (latest == null || !latest.isOrderable || rm == null) {
+          throw ApiException('An item is no longer available. Please review your cart.', code: 'menu_item_not_available');
+        }
+        prices[item.menuItemId] = (rm: rm, tokens: latest.basePriceToken, scheduleId: latest.scheduledPriceId);
+        if ((rm - item.basePriceRm).abs() > 0.001 || latest.basePriceToken != item.tokenPrice || latest.scheduledPriceId != item.scheduledPriceId) changed = true;
+      }
+      if (changed) {
+        if (!mounted) return;
+        _cart.updateItemPrices(prices);
+        setState(() {
+          _selectedVoucher = null;
+          _checkoutIdempotencyKey = null;
+          _checkoutError = 'Some item prices have changed. Please review your updated cart and select your voucher again before confirming payment.';
+        });
+        return;
       }
 
       if (!mounted) return;

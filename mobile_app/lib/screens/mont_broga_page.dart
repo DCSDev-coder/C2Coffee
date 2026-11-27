@@ -593,7 +593,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
         );
     if (catalogItem == null) return _itemBasePrice.round();
     final baseTokenPrice = catalogItem.basePriceToken as int?;
-    if (baseTokenPrice != null && baseTokenPrice > 0) return baseTokenPrice;
+    if (baseTokenPrice != null && baseTokenPrice >= 0) return baseTokenPrice;
     return _itemBasePrice.round();
   }
 
@@ -1811,6 +1811,7 @@ class _MontBrogaPageState extends State<MontBrogaPage> {
                               imageAssetPath: null,
                               imageUrl: widget.item['image_url']?.toString(),
                               basePriceRm: _itemBasePrice,
+                              scheduledPriceId: (widget.item['scheduledPriceId'] as num?)?.toInt(),
                               tokenPrice: _baseTokenPrice,
                               quantity: quantity,
                               remarks: remarksController.text.trim().isEmpty

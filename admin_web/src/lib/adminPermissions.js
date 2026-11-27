@@ -6,6 +6,7 @@ const PAGE_ROLES = {
   Refunds: [...ALL_ADMIN_WEB_ROLES, 'support_admin'],
   Customers: [...ALL_ADMIN_WEB_ROLES, 'support_admin'],
   Menu: [...ALL_ADMIN_WEB_ROLES],
+  'Mobile Scheduled Prices': [...ALL_ADMIN_WEB_ROLES],
   'Options & Nutrition': [...ALL_ADMIN_WEB_ROLES],
   Suppliers: [...ALL_ADMIN_WEB_ROLES],
   'Stock Recipes': [...ALL_ADMIN_WEB_ROLES],

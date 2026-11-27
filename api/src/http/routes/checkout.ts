@@ -34,6 +34,7 @@ import { assertCustomerAccess } from '../../services/app-maintenance.js';
 import { asChipPaymentMethods, loadTenantPaymentMethodSettings } from '../../services/payment-method-settings.js';
 import { consumeEmployeeAllowance, currentEmployeeAllowancePeriod } from '../../services/employee-token-allowance.js';
 import { allocateSubsidyEligibleDrinkTokens } from '../../services/subsidy-checkout-policy.js';
+import { loadScheduledMobilePrices, voucherEligibleTotals, scheduledPriceVoucherDiscount } from '../../services/scheduled-mobile-pricing.js';
 import {
   cancelPromotionalAddonForOrder,
   fulfilPromotionalAddonForOrder,
@@ -61,6 +62,9 @@ const createOrderSchema = z.object({
       z.object({
         menu_item_id: z.coerce.number().int().positive(),
         quantity: z.coerce.number().int().min(1).max(20),
+        expected_base_price_rm: z.coerce.number().min(0).optional(),
+        expected_base_price_token: z.coerce.number().int().min(0).optional(),
+        expected_schedule_id: z.coerce.number().int().positive().nullable().optional(),
         remarks: z.string().trim().max(500).nullish(),
         modifiers: z
           .array(
@@ -663,6 +667,8 @@ export async function registerCheckoutRoutes(
       );
 
       const itemsById = new Map(menuItems.map((item) => [item.id, item]));
+      const scheduledPrices = await loadScheduledMobilePrices(connection, payload.store_id, new Date());
+      const supportsScheduledPrices = payload.client_capabilities.includes('scheduled_mobile_prices_v1');
       const pickupSlot = new Date(Date.now() + store.pickup_lead_minutes * 60 * 1000);
       const isTokenCheckout = payload.payment_mode === 'token';
       const usesRestrictedCredit = payload.applied_voucher_id != null || Boolean(payload.gift_card_code?.trim());
@@ -681,6 +687,7 @@ export async function registerCheckoutRoutes(
         modifierTokens: number;
         baseCalories: number;
         modifierCalories: number;
+        specialPriceActive: boolean;
       }>;
       for (const item of payload.items) {
         const menuItem = itemsById.get(item.menu_item_id);
@@ -692,8 +699,19 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const basePriceRm = Number(menuItem.base_price_rm);
-        const tokenPrice = menuItem.base_price_token;
+        const scheduledPrice = scheduledPrices.get(menuItem.id);
+        if (scheduledPrice && !supportsScheduledPrices) {
+          throw new ApiError(409, 'app_update_required_for_scheduled_price', 'Update the C2 Coffee app to order items with a special price.');
+        }
+        const basePriceRm = scheduledPrice ? Number(scheduledPrice.priceRm) : Number(menuItem.base_price_rm);
+        const tokenPrice = scheduledPrice ? scheduledPrice.priceTokens : menuItem.base_price_token;
+        if (supportsScheduledPrices &&
+          (item.expected_base_price_rm == null || item.expected_base_price_token == null ||
+           Math.round(item.expected_base_price_rm * 100) !== Math.round(basePriceRm * 100) ||
+           item.expected_base_price_token !== tokenPrice ||
+           (item.expected_schedule_id ?? null) !== (scheduledPrice?.scheduleId ?? null))) {
+          throw new ApiError(409, 'mobile_price_changed', 'An item price has changed. Refresh your cart and review the total before ordering.');
+        }
         if (!Number.isInteger(tokenPrice) || tokenPrice < 0) {
           throw new ApiError(
             400,
@@ -746,7 +764,8 @@ export async function registerCheckoutRoutes(
           modifierRm,
           modifierTokens,
           baseCalories: menuItem.base_calories_kcal,
-          modifierCalories
+          modifierCalories,
+          specialPriceActive: scheduledPrice != null
         });
       }
 
@@ -912,11 +931,17 @@ export async function registerCheckoutRoutes(
           );
         }
 
-        const qualifyingUnits = collectMatchedUnits(promotionRule.qualifying_scope, normalizedItems);
-        const rewardUnits = collectMatchedUnits(promotionRule.reward_scope, normalizedItems);
+        const eligibleItems = normalizedItems.filter((item) => !item.specialPriceActive);
+        const qualifyingUnits = collectMatchedUnits(promotionRule.qualifying_scope, eligibleItems);
+        const rewardUnits = collectMatchedUnits(promotionRule.reward_scope, eligibleItems);
         const rewardOptionUnits = appliedVoucher.discount_mode === 'free_option'
-          ? collectMatchedOptionUnits(promotionRule.reward_scope, normalizedItems)
+          ? collectMatchedOptionUnits(promotionRule.reward_scope, eligibleItems)
           : [];
+        const eligibleTotals = voucherEligibleTotals(eligibleItems.map((item) => ({
+          specialPriceActive: false, quantity: item.payload.quantity, basePriceRm: item.basePriceRm,
+          modifierRm: item.modifierRm, tokenPrice: item.tokenPrice, modifierTokens: item.modifierTokens
+        })));
+        const hasSpecialPricedItems = eligibleItems.length !== normalizedItems.length;
 
         if (
           qualifyingUnits.length < promotionRule.qualifying_quantity ||
@@ -933,7 +958,7 @@ export async function registerCheckoutRoutes(
 
         if (appliedVoucher.min_spend_rm !== null) {
           const minSpend = Number(appliedVoucher.min_spend_rm);
-          if (!isNaN(minSpend) && minSpend > 0 && totalBeforeDiscountRm < minSpend) {
+          if (!isNaN(minSpend) && minSpend > 0 && eligibleTotals.rm < minSpend) {
             throw new ApiError(
               400,
               'voucher_min_spend_not_met',
@@ -963,28 +988,23 @@ export async function registerCheckoutRoutes(
           }
         }
 
-        if (appliedVoucher.discount_mode === 'fixed_rm') {
+        if (!hasSpecialPricedItems && appliedVoucher.discount_mode === 'fixed_rm') {
           discountRm = Math.min(totalBeforeDiscountRm, Number(appliedVoucher.discount_value));
-          if (isTokenCheckout) {
-            discountTokens = calculateTokenEquivalentDiscount(
-              totalBeforeDiscountRm,
-              tokenAmountCharged,
-              discountRm
-            );
-          }
+          if (isTokenCheckout) discountTokens = calculateTokenEquivalentDiscount(totalBeforeDiscountRm, tokenAmountCharged, discountRm);
+        } else if (!hasSpecialPricedItems && appliedVoucher.discount_mode === 'percent_rm') {
+          discountRm = Math.min(totalBeforeDiscountRm, totalBeforeDiscountRm * (Number(appliedVoucher.discount_value) / 100));
+          if (isTokenCheckout) discountTokens = calculateTokenEquivalentDiscount(totalBeforeDiscountRm, tokenAmountCharged, discountRm);
+        } else if (appliedVoucher.discount_mode === 'fixed_rm') {
+          const discount = scheduledPriceVoucherDiscount(eligibleTotals, 'fixed_rm', Number(appliedVoucher.discount_value), isTokenCheckout);
+          discountRm = discount.rm;
+          discountTokens = discount.tokens;
         } else if (appliedVoucher.discount_mode === 'percent_rm') {
-          const pct = Number(appliedVoucher.discount_value) / 100;
-          discountRm = Math.min(totalBeforeDiscountRm, totalBeforeDiscountRm * pct);
-          if (isTokenCheckout) {
-            discountTokens = calculateTokenEquivalentDiscount(
-              totalBeforeDiscountRm,
-              tokenAmountCharged,
-              discountRm
-            );
-          }
+          const discount = scheduledPriceVoucherDiscount(eligibleTotals, 'percent_rm', Number(appliedVoucher.discount_value), isTokenCheckout);
+          discountRm = discount.rm;
+          discountTokens = discount.tokens;
         } else if (appliedVoucher.discount_mode === 'fixed_token') {
           const tokenDiscountVal = appliedVoucher.token_value ?? Math.round(Number(appliedVoucher.discount_value));
-          discountTokens = Math.min(tokenAmountCharged, tokenDiscountVal);
+          discountTokens = Math.min(eligibleTotals.tokens, tokenDiscountVal);
         } else if (appliedVoucher.discount_mode === 'free_drink') {
           const rewardCounts = new Map<string, number>();
           for (const unit of rewardableUnits) {

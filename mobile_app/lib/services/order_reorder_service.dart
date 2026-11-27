@@ -90,9 +90,7 @@ class OrderReorderService {
           orderItem.modifiers,
         );
 
-        final currentTokenPrice = currentMenuItem.basePriceToken > 0
-            ? currentMenuItem.basePriceToken
-            : orderItem.tokenPrice ?? 0;
+        final currentTokenPrice = currentMenuItem.basePriceToken;
         final currentMenuMeta =
             menuItemMetaById[currentMenuItem.id] ?? const <String, String?>{};
 
@@ -114,6 +112,7 @@ class OrderReorderService {
                 double.tryParse(orderItem.basePriceRm) ??
                 0.0,
             tokenPrice: currentTokenPrice,
+            scheduledPriceId: currentMenuItem.scheduledPriceId,
             quantity: orderItem.quantity,
             remarks: null,
             displayDetails: null,

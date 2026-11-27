@@ -25,6 +25,7 @@ const ReferralProgram = lazy(() => import('./components/ReferralProgram'));
 const PromotionalAddons = lazy(() => import('./components/PromotionalAddons'));
 const LoyaltyTokens = lazy(() => import('./components/LoyaltyTokens'));
 const Menu = lazy(() => import('./components/Menu'));
+const MobilePriceSchedules = lazy(() => import('./components/MobilePriceSchedules'));
 const OptionsNutrition = lazy(() => import('./components/OptionsNutrition'));
 const Marketing = lazy(() => import('./components/Marketing'));
 const Finance = lazy(() => import('./components/Finance'));
@@ -189,6 +190,7 @@ function AppContent({
         {currentPage === 'C2 Credit Ledger' && <LoyaltyTokens onBack={() => navigateWithPrompt(prevPage || 'Dashboard')} onNavigate={navigateWithPrompt} />}
         {currentPage === 'Tier Management' && <TierManagement onBack={() => navigateWithPrompt('C2 Credit Ledger')} />}
         {currentPage === 'Menu' && <Menu onNavigate={navigateWithPrompt} />}
+        {currentPage === 'Mobile Scheduled Prices' && <MobilePriceSchedules />}
         {currentPage === 'Options & Nutrition' && <OptionsNutrition />}
         {currentPage === 'Suppliers' && <StorehubStockPage section="suppliers" onNavigate={navigateWithPrompt} />}
         {currentPage === 'Stock Recipes' && <Inventory initialTab="recipes" pageTitle="Stock Recipes" pageSubtitle="Link menu items and options to inventory ingredients for automatic deduction." />}

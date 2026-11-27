@@ -39,6 +39,7 @@ class CatalogPresentation {
       'basePriceRm': item.basePriceRm,
       'tokenPrice': item.basePriceToken,
       'basePriceToken': item.basePriceToken,
+      'scheduledPriceId': item.scheduledPriceId,
       // The menu advertises the price a customer pays with the selections
       // preselected by the customization screen, not only the item base.
       'displayPriceRm': startingPriceRm.toStringAsFixed(2),

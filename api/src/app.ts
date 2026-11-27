@@ -13,6 +13,7 @@ import { registerAuthRoutes } from './http/routes/auth.js';
 import { registerAssetRoutes } from './http/routes/assets.js';
 import { registerAdminAuthRoutes } from './http/routes/admin-auth.js';
 import { registerAdminMenuRoutes } from './http/routes/admin-menu.js';
+import { registerAdminMobilePriceRoutes } from './http/routes/admin-mobile-prices.js';
 import { registerAdminOptionLibraryRoutes } from './http/routes/admin-option-library.js';
 import { registerCatalogRoutes } from './http/routes/catalog.js';
 import { registerCheckoutRoutes } from './http/routes/checkout.js';
@@ -203,6 +204,7 @@ export async function buildApp() {
   await registerAdminReferralRoutes(app);
   await registerAdminCounterDeviceRoutes(app);
   await registerAdminMenuRoutes(app);
+  await registerAdminMobilePriceRoutes(app);
   await registerAdminOptionLibraryRoutes(app);
   await registerAdminAuditRoutes(app);
   await registerAdminMarketingRoutes(app);

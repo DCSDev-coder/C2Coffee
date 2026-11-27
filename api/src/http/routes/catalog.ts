@@ -13,6 +13,7 @@ import {
 import { resolveBaristaShiftAccess } from "../../services/barista-shift-access.js";
 import { assertCustomerAccess, loadMaintenanceForUser } from "../../services/app-maintenance.js";
 import { autoReopenEmergencyClosures } from "../../services/outlet-emergency.js";
+import { loadScheduledMobilePrices } from "../../services/scheduled-mobile-pricing.js";
 import {
   normalizeCustomizationValue,
   resolveCustomizationTypeForGroup,
@@ -20,6 +21,7 @@ import {
 
 const menuQuerySchema = z.object({
   store_id: z.coerce.number().int().positive(),
+  scheduled_prices: z.enum(['v1']).optional(),
 });
 
 type StoreRow = RowDataPacket & {
@@ -656,7 +658,7 @@ export async function registerCatalogRoutes(
 
   app.get("/v1/menu", { preHandler: authenticateRequest }, async (request, reply) => {
     await assertCustomerAccess(request.auth.userId);
-    const { store_id: storeId } = menuQuerySchema.parse(request.query);
+    const { store_id: storeId, scheduled_prices: scheduledPrices } = menuQuerySchema.parse(request.query);
 
     const stores = await listActiveStores(request.auth.userId);
     if (!stores.some((store) => store.id === storeId)) {
@@ -666,7 +668,20 @@ export async function registerCatalogRoutes(
     // Menu availability can be changed by the barista at any time. Do not
     // let an intermediary cache keep a stale customization or item state.
     reply.header("Cache-Control", "no-store");
-    return loadCatalogMenu(storeId);
+    const menu = await loadCatalogMenu(storeId);
+    if (scheduledPrices !== 'v1') return menu;
+    const prices = await loadScheduledMobilePrices(mysqlPool, storeId, new Date());
+    return {
+      ...menu,
+      categories: menu.categories.map((category) => ({
+        ...category,
+        items: category.items.map((item) => {
+          const scheduled = prices.get(item.id);
+          return scheduled ? { ...item, base_price_rm: scheduled.priceRm,
+            base_price_token: scheduled.priceTokens, scheduled_price_id: scheduled.scheduleId } : item;
+        }),
+      })),
+    };
   });
 
   app.post(

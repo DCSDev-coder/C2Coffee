@@ -179,7 +179,7 @@ class CheckoutApiService {
       'store_id': cart.storeId,
       'payment_mode': paymentMode,
       'items': cart.items.map((item) => item.toApi()).toList(),
-      'client_capabilities': const ['promotion_addons_v1'],
+      'client_capabilities': const ['promotion_addons_v1', 'scheduled_mobile_prices_v1'],
       'promotional_reward_declined': promotionalRewardDeclined,
     };
     if (paymentMethod != null) {

@@ -138,6 +138,7 @@ class CatalogMenuItem {
   final String? description;
   final String basePriceRm;
   final int basePriceToken;
+  final int? scheduledPriceId;
   final int baseCaloriesKcal;
   final String? imageUrl;
   final String? colorHex;
@@ -179,6 +180,7 @@ class CatalogMenuItem {
     required this.description,
     required this.basePriceRm,
     required this.basePriceToken,
+    this.scheduledPriceId,
     required this.baseCaloriesKcal,
     required this.imageUrl,
     required this.colorHex,
@@ -227,6 +229,7 @@ class CatalogMenuItem {
       description: json['description'] as String?,
       basePriceRm: json['base_price_rm'] as String? ?? '0.00',
       basePriceToken: (json['base_price_token'] as num?)?.toInt() ?? 0,
+      scheduledPriceId: (json['scheduled_price_id'] as num?)?.toInt(),
       baseCaloriesKcal: readCatalogInt(json['base_calories_kcal']),
       imageUrl: json['image_url'] as String?,
       colorHex: json['color_hex'] as String?,
@@ -873,7 +876,7 @@ class CatalogApiService {
     required int storeId,
   }) async {
     final response = await _get(
-      '/menu?store_id=$storeId',
+      '/menu?store_id=$storeId&scheduled_prices=v1',
       accessToken: accessToken,
     );
     final categories = (response['categories'] as List? ?? const [])

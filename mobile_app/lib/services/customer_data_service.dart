@@ -765,6 +765,7 @@ class RewardVoucherTemplate {
   }
 
   bool matchesCartSnapshot(CartSnapshot snapshot) {
+    snapshot = snapshot.voucherEligible;
     final promotionKind =
         (promotionRule['kind'] as String? ?? 'standard').trim();
     final qualifyingQty =
@@ -797,6 +798,7 @@ class RewardVoucherTemplate {
   }
 
   int freeItemTokenDiscount(CartSnapshot snapshot) {
+    snapshot = snapshot.voucherEligible;
     final promotionKind =
         (promotionRule['kind'] as String? ?? 'standard').trim();
     final qualifyingScope = _parseScopeMap(promotionRule['qualifying_scope']);
@@ -823,6 +825,7 @@ class RewardVoucherTemplate {
   }
 
   int freeOptionTokenDiscount(CartSnapshot snapshot) {
+    snapshot = snapshot.voucherEligible;
     final promotionKind =
         (promotionRule['kind'] as String? ?? 'standard').trim();
     final configuredRewardScope = _parseScopeMap(promotionRule['reward_scope']);
@@ -845,6 +848,7 @@ class RewardVoucherTemplate {
   }
 
   double freeOptionRmDiscount(CartSnapshot snapshot) {
+    snapshot = snapshot.voucherEligible;
     final rewardScope = _parseScopeMap(promotionRule['reward_scope']);
     final prices = <double>[];
     for (final item in snapshot.items) {
@@ -862,6 +866,7 @@ class RewardVoucherTemplate {
   }
 
   VoucherCartApplication describeCartApplication(CartSnapshot snapshot) {
+    snapshot = snapshot.voucherEligible;
     final itemTokenDiscounts = <String, int>{};
     final itemRmDiscounts = <String, double>{};
     final appliedItemNames = <String>[];
