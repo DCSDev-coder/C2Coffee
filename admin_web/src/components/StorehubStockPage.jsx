@@ -287,6 +287,7 @@ function StorehubDedicatedView({ section, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [data, setData] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [alertsModalOpen, setAlertsModalOpen] = useState(false);
   const [csvModalOpen, setCsvModalOpen] = useState(false);
 
@@ -294,6 +295,7 @@ function StorehubDedicatedView({ section, onNavigate }) {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const ctx = await adminRequest('/v1/admin/inventory/context');
       setStores(ctx.stores || []);
@@ -313,6 +315,7 @@ function StorehubDedicatedView({ section, onNavigate }) {
         setData(await adminRequest(`/v1/admin/inventory/audit-trail?store_id=${qStore}&search=${encodeURIComponent(search)}`));
       }
     } catch (err) {
+      setLoadFailed(true);
       showAdminError(err.message || `Could not load ${meta.title}.`);
     } finally {
       setLoading(false);
@@ -415,6 +418,8 @@ function StorehubDedicatedView({ section, onNavigate }) {
         <section className="mt-5 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xs">
           {loading ? (
             <div className="p-12 text-center text-xs font-semibold text-gray-500">Loading {meta.title.toLowerCase()}...</div>
+          ) : loadFailed ? (
+            <div role="alert" className="p-12 text-center text-xs font-semibold text-red-700">Could not load {meta.title.toLowerCase()}. Please try Refresh.</div>
           ) : section === 'supply_needs' ? (
             (() => {
               const rows = (data?.items || []).filter((r) => !q || `${r.name} ${r.store_name} ${r.category}`.toLowerCase().includes(q));

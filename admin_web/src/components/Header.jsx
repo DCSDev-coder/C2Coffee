@@ -7,6 +7,7 @@ import UserAvatar from './UserAvatar';
 const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpenMenu }) => {
   const displayName = currentUser?.full_name || currentUser?.username || 'Admin';
   const [alerts, setAlerts] = useState([]);
+  const [alertsUnavailable, setAlertsUnavailable] = useState(null);
   const [open, setOpen] = useState(false);
   const canSeeStockAlerts = canAccessAdminPage(currentUser?.roles, 'Supply Needs');
 
@@ -16,10 +17,13 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpe
     const loadAlerts = () => {
       adminRequest('/v1/admin/inventory/alerts')
         .then((res) => {
-          if (active) setAlerts(Array.isArray(res?.alerts) ? res.alerts : []);
+          if (active) {
+            setAlerts(Array.isArray(res?.alerts) ? res.alerts : []);
+            setAlertsUnavailable(false);
+          }
         })
         .catch(() => {
-          // Non-blocking header poll
+          if (active) setAlertsUnavailable(true);
         });
     };
     loadAlerts();
@@ -66,7 +70,7 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpe
               title="Stock alerts"
             >
               <Bell size={19} />
-              {unacknowledgedCount > 0 && (
+              {alertsUnavailable === false && unacknowledgedCount > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
                   {unacknowledgedCount > 99 ? '99+' : unacknowledgedCount}
                 </span>
@@ -75,7 +79,7 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpe
             {open && (
               <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-gray-200 bg-white p-4 shadow-xl z-50">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
-                  <p className="text-xs font-extrabold uppercase tracking-wider text-gray-900">Stock Alerts ({alerts.length})</p>
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-gray-900">Stock Alerts{alertsUnavailable === false ? ` (${alerts.length})` : ''}</p>
                   <button
                     type="button"
                     onClick={() => {
@@ -87,7 +91,11 @@ const Header = ({ setCurrentPage, currentPage, currentTenant, currentUser, onOpe
                     View Supply Needs
                   </button>
                 </div>
-                {alerts.length === 0 ? (
+                {alertsUnavailable === null ? (
+                  <p className="py-6 text-center text-xs text-gray-500" role="status">Loading stock alerts…</p>
+                ) : alertsUnavailable ? (
+                  <p className="py-6 text-center text-xs text-amber-700" role="status">Stock alerts are unavailable. Check your connection or contact an administrator.</p>
+                ) : alerts.length === 0 ? (
                   <p className="py-6 text-center text-xs text-gray-500">All inventory levels are healthy.</p>
                 ) : (
                   <div className="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
