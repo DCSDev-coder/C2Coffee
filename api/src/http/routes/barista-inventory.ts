@@ -102,6 +102,7 @@ export async function registerBaristaInventoryRoutes(app: FastifyInstance): Prom
 
   app.get('/v1/barista/inventory/alerts', { preHandler: authenticateAdminRequest }, async (request) => {
     requireBaristaInventoryAccess(request);
+    const { view } = z.object({ view: z.enum(['pending', 'open']).default('pending') }).parse(request.query);
     const storeId = await resolveAttendanceStoreId(request);
     const tenantId = request.adminAuth.tenantId;
 
@@ -109,22 +110,22 @@ export async function registerBaristaInventoryRoutes(app: FastifyInstance): Prom
       'SELECT barista_popup_enabled FROM inventory_alert_settings WHERE tenant_id = :tenantId LIMIT 1',
       { tenantId }
     );
-    if (settingsRows[0] && Number(settingsRows[0].barista_popup_enabled) === 0) {
+    if (view === 'pending' && settingsRows[0] && Number(settingsRows[0].barista_popup_enabled) === 0) {
       return { store_id: storeId, alerts: [] };
     }
 
     const [alerts] = await mysqlPool.query<RowDataPacket[]>(
       `SELECT a.id, a.inventory_item_id, ii.name AS inventory_item_name, ii.unit_code,
-              a.alert_level,
+              a.alert_level, a.barista_action,
               CAST(a.available_quantity_snapshot AS CHAR) AS available_quantity,
               CAST(a.reorder_level_snapshot AS CHAR) AS reorder_level,
               a.created_at
          FROM inventory_stock_alerts a
          JOIN inventory_items ii ON ii.id = a.inventory_item_id
         WHERE a.tenant_id = :tenantId AND a.store_id = :storeId
-          AND a.status = 'open' AND a.barista_action = 'pending'
+          AND a.status = 'open' AND (:includeAll = 1 OR a.barista_action = 'pending')
         ORDER BY FIELD(a.alert_level, 'empty', 'low'), a.created_at ASC`,
-      { tenantId, storeId }
+      { tenantId, storeId, includeAll: view === 'open' ? 1 : 0 }
     );
 
     const enriched = [];
@@ -182,6 +183,7 @@ export async function registerBaristaInventoryRoutes(app: FastifyInstance): Prom
         inventory_item_name: String(alert.inventory_item_name),
         unit_code: String(alert.unit_code),
         alert_level: String(alert.alert_level),
+        barista_action: String(alert.barista_action),
         available_quantity: String(alert.available_quantity),
         reorder_level: String(alert.reorder_level),
         created_at: alert.created_at,

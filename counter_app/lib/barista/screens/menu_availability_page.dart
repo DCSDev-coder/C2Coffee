@@ -3,15 +3,23 @@ import '../services/api_service.dart';
 import '../../widgets/top_notice.dart';
 import '../widgets/barista_page_header.dart';
 import '../widgets/barista_card.dart';
+import '../widgets/stock_alert_indicator.dart';
 
 class MenuAvailabilityPage extends StatefulWidget {
-  const MenuAvailabilityPage({super.key});
+  const MenuAvailabilityPage({super.key, this.stockAlerts = const []});
+
+  final List<BaristaStockAlert> stockAlerts;
 
   @override
   State<MenuAvailabilityPage> createState() => _MenuAvailabilityPageState();
 }
 
 class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
+  List<BaristaStockAlert> _alertsForItem(int id) =>
+      stockAlertsForMenuItem(widget.stockAlerts, id);
+
+  List<BaristaStockAlert> _alertsForOption(String type, String value) =>
+      stockAlertsForOption(widget.stockAlerts, type, value);
   BaristaMenuAvailabilityResult? _data;
   bool _loading = true;
   String _searchQuery = '';
@@ -621,6 +629,7 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
 
   Widget _buildOptionTile(String type, BaristaCustomizationOption option) {
     final isInStock = option.isAvailable;
+    final alerts = _alertsForOption(type, option.value);
 
     Color accentColor;
     IconData optionIcon;
@@ -671,16 +680,26 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        option.name,
-                        style: const TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF203E32),
+                      child: GestureDetector(
+                        onLongPress: alerts.isEmpty
+                            ? null
+                            : () => StockAlertIndicator.showDetails(
+                                context,
+                                option.name,
+                                alerts,
+                              ),
+                        child: Text(
+                          option.name,
+                          style: const TextStyle(
+                            fontFamily: 'Afacad',
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF203E32),
+                          ),
                         ),
                       ),
                     ),
+                    StockAlertIndicator(name: option.name, alerts: alerts),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -752,6 +771,7 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
         final isWide = constraints.maxWidth >= 600;
         final cards = beans.map((bean) {
           final isInStock = bean.isAvailable;
+          final alerts = _alertsForOption('bean', bean.value);
           return BaristaCard(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -781,14 +801,27 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              bean.name,
-                              style: const TextStyle(
-                                fontFamily: 'Afacad',
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF203E32),
+                            GestureDetector(
+                              onLongPress: alerts.isEmpty
+                                  ? null
+                                  : () => StockAlertIndicator.showDetails(
+                                      context,
+                                      bean.name,
+                                      alerts,
+                                    ),
+                              child: Text(
+                                bean.name,
+                                style: const TextStyle(
+                                  fontFamily: 'Afacad',
+                                  fontSize: 16.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF203E32),
+                                ),
                               ),
+                            ),
+                            StockAlertIndicator(
+                              name: bean.name,
+                              alerts: alerts,
                             ),
                             const SizedBox(width: 8),
                             Container(
@@ -989,120 +1022,139 @@ class _MenuAvailabilityPageState extends State<MenuAvailabilityPage> {
     BaristaMenuItemAvailability item,
   ) {
     final isAvailable = item.isAvailable;
+    final alerts = _alertsForItem(item.id);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          // Icon / Image
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFF203E32).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onLongPress: alerts.isEmpty
+            ? null
+            : () => StockAlertIndicator.showDetails(context, item.name, alerts),
+        child: Row(
+          children: [
+            // Icon / Image
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF203E32).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                item.allowChoiceOfBeans
+                    ? Icons.local_cafe_rounded
+                    : Icons.restaurant_rounded,
+                color: const Color(0xFF203E32),
+                size: 22,
+              ),
             ),
-            child: Icon(
-              item.allowChoiceOfBeans
-                  ? Icons.local_cafe_rounded
-                  : Icons.restaurant_rounded,
-              color: const Color(0xFF203E32),
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 14),
+            const SizedBox(width: 14),
 
-          // Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        item.name,
-                        style: TextStyle(
-                          fontFamily: 'Afacad',
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isAvailable
-                              ? const Color(0xFF203E32)
-                              : const Color(0xFF203E32).withValues(alpha: 0.5),
-                        ),
-                      ),
-                    ),
-                    if (item.allowChoiceOfBeans) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 1.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF993300,
-                          ).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Coffee Beans',
-                          style: TextStyle(
-                            fontFamily: 'Afacad',
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF993300),
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: GestureDetector(
+                          onLongPress: alerts.isEmpty
+                              ? null
+                              : () => StockAlertIndicator.showDetails(
+                                  context,
+                                  item.name,
+                                  alerts,
+                                ),
+                          child: Text(
+                            item.name,
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: isAvailable
+                                  ? const Color(0xFF203E32)
+                                  : const Color(
+                                      0xFF203E32,
+                                    ).withValues(alpha: 0.5),
+                            ),
                           ),
                         ),
                       ),
+                      StockAlertIndicator(name: item.name, alerts: alerts),
+                      if (item.allowChoiceOfBeans) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF993300,
+                            ).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Coffee Beans',
+                            style: TextStyle(
+                              fontFamily: 'Afacad',
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF993300),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${category.name}  •  RM ${double.tryParse(item.basePriceRm)?.toStringAsFixed(2) ?? item.basePriceRm}',
-                  style: TextStyle(
-                    fontFamily: 'Afacad',
-                    fontSize: 13,
-                    color: const Color(0xFF203E32).withValues(alpha: 0.55),
-                    fontWeight: FontWeight.w500,
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // Status Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-            decoration: BoxDecoration(
-              color: isAvailable
-                  ? const Color(0xFF203E32).withValues(alpha: 0.08)
-                  : const Color(0xFFC2410C).withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              isAvailable ? 'Available' : 'Sold Out',
-              style: TextStyle(
-                fontFamily: 'Afacad',
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: isAvailable
-                    ? const Color(0xFF203E32)
-                    : const Color(0xFFC2410C),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${category.name}  •  RM ${double.tryParse(item.basePriceRm)?.toStringAsFixed(2) ?? item.basePriceRm}',
+                    style: TextStyle(
+                      fontFamily: 'Afacad',
+                      fontSize: 13,
+                      color: const Color(0xFF203E32).withValues(alpha: 0.55),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 12),
 
-          // Switch
-          Switch(
-            value: isAvailable,
-            activeThumbColor: const Color(0xFF203E32),
-            activeTrackColor: const Color(0xFF203E32).withValues(alpha: 0.4),
-            onChanged: (val) => _toggleItem(item, val),
-          ),
-        ],
+            // Status Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+              decoration: BoxDecoration(
+                color: isAvailable
+                    ? const Color(0xFF203E32).withValues(alpha: 0.08)
+                    : const Color(0xFFC2410C).withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                isAvailable ? 'Available' : 'Sold Out',
+                style: TextStyle(
+                  fontFamily: 'Afacad',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isAvailable
+                      ? const Color(0xFF203E32)
+                      : const Color(0xFFC2410C),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Switch
+            Switch(
+              value: isAvailable,
+              activeThumbColor: const Color(0xFF203E32),
+              activeTrackColor: const Color(0xFF203E32).withValues(alpha: 0.4),
+              onChanged: (val) => _toggleItem(item, val),
+            ),
+          ],
+        ),
       ),
     );
   }

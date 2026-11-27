@@ -154,7 +154,7 @@ export async function authenticateAdminRequest(
   }
 }
 
-function enforceBaristaRouteAccess(request: FastifyRequest): void {
+export function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const roles = request.adminAuth.roles;
   const hasBroaderAdminRole = roles.some((role) => role !== 'barista');
   if (!roles.includes('barista') || hasBroaderAdminRole) {
@@ -172,6 +172,9 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
   const canReviewCancellationRequest =
     request.method === 'PATCH' &&
     /^\/v1\/admin\/orders\/[^/]+\/cancellation-request$/.test(path);
+  const canRequestCancellation =
+    request.method === 'POST' &&
+    /^\/v1\/barista\/orders\/[^/]+\/cancellation-request$/.test(path);
   const canCancelCounterOrder =
     request.method === 'POST' &&
     /^\/v1\/barista\/orders\/[^/]+\/cancel$/.test(path);
@@ -192,6 +195,8 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
       path === '/v1/barista/outlet/emergency-reopen');
   const canUseBaristaInventory =
     (request.method === 'GET' && path === '/v1/barista/inventory') ||
+    (request.method === 'GET' && path === '/v1/barista/inventory/alerts') ||
+    (request.method === 'POST' && /^\/v1\/barista\/inventory\/alerts\/\d+\/respond$/.test(path)) ||
     (request.method === 'POST' && path === '/v1/barista/inventory/movements');
   const canUseBaristaMenuAvailability =
     (request.method === 'GET' && path === '/v1/barista/menu/availability') ||
@@ -232,6 +237,7 @@ function enforceBaristaRouteAccess(request: FastifyRequest): void {
     !canReadBaristaRoster &&
     !canUpdateOrderStatus &&
     !canReviewCancellationRequest &&
+    !canRequestCancellation &&
     !canCancelCounterOrder &&
     !canConfirmCounterPayment &&
     !canReadOperationalContext &&

@@ -1144,11 +1144,15 @@ class ApiService {
     isAvailable: isAvailable,
   );
 
-  static Future<List<BaristaStockAlert>> fetchStockAlerts() async {
+  static Future<List<BaristaStockAlert>> fetchStockAlerts({
+    bool includeResponded = false,
+  }) async {
     final workstationKey = await DirectPrinterService.instance.workstationKey();
     final response = await _authenticatedRequest(
       (headers) => http.get(
-        Uri.parse('$baseUrl/barista/inventory/alerts'),
+        Uri.parse(
+          '$baseUrl/barista/inventory/alerts${includeResponded ? '?view=open' : ''}',
+        ),
         headers: {...headers, 'x-c2-workstation-key': workstationKey},
       ),
     );
@@ -2064,7 +2068,6 @@ class BaristaMenuItemAvailability {
       );
 }
 
-
 class BaristaStockAlertMenuItem {
   const BaristaStockAlertMenuItem({
     required this.id,
@@ -2090,12 +2093,16 @@ class BaristaStockAlertOption {
     required this.groupName,
     required this.optionName,
     required this.isAvailable,
+    this.customizationType = '',
+    this.customizationValue = '',
   });
 
   final int id;
   final String groupName;
   final String optionName;
   final bool isAvailable;
+  final String customizationType;
+  final String customizationValue;
 
   factory BaristaStockAlertOption.fromJson(Map<String, dynamic> json) =>
       BaristaStockAlertOption(
@@ -2103,6 +2110,8 @@ class BaristaStockAlertOption {
         groupName: json['group_name']?.toString() ?? 'Option',
         optionName: json['option_name']?.toString() ?? 'Choice',
         isAvailable: readJsonBool(json['is_available'], fallback: true),
+        customizationType: json['customization_type']?.toString() ?? '',
+        customizationValue: json['customization_value']?.toString() ?? '',
       );
 }
 
@@ -2113,6 +2122,7 @@ class BaristaStockAlert {
     required this.inventoryItemName,
     required this.unitCode,
     required this.alertLevel,
+    required this.baristaAction,
     required this.availableQuantity,
     required this.reorderLevel,
     required this.affectedMenuItems,
@@ -2124,6 +2134,7 @@ class BaristaStockAlert {
   final String inventoryItemName;
   final String unitCode;
   final String alertLevel;
+  final String baristaAction;
   final String availableQuantity;
   final String reorderLevel;
   final List<BaristaStockAlertMenuItem> affectedMenuItems;
@@ -2135,29 +2146,28 @@ class BaristaStockAlert {
       ? 'g'
       : 'pcs';
 
-  factory BaristaStockAlert.fromJson(Map<String, dynamic> json) =>
-      BaristaStockAlert(
-        id: (json['id'] as num?)?.toInt() ?? 0,
-        inventoryItemId: (json['inventory_item_id'] as num?)?.toInt() ?? 0,
-        inventoryItemName:
-            json['inventory_item_name']?.toString() ?? 'Ingredient',
-        unitCode: json['unit_code']?.toString() ?? 'piece',
-        alertLevel: json['alert_level']?.toString() ?? 'low',
-        availableQuantity: json['available_quantity']?.toString() ?? '0',
-        reorderLevel: json['reorder_level']?.toString() ?? '0',
-        affectedMenuItems: (json['affected_menu_items'] as List? ?? const [])
-            .map(
-              (row) => BaristaStockAlertMenuItem.fromJson(
-                row as Map<String, dynamic>,
-              ),
-            )
-            .toList(),
-        affectedOptions: (json['affected_options'] as List? ?? const [])
-            .map(
-              (row) => BaristaStockAlertOption.fromJson(
-                row as Map<String, dynamic>,
-              ),
-            )
-            .toList(),
-      );
+  factory BaristaStockAlert.fromJson(
+    Map<String, dynamic> json,
+  ) => BaristaStockAlert(
+    id: (json['id'] as num?)?.toInt() ?? 0,
+    inventoryItemId: (json['inventory_item_id'] as num?)?.toInt() ?? 0,
+    inventoryItemName: json['inventory_item_name']?.toString() ?? 'Ingredient',
+    unitCode: json['unit_code']?.toString() ?? 'piece',
+    alertLevel: json['alert_level']?.toString() ?? 'low',
+    baristaAction: json['barista_action']?.toString() ?? 'pending',
+    availableQuantity: json['available_quantity']?.toString() ?? '0',
+    reorderLevel: json['reorder_level']?.toString() ?? '0',
+    affectedMenuItems: (json['affected_menu_items'] as List? ?? const [])
+        .map(
+          (row) =>
+              BaristaStockAlertMenuItem.fromJson(row as Map<String, dynamic>),
+        )
+        .toList(),
+    affectedOptions: (json['affected_options'] as List? ?? const [])
+        .map(
+          (row) =>
+              BaristaStockAlertOption.fromJson(row as Map<String, dynamic>),
+        )
+        .toList(),
+  );
 }

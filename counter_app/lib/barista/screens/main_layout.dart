@@ -17,6 +17,7 @@ import '../services/push_notification_service.dart';
 import '../services/barista_sound_service.dart';
 import '../widgets/blinking_online_indicator.dart';
 import '../widgets/order_card.dart';
+import '../widgets/stock_alert_dialogs.dart';
 import '../main.dart';
 
 class MainLayout extends StatefulWidget {
@@ -43,6 +44,7 @@ class _MainLayoutState extends State<MainLayout> {
   bool _isRefreshingSideWork = false;
   bool _isRefreshingStockAlerts = false;
   bool _stockAlertDialogOpen = false;
+  List<BaristaStockAlert> _openStockAlerts = [];
   bool _showHeaderMenu = false;
   bool _hasLoadedSideWork = false;
   final Set<int> _knownSideWorkTaskIds = <int>{};
@@ -84,36 +86,59 @@ class _MainLayoutState extends State<MainLayout> {
     if (_isRefreshingStockAlerts || _stockAlertDialogOpen) return;
     _isRefreshingStockAlerts = true;
     try {
+      final openAlerts = await ApiService.fetchStockAlerts(
+        includeResponded: true,
+      );
+      if (!mounted) return;
+      setState(() => _openStockAlerts = openAlerts);
       final alerts = await ApiService.fetchStockAlerts();
       final nextAlert = alerts
           .where((a) => !_shownStockAlertIds.contains(a.id))
           .firstOrNull;
       if (nextAlert == null || !mounted) return;
       _shownStockAlertIds.add(nextAlert.id);
-      _stockAlertDialogOpen = true;
       await BaristaSoundService.instance.play(BaristaSoundEvent.sideWork);
       if (!mounted) {
         _stockAlertDialogOpen = false;
         return;
       }
+      await _showStockAlert(nextAlert);
+    } catch (error) {
+      _stockAlertDialogOpen = false;
+      debugPrint('Failed to refresh stock alerts: $error');
+    } finally {
+      _isRefreshingStockAlerts = false;
+    }
+  }
+
+  Future<void> _showStockAlert(BaristaStockAlert alert) async {
+    if (!mounted || _stockAlertDialogOpen) return;
+    _stockAlertDialogOpen = true;
+    try {
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (dialogContext) => _StockAlertDialog(
-          alert: nextAlert,
+        builder: (dialogContext) => StockAlertActionDialog(
+          alert: alert,
           onSubmit: (action, menuItemIds, optionIds) async {
             final res = await ApiService.respondToStockAlert(
-              alertId: nextAlert.id,
+              alertId: alert.id,
               action: action,
               menuItemIds: menuItemIds,
               optionIds: optionIds,
             );
             if (!dialogContext.mounted) return;
-            Navigator.of(dialogContext).pop();
-            if (!mounted) return;
             if (!res.isSuccess) {
-              TopNotice.error(context, res.errorMessage!);
+              _shownStockAlertIds.remove(alert.id);
+              if (mounted) {
+                TopNotice.error(
+                  context,
+                  res.errorMessage ?? 'Unable to update stock alert.',
+                );
+              }
             } else {
+              Navigator.of(dialogContext).pop();
+              if (!mounted) return;
               TopNotice.info(
                 context,
                 action == 'mark_out_of_stock'
@@ -124,12 +149,39 @@ class _MainLayoutState extends State<MainLayout> {
           },
         ),
       );
+    } finally {
       _stockAlertDialogOpen = false;
+    }
+  }
+
+  Future<void> _openStockAlertList() async {
+    if (_stockAlertDialogOpen || _isRefreshingStockAlerts) return;
+    _stockAlertDialogOpen = true;
+    try {
+      final alerts = await ApiService.fetchStockAlerts(includeResponded: true);
+      if (!mounted) {
+        _stockAlertDialogOpen = false;
+        return;
+      }
+      setState(() => _openStockAlerts = alerts);
+      final selected = await showDialog<BaristaStockAlert>(
+        context: context,
+        builder: (context) => StockAlertListDialog(alerts: alerts),
+      );
+      _stockAlertDialogOpen = false;
+      if (selected != null) {
+        _shownStockAlertIds.add(selected.id);
+        await _showStockAlert(selected);
+      }
+      await _refreshStockAlerts();
     } catch (error) {
       _stockAlertDialogOpen = false;
-      debugPrint('Failed to refresh stock alerts: $error');
-    } finally {
-      _isRefreshingStockAlerts = false;
+      if (mounted) {
+        TopNotice.error(
+          context,
+          'Unable to load stock alerts. Please try again.',
+        );
+      }
     }
   }
 
@@ -381,7 +433,7 @@ class _MainLayoutState extends State<MainLayout> {
               children: [
                 CurrentOrderPage(onSettingsTap: () => _onTabSelected(7)),
                 OrderHistoryPage(onSettingsTap: () => _onTabSelected(7)),
-                const MenuAvailabilityPage(),
+                MenuAvailabilityPage(stockAlerts: _openStockAlerts),
                 const MarketingDrinkPage(),
                 const InventoryPage(),
                 const TimetablePage(),
@@ -393,6 +445,8 @@ class _MainLayoutState extends State<MainLayout> {
           _WorkspaceHeader(
             currentIndex: _currentIndex,
             onTabSelected: _onTabSelected,
+            stockAlertCount: _openStockAlerts.length,
+            onStockAlerts: _openStockAlertList,
             menuOpen: _showHeaderMenu,
             onMenuToggle: () =>
                 setState(() => _showHeaderMenu = !_showHeaderMenu),
@@ -425,12 +479,16 @@ class _WorkspaceHeader extends StatelessWidget {
     required this.onTabSelected,
     required this.menuOpen,
     required this.onMenuToggle,
+    required this.stockAlertCount,
+    required this.onStockAlerts,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
   final bool menuOpen;
   final VoidCallback onMenuToggle;
+  final int stockAlertCount;
+  final VoidCallback onStockAlerts;
 
   @override
   Widget build(BuildContext context) => Positioned(
@@ -473,6 +531,8 @@ class _WorkspaceHeader extends StatelessWidget {
                       child: _HeaderNavBar(
                         currentIndex: currentIndex,
                         onTabSelected: onTabSelected,
+                        stockAlertCount: stockAlertCount,
+                        onStockAlerts: onStockAlerts,
                       ),
                     ),
                   ),
@@ -516,10 +576,14 @@ class _HeaderNavBar extends StatelessWidget {
   const _HeaderNavBar({
     required this.currentIndex,
     required this.onTabSelected,
+    required this.stockAlertCount,
+    required this.onStockAlerts,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTabSelected;
+  final int stockAlertCount;
+  final VoidCallback onStockAlerts;
 
   static const _coreNavItems = [
     (
@@ -547,7 +611,20 @@ class _HeaderNavBar extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [..._buildItems(_coreNavItems)],
+        children: [
+          ..._buildItems(_coreNavItems),
+          TextButton.icon(
+            onPressed: onStockAlerts,
+            icon: Icon(
+              Icons.notifications_outlined,
+              color: stockAlertCount > 0 ? Colors.redAccent : Colors.white70,
+            ),
+            label: Text(
+              'Stock alerts${stockAlertCount > 0 ? ' ($stockAlertCount)' : ''}',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -606,6 +683,16 @@ class _HeaderNavBar extends StatelessWidget {
                       letterSpacing: 0.2,
                     ),
                   ),
+                  if (pageIndex == 2 && stockAlertCount > 0)
+                    Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE53935),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   if (pageIndex == 0 || pageIndex == 6) ...[
                     ValueListenableBuilder<List<CurrentOrder>>(
                       valueListenable: globalCurrentOrders,
@@ -967,165 +1054,4 @@ class _GateClockInSheetState extends State<_GateClockInSheet> {
       ),
     ),
   );
-}
-
-
-class _StockAlertDialog extends StatefulWidget {
-  const _StockAlertDialog({
-    required this.alert,
-    required this.onSubmit,
-  });
-
-  final BaristaStockAlert alert;
-  final Future<void> Function(
-    String action,
-    List<int> menuItemIds,
-    List<int> optionIds,
-  ) onSubmit;
-
-  @override
-  State<_StockAlertDialog> createState() => _StockAlertDialogState();
-}
-
-class _StockAlertDialogState extends State<_StockAlertDialog> {
-  late final Set<int> _selectedMenuItemIds;
-  late final Set<int> _selectedOptionIds;
-  bool _submitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedMenuItemIds = widget.alert.affectedMenuItems
-        .where((item) => item.isAvailable)
-        .map((item) => item.id)
-        .toSet();
-    _selectedOptionIds = widget.alert.affectedOptions
-        .where((opt) => opt.isAvailable)
-        .map((opt) => opt.id)
-        .toSet();
-  }
-
-  Future<void> _handleAction(String action) async {
-    if (_submitting) return;
-    setState(() => _submitting = true);
-    await widget.onSubmit(
-      action,
-      _selectedMenuItemIds.toList(),
-      _selectedOptionIds.toList(),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isEmpty = widget.alert.alertLevel == 'empty';
-    return AlertDialog(
-      title: Row(
-        children: [
-          Icon(
-            isEmpty ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
-            color: isEmpty ? Colors.red.shade700 : Colors.amber.shade800,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              isEmpty ? 'Ingredient Out of Stock' : 'Low Stock Warning',
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: 460,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${widget.alert.inventoryItemName} has ${widget.alert.availableQuantity} ${widget.alert.unitLabel} available (alert level: ${widget.alert.reorderLevel} ${widget.alert.unitLabel}).',
-                style: const TextStyle(fontSize: 15, height: 1.4),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Nothing is turned off automatically. Choose whether to mark the affected menu items or options out of stock:',
-                style: TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-              if (widget.alert.affectedMenuItems.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                const Text(
-                  'Affected Menu Items',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-                ...widget.alert.affectedMenuItems.map(
-                  (item) => CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    value: _selectedMenuItemIds.contains(item.id),
-                    title: Text(item.name),
-                    subtitle: item.isAvailable
-                        ? null
-                        : const Text('Already marked out of stock'),
-                    onChanged: (checked) {
-                      setState(() {
-                        if (checked == true) {
-                          _selectedMenuItemIds.add(item.id);
-                        } else {
-                          _selectedMenuItemIds.remove(item.id);
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
-              if (widget.alert.affectedOptions.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                const Text(
-                  'Affected Options',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-                ...widget.alert.affectedOptions.map(
-                  (opt) => CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    value: _selectedOptionIds.contains(opt.id),
-                    title: Text('${opt.groupName}: ${opt.optionName}'),
-                    subtitle: opt.isAvailable
-                        ? null
-                        : const Text('Already marked out of stock'),
-                    onChanged: (checked) {
-                      setState(() {
-                        if (checked == true) {
-                          _selectedOptionIds.add(opt.id);
-                        } else {
-                          _selectedOptionIds.remove(opt.id);
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => _handleAction('keep_available'),
-          child: const Text('Keep available'),
-        ),
-        FilledButton(
-          onPressed: _submitting ||
-                  (_selectedMenuItemIds.isEmpty && _selectedOptionIds.isEmpty)
-              ? null
-              : () => _handleAction('mark_out_of_stock'),
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF304A3A),
-          ),
-          child: Text(
-            _submitting ? 'Updating...' : 'Mark selected out of stock',
-          ),
-        ),
-      ],
-    );
-  }
 }

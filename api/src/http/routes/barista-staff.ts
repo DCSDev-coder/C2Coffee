@@ -610,6 +610,14 @@ export async function registerBaristaStaffRoutes(app: FastifyInstance) {
       if (!order) throw new ApiError(404, 'order_not_found', 'Order was not found.');
       const workstationStoreId = await resolveAttendanceStoreId(request);
       if (Number(order.store_id) !== workstationStoreId) throw new ApiError(403, 'store_access_denied', 'This order belongs to another outlet.');
+      if (request.adminAuth.roles.includes('barista')) {
+        const access = await resolveBaristaShiftAccess(connection, {
+          tenantId: request.adminAuth.tenantId,
+          tenantCode: request.adminAuth.tenantCode,
+          storeId: workstationStoreId
+        });
+        if (!access.can_prepare_orders) throw new ApiError(409, 'shift_access_locked', access.message);
+      }
       if (!['paid', 'accepted'].includes(String(order.status))) {
         throw new ApiError(409, 'order_not_cancellable', 'This order is no longer waiting for preparation.');
       }
